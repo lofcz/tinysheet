@@ -5,7 +5,7 @@ import {
   getRegStr,
   locale,
   updateMoreCell,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import _ from "lodash";
 import React, {
   useContext,

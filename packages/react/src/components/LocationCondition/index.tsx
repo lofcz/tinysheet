@@ -4,7 +4,7 @@ import {
   getOptionValue,
   getSelectRange,
   locale,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import produce from "immer";
 import _ from "lodash";
 import React, { useContext, useState, useCallback } from "react";

@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { updateCell, addSheet, locale } from "@prospera-sheet/core";
+import { updateCell, addSheet, locale } from "@lofcz/prospera-sheet-core";
 // @ts-ignore
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";

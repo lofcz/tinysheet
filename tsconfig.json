@@ -15,8 +15,8 @@
     "lib": ["es5", "dom"],
     "baseUrl": "./",
     "paths": {
-      "@prospera-sheet/core": ["packages/core/src"],
-      "@prospera-sheet/react": ["packages/react/src"]
+      "@lofcz/prospera-sheet-core": ["packages/core/src"],
+      "@lofcz/prospera-sheet-react": ["packages/react/src"]
     }
   },
   "include": ["packages/*/src", "stories/"],

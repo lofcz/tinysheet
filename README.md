@@ -7,8 +7,8 @@
 <div align="center">
 
 [![xiemala](https://img.shields.io/badge/maintained%20by-corbe30-cc00ff.svg)](https://corbe30.github.io)
-<a href="http://npmjs.com/package/@prospera-sheet/react" alt="ProsperaSheet on npm">
-<img src="https://img.shields.io/npm/v/@prospera-sheet/react" /></a> <a href="http://npmjs.com/package/@prospera-sheet/react" alt="prospera-sheet downloads">
+<a href="http://npmjs.com/package/@lofcz/prospera-sheet-react" alt="ProsperaSheet on npm">
+<img src="https://img.shields.io/npm/v/@lofcz/prospera-sheet-react" /></a> <a href="http://npmjs.com/package/@lofcz/prospera-sheet-react" alt="prospera-sheet downloads">
 <img src="https://img.shields.io/npm/d18m/%40prospera-sheet%2Freact" /></a>
 
 </div>
@@ -47,7 +47,7 @@ Moreover, due to its access limitations and new changes to [npm token expiration
 <summary>Using npm</summary>
 
 ```shell
-npm install @prospera-sheet/react
+npm install @lofcz/prospera-sheet-react
 ```
 </details>
 
@@ -55,7 +55,7 @@ npm install @prospera-sheet/react
 <summary>Using pnpm</summary>
 
 ```shell
-pnpm install @prospera-sheet/react
+pnpm install @lofcz/prospera-sheet-react
 ```
 </details>
 
@@ -63,7 +63,7 @@ pnpm install @prospera-sheet/react
 <summary>Using yarn</summary>
 
 ```shell
-yarn add @prospera-sheet/react
+yarn add @lofcz/prospera-sheet-react
 ```
 </details>
 
@@ -85,8 +85,8 @@ yarn add @prospera-sheet/react
 ```js
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { Workbook } from "@prospera-sheet/react";
-import "@prospera-sheet/react/dist/index.css"
+import { Workbook } from "@lofcz/prospera-sheet-react";
+import "@lofcz/prospera-sheet-react/dist/index.css"
 
 ReactDOM.render(
   <Workbook data={[{ name: "Sheet1" }]} />,

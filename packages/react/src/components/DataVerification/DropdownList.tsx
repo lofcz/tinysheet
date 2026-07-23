@@ -5,7 +5,7 @@ import {
   getSheetIndex,
   mergeBorder,
   setDropcownValue,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import React, {
   useCallback,
   useContext,

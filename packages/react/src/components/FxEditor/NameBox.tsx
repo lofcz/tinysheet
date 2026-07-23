@@ -1,6 +1,6 @@
 import React, { useContext, useMemo } from "react";
 import _ from "lodash";
-import { getRangetxt } from "@prospera-sheet/core";
+import { getRangetxt } from "@lofcz/prospera-sheet-core";
 import WorkbookContext from "../../context";
 
 const LocationBox: React.FC = () => {

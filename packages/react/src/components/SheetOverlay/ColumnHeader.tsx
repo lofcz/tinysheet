@@ -12,7 +12,7 @@ import {
   handleColFreezeHandleMouseDown,
   getSheetIndex,
   fixPositionOnFrozenCells,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import _ from "lodash";
 import React, {
   useContext,

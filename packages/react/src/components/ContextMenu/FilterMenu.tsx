@@ -9,7 +9,7 @@ import {
   FilterDate,
   FilterColor,
   Context,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import React, {
   useCallback,
   useContext,

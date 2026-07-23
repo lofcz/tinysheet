@@ -17,7 +17,7 @@ import {
   isLinkValid,
   normalizeSelection,
   onRangeSelectionModalMoveStart,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import "./index.css";
 import _ from "lodash";
 import WorkbookContext from "../../context";

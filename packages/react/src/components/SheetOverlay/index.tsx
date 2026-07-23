@@ -34,7 +34,7 @@ import {
   fixColumnStyleOverflowInFreeze,
   handleKeydownForZoom,
   api,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import _ from "lodash";
 import WorkbookContext, { SetContextOptions } from "../../context";
 import ColumnHeader from "./ColumnHeader";

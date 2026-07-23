@@ -21,7 +21,7 @@ import {
   calcSelectionInfo,
   groupValuesRefresh,
   setFormulaCellInfoMap,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import React, {
   useMemo,
   useState,
@@ -129,16 +129,31 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       [..._.values(props)]
     );
 
-    // 计算选区的信息
+    // Keep hooks on a ref so selection / settings effects do not re-subscribe
+    // (or re-run the heavy sheet init) when the parent passes a new hooks
+    // object identity with the same callbacks.
+    const hooksRef = useRef(mergedSettings.hooks);
+    hooksRef.current = mergedSettings.hooks;
+
+    // Selection aggregates — expensive (scans every selected cell) and triggers
+    // an extra Workbook re-render via setCalInfo. Skip entirely when hidden;
+    // otherwise debounce so drag-select stays responsive.
     useEffect(() => {
+      if (!mergedSettings.showStatsBar) return undefined;
       const selection = context.luckysheet_select_save;
-      const { lang } = props;
-      if (selection) {
-        const re = calcSelectionInfo(context, lang);
-        setCalInfo(re);
-      }
+      if (!selection) return undefined;
+      const { lang } = mergedSettings;
+      const handle = window.setTimeout(() => {
+        setCalInfo(calcSelectionInfo(context, lang));
+      }, 120);
+      return () => window.clearTimeout(handle);
+      // context is read for the selection-bound snapshot at schedule time
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [context.luckysheet_select_save]);
+    }, [
+      context.luckysheet_select_save,
+      mergedSettings.showStatsBar,
+      mergedSettings.lang,
+    ]);
 
     const initSheetData = useCallback(
       (
@@ -414,16 +429,23 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
 
     useEffect(() => {
       if (context.luckysheet_select_save != null) {
-        mergedSettings.hooks?.afterSelectionChange?.(
+        hooksRef.current?.afterSelectionChange?.(
           context.currentSheetId,
           context.luckysheet_select_save[0]
         );
       }
-    }, [
-      context.currentSheetId,
-      context.luckysheet_select_save,
-      mergedSettings.hooks,
-    ]);
+    }, [context.currentSheetId, context.luckysheet_select_save]);
+
+    // Sync hooks onto context without re-running the full sheet-init effect.
+    useEffect(() => {
+      setContextWithProduce(
+        (draftCtx) => {
+          if (draftCtx.hooks === hooksRef.current) return;
+          draftCtx.hooks = hooksRef.current;
+        },
+        { noHistory: true }
+      );
+    }, [mergedSettings.hooks, setContextWithProduce]);
 
     const providerValue = useMemo(
       () => ({
@@ -477,7 +499,8 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           }
           draftCtx.lang = mergedSettings.lang;
           draftCtx.allowEdit = mergedSettings.allowEdit;
-          draftCtx.hooks = mergedSettings.hooks;
+          // hooks synced in a dedicated effect — avoid re-init on hooks identity churn
+          draftCtx.hooks = hooksRef.current;
           // draftCtx.fontList = mergedSettings.fontList;
           if (_.isEmpty(draftCtx.currentSheetId)) {
             initSheetIndex(draftCtx);
@@ -592,7 +615,6 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       mergedSettings.devicePixelRatio,
       mergedSettings.lang,
       mergedSettings.allowEdit,
-      mergedSettings.hooks,
       mergedSettings.generateSheetId,
       setContextWithProduce,
       initSheetData,
@@ -814,35 +836,37 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
                 className="fortune-popover-backdrop"
               />
             )}
-            <div className="fortune-stat-area">
-              <div className="luckysheet-sheet-selection-calInfo">
-                {!!calInfo.count && (
-                  <div style={{ width: "60px" }}>
-                    {formula.count}: {calInfo.count}
-                  </div>
-                )}
-                {!!calInfo.numberC && !!calInfo.sum && (
-                  <div>
-                    {formula.sum}: {calInfo.sum}
-                  </div>
-                )}
-                {!!calInfo.numberC && !!calInfo.average && (
-                  <div>
-                    {formula.average}: {calInfo.average}
-                  </div>
-                )}
-                {!!calInfo.numberC && !!calInfo.max && (
-                  <div>
-                    {formula.max}: {calInfo.max}
-                  </div>
-                )}
-                {!!calInfo.numberC && !!calInfo.min && (
-                  <div>
-                    {formula.min}: {calInfo.min}
-                  </div>
-                )}
+            {mergedSettings.showStatsBar && (
+              <div className="fortune-stat-area">
+                <div className="luckysheet-sheet-selection-calInfo">
+                  {!!calInfo.count && (
+                    <div style={{ width: "60px" }}>
+                      {formula.count}: {calInfo.count}
+                    </div>
+                  )}
+                  {!!calInfo.numberC && !!calInfo.sum && (
+                    <div>
+                      {formula.sum}: {calInfo.sum}
+                    </div>
+                  )}
+                  {!!calInfo.numberC && !!calInfo.average && (
+                    <div>
+                      {formula.average}: {calInfo.average}
+                    </div>
+                  )}
+                  {!!calInfo.numberC && !!calInfo.max && (
+                    <div>
+                      {formula.max}: {calInfo.max}
+                    </div>
+                  )}
+                  {!!calInfo.numberC && !!calInfo.min && (
+                    <div>
+                      {formula.min}: {calInfo.min}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </ModalProvider>
       </WorkbookContext.Provider>

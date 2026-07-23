@@ -1,4 +1,4 @@
-import { Sheet, api } from "@prospera-sheet/core";
+import { Sheet, api } from "@lofcz/prospera-sheet-core";
 import React, { CSSProperties, useCallback, useContext } from "react";
 import SVGIcon from "../SVGIcon";
 import WorkbookContext from "../../context";

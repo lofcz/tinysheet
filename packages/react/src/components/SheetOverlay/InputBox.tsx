@@ -16,7 +16,7 @@ import {
   escapeHTMLTag,
   isAllowEdit,
   getrangeseleciton,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import React, {
   useContext,
   useEffect,

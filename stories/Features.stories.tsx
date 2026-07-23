@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { Meta, StoryFn } from "@storybook/react";
-import { Sheet } from "@prospera-sheet/core";
-import { Workbook } from "@prospera-sheet/react";
+import { Sheet } from "@lofcz/prospera-sheet-core";
+import { Workbook } from "@lofcz/prospera-sheet-react";
 import cell from "./data/cell";
 import formula from "./data/formula";
 import empty from "./data/empty";

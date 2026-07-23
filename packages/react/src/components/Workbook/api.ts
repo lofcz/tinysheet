@@ -18,7 +18,7 @@ import {
   Sheet,
   CellMatrix,
   CellWithRowAndCol,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import { applyPatches } from "immer";
 import _ from "lodash";
 import { SetContextOptions } from "../../context";

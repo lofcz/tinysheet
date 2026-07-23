@@ -2,7 +2,7 @@ import {
   Sheet,
   cancelNormalSelected,
   cancelActiveImgItem,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import React, { useContext, useEffect, useRef } from "react";
 import WorkbookContext from "../../context";
 import "./index.css";

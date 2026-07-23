@@ -1,5 +1,5 @@
 import _ from "lodash";
-import { onImageMoveStart, onImageResizeStart } from "@prospera-sheet/core";
+import { onImageMoveStart, onImageResizeStart } from "@lofcz/prospera-sheet-core";
 import React, { useContext, useMemo } from "react";
 import WorkbookContext from "../../context";
 

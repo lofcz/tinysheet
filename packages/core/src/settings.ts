@@ -130,6 +130,13 @@ export type Settings = {
   showToolbar?: boolean;
   showFormulaBar?: boolean;
   showSheetTabs?: boolean;
+  /**
+   * Bottom status-bar selection aggregates (count / sum / avg / …).
+   * When false, skips `calcSelectionInfo` on every selection change —
+   * important for drag performance in read-only / embedded previews.
+   * @default true
+   */
+  showStatsBar?: boolean;
   data: Sheet[];
   config?: any;
   devicePixelRatio?: number;
@@ -165,6 +172,7 @@ export const defaultSettings: Required<Settings> = {
   showToolbar: true, // 是否显示工具栏
   showFormulaBar: true, // 是否显示公式栏
   showSheetTabs: true, // 是否显示底部表格名称区域
+  showStatsBar: true, // 是否显示底部选区统计（关闭可显著降低拖拽选区时的开销）
   data: [], // 客户端sheet数据[sheet1, sheet2, sheet3]
   config: {}, // 表格行高、列宽、合并单元格、公式等设置
   devicePixelRatio: 0, // 设备比例，比例越大表格分标率越高，0表示自动

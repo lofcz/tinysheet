@@ -6,7 +6,7 @@ import {
   handleGlobalWheel,
   initFreeze,
   Sheet as SheetType,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import "./index.css";
 import WorkbookContext from "../../context";
 import SheetOverlay from "../SheetOverlay";

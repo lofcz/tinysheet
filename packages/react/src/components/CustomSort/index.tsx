@@ -4,7 +4,7 @@ import {
   indexToColumnChar,
   locale,
   sortSelection,
-} from "@prospera-sheet/core";
+} from "@lofcz/prospera-sheet-core";
 import React, {
   ChangeEvent,
   useCallback,

@@ -17,9 +17,9 @@ const tsconfigJson = JSON.stringify(tsconfig);
 fs.writeFileSync("packages/core/tsconfig.json", tsconfigJson);
 fs.writeFileSync("packages/react/tsconfig.json", tsconfigJson);
 
-const result = spawnSync("npx", ["father-build"], { 
+const result = spawnSync("bunx", ["father-build"], {
   stdio: "inherit",
-  shell: true
+  shell: true,
 });
 
 if (result.error) {

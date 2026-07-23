@@ -1,4 +1,4 @@
-import { locale } from "@prospera-sheet/core";
+import { locale } from "@lofcz/prospera-sheet-core";
 import React, { useContext, useState } from "react";
 import WorkbookContext from "../../context";
 import ColorPicker from "../Toolbar/ColorPicker";
