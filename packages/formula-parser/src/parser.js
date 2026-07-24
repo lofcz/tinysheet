@@ -190,10 +190,11 @@ class Parser extends Emitter {
       throw Error(ERROR_NAME);
     }
     let value = void 0;
+    const normalizedLabel = toLabel(row, column);
 
     this.emit(
       "callCellValue",
-      { label, row, column, sheetName },
+      { label: normalizedLabel, row, column, sheetName },
       this.options,
       (_value) => {
         value = _value;

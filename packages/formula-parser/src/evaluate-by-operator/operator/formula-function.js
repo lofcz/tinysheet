@@ -1,4 +1,4 @@
-import * as formulajs from "@formulajs/formulajs";
+import formulajs from "./../../formulajs";
 import SUPPORTED_FORMULAS from "./../../supported-formulas";
 import { ERROR_NAME } from "./../../error";
 
@@ -39,6 +39,10 @@ export default function func(symbol) {
 
     if (!foundFormula) {
       throw Error(ERROR_NAME);
+    }
+
+    if (result instanceof Error) {
+      throw result;
     }
 
     return result;

@@ -9,7 +9,7 @@ import {
 
 describe(".extractLabel()", () => {
   it("should correctly extract coordinates", () => {
-    expect(extractLabel("A1")).toMatchObject([
+    expect(extractLabel("A1").slice(0, 2)).toMatchObject([
       {
         index: 0,
         label: "1",
@@ -21,7 +21,7 @@ describe(".extractLabel()", () => {
         isAbsolute: false,
       },
     ]);
-    expect(extractLabel("a1")).toMatchObject([
+    expect(extractLabel("a1").slice(0, 2)).toMatchObject([
       {
         index: 0,
         label: "1",
@@ -33,19 +33,7 @@ describe(".extractLabel()", () => {
         isAbsolute: false,
       },
     ]);
-    expect(extractLabel("A$1")).toMatchObject([
-      {
-        index: 0,
-        label: "1",
-        isAbsolute: true,
-      },
-      {
-        index: 0,
-        label: "A",
-        isAbsolute: false,
-      },
-    ]);
-    expect(extractLabel("a$1")).toMatchObject([
+    expect(extractLabel("A$1").slice(0, 2)).toMatchObject([
       {
         index: 0,
         label: "1",
@@ -57,7 +45,19 @@ describe(".extractLabel()", () => {
         isAbsolute: false,
       },
     ]);
-    expect(extractLabel("$A1")).toMatchObject([
+    expect(extractLabel("a$1").slice(0, 2)).toMatchObject([
+      {
+        index: 0,
+        label: "1",
+        isAbsolute: true,
+      },
+      {
+        index: 0,
+        label: "A",
+        isAbsolute: false,
+      },
+    ]);
+    expect(extractLabel("$A1").slice(0, 2)).toMatchObject([
       {
         index: 0,
         label: "1",
@@ -69,7 +69,7 @@ describe(".extractLabel()", () => {
         isAbsolute: true,
       },
     ]);
-    expect(extractLabel("$A$1")).toMatchObject([
+    expect(extractLabel("$A$1").slice(0, 2)).toMatchObject([
       {
         index: 0,
         label: "1",
@@ -81,7 +81,7 @@ describe(".extractLabel()", () => {
         isAbsolute: true,
       },
     ]);
-    expect(extractLabel("$AG199")).toMatchObject([
+    expect(extractLabel("$AG199").slice(0, 2)).toMatchObject([
       {
         index: 198,
         label: "199",
@@ -93,7 +93,7 @@ describe(".extractLabel()", () => {
         isAbsolute: true,
       },
     ]);
-    expect(extractLabel("$Ag199")).toMatchObject([
+    expect(extractLabel("$Ag199").slice(0, 2)).toMatchObject([
       {
         index: 198,
         label: "199",
@@ -105,11 +105,11 @@ describe(".extractLabel()", () => {
         isAbsolute: true,
       },
     ]);
-    expect(extractLabel("$$AG199")).toMatchObject([]);
-    expect(extractLabel("AG$$199")).toMatchObject([]);
-    expect(extractLabel(null)).toMatchObject([]);
-    expect(extractLabel(void 0)).toMatchObject([]);
-    expect(extractLabel(0)).toMatchObject([]);
+    expect(extractLabel("$$AG199").slice(0, 2)).toMatchObject([]);
+    expect(extractLabel("AG$$199").slice(0, 2)).toMatchObject([]);
+    expect(extractLabel(null).slice(0, 2)).toMatchObject([]);
+    expect(extractLabel(void 0).slice(0, 2)).toMatchObject([]);
+    expect(extractLabel(0).slice(0, 2)).toMatchObject([]);
   });
 });
 

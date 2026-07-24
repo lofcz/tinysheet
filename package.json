@@ -16,8 +16,10 @@
     "tsc": "tsc --noEmit",
     "lint": "eslint --cache --ext .js,.jsx,.ts,.tsx,.json ./packages",
     "postinstall": "bun run --cwd packages/formula-parser build",
-    "test": "jest",
-    "coverage": "jest --coverage"
+    "test": "bun run test:formula-parser",
+    "test:formula-parser": "bun run --cwd packages/formula-parser test",
+    "test:jest": "jest",
+    "coverage": "bun run --cwd packages/formula-parser coverage"
   },
   "devDependencies": {
     "@babel/core": "^7.20.7",

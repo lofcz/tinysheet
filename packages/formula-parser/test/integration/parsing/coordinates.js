@@ -9,11 +9,11 @@ describe(".parse() coordinates", () => {
   beforeEach(() => {
     parser = new Parser();
 
-    parser.on("callCellValue", (_cellCoord, done) => {
+    parser.on("callCellValue", (_cellCoord, _options, done) => {
       cellCoord = _cellCoord;
       done(55);
     });
-    parser.on("callRangeValue", (_startCellCoord, _endCellCoord, done) => {
+    parser.on("callRangeValue", (_startCellCoord, _endCellCoord, _options, done) => {
       startCellCoord = _startCellCoord;
       endCellCoord = _endCellCoord;
       done([[3, 6, 10]]);

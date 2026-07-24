@@ -231,7 +231,7 @@ describe("Parser", () => {
     });
 
     it("should return value under specified coordinates", () => {
-      parser.on("callCellValue", (cell, done) => {
+      parser.on("callCellValue", (cell, _options, done) => {
         const { row, column } = cell;
         let value;
 
@@ -270,7 +270,7 @@ describe("Parser", () => {
     });
 
     it("should return value under specified coordinates", () => {
-      parser.on("callRangeValue", (firstCell, lastCell, done) => {
+      parser.on("callRangeValue", (firstCell, lastCell, _options, done) => {
         const { row: row1, column: column1 } = firstCell;
         const { row: row2, column: column2 } = lastCell;
         let value;
@@ -347,6 +347,7 @@ describe("Parser", () => {
         row: { index: 1, isAbsolute: false, label: "2" },
         column: { index: 0, isAbsolute: true, label: "A" },
         label: "$A2",
+        sheetName: null,
       };
       const endCell = {
         row: { index: 8, isAbsolute: true, label: "9" },
@@ -354,7 +355,12 @@ describe("Parser", () => {
         label: "B$9",
       };
 
-      expect(cb).toHaveBeenCalledWith(startCell, endCell, expect.anything());
+      expect(cb).toHaveBeenCalledWith(
+        startCell,
+        endCell,
+        expect.anything(),
+        expect.any(Function)
+      );
     });
 
     it("should convert coordinates in top-left bottom-right format (from top-right to bottom-left)", () => {
@@ -367,6 +373,7 @@ describe("Parser", () => {
         row: { index: 1, isAbsolute: true, label: "2" },
         column: { index: 0, isAbsolute: false, label: "A" },
         label: "A$2",
+        sheetName: null,
       };
       const endCell = {
         row: { index: 7, isAbsolute: true, label: "8" },
@@ -374,7 +381,12 @@ describe("Parser", () => {
         label: "B$8",
       };
 
-      expect(cb).toHaveBeenCalledWith(startCell, endCell, expect.anything());
+      expect(cb).toHaveBeenCalledWith(
+        startCell,
+        endCell,
+        expect.anything(),
+        expect.any(Function)
+      );
     });
   });
 

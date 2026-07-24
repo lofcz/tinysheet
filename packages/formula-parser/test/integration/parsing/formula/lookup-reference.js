@@ -14,14 +14,12 @@ describe(".parse() lookup-reference formulas", () => {
     parser.setVariable("foo", [0, 1, 2, 3, 4, 100, 7]);
     parser.setVariable("bar", ["jima", "jimb", "jimc", "bernie"]);
 
-    expect(parser.parse("MATCH()")).toMatchObject({
-      error: "#N/A",
-      result: null,
-    });
-    expect(parser.parse("MATCH(1)")).toMatchObject({
-      error: "#N/A",
-      result: null,
-    });
+    expect(
+      parser.parse("MATCH()")
+    ).toMatchObject({ error: "#N/A", result: null });
+    expect(
+      parser.parse("MATCH(1)")
+    ).toMatchObject({ error: "#N/A", result: null });
     expect(parser.parse("MATCH(1, foo)")).toMatchObject({
       error: null,
       result: 2,
