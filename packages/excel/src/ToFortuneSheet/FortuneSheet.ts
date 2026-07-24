@@ -57,6 +57,7 @@ import {
   FortuneChartSpec,
   FortuneChartSeriesSpec,
   ChartCellResolver,
+  DEFAULT_CHART_COLORS,
   parseChartNumber,
   renderChartSvgFromSeries,
   resolveChartSpecToSeries,
@@ -433,7 +434,12 @@ export class FortuneSheet extends FortuneSheetBase {
         chartSpec,
         this.createParseCellResolver()
       );
-      let svg = renderChartSvgFromSeries(series, chartSpec.width, chartSpec.height);
+      let svg = renderChartSvgFromSeries(series, chartSpec.width, chartSpec.height, {
+        title: chartSpec.title,
+        categoryAxisTitle: chartSpec.categoryAxisTitle,
+        valueAxisTitle: chartSpec.valueAxisTitle,
+        valueAxis: chartSpec.valueAxis,
+      });
 
       this.addDrawingImage(anchor, {
         src: chartSvgToDataUri(svg),
@@ -1137,11 +1143,37 @@ export class FortuneSheet extends FortuneSheetBase {
 
     let seriesElements = charts[0].getInnerElements("c:ser");
     let series: FortuneChartSeriesSpec[] = [];
+    let title = this.getChartTitleText(
+      this.readXml.getElementsByTagName(
+        "c:chartSpace/c:chart/c:title",
+        chartFile
+      )
+    );
+    let categoryAxisTitle = this.getChartTitleText(
+      this.readXml.getElementsByTagName(
+        "c:chartSpace/c:chart/c:plotArea/c:catAx/c:title",
+        chartFile
+      )
+    );
+    let valueAxisTitle = this.getChartTitleText(
+      this.readXml.getElementsByTagName(
+        "c:chartSpace/c:chart/c:plotArea/c:valAx/c:title",
+        chartFile
+      )
+    );
+    let valueAxis = this.getChartValueAxis(chartFile);
+    let varyColors = this.getChartVaryColors(charts[0]);
+
     if (seriesElements == null) {
       return {
         type: "bar",
         width: width,
         height: height,
+        title: title || undefined,
+        categoryAxisTitle: categoryAxisTitle || undefined,
+        valueAxisTitle: valueAxisTitle || undefined,
+        valueAxis: valueAxis,
+        varyColors: varyColors,
         series: series,
       };
     }
@@ -1172,6 +1204,7 @@ export class FortuneSheet extends FortuneSheetBase {
         "c:numRef",
         "c:numCache",
       ]);
+      let pointColors = this.getChartPointColors(item);
 
       let rangeLen = Math.max(
         cachedCategories.length,
@@ -1189,6 +1222,7 @@ export class FortuneSheet extends FortuneSheetBase {
           cachedCategories.length > 0 ? cachedCategories : undefined,
         valueRef: valueRef || undefined,
         cachedValues: cachedValues.length > 0 ? cachedValues : undefined,
+        pointColors: pointColors.length > 0 ? pointColors : undefined,
         mode: mode,
       });
     }
@@ -1197,8 +1231,131 @@ export class FortuneSheet extends FortuneSheetBase {
       type: "bar",
       width: width,
       height: height,
+      title: title || undefined,
+      categoryAxisTitle: categoryAxisTitle || undefined,
+      valueAxisTitle: valueAxisTitle || undefined,
+      valueAxis: valueAxis,
+      varyColors: varyColors,
       series: series,
     };
+  }
+
+  private getChartValueAxis(
+    chartFile: string
+  ): { min?: number; max?: number; majorUnit?: number } | undefined {
+    let valAxes = this.readXml.getElementsByTagName(
+      "c:chartSpace/c:chart/c:plotArea/c:valAx",
+      chartFile
+    );
+    if (valAxes == null || valAxes.length == 0) {
+      return undefined;
+    }
+
+    let valAx = valAxes[0];
+    let min = this.getChartAxisNumericAttr(valAx, ["c:scaling", "c:min"]);
+    let max = this.getChartAxisNumericAttr(valAx, ["c:scaling", "c:max"]);
+    let majorUnit = this.getChartAxisNumericAttr(valAx, ["c:majorUnit"]);
+
+    if (min == null && max == null && majorUnit == null) {
+      return undefined;
+    }
+
+    let axis: { min?: number; max?: number; majorUnit?: number } = {};
+    if (min != null) axis.min = min;
+    if (max != null) axis.max = max;
+    if (majorUnit != null) axis.majorUnit = majorUnit;
+    return axis;
+  }
+
+  private getChartAxisNumericAttr(
+    element: Element,
+    path: string[]
+  ): number | null {
+    let current: Element[] = [element];
+    for (let i = 0; i < path.length; i++) {
+      let next: Element[] = [];
+      for (let j = 0; j < current.length; j++) {
+        let elements = current[j].getInnerElements(path[i]);
+        if (elements != null) {
+          next = next.concat(elements);
+        }
+      }
+      if (next.length == 0) {
+        return null;
+      }
+      current = next;
+    }
+
+    let raw = getXmlAttibute(current[0].attributeList, "val", null);
+    if (raw == null || raw === "") {
+      return null;
+    }
+    let parsed = parseFloat(raw);
+    return isFinite(parsed) ? parsed : null;
+  }
+
+  private getChartTitleText(titleElements: Element[] | null): string {
+    if (titleElements == null || titleElements.length == 0) {
+      return "";
+    }
+    let texts = titleElements[0].getInnerElements("a:t");
+    if (texts == null || texts.length == 0) {
+      return "";
+    }
+    let parts: string[] = [];
+    for (let i = 0; i < texts.length; i++) {
+      if (texts[i].value) {
+        parts.push(this.decodeXml(texts[i].value));
+      }
+    }
+    return parts.join("").trim();
+  }
+
+  private getChartVaryColors(chart: Element): boolean {
+    let containers =
+      chart.getInnerElements("c:barChart") ||
+      chart.getInnerElements("c:lineChart") ||
+      chart.getInnerElements("c:pieChart") ||
+      chart.getInnerElements("c:areaChart");
+    if (containers == null || containers.length == 0) {
+      // Excel-like default for single-series category charts.
+      return true;
+    }
+    let vary = containers[0].getInnerElements("c:varyColors");
+    if (vary == null || vary.length == 0) {
+      return true;
+    }
+    let val = getXmlAttibute(vary[0].attributeList, "val", "1");
+    return val !== "0" && val !== "false";
+  }
+
+  private getChartPointColors(series: Element): string[] {
+    let dPts = series.getInnerElements("c:dPt");
+    if (dPts == null || dPts.length == 0) {
+      return [];
+    }
+    let colors: string[] = [];
+    for (let i = 0; i < dPts.length; i++) {
+      let idx = i;
+      let idxEls = dPts[i].getInnerElements("c:idx");
+      if (idxEls != null && idxEls.length > 0) {
+        let idxAttr = getXmlAttibute(idxEls[0].attributeList, "val", String(i));
+        let parsed = parseInt(idxAttr, 10);
+        if (!isNaN(parsed)) {
+          idx = parsed;
+        }
+      }
+      let spPrs = dPts[i].getInnerElements("c:spPr");
+      let color = DEFAULT_CHART_COLORS[idx % DEFAULT_CHART_COLORS.length];
+      if (spPrs != null && spPrs.length > 0) {
+        let solidFills = spPrs[0].getInnerElements("a:solidFill");
+        if (solidFills != null && solidFills.length > 0) {
+          color = this.getColorFromElement(solidFills[0], color);
+        }
+      }
+      colors[idx] = color;
+    }
+    return colors;
   }
 
   private createParseCellResolver(): ChartCellResolver {
@@ -1351,28 +1508,18 @@ export class FortuneSheet extends FortuneSheetBase {
   }
 
   private getChartSeriesColor(series: Element, index: number) {
-    let defaultColors = [
-      "#4472C4",
-      "#ED7D31",
-      "#A5A5A5",
-      "#FFC000",
-      "#5B9BD5",
-      "#70AD47",
-    ];
+    let fallback = DEFAULT_CHART_COLORS[index % DEFAULT_CHART_COLORS.length];
     let spPrs = series.getInnerElements("c:spPr");
     if (spPrs == null || spPrs.length == 0) {
-      return defaultColors[index % defaultColors.length];
+      return fallback;
     }
 
     let solidFills = spPrs[0].getInnerElements("a:solidFill");
     if (solidFills == null || solidFills.length == 0) {
-      return defaultColors[index % defaultColors.length];
+      return fallback;
     }
 
-    return this.getColorFromElement(
-      solidFills[0],
-      defaultColors[index % defaultColors.length]
-    );
+    return this.getColorFromElement(solidFills[0], fallback);
   }
 
   private getColorFromElement(element: Element, fallback: string) {

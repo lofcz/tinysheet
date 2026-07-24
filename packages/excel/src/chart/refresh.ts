@@ -20,7 +20,12 @@ export function refreshSheetChartImages<T extends { src?: string; chartSpec?: Fo
     }
 
     const series = resolveChartSpecToSeries(spec, resolver);
-    const svg = renderChartSvgFromSeries(series, spec.width, spec.height);
+    const svg = renderChartSvgFromSeries(series, spec.width, spec.height, {
+      title: spec.title,
+      categoryAxisTitle: spec.categoryAxisTitle,
+      valueAxisTitle: spec.valueAxisTitle,
+      valueAxis: spec.valueAxis,
+    });
     return {
       ...image,
       src: svgToDataUri(svg),

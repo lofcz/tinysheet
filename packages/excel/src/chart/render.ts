@@ -1,4 +1,15 @@
-import type { ChartSeriesPoint } from "./types";
+import type { ChartRenderOptions, ChartSeriesPoint } from "./types";
+import { computeAxisScale, formatAxisTick } from "./axis";
+
+export {
+  buildAxisTicks,
+  computeAxisScale,
+  computeAxisStep,
+  computeNiceAxisMax,
+  formatAxisTick,
+  getTrueMinMax,
+} from "./axis";
+export type { AxisScale } from "./axis";
 
 export function escapeXml(value: string) {
   return value
@@ -48,39 +59,100 @@ export function renderEmptyChartSvg(width: number, height: number) {
 export function renderBarChartSvg(
   series: ChartSeriesPoint[],
   width: number,
-  height: number
+  height: number,
+  options: ChartRenderOptions = {}
 ) {
   const svgWidth = Math.max(1, Math.round(width));
   const svgHeight = Math.max(1, Math.round(height));
-  const marginLeft = Math.min(44, svgWidth * 0.18);
+  const hasTitle = Boolean(options.title && options.title.trim());
+  const hasValueAxisTitle = Boolean(
+    options.valueAxisTitle && options.valueAxisTitle.trim()
+  );
+  const hasCategoryAxisTitle = Boolean(
+    options.categoryAxisTitle && options.categoryAxisTitle.trim()
+  );
+
+  const marginLeft = Math.min(
+    hasValueAxisTitle ? 58 : 44,
+    svgWidth * (hasValueAxisTitle ? 0.22 : 0.18)
+  );
   const marginRight = Math.min(120, Math.max(56, svgWidth * 0.22));
-  const marginTop = Math.min(24, svgHeight * 0.12);
-  const marginBottom = Math.min(40, Math.max(24, svgHeight * 0.12));
+  const marginTop = Math.min(
+    hasTitle ? 36 : 24,
+    svgHeight * (hasTitle ? 0.16 : 0.12)
+  );
+  const marginBottom = Math.min(
+    hasCategoryAxisTitle ? 48 : 40,
+    Math.max(hasCategoryAxisTitle ? 32 : 24, svgHeight * 0.12)
+  );
   const plotX = marginLeft;
   const plotY = marginTop;
   const plotWidth = Math.max(1, svgWidth - marginLeft - marginRight);
   const plotHeight = Math.max(1, svgHeight - marginTop - marginBottom);
-  let maxValue = 1;
 
+  let dataMin = Infinity;
+  let dataMax = -Infinity;
   for (let i = 0; i < series.length; i++) {
-    maxValue = Math.max(maxValue, series[i].value);
+    const v = series[i].value;
+    if (!isFinite(v)) continue;
+    dataMin = Math.min(dataMin, v);
+    dataMax = Math.max(dataMax, v);
   }
+  if (!isFinite(dataMin) || !isFinite(dataMax)) {
+    dataMin = 0;
+    dataMax = 1;
+  }
+
+  const scale = computeAxisScale(dataMin, dataMax, options.valueAxis);
+  const axisMax = scale.max;
+  const axisMin = scale.min;
+  const axisSpan = axisMax - axisMin || 1;
+  const ticks = scale.ticks;
 
   let body =
     '<rect x="0" y="0" width="' +
     svgWidth +
     '" height="' +
     svgHeight +
-    '" fill="#ffffff"/>' +
+    '" fill="#ffffff" rx="4" ry="4"/>' +
     '<rect x="0.5" y="0.5" width="' +
     (svgWidth - 1) +
     '" height="' +
     (svgHeight - 1) +
-    '" fill="none" stroke="#d9d9d9"/>';
+    '" fill="none" stroke="#d9d9d9" rx="4" ry="4"/>';
 
-  for (let tick = 0; tick <= 4; tick++) {
-    const y = plotY + plotHeight - (plotHeight * tick) / 4;
-    const tickValue = Math.round((maxValue * tick) / 4);
+  if (hasTitle) {
+    body +=
+      '<text x="' +
+      roundSvgNumber(plotX + plotWidth / 2) +
+      '" y="' +
+      roundSvgNumber(Math.max(14, marginTop * 0.55)) +
+      '" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="600" fill="#333333">' +
+      escapeXml(options.title!.trim()) +
+      "</text>";
+  }
+
+  if (hasValueAxisTitle) {
+    const axisTitleX = 14;
+    const axisTitleY = plotY + plotHeight / 2;
+    body +=
+      '<text x="' +
+      roundSvgNumber(axisTitleX) +
+      '" y="' +
+      roundSvgNumber(axisTitleY) +
+      '" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#666666" transform="rotate(-90 ' +
+      roundSvgNumber(axisTitleX) +
+      " " +
+      roundSvgNumber(axisTitleY) +
+      ')">' +
+      escapeXml(options.valueAxisTitle!.trim()) +
+      "</text>";
+  }
+
+  for (let i = 0; i < ticks.length; i++) {
+    const tickValue = ticks[i];
+    const y =
+      plotY + plotHeight - ((tickValue - axisMin) / axisSpan) * plotHeight;
     body +=
       '<line x1="' +
       roundSvgNumber(plotX) +
@@ -96,7 +168,7 @@ export function renderBarChartSvg(
       '" y="' +
       roundSvgNumber(y + 4) +
       '" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#666666">' +
-      tickValue +
+      formatAxisTick(tickValue, scale.step) +
       "</text>";
   }
 
@@ -123,9 +195,10 @@ export function renderBarChartSvg(
   const gap = plotWidth / Math.max(1, series.length * 3 + 1);
   const barWidth = Math.max(6, gap * 1.5);
   for (let i = 0; i < series.length; i++) {
-    const barHeight = (series[i].value / maxValue) * plotHeight;
+    const value = series[i].value;
+    const barHeight = ((value - axisMin) / axisSpan) * plotHeight;
     const x = plotX + gap + i * (barWidth + gap);
-    const y = plotY + plotHeight - barHeight;
+    const y = plotY + plotHeight - Math.max(0, barHeight);
     body +=
       '<rect x="' +
       roundSvgNumber(x) +
@@ -134,10 +207,21 @@ export function renderBarChartSvg(
       '" width="' +
       roundSvgNumber(barWidth) +
       '" height="' +
-      roundSvgNumber(barHeight) +
+      roundSvgNumber(Math.max(0, barHeight)) +
       '" fill="' +
       escapeXml(series[i].color) +
       '"/>';
+  }
+
+  if (hasCategoryAxisTitle) {
+    body +=
+      '<text x="' +
+      roundSvgNumber(plotX + plotWidth / 2) +
+      '" y="' +
+      roundSvgNumber(svgHeight - 10) +
+      '" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#666666">' +
+      escapeXml(options.categoryAxisTitle!.trim()) +
+      "</text>";
   }
 
   const legendX = plotX + plotWidth + 18;
@@ -179,10 +263,11 @@ export function renderBarChartSvg(
 export function renderChartSvgFromSeries(
   series: ChartSeriesPoint[],
   width: number,
-  height: number
+  height: number,
+  options: ChartRenderOptions = {}
 ) {
   if (series.length === 0) {
     return renderEmptyChartSvg(width, height);
   }
-  return renderBarChartSvg(series, width, height);
+  return renderBarChartSvg(series, width, height, options);
 }

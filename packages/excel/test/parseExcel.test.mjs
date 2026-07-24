@@ -10,6 +10,11 @@ import {
   applyExcelImportHydration,
   refreshSheetChartImages,
   resolveChartSpecToSeries,
+  computeAxisScale,
+  computeNiceAxisMax,
+  formatAxisTick,
+  renderChartSvgFromSeries,
+  DEFAULT_CHART_COLORS,
 } from "../dist/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -166,8 +171,132 @@ test("applyExcelImportHydration calculates formulas and refreshes chart SVGs", a
   const chartSvg = decodeURIComponent(String(chartImage.src).split(",")[1]);
   assert.match(chartSvg, /<svg /);
   assert.match(chartSvg, /Anna Nov/);
+  // Single-series category charts vary point colors (Office palette).
   assert.match(chartSvg, /#4472C4/);
+  assert.match(chartSvg, /#ED7D31/);
   assert.equal(ctx.insertedImgs, live.images);
+  assert.equal(chartImage.chartSpec.varyColors, true);
+  assert.ok(chartImage.chartSpec.title);
+  assert.ok(chartImage.chartSpec.categoryAxisTitle);
+  assert.ok(chartImage.chartSpec.valueAxisTitle);
+  assert.match(chartSvg, new RegExp(chartImage.chartSpec.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(
+    chartSvg,
+    new RegExp(chartImage.chartSpec.valueAxisTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+  );
+});
+
+test("chart axis uses Excel-like 1-2-5 step ticks", () => {
+  // data max 2.67 → pad 5% → ~2.80 → step 0.5 → ticks 0..3
+  const scale = computeAxisScale(1.33, 2.67);
+  assert.equal(scale.step, 0.5);
+  assert.equal(scale.min, 0);
+  assert.equal(scale.max, 3);
+  assert.deepEqual(scale.ticks, [0, 0.5, 1, 1.5, 2, 2.5, 3]);
+  assert.equal(computeNiceAxisMax(2.67), 3);
+
+  assert.equal(formatAxisTick(0, 0.5), "0");
+  assert.equal(formatAxisTick(0.5, 0.5), "0.5");
+  assert.equal(formatAxisTick(1.5, 0.5), "1.5");
+  assert.equal(formatAxisTick(3, 0.5), "3");
+
+  const svg = renderChartSvgFromSeries(
+    [
+      { label: "A", value: 1.33, color: DEFAULT_CHART_COLORS[0] },
+      { label: "B", value: 2.67, color: DEFAULT_CHART_COLORS[1] },
+    ],
+    320,
+    200,
+  );
+  assert.match(svg, />0\.5<\/text>/);
+  assert.match(svg, />1\.5<\/text>/);
+  assert.match(svg, />2\.5<\/text>/);
+  assert.doesNotMatch(svg, />1<\/text>[\s\S]*>1<\/text>/);
+  assert.match(svg, /#4472C4/);
+  assert.match(svg, /#ED7D31/);
+});
+
+test("chart axis honors explicit min/max/majorUnit overrides", () => {
+  const scale = computeAxisScale(1.33, 2.67, {
+    min: 0,
+    max: 4,
+    majorUnit: 1,
+  });
+  assert.equal(scale.min, 0);
+  assert.equal(scale.max, 4);
+  assert.equal(scale.step, 1);
+  assert.deepEqual(scale.ticks, [0, 1, 2, 3, 4]);
+
+  const maxOnly = computeAxisScale(1.33, 2.67, { max: 2.5 });
+  assert.equal(maxOnly.max, 2.5);
+  assert.ok(maxOnly.ticks[maxOnly.ticks.length - 1] <= 2.5 + 1e-9);
+
+  const unitOnly = computeAxisScale(1.33, 2.67, { majorUnit: 0.25 });
+  assert.equal(unitOnly.step, 0.25);
+  assert.ok(unitOnly.ticks.includes(0.25));
+  assert.ok(unitOnly.ticks.includes(2.75) || unitOnly.max >= 2.75);
+
+  const svg = renderChartSvgFromSeries(
+    [
+      { label: "A", value: 1.33, color: DEFAULT_CHART_COLORS[0] },
+      { label: "B", value: 2.67, color: DEFAULT_CHART_COLORS[1] },
+    ],
+    320,
+    200,
+    { valueAxis: { min: 0, max: 4, majorUnit: 1 } },
+  );
+  assert.match(svg, />4<\/text>/);
+  assert.doesNotMatch(svg, />0\.5<\/text>/);
+});
+
+test("parseExcel imports value-axis scaling overrides from chart XML", async () => {
+  const JSZip = (await import("jszip")).default;
+  const fixture = await fs.readFile(openpyxlBarChartFixturePath);
+  const zip = await JSZip.loadAsync(fixture);
+  const chartPath = Object.keys(zip.files).find((name) =>
+    /xl\/charts\/chart\d*\.xml$/i.test(name),
+  );
+  assert.ok(chartPath, "expected chart xml in fixture");
+  let chartXml = await zip.file(chartPath).async("string");
+
+  chartXml = chartXml.replace(
+    /(<(?:c:)?valAx\b[\s\S]*?<(?:c:)?scaling>)([\s\S]*?)(<\/(?:c:)?scaling>)([\s\S]*?)(<\/(?:c:)?valAx>)/,
+    (_, scaleOpen, scaleInner, scaleClose, mid, valClose) => {
+      const ns = scaleOpen.includes("c:") ? "c:" : "";
+      return (
+        scaleOpen +
+        scaleInner +
+        `<${ns}min val="0"/><${ns}max val="5"/>` +
+        scaleClose +
+        mid +
+        `<${ns}majorUnit val="1"/>` +
+        valClose
+      );
+    },
+  );
+  assert.match(chartXml, /min val="0"/);
+  assert.match(chartXml, /majorUnit val="1"/);
+
+  zip.file(chartPath, chartXml);
+  const patched = await zip.generateAsync({ type: "nodebuffer" });
+  const result = await parseExcel(
+    new File([patched], "openpyxl_bar_chart_axis.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+  );
+  const chartImage = (result.sheets[0].images || []).find(
+    (image) => image.chartSpec,
+  );
+  assert.ok(chartImage);
+  assert.deepEqual(chartImage.chartSpec.valueAxis, {
+    min: 0,
+    max: 5,
+    majorUnit: 1,
+  });
+
+  const chartSvg = decodeURIComponent(String(chartImage.src).split(",")[1]);
+  assert.match(chartSvg, />5<\/text>/);
+  assert.match(chartSvg, />1<\/text>/);
 });
 
 test("resolveChartSpecToSeries prefers live resolver over empty caches", () => {

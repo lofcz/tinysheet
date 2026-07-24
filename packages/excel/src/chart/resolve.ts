@@ -4,6 +4,7 @@ import type {
   FortuneChartSpec,
   FortuneChartSeriesSpec,
 } from "./types";
+import { DEFAULT_CHART_COLORS } from "./types";
 
 export function parseChartNumber(value: string | number | null | undefined) {
   if (value == null || value === "") {
@@ -58,10 +59,25 @@ function resolveNumerics(
   return cached ? cached.slice() : [];
 }
 
+function colorForCategoryPoint(
+  spec: FortuneChartSeriesSpec,
+  pointIndex: number,
+  varyColors: boolean
+) {
+  const fromPoint = spec.pointColors?.[pointIndex];
+  if (fromPoint) {
+    return fromPoint;
+  }
+  if (varyColors) {
+    return DEFAULT_CHART_COLORS[pointIndex % DEFAULT_CHART_COLORS.length];
+  }
+  return spec.color;
+}
+
 function resolveCategorySeries(
   spec: FortuneChartSeriesSpec,
   resolver: ChartCellResolver,
-  index: number
+  varyColors: boolean
 ): ChartSeriesPoint[] {
   const labels = resolveDisplays(
     resolver,
@@ -84,7 +100,7 @@ function resolveCategorySeries(
     points.push({
       label,
       value: i < values.length ? values[i] : 0,
-      color: spec.color,
+      color: colorForCategoryPoint(spec, i, varyColors),
     });
   }
   return points;
@@ -115,11 +131,16 @@ export function resolveChartSpecToSeries(
   resolver: ChartCellResolver
 ): ChartSeriesPoint[] {
   const series: ChartSeriesPoint[] = [];
+  // Excel-like default: a single category series varies point colors unless
+  // the chart explicitly disables it.
+  const varyColors =
+    spec.varyColors !== false &&
+    spec.series.filter((s) => s.mode === "category").length === 1;
 
   for (let i = 0; i < spec.series.length; i++) {
     const item = spec.series[i];
     if (item.mode === "category") {
-      const points = resolveCategorySeries(item, resolver, i);
+      const points = resolveCategorySeries(item, resolver, varyColors);
       if (points.length > 0) {
         for (let p = 0; p < points.length; p++) {
           series.push(points[p]);

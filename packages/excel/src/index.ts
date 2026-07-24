@@ -10,13 +10,21 @@ export {
   resolveChartSpecToSeries,
   renderChartSvgFromSeries,
   parseChartNumber,
+  computeAxisScale,
+  computeNiceAxisMax,
+  formatAxisTick,
+  DEFAULT_CHART_COLORS,
 } from "./chart";
 export type {
   FortuneChartSpec,
   FortuneChartSeriesSpec,
+  FortuneChartValueAxis,
   ChartCellResolver,
   ChartCellValue,
   ChartSeriesPoint,
+  ChartRenderOptions,
+  AxisScale,
+  AxisScaleOverrides,
 } from "./chart";
 
 /** @deprecated Prefer parseExcel + applyExcelImport */
