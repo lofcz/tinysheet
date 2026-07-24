@@ -68,11 +68,19 @@ jobs:
           }
 
           const type = process.env.RELEASE_TYPE;
+          // Lockstep versions across all publishable packages. formula-parser
+          // must bump too — otherwise publish_if_new skips the already-published
+          // version and Chevrotain/formulajs updates never ship.
           const pkgs = [
+            {
+              path: "packages/formula-parser/package.json",
+              name: "@lofcz/tinysheet-formula-parser",
+              deps: [],
+            },
             {
               path: "packages/core/package.json",
               name: "@lofcz/tinysheet-core",
-              deps: [],
+              deps: ["@lofcz/tinysheet-formula-parser"],
             },
             {
               path: "packages/react/package.json",
@@ -86,7 +94,10 @@ jobs:
             },
           ];
 
-          const core = JSON.parse(fs.readFileSync(pkgs[0].path, "utf8"));
+          // Version source of truth: core (sheet packages stay aligned).
+          const core = JSON.parse(
+            fs.readFileSync("packages/core/package.json", "utf8")
+          );
           const version = bumpVersion(core.version, type);
 
           for (const pkg of pkgs) {
@@ -102,7 +113,7 @@ jobs:
 
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
           console.log(
-            `Bumped @lofcz/tinysheet-{core,react,excel} to ${version}`
+            `Bumped @lofcz/tinysheet-{formula-parser,core,react,excel} to ${version}`
           );
           EOF
 
@@ -110,7 +121,11 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add packages/core/package.json packages/react/package.json packages/excel/package.json
+          git add \
+            packages/formula-parser/package.json \
+            packages/core/package.json \
+            packages/react/package.json \
+            packages/excel/package.json
           git commit -m "chore: release v${{ steps.version.outputs.version }}"
           git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
 
