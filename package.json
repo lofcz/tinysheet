@@ -15,7 +15,7 @@
     "build-storybook": "storybook build",
     "tsc": "tsc --noEmit",
     "lint": "eslint --cache --ext .js,.jsx,.ts,.tsx,.json ./packages",
-    "postinstall": "bun run --cwd packages/formula-parser build",
+    "postinstall": "bun run build",
     "test": "bun run test:formula-parser",
     "test:formula-parser": "bun run --cwd packages/formula-parser test",
     "test:jest": "jest",

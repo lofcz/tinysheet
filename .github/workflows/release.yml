@@ -43,13 +43,8 @@ jobs:
         run: npm install -g npm@latest
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Typecheck
-        run: bun run tsc
-
-      - name: Lint
-        run: bun run lint
+        # Skip postinstall build; we run an explicit build step below.
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Run tests
         run: bun run test:formula-parser

@@ -2,21 +2,26 @@
   "name": "@lofcz/tinysheet-formula-parser",
   "version": "0.2.13",
   "description": "Formula parser",
-  "main": "lib/index.js",
-  "module": "es/index.js",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "files": [
-    "es",
-    "lib"
+    "dist"
   ],
   "scripts": {
-    "clean": "rimraf tmp coverage",
+    "clean": "rimraf tmp coverage dist",
     "lint": "eslint src test",
     "check": "npm run lint && npm run test",
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage",
-    "build": "father-build",
-    "release": "generate-release"
+    "coverage": "vitest run --coverage"
   },
   "keywords": [
     "formula",
@@ -34,20 +39,11 @@
     "directory": "packages/formula-parser"
   },
   "devDependencies": {
-    "@babel/cli": "^7.12.10",
-    "@babel/core": "^7.12.10",
-    "@babel/preset-env": "^7.12.10",
-    "babel-eslint": "^10.1.0",
-    "babel-loader": "^8.2.2",
     "eslint": "^8.31.0",
     "eslint-config-airbnb-base": "^11.2.0",
     "eslint-plugin-import": "^2.14.0",
-    "fs-extra": "^11.3.0",
-    "generate-release": "^1.1.1",
     "rimraf": "^3.0.2",
-    "vitest": "^3.2.4",
-    "webpack": "^4.44.2",
-    "webpack-cli": "^4.2.0"
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@formulajs/formulajs": "4.6.0",

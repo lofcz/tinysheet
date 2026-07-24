@@ -22,6 +22,16 @@ const shared = {
 export default defineConfig([
   {
     ...shared,
+    entry: "packages/formula-parser/src/index.js",
+    outDir: "packages/formula-parser/dist",
+    tsconfig: "packages/formula-parser/tsconfig.build.json",
+    // Keep a single ESM file (no hashed chunks) for a clean package surface.
+    outputOptions: {
+      codeSplitting: false,
+    },
+  },
+  {
+    ...shared,
     entry: "packages/core/src/index.ts",
     outDir: "packages/core/dist",
     // Build without workspace path aliases so packages stay external.
