@@ -17,7 +17,8 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          # bun.lock uses lockfileVersion 2 (Bun canary); stable 1.3.x cannot parse it.
+          bun-version: canary
 
       - name: Install dependencies
         # Vitest imports formula-parser src/ directly; skip postinstall build.
