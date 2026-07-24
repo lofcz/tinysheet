@@ -1,5 +1,5 @@
 {
-  "name": "@prospera-sheet/formula-parser",
+  "name": "@lofcz/tinysheet-formula-parser",
   "version": "0.2.13",
   "description": "Formula parser",
   "main": "lib/index.js",
@@ -28,6 +28,11 @@
   ],
   "author": "Handsoncode <hello@handsontable.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lofcz/tinysheet.git",
+    "directory": "packages/formula-parser"
+  },
   "devDependencies": {
     "@babel/cli": "^7.12.10",
     "@babel/core": "^7.12.10",

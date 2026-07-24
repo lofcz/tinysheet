@@ -8,7 +8,7 @@ import {
   replace,
   replaceAll,
   scrollToHighlightCell,
-} from "@lofcz/prospera-sheet-core";
+} from "@lofcz/tinysheet-core";
 import produce from "immer";
 import React, { useContext, useState, useCallback } from "react";
 import _ from "lodash";

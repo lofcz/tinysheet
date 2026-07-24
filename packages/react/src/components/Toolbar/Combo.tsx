@@ -5,7 +5,7 @@ import React, {
   useState,
   useContext,
 } from "react";
-import { locale } from "@lofcz/prospera-sheet-core";
+import { locale } from "@lofcz/tinysheet-core";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import SVGIcon from "../SVGIcon";
 import WorkbookContext from "../../context";

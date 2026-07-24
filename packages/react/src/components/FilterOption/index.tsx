@@ -3,15 +3,13 @@ import {
   fixColumnStyleOverflowInFreeze,
   fixRowStyleOverflowInFreeze,
   getSheetIndex,
-} from "@lofcz/prospera-sheet-core";
+} from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, { useCallback, useContext, useEffect } from "react";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 
-const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
-  getContainer,
-}) => {
+const FilterOptions: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const {
     filterOptions,
@@ -77,7 +75,7 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
         };
       });
     },
-    [filterOptions, getContainer, refs.scrollbarX, refs.scrollbarY, setContext]
+    [filterOptions, refs.scrollbarX, refs.scrollbarY, setContext]
   );
 
   const freezeType = frozen?.type;

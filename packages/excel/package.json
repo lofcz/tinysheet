@@ -1,0 +1,54 @@
+{
+  "name": "@lofcz/tinysheet-excel",
+  "version": "1.0.0",
+  "description": "Excel import/export for TinySheet",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lofcz/tinysheet.git"
+  },
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test ./test/parseExcel.test.mjs"
+  },
+  "dependencies": {
+    "@lofcz/tinysheet-core": "^1.0.0",
+    "@protobi/exceljs": "4.4.0-protobi.10",
+    "@types/file-saver": "^2.0.7",
+    "dayjs": "^1.11.10",
+    "file-saver": "^2.0.5",
+    "jszip": "^3.10.1",
+    "lodash": "^4.17.21"
+  },
+  "peerDependencies": {
+    "react": ">= 18.2",
+    "react-dom": ">= 18.2"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
+  },
+  "keywords": [
+    "spreadsheet",
+    "excel",
+    "tinysheet",
+    "import",
+    "export"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

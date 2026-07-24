@@ -5,7 +5,7 @@ import {
   MIN_ZOOM_RATIO,
   getSheetIndex,
   locale,
-} from "@lofcz/prospera-sheet-core";
+} from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { useOutsideClick } from "../../hooks/useOutsideClick";

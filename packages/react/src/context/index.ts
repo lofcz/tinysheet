@@ -6,7 +6,7 @@ import {
   Settings,
   GlobalCache,
   PatchOptions,
-} from "@lofcz/prospera-sheet-core";
+} from "@lofcz/tinysheet-core";
 
 export type RefValues = {
   globalCache: GlobalCache;

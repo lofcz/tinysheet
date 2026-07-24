@@ -1,4 +1,4 @@
-name: Deprecate Packages
+name: Deprecate old package names
 
 on:
   workflow_dispatch:
@@ -9,13 +9,13 @@ jobs:
     steps:
       - uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
+          node-version: "lts/*"
           registry-url: "https://registry.npmjs.org"
-
-      - run: npm deprecate @lofcz/prospera-sheet-react@1.0.3 "yarn build issues"
+      - name: Deprecate @lofcz/prospera-sheet-*
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - run: npm deprecate @lofcz/prospera-sheet-core@1.0.3 "yarn build issues"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          MSG='Package renamed to @lofcz/tinysheet-*. Use @lofcz/tinysheet-core / @lofcz/tinysheet-react / @lofcz/tinysheet-excel.'
+          npm deprecate @lofcz/prospera-sheet-core "$MSG" || true
+          npm deprecate @lofcz/prospera-sheet-react "$MSG" || true
+          npm deprecate @lofcz/prospera-sheet-excel "$MSG" || true

@@ -5,7 +5,7 @@ import {
   getRegStr,
   locale,
   updateMoreCell,
-} from "@lofcz/prospera-sheet-core";
+} from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
   useContext,

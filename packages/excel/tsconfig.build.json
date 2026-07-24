@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "declaration": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "jsx": "react",
+    "strict": false,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "lib": ["es2020", "dom"],
+    "rootDir": "./src",
+    "baseUrl": "."
+  },
+  "include": ["./src/**/*"],
+  "exclude": [
+    "./src/stories/**/*",
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}

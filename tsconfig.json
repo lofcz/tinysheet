@@ -15,8 +15,9 @@
     "lib": ["es5", "dom"],
     "baseUrl": "./",
     "paths": {
-      "@lofcz/prospera-sheet-core": ["packages/core/src"],
-      "@lofcz/prospera-sheet-react": ["packages/react/src"]
+      "@lofcz/tinysheet-core": ["packages/core/src"],
+      "@lofcz/tinysheet-react": ["packages/react/src"],
+      "@lofcz/tinysheet-excel": ["packages/excel/src"]
     }
   },
   "include": ["packages/*/src", "stories/"],

@@ -21,7 +21,7 @@ import {
   calcSelectionInfo,
   groupValuesRefresh,
   setFormulaCellInfoMap,
-} from "@lofcz/prospera-sheet-core";
+} from "@lofcz/tinysheet-core";
 import React, {
   useMemo,
   useState,

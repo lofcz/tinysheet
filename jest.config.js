@@ -11,7 +11,7 @@ const moduleNameMapper = {
 };
 
 pkgList.forEach((shortName) => {
-  const name = `@prospera-sheet/${shortName}`;
+  const name = `@tinysheet/${shortName}`;
   // Workaround for Jest not having ESM support yet
   // See: https://github.com/uuidjs/uuid/issues/451
   moduleNameMapper[name] = join(__dirname, `./packages/${shortName}/src`);

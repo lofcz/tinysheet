@@ -1,4 +1,4 @@
-import { locale, deleteSheet, api } from "@lofcz/prospera-sheet-core";
+import { locale, deleteSheet, api } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
   useContext,

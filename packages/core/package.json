@@ -1,19 +1,27 @@
 {
-  "name": "@lofcz/prospera-sheet-core",
+  "name": "@lofcz/tinysheet-core",
   "version": "1.0.0",
-  "main": "dist/index.js",
-  "module": "dist/index.esm.js",
-  "typings": "dist/index.d.ts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "files": [
     "dist"
   ],
+  "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lofcz/prospera-sheet.git"
+    "url": "git+https://github.com/lofcz/tinysheet.git"
   },
   "license": "MIT",
   "dependencies": {
-    "@prospera-sheet/formula-parser": "^0.2.13",
+    "@lofcz/tinysheet-formula-parser": "^0.2.13",
     "dayjs": "^1.11.0",
     "immer": "^9.0.12",
     "lodash": "^4.17.21",

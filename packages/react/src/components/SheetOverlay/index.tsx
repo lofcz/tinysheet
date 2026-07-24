@@ -34,7 +34,7 @@ import {
   fixColumnStyleOverflowInFreeze,
   handleKeydownForZoom,
   api,
-} from "@lofcz/prospera-sheet-core";
+} from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import WorkbookContext, { SetContextOptions } from "../../context";
 import ColumnHeader from "./ColumnHeader";
@@ -51,6 +51,7 @@ import RangeDialog from "../DataVerification/RangeDialog";
 import { useDialog } from "../../hooks/useDialog";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
+import AutocompleteList from "./AutocompleteList";
 
 const SheetOverlay: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -798,8 +799,9 @@ const SheetOverlay: React.FC = () => {
             <LinkEditCard {...context.linkCard} />
           )}
           {context.rangeDialog?.show && <RangeDialog />}
-          <FilterOptions getContainer={() => containerRef.current!} />
+          <FilterOptions />
           <InputBox />
+          <AutocompleteList />
           <NotationBoxes />
           <div id="luckysheet-multipleRange-show" />
           <div id="luckysheet-dynamicArray-hightShow" />

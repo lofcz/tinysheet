@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import "./index.css";
-import { locale, setConditionRules } from "@lofcz/prospera-sheet-core";
+import { locale, setConditionRules } from "@lofcz/tinysheet-core";
 import produce from "immer";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";

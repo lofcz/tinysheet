@@ -1,4 +1,4 @@
-import { getRangetxt, locale } from "@lofcz/prospera-sheet-core";
+import { getRangetxt, locale } from "@lofcz/tinysheet-core";
 
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import DataVerification from ".";

@@ -6,8 +6,8 @@ import React, {
   useMemo,
 } from "react";
 import { Meta, StoryFn } from "@storybook/react";
-import { Sheet, Op, Selection, colors } from "@lofcz/prospera-sheet-core";
-import { Workbook, WorkbookInstance } from "@lofcz/prospera-sheet-react";
+import { Sheet, Op, Selection, colors } from "@lofcz/tinysheet-core";
+import { Workbook, WorkbookInstance } from "@lofcz/tinysheet-react";
 import { v4 as uuidv4 } from "uuid";
 import { hashCode } from "./utils";
 

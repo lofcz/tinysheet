@@ -36,6 +36,10 @@ jobs:
         with:
           node-version: "lts/*"
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Ensure npm supports OIDC trusted publishing
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -68,40 +72,72 @@ jobs:
           }
 
           const type = process.env.RELEASE_TYPE;
-          const corePath = "packages/core/package.json";
-          const reactPath = "packages/react/package.json";
+          const pkgs = [
+            {
+              path: "packages/core/package.json",
+              name: "@lofcz/tinysheet-core",
+              deps: [],
+            },
+            {
+              path: "packages/react/package.json",
+              name: "@lofcz/tinysheet-react",
+              deps: ["@lofcz/tinysheet-core"],
+            },
+            {
+              path: "packages/excel/package.json",
+              name: "@lofcz/tinysheet-excel",
+              deps: ["@lofcz/tinysheet-core"],
+            },
+          ];
 
-          const core = JSON.parse(fs.readFileSync(corePath, "utf8"));
+          const core = JSON.parse(fs.readFileSync(pkgs[0].path, "utf8"));
           const version = bumpVersion(core.version, type);
-          core.version = version;
-          fs.writeFileSync(corePath, `${JSON.stringify(core, null, 2)}\n`);
 
-          const react = JSON.parse(fs.readFileSync(reactPath, "utf8"));
-          react.version = version;
-          if (react.dependencies?.["@lofcz/prospera-sheet-core"]) {
-            react.dependencies["@lofcz/prospera-sheet-core"] = `^${version}`;
+          for (const pkg of pkgs) {
+            const json = JSON.parse(fs.readFileSync(pkg.path, "utf8"));
+            json.version = version;
+            for (const dep of pkg.deps) {
+              if (json.dependencies?.[dep]) {
+                json.dependencies[dep] = `^${version}`;
+              }
+            }
+            fs.writeFileSync(pkg.path, `${JSON.stringify(json, null, 2)}\n`);
           }
-          fs.writeFileSync(reactPath, `${JSON.stringify(react, null, 2)}\n`);
 
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
-          console.log(`Bumped @lofcz/prospera-sheet-core and @lofcz/prospera-sheet-react to ${version}`);
+          console.log(
+            `Bumped @lofcz/tinysheet-{core,react,excel} to ${version}`
+          );
           EOF
 
       - name: Commit release version and create tag
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add packages/core/package.json packages/react/package.json
+          git add packages/core/package.json packages/react/package.json packages/excel/package.json
           git commit -m "chore: release v${{ steps.version.outputs.version }}"
           git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
 
-      - name: Publish @lofcz/prospera-sheet-core
-        working-directory: packages/core
-        run: npm publish --provenance --access public
-
-      - name: Publish @lofcz/prospera-sheet-react
-        working-directory: packages/react
-        run: npm publish --provenance --access public
+      - name: Publish packages
+        env:
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          publish_if_new() {
+            local dir="$1"
+            local name version
+            name="$(node -p "require('./$dir/package.json').name")"
+            version="$(node -p "require('./$dir/package.json').version")"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "skip $name@$version (already on registry)"
+            else
+              echo "publish $name@$version"
+              (cd "$dir" && npm publish --provenance --access public)
+            fi
+          }
+          publish_if_new packages/formula-parser
+          publish_if_new packages/core
+          publish_if_new packages/react
+          publish_if_new packages/excel
 
       - name: Push release commit and tag
         run: git push --follow-tags

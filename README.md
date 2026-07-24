@@ -1,15 +1,15 @@
 <p align="center">
   <img align="center" src="logo.png" width="150px" height="150px" />
 </p>
-<h1 align="center">ProsperaSheet</h1>
-<p align="center">ProsperaSheet is a fork of FortuneSheet: for experimental features, faster bug fixes and optimizations.</p>
+<h1 align="center">TinySheet</h1>
+<p align="center">TinySheet is a fork of FortuneSheet: for experimental features, faster bug fixes and optimizations.</p>
 
 <div align="center">
 
 [![xiemala](https://img.shields.io/badge/maintained%20by-corbe30-cc00ff.svg)](https://corbe30.github.io)
-<a href="http://npmjs.com/package/@lofcz/prospera-sheet-react" alt="ProsperaSheet on npm">
-<img src="https://img.shields.io/npm/v/@lofcz/prospera-sheet-react" /></a> <a href="http://npmjs.com/package/@lofcz/prospera-sheet-react" alt="prospera-sheet downloads">
-<img src="https://img.shields.io/npm/d18m/%40prospera-sheet%2Freact" /></a>
+<a href="http://npmjs.com/package/@lofcz/tinysheet-react" alt="TinySheet on npm">
+<img src="https://img.shields.io/npm/v/@lofcz/tinysheet-react" /></a> <a href="http://npmjs.com/package/@lofcz/tinysheet-react" alt="tinysheet downloads">
+<img src="https://img.shields.io/npm/d18m/%40lofcz%2Ftinysheet-react" /></a>
 
 </div>
 
@@ -18,10 +18,10 @@ English | [简体中文](./README-zh.md)
 
 ## Purpose
 
-ProsperaSheet encourages faster SDLC, pushing newer versions quicker. Due to this, testing may not be as thorough as in FortuneSheet. Here, ProsperaSheet depends on the community to bring the developers to its attention for quicker error resolution!
+TinySheet encourages faster SDLC, pushing newer versions quicker. Due to this, testing may not be as thorough as in FortuneSheet. Here, TinySheet depends on the community to bring the developers to its attention for quicker error resolution!
 
-ProsperaSheet cannot promise backward compatibility with FortuneSheet, but promises an optimized experience in edit operations with fewer P0/P1 issues.
-FortuneExcel will always be compatible with both ProsperaSheet and FortuneSheet.
+TinySheet cannot promise backward compatibility with FortuneSheet, but promises an optimized experience in edit operations with fewer P0/P1 issues.
+FortuneExcel will always be compatible with both TinySheet and FortuneSheet.
 
 Moreover, due to its access limitations and new changes to [npm token expiration](https://github.blog/changelog/2025-09-29-strengthening-npm-security-important-changes-to-authentication-and-token-management/), we might not be able to maintain FortuneSheet further.
 
@@ -47,7 +47,7 @@ Moreover, due to its access limitations and new changes to [npm token expiration
 <summary>Using npm</summary>
 
 ```shell
-npm install @lofcz/prospera-sheet-react
+npm install @lofcz/tinysheet-react
 ```
 </details>
 
@@ -55,7 +55,7 @@ npm install @lofcz/prospera-sheet-react
 <summary>Using pnpm</summary>
 
 ```shell
-pnpm install @lofcz/prospera-sheet-react
+pnpm install @lofcz/tinysheet-react
 ```
 </details>
 
@@ -63,7 +63,7 @@ pnpm install @lofcz/prospera-sheet-react
 <summary>Using yarn</summary>
 
 ```shell
-yarn add @lofcz/prospera-sheet-react
+yarn add @lofcz/tinysheet-react
 ```
 </details>
 
@@ -85,8 +85,8 @@ yarn add @lofcz/prospera-sheet-react
 ```js
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { Workbook } from "@lofcz/prospera-sheet-react";
-import "@lofcz/prospera-sheet-react/dist/index.css"
+import { Workbook } from "@lofcz/tinysheet-react";
+import "@lofcz/tinysheet-react/dist/index.css"
 
 ReactDOM.render(
   <Workbook data={[{ name: "Sheet1" }]} />,

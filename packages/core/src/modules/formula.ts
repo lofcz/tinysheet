@@ -1,6 +1,6 @@
 import _ from "lodash";
 // @ts-ignore
-import { Parser, ERROR_REF } from "@prospera-sheet/formula-parser";
+import { Parser, ERROR_REF } from "@lofcz/tinysheet-formula-parser";
 import type {
   Cell,
   CellMatrix,

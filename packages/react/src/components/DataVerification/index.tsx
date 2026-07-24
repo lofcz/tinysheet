@@ -8,7 +8,7 @@ import {
   locale,
   setCellValue,
   confirmMessage,
-} from "@lofcz/prospera-sheet-core";
+} from "@lofcz/tinysheet-core";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";

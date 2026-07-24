@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from "react";
 import { Meta, StoryFn } from "@storybook/react";
-import { Workbook, WorkbookInstance } from "@lofcz/prospera-sheet-react";
-import { Sheet } from "@lofcz/prospera-sheet-core";
+import { Workbook, WorkbookInstance } from "@lofcz/tinysheet-react";
+import { Sheet } from "@lofcz/tinysheet-core";
 
 export default {
   component: Workbook,

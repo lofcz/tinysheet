@@ -14,7 +14,7 @@ import {
   isShowHidenCR,
   escapeHTMLTag,
   isAllowEdit,
-} from "@lofcz/prospera-sheet-core";
+} from "@lofcz/tinysheet-core";
 import React, {
   useContext,
   useState,

@@ -1,4 +1,4 @@
-import { locale } from "@lofcz/prospera-sheet-core";
+import { locale } from "@lofcz/tinysheet-core";
 import React, { useContext } from "react";
 import WorkbookContext from "../../../context";
 import "./index.css";
