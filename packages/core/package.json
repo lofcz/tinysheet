@@ -1,6 +1,6 @@
 {
   "name": "@lofcz/tinysheet-core",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -21,7 +21,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@lofcz/tinysheet-formula-parser": "^0.2.13",
+    "@lofcz/tinysheet-formula-parser": "^1.0.2",
     "dayjs": "^1.11.0",
     "immer": "^9.0.12",
     "lodash": "^4.17.21",
