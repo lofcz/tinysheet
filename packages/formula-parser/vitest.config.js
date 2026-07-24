@@ -7,5 +7,9 @@ export default defineConfig({
     exclude: ["test/setup.js", "**/node_modules/**"],
     setupFiles: ["./test/setup.js"],
     globals: true,
+    // Keep formulajs Date edge cases stable across local/CI hosts.
+    env: {
+      TZ: "UTC",
+    },
   },
 });

@@ -1,5 +1,14 @@
 import Parser from "../../../../src/parser";
 
+/** formulajs returns local-midnight Date values; compare calendar parts, not UTC ISO. */
+function expectLocalDate(parsed, year, monthIndex, day) {
+  expect(parsed.error).toBeNull();
+  expect(parsed.result).toBeInstanceOf(Date);
+  expect(parsed.result.getFullYear()).toBe(year);
+  expect(parsed.result.getMonth()).toBe(monthIndex);
+  expect(parsed.result.getDate()).toBe(day);
+}
+
 describe(".parse() date & time formulas", () => {
   let parser;
 
@@ -11,9 +20,7 @@ describe(".parse() date & time formulas", () => {
   });
 
   it("DATE", () => {
-    expect(
-      parser.parse("DATE()")
-    ).toMatchObject({ error: null, result: new Date("1899-11-29T23:00:00.000Z") });
+    expectLocalDate(parser.parse("DATE()"), 1899, 10, 30);
 
     const { error, result } = parser.parse("DATE(2001, 5, 12)");
 
@@ -27,12 +34,8 @@ describe(".parse() date & time formulas", () => {
     expect(
       parser.parse("DATEVALUE()")
     ).toMatchObject({ error: "#VALUE!", result: null });
-    expect(
-      parser.parse('DATEVALUE("1/1/1900")')
-    ).toMatchObject({ error: null, result: new Date("1899-12-31T23:00:00.000Z") });
-    expect(
-      parser.parse('DATEVALUE("1/1/2000")')
-    ).toMatchObject({ error: null, result: new Date("1999-12-31T23:00:00.000Z") });
+    expectLocalDate(parser.parse('DATEVALUE("1/1/1900")'), 1900, 0, 1);
+    expectLocalDate(parser.parse('DATEVALUE("1/1/2000")'), 2000, 0, 1);
   });
 
   it("DAY", () => {
@@ -90,9 +93,7 @@ describe(".parse() date & time formulas", () => {
     expect(
       parser.parse("EDATE(1)")
     ).toMatchObject({ error: "#VALUE!", result: null });
-    expect(
-      parser.parse('EDATE("1/1/1900", 1)')
-    ).toMatchObject({ error: null, result: new Date("1900-01-31T23:00:00.000Z") });
+    expectLocalDate(parser.parse('EDATE("1/1/1900", 1)'), 1900, 1, 1);
   });
 
   it("EOMONTH", () => {
@@ -102,9 +103,7 @@ describe(".parse() date & time formulas", () => {
     expect(
       parser.parse("EOMONTH(1)")
     ).toMatchObject({ error: "#VALUE!", result: null });
-    expect(
-      parser.parse('EOMONTH("1/1/1900", 1)')
-    ).toMatchObject({ error: null, result: new Date("1900-02-27T23:00:00.000Z") });
+    expectLocalDate(parser.parse('EOMONTH("1/1/1900", 1)'), 1900, 1, 28);
   });
 
   it("HOUR", () => {
@@ -271,9 +270,7 @@ describe(".parse() date & time formulas", () => {
     expect(
       parser.parse("WORKDAY()")
     ).toMatchObject({ error: "#VALUE!", result: null });
-    expect(
-      parser.parse('WORKDAY("1/1/1900")')
-    ).toMatchObject({ error: null, result: new Date("1899-12-31T23:00:00.000Z") });
+    expectLocalDate(parser.parse('WORKDAY("1/1/1900")'), 1900, 0, 1);
 
     const { result, error } = parser.parse('WORKDAY("1/1/1900", 1)');
 
