@@ -1,6 +1,6 @@
 {
   "name": "@lofcz/tinysheet-react",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -25,7 +25,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@lofcz/tinysheet-core": "^1.0.2",
+    "@lofcz/tinysheet-core": "^1.0.3",
     "@types/regenerator-runtime": "^0.13.6",
     "immer": "^9.0.12",
     "lodash": "^4.17.21",
