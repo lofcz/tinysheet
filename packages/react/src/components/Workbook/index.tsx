@@ -102,7 +102,10 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       []
     );
 
-    const [context, setContext] = useState(defaultContext(refs));
+    // Lazy initializer: defaultContext builds a FormulaCache (and with it a
+    // Chevrotain parser), which is far too expensive to evaluate and throw
+    // away on every Workbook render.
+    const [context, setContext] = useState(() => defaultContext(refs));
     const { formula, info } = locale(context);
 
     const [moreToolbarItems, setMoreToolbarItems] =
