@@ -10,6 +10,7 @@ import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import "./index.css";
+import { activateOnKey } from "../Toolbar/Button";
 
 const presets = [
   {
@@ -86,14 +87,16 @@ const ZoomControl: React.FC = () => {
   );
 
   return (
-    <aside title="Zoom settings" className="fortune-zoom-container">
+    <aside aria-label={info.zoomSettings} className="fortune-zoom-container">
       <div
         className="fortune-zoom-button"
         aria-label={info.zoomOut}
+        title={info.zoomOut}
         onClick={(e) => {
           zoomTo(context.zoomRatio - 0.1);
           e.stopPropagation();
         }}
+        onKeyDown={activateOnKey}
         tabIndex={0}
         role="button"
       >
@@ -103,20 +106,37 @@ const ZoomControl: React.FC = () => {
         <div
           className="fortune-zoom-ratio-current fortune-zoom-button"
           onClick={() => setRadioMenuOpen(true)}
+          onKeyDown={activateOnKey}
           tabIndex={0}
+          role="button"
+          aria-label={`${info.zoomLevel}: ${(context.zoomRatio * 100).toFixed(
+            0
+          )}%`}
+          aria-haspopup="listbox"
+          aria-expanded={radioMenuOpen}
         >
           {(context.zoomRatio * 100).toFixed(0)}%
         </div>
         {radioMenuOpen && (
-          <div className="fortune-zoom-ratio-menu" ref={menuRef}>
+          <div
+            className="fortune-zoom-ratio-menu"
+            ref={menuRef}
+            role="listbox"
+            aria-label={info.zoomLevel}
+          >
             {presets.map((v) => (
               <div
                 className="fortune-zoom-ratio-item"
                 key={v.text}
                 onClick={(e) => {
                   zoomTo(v.value);
+                  setRadioMenuOpen(false);
                   e.preventDefault();
+                  e.stopPropagation();
                 }}
+                onKeyDown={activateOnKey}
+                role="option"
+                aria-selected={Math.abs(context.zoomRatio - v.value) < 0.001}
                 tabIndex={0}
               >
                 <div className="fortune-zoom-ratio-text">{v.text}</div>
@@ -128,10 +148,12 @@ const ZoomControl: React.FC = () => {
       <div
         className="fortune-zoom-button"
         aria-label={info.zoomIn}
+        title={info.zoomIn}
         onClick={(e) => {
           zoomTo(context.zoomRatio + 0.1);
           e.stopPropagation();
         }}
+        onKeyDown={activateOnKey}
         tabIndex={0}
         role="button"
       >
