@@ -1,4 +1,10 @@
 .fortune-sheet-list {
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  box-shadow: var(--fortune-shadow);
+  padding: var(--fortune-space-1) 0;
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 120px;
@@ -31,7 +37,7 @@
 }
 
 .fortune-sheet-list :hover {
-  background-color: #efefef;
+  background-color: var(--fortune-bg-hover);
 }
 
 .fortune-sheet-hidden-button {
@@ -43,7 +49,7 @@
 }
 
 .fortune-sheet-hidden-button :hover {
-  background-color: #d0d0d0;
+  background-color: var(--fortune-bg-hover);
 }
 
 .fortune-sheet-selected-check-sapce {

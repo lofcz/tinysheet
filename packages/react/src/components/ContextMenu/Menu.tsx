@@ -30,6 +30,33 @@ const Menu: React.FC<Props> = ({
   }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Enter / Space activate the item; arrow keys move between items of the
+  // same menu. Keys typed into inputs inside an item are left alone.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.click();
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const menu = e.currentTarget.parentElement;
+    if (!menu) return;
+    const items = Array.from(
+      menu.querySelectorAll<HTMLDivElement>(
+        ":scope > .luckysheet-cols-menuitem"
+      )
+    );
+    const index = items.indexOf(e.currentTarget);
+    if (index === -1 || items.length === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = e.key === "ArrowDown" ? 1 : -1;
+    items[(index + delta + items.length) % items.length].focus();
+  };
+
   return (
     <div
       ref={containerRef}
@@ -37,7 +64,9 @@ const Menu: React.FC<Props> = ({
       onClick={(e) => onClick?.(e, containerRef.current!)}
       onMouseLeave={(e) => onMouseLeave?.(e, containerRef.current!)}
       onMouseEnter={(e) => onMouseEnter?.(e, containerRef.current!)}
+      onKeyDown={onKeyDown}
       tabIndex={0}
+      role="menuitem"
     >
       <div className="luckysheet-cols-menuitem-content luckysheet-mousedown-cancel">
         {children}

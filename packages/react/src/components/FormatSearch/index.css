@@ -14,6 +14,6 @@
 .format-list {
   width: 300px;
   height: 170px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--fortune-border);
   overflow-y: scroll;
 }

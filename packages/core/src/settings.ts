@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import React from "react";
 import { Sheet, Selection, CellMatrix, Cell } from "./types";
+import type { ThemeSetting } from "./theme";
 
 export type Hooks = {
   beforeUpdateCell?: (r: number, c: number, value: any) => boolean;
@@ -163,6 +164,12 @@ export type Settings = {
     onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   }[];
   currency?: string;
+  /**
+   * Colour theme of the workbook UI and canvas. `auto` follows the
+   * `prefers-color-scheme` media query and updates live.
+   * @default "light"
+   */
+  theme?: ThemeSetting;
 };
 
 export const defaultSettings: Required<Settings> = {
@@ -296,4 +303,5 @@ export const defaultSettings: Required<Settings> = {
   hooks: {},
   customToolbarItems: [],
   currency: "¥",
+  theme: "light", // "light" | "dark" | "auto"
 };

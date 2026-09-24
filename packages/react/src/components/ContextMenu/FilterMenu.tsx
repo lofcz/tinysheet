@@ -434,6 +434,7 @@ const FilterMenu: React.FC = () => {
   return (
     <>
       <div
+        role="menu"
         className="fortune-context-menu luckysheet-cols-menu fortune-filter-menu"
         id="luckysheet-\${menuid}-menu"
         ref={containerRef}

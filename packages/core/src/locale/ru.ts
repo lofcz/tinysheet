@@ -186,6 +186,14 @@ export default {
     moveRightShortcut: "Перейти вправо: Tab.",
     moveLeftShortcut: "Перейти влево: Shift, Tab.",
     shortcuts: "Горячие клавиши",
+    sheetTabs: "Sheet tabs",
+    allSheets: "All sheets",
+    scrollTabsLeft: "Scroll sheet tabs left",
+    scrollTabsRight: "Scroll sheet tabs right",
+    zoomSettings: "Zoom settings",
+    zoomLevel: "Zoom level",
+    imageCrop: "Crop",
+    imageRestore: "Restore original image",
   },
   currencyDetail: [
     {

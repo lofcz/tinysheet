@@ -366,7 +366,11 @@ const DropDownList: React.FC = () => {
             });
           }}
           tabIndex={0}
-          style={i === activeIndex ? { background: "#e6f7ff" } : {}}
+          style={
+            i === activeIndex
+              ? { background: "var(--fortune-accent-soft)" }
+              : {}
+          }
           onMouseEnter={() => setActiveIndex(i)}
         >
           <SVGIcon
