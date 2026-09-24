@@ -6,6 +6,8 @@ export const ERROR_NULL: "NULL";
 export const ERROR_NUM: "NUM";
 export const ERROR_REF: "REF";
 export const ERROR_VALUE: "VALUE";
+export const ERROR_SPILL: "SPILL";
+export const ERROR_CALC: "CALC";
 
 export const SUPPORTED_FORMULAS: string[];
 

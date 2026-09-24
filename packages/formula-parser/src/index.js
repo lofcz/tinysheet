@@ -9,6 +9,8 @@ import error, {
   ERROR_NUM,
   ERROR_REF,
   ERROR_VALUE,
+  ERROR_SPILL,
+  ERROR_CALC,
 } from "./error";
 import {
   extractLabel,
@@ -29,6 +31,8 @@ export {
   ERROR_NUM,
   ERROR_REF,
   ERROR_VALUE,
+  ERROR_SPILL,
+  ERROR_CALC,
   Parser,
   error,
   extractLabel,
