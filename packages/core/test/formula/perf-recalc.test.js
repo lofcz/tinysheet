@@ -8,7 +8,7 @@
  * A small smoke version always runs with a generous time bound so an
  * accidental O(n^2) regression still fails CI.
  */
-import { produce, setAutoFreeze } from "immer";
+import { produce } from "immer";
 import {
   makeSheet,
   makeCtx,
@@ -22,6 +22,7 @@ import { jfrefreshgrid, groupValuesRefresh } from "../../src";
 
 const BENCH = !!process.env.TINYSHEET_BENCH;
 const SCALE = Number(process.env.TINYSHEET_BENCH_SCALE || 1);
+const REPS = Number(process.env.TINYSHEET_BENCH_REPS || 3);
 
 function time(fn) {
   const t0 = performance.now();
@@ -84,7 +85,7 @@ function paste(ctx, r0, r1, c, v) {
   groupValuesRefresh(ctx);
 }
 
-function runSuite(n, log) {
+function runSuite(n) {
   const results = {};
 
   // --- chain ---
@@ -149,39 +150,43 @@ function runSuite(n, log) {
     results[`${big} formulas: paste 1000 inputs`] = tPaste;
   }
 
-  // --- same edits inside an immer produce(), like the React Workbook does ---
+  // --- same edits inside immer produce() (default autoFreeze), like the
+  // React Workbook does ---
   {
-    setAutoFreeze(false);
     let ctx = chainWorkbook(n);
     loadWorkbook(ctx);
     const [tChain] = time(() => {
       ctx = produce(ctx, (d) => edit(d, 0, 0, "2"));
     });
-    expect(val(ctx, n - 1, 0)).toBe(n + 1);
+    const [tChain2] = time(() => {
+      ctx = produce(ctx, (d) => edit(d, 0, 0, "3"));
+    });
+    expect(val(ctx, n - 1, 0)).toBe(n + 2);
     let ctx2 = columnWorkbook(n * 5);
     loadWorkbook(ctx2);
     const [tUnrelated] = time(() => {
       ctx2 = produce(ctx2, (d) => edit(d, 0, 3, "1"));
     });
-    setAutoFreeze(true);
-    results[`immer: chain ${n} edit head`] = tChain;
-    results[`immer: ${n * 5} formulas unrelated edit`] = tUnrelated;
+    const [tUnrelated2] = time(() => {
+      ctx2 = produce(ctx2, (d) => edit(d, 1, 3, "1"));
+    });
+    const [tPaste] = time(() => {
+      ctx2 = produce(ctx2, (d) => paste(d, 100, 1099, 0, 7));
+    });
+    expect(val(ctx2, 1099, 1)).toBe(14);
+    results[`immer: chain ${n} edit head (1st)`] = tChain;
+    results[`immer: chain ${n} edit head (2nd)`] = tChain2;
+    results[`immer: ${n * 5} formulas unrelated edit (1st)`] = tUnrelated;
+    results[`immer: ${n * 5} formulas unrelated edit (2nd)`] = tUnrelated2;
+    results[`immer: ${n * 5} formulas paste 1000 inputs`] = tPaste;
   }
 
-  if (log) {
-    // eslint-disable-next-line no-console
-    console.log(
-      Object.entries(results)
-        .map(([k, v]) => `${k.padEnd(44)} ${fmt(v)}`)
-        .join("\n")
-    );
-  }
   return results;
 }
 
 describe("recalc performance smoke", () => {
   test("2k-formula workbook stays well within bounds", () => {
-    const results = runSuite(2000, false);
+    const results = runSuite(2000);
     const total = Object.values(results).reduce((a, b) => a + b, 0);
     expect(total).toBeLessThan(60000);
   }, 120000);
@@ -191,8 +196,21 @@ describe("recalc performance smoke", () => {
   test(
     "10k formulas",
     () => {
-      const results = runSuite(10000 * SCALE, true);
-      expect(Object.keys(results).length).toBeGreaterThan(0);
+      // best of REPS runs: the machine may be noisy
+      const best = {};
+      for (let i = 0; i < REPS; i += 1) {
+        const results = runSuite(10000 * SCALE);
+        Object.entries(results).forEach(([k, v]) => {
+          best[k] = Math.min(best[k] ?? Infinity, v);
+        });
+      }
+      // eslint-disable-next-line no-console
+      console.log(
+        Object.entries(best)
+          .map(([k, v]) => `${k.padEnd(44)} ${fmt(v)}`)
+          .join("\n")
+      );
+      expect(Object.keys(best).length).toBeGreaterThan(0);
     },
     30 * 60 * 1000
   );
