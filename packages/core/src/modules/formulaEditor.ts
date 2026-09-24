@@ -1008,7 +1008,7 @@ export function getFunctionListMap(ctx: Context): Record<string, any> {
 }
 
 export function clearFormulaEditorState(ctx: Context) {
-  if (ctx.functionCandidates.length > 0) ctx.functionCandidates = [];
+  if (ctx.functionCandidates?.length) ctx.functionCandidates = [];
   if (ctx.functionHint != null) ctx.functionHint = null;
 }
 
@@ -1044,7 +1044,7 @@ export function refreshFormulaEditorState(ctx: Context, el: HTMLElement) {
       return;
     }
   }
-  if (ctx.functionCandidates.length > 0) ctx.functionCandidates = [];
+  if (ctx.functionCandidates?.length) ctx.functionCandidates = [];
 
   const call = getCallContext(text, caret, tokens);
   const name = call?.name.toUpperCase();
