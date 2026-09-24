@@ -104,7 +104,10 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       []
     );
 
-    const [context, setContext] = useState(defaultContext(refs));
+    // Lazy initializer: defaultContext builds a FormulaCache (and with it a
+    // Chevrotain parser), which is far too expensive to evaluate and throw
+    // away on every Workbook render.
+    const [context, setContext] = useState(() => defaultContext(refs));
     const { formula, info } = locale(context);
 
     const [moreToolbarItems, setMoreToolbarItems] =
@@ -789,6 +792,13 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       [context, setContextWithProduce, handleUndo, handleRedo, mergedSettings]
     );
 
+    // ~1300 lines of static SVG symbols: keep the element identity stable so
+    // React skips it on every context change.
+    const svgDefines = useMemo(
+      () => <SVGDefines currency={mergedSettings.currency} />,
+      [mergedSettings.currency]
+    );
+
     const i = getSheetIndex(context, context.currentSheetId);
     if (i == null) {
       return null;
@@ -831,7 +841,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
                 <li>{info.moveLeftShortcut}</li>
               </ul>
             </section>
-            <SVGDefines currency={mergedSettings.currency} />
+            {svgDefines}
             <div className="fortune-workarea">
               {mergedSettings.showToolbar && (
                 <Toolbar

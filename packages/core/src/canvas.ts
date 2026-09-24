@@ -2,7 +2,6 @@ import _ from "lodash";
 import { defaultContext, getFlowdata } from "./context";
 import { getRealCellValue, normalizedAttr } from "./modules/cell";
 import {
-  clearMeasureTextCache,
   defaultFont,
   getCellTextInfo,
   getFontSet,
@@ -13,6 +12,7 @@ import { getSheetIndex, indexToColumnChar } from "./utils";
 import { getBorderInfoComputeRange } from "./modules/border";
 import { checkCF, getComputeMap, validateCellData } from "./modules";
 import { getCanvasTheme, resolveCellTextColor } from "./theme";
+import { getCellFormatColor } from "./modules/format";
 
 export const defaultStyle = {
   fillStyle: "#000000",
@@ -38,6 +38,36 @@ function getCfIconsImg() {
 
 function getBorderFix() {
   return [-1, 0, 0, -1];
+}
+
+/**
+ * Whether a single-line, unrotated text layout lies inside its cell's clip
+ * rectangle (with a pixel of slack for glyph bearings), so drawing it without
+ * clipping gives the same pixels.
+ */
+function textFitsCell(
+  textInfo: any,
+  cell: any,
+  cellWidth: number,
+  cellHeight: number
+) {
+  if (!textInfo || textInfo.type !== "plain" || textInfo.rotate) return false;
+  // italic glyphs overhang their advance width
+  if (cell?.it && cell.it !== "0") return false;
+  const { values } = textInfo;
+  if (!values || values.length !== 1) return false;
+  const word = values[0];
+  if (word.cancelLine || word.underLine || typeof word.content !== "string") {
+    return false;
+  }
+  const asc = textInfo.asc ?? 0;
+  const desc = textInfo.desc ?? 0;
+  return (
+    word.left >= 1 &&
+    word.left + word.width <= cellWidth - 1 &&
+    word.top - asc >= 0 &&
+    word.top + desc <= cellHeight
+  );
 }
 
 function setLineDash(
@@ -114,9 +144,20 @@ export class Canvas {
 
   sheetCtx: ReturnType<typeof defaultContext>;
 
-  measureTextCacheTimeOut: any;
-
   cellOverflowMapCache: any;
+
+  /**
+   * While drawMain runs without per-cell render hooks, default grid lines are
+   * collected here (x1, y1, x2, y2 per segment) and stroked as one path after
+   * all cells are filled, instead of one stroke() per cell edge.
+   */
+  gridLineBatch: number[] | null = null;
+
+  /** Bottom (endY) of the last row drawn by the running drawMain. */
+  gridLineBottomY = 0;
+
+  /** Transform in effect for cell drawing (devicePixelRatio scale). */
+  baseTransform: DOMMatrix | null = null;
 
   constructor(
     canvasElement: HTMLCanvasElement,
@@ -152,7 +193,8 @@ export class Canvas {
       drawHeight
     );
 
-    renderCtx.font = defaultFont(this.sheetCtx.defaultFontSize);
+    const headerFont = defaultFont(this.sheetCtx.defaultFontSize);
+    renderCtx.font = headerFont;
     // @ts-ignore
     renderCtx.textBaseline = defaultStyle.textBaseline; // 基准线 垂直居中
     renderCtx.fillStyle = defaultStyle.fillStyle;
@@ -223,7 +265,12 @@ export class Canvas {
         // 行标题栏序列号
         renderCtx.save(); // save scale before draw text
         renderCtx.scale(this.sheetCtx.zoomRatio, this.sheetCtx.zoomRatio);
-        const textMetrics = getMeasureText(r + 1, renderCtx, this.sheetCtx);
+        const textMetrics = getMeasureText(
+          r + 1,
+          renderCtx,
+          this.sheetCtx,
+          headerFont
+        );
 
         const horizonAlignPos =
           (this.sheetCtx.rowHeaderWidth - textMetrics.width) / 2;
@@ -341,7 +388,8 @@ export class Canvas {
       this.sheetCtx.columnHeaderHeight - 1
     );
 
-    renderCtx.font = defaultFont(this.sheetCtx.defaultFontSize);
+    const headerFont = defaultFont(this.sheetCtx.defaultFontSize);
+    renderCtx.font = headerFont;
     // @ts-ignore
     renderCtx.textBaseline = defaultStyle.textBaseline; // 基准线 垂直居中
     renderCtx.fillStyle = defaultStyle.fillStyle;
@@ -415,7 +463,12 @@ export class Canvas {
         renderCtx.save(); // save scale before draw text
         renderCtx.scale(this.sheetCtx.zoomRatio, this.sheetCtx.zoomRatio);
 
-        const textMetrics = getMeasureText(abc, renderCtx, this.sheetCtx);
+        const textMetrics = getMeasureText(
+          abc,
+          renderCtx,
+          this.sheetCtx,
+          headerFont
+        );
 
         const horizonAlignPos = Math.round(
           start_c + (end_c - start_c) / 2 + offsetLeft - textMetrics.width / 2
@@ -534,8 +587,6 @@ export class Canvas {
     if (_.isNil(flowdata)) {
       return;
     }
-
-    clearTimeout(this.measureTextCacheTimeOut);
 
     // 参数未定义处理
     if (drawWidth === undefined) {
@@ -677,6 +728,25 @@ export class Canvas {
 
     this.sheetCtx.hooks.beforeRenderCellArea?.(flowdata, renderCtx);
 
+    // Batching reorders grid lines after cell fills. That is pixel-identical
+    // only when lines are pixel-aligned (anti-aliased edges at fractional
+    // zoom / devicePixelRatio blend differently), and per-cell hooks may draw
+    // over cell edges, so keep the interleaved order otherwise.
+    this.gridLineBatch =
+      this.sheetCtx.zoomRatio === 1 &&
+      Number.isInteger(this.sheetCtx.devicePixelRatio) &&
+      !this.sheetCtx.hooks.beforeRenderCell &&
+      !this.sheetCtx.hooks.afterRenderCell
+        ? []
+        : null;
+    this.gridLineBottomY = rowEndY - scrollHeight;
+    this.baseTransform =
+      typeof renderCtx.getTransform === "function"
+        ? renderCtx.getTransform()
+        : null;
+    const needBorderOffset =
+      (this.sheetCtx.config?.borderInfo?.length ?? 0) > 0;
+
     for (let r = rowStart; r <= rowEnd; r += 1) {
       let startY;
       if (r === 0) {
@@ -714,12 +784,14 @@ export class Canvas {
           const value = flowdata[r][c];
 
           if (value?.mc) {
-            borderOffset[`${r}_${c}`] = {
-              startY,
-              startX,
-              endY,
-              endX,
-            };
+            if (needBorderOffset) {
+              borderOffset[`${r}_${c}`] = {
+                startY,
+                startX,
+                endY,
+                endX,
+              };
+            }
 
             if ("rs" in value.mc) {
               const key = `r${r}c${c}`;
@@ -764,12 +836,14 @@ export class Canvas {
           endX,
           firstcolumnlen,
         });
-        borderOffset[`${r}_${c}`] = {
-          startY,
-          startX,
-          endY,
-          endX,
-        };
+        if (needBorderOffset) {
+          borderOffset[`${r}_${c}`] = {
+            startY,
+            startX,
+            endY,
+            endX,
+          };
+        }
       }
     }
 
@@ -1139,6 +1213,9 @@ export class Canvas {
     }
     */
 
+    // default grid lines go under explicit cell borders
+    this.flushGridLines(renderCtx);
+
     // 边框单独渲染
     if ((this.sheetCtx.config?.borderInfo?.length ?? 0) > 0) {
       // 边框渲染
@@ -1427,11 +1504,51 @@ export class Canvas {
     }
 
     renderCtx.restore();
+    this.baseTransform = null;
+  }
 
-    this.measureTextCacheTimeOut = setTimeout(() => {
-      clearMeasureTextCache();
-      this.cellOverflowMapCache = {};
-    }, 100);
+  /** Default grid line segment: batched during drawMain, else stroked now. */
+  gridLine(
+    renderCtx: CanvasRenderingContext2D,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number
+  ) {
+    if (this.gridLineBatch) {
+      this.gridLineBatch.push(x1, y1, x2, y2);
+      return;
+    }
+    renderCtx.beginPath();
+    renderCtx.moveTo(x1, y1);
+    renderCtx.lineTo(x2, y2);
+    renderCtx.lineWidth = 1;
+    renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
+    renderCtx.stroke();
+    renderCtx.closePath();
+  }
+
+  /**
+   * A cell's right grid line reaches 1px into the row below, where that
+   * row's fill used to paint over it. Batched lines are stroked after all
+   * fills, so they stop short instead, unless no row is drawn below.
+   */
+  gridLineTrim(endY: number) {
+    return this.gridLineBatch && endY < this.gridLineBottomY ? 1 : 0;
+  }
+
+  flushGridLines(renderCtx: CanvasRenderingContext2D) {
+    const lines = this.gridLineBatch;
+    this.gridLineBatch = null;
+    if (!lines || lines.length === 0) return;
+    renderCtx.beginPath();
+    for (let i = 0; i < lines.length; i += 4) {
+      renderCtx.moveTo(lines[i], lines[i + 1]);
+      renderCtx.lineTo(lines[i + 2], lines[i + 3]);
+    }
+    renderCtx.lineWidth = 1;
+    renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
+    renderCtx.stroke();
   }
 
   // 获取表格渲染范围 溢出单元格
@@ -1464,12 +1581,16 @@ export class Canvas {
       for (let c = 0; c < data[r].length; c += 1) {
         const cell = data[r][c];
 
+        // cheapest test first: only overflow-mode (tb "1") cells matter
+        if (!cell || cell.tb !== "1") {
+          continue;
+        }
+
         if (this.sheetCtx.config?.colhidden?.[c] != null) {
           continue;
         }
 
         if (
-          cell &&
           (!_.isEmpty(cell.v) || isInlineStringCell(cell)) &&
           _.isNil(cell.mc) &&
           cell.tb === "1"
@@ -1746,13 +1867,13 @@ export class Canvas {
         !this.sheetCtx.luckysheetcurrentisPivotTable &&
         this.sheetCtx.showGridLines
       ) {
-        renderCtx.beginPath();
-        renderCtx.moveTo(endX + offsetLeft - 2 + bodrder05, startY + offsetTop);
-        renderCtx.lineTo(endX + offsetLeft - 2 + bodrder05, endY + offsetTop);
-        renderCtx.lineWidth = 1;
-        renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
-        renderCtx.stroke();
-        renderCtx.closePath();
+        this.gridLine(
+          renderCtx,
+          endX + offsetLeft - 2 + bodrder05,
+          startY + offsetTop,
+          endX + offsetLeft - 2 + bodrder05,
+          endY + offsetTop - this.gridLineTrim(endY)
+        );
       }
     }
 
@@ -1762,17 +1883,13 @@ export class Canvas {
       !this.sheetCtx.luckysheetcurrentisPivotTable &&
       this.sheetCtx.showGridLines
     ) {
-      renderCtx.beginPath();
-      renderCtx.moveTo(
+      this.gridLine(
+        renderCtx,
         startX + offsetLeft - 1,
+        endY + offsetTop - 2 + bodrder05,
+        endX + offsetLeft - 1,
         endY + offsetTop - 2 + bodrder05
       );
-      renderCtx.lineTo(endX + offsetLeft - 1, endY + offsetTop - 2 + bodrder05);
-      renderCtx.lineWidth = 1;
-
-      renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
-      renderCtx.stroke();
-      renderCtx.closePath();
     }
 
     // 单元格渲染后
@@ -1978,6 +2095,9 @@ export class Canvas {
       renderCtx.rect(pos_x, pos_y, cellWidth, cellHeight);
       renderCtx.clip();
       renderCtx.scale(this.sheetCtx.zoomRatio, this.sheetCtx.zoomRatio);
+      // the label uses the default font (cells drawn before may leave theirs)
+      renderCtx.font = defaultFont(this.sheetCtx.defaultFontSize);
+      renderCtx.textAlign = "start";
 
       const measureText = getMeasureText(value, renderCtx, this.sheetCtx);
       const textMetrics = measureText.width + 14;
@@ -2173,12 +2293,6 @@ export class Canvas {
       const pos_x = startX + offsetLeft;
       const pos_y = startY + offsetTop + 1;
 
-      renderCtx.save();
-      renderCtx.beginPath();
-      renderCtx.rect(pos_x, pos_y, cellWidth, cellHeight);
-      renderCtx.clip();
-      renderCtx.scale(this.sheetCtx.zoomRatio, this.sheetCtx.zoomRatio);
-
       const textInfo = cell
         ? getCellTextInfo(
             cell,
@@ -2195,6 +2309,23 @@ export class Canvas {
             this.sheetCtx
           )
         : undefined;
+
+      // Text that provably stays inside the cell needs no clip region, which
+      // saves a save()/clip()/restore() round trip for most cells.
+      const { zoomRatio } = this.sheetCtx;
+      const noClip =
+        !checksCF?.icons &&
+        (zoomRatio === 1 || this.baseTransform != null) &&
+        textFitsCell(textInfo, cell, cellWidth, cellHeight);
+      if (noClip) {
+        if (zoomRatio !== 1) renderCtx.scale(zoomRatio, zoomRatio);
+      } else {
+        renderCtx.save();
+        renderCtx.beginPath();
+        renderCtx.rect(pos_x, pos_y, cellWidth, cellHeight);
+        renderCtx.clip();
+        renderCtx.scale(zoomRatio, zoomRatio);
+      }
 
       // 若单元格有条件格式图标集
       if (checksCF?.icons && textInfo.type === "plain") {
@@ -2247,21 +2378,20 @@ export class Canvas {
         renderCtx.fillStyle = checksCF.textColor;
       }
 
-      // 若单元格格式为自定义数字格式（[red]） 文本颜色为红色
-      if (
-        (cell?.ct?.fa?.indexOf("[Red]") ?? -1) > -1 &&
-        cell?.ct?.t === "n" &&
-        (cell?.v as number) < 0
-      ) {
-        renderCtx.fillStyle = "#ff0000";
-      }
+      // Number-format colour ([Red], [Color10], conditional sections)
+      const fc = getCellFormatColor(cell);
+      if (fc) renderCtx.fillStyle = fc;
 
       this.cellTextRender(textInfo, renderCtx, {
         pos_x,
         pos_y,
       });
 
-      renderCtx.restore();
+      if (!noClip) {
+        renderCtx.restore();
+      } else if (zoomRatio !== 1) {
+        renderCtx.setTransform(this.baseTransform!);
+      }
     }
 
     if (cellOverflow_bd_r_render) {
@@ -2270,13 +2400,13 @@ export class Canvas {
         !this.sheetCtx.luckysheetcurrentisPivotTable &&
         this.sheetCtx.showGridLines
       ) {
-        renderCtx.beginPath();
-        renderCtx.moveTo(endX + offsetLeft - 2 + bodrder05, startY + offsetTop);
-        renderCtx.lineTo(endX + offsetLeft - 2 + bodrder05, endY + offsetTop);
-        renderCtx.lineWidth = 1;
-        renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
-        renderCtx.stroke();
-        renderCtx.closePath();
+        this.gridLine(
+          renderCtx,
+          endX + offsetLeft - 2 + bodrder05,
+          startY + offsetTop,
+          endX + offsetLeft - 2 + bodrder05,
+          endY + offsetTop - this.gridLineTrim(endY)
+        );
       }
     }
 
@@ -2285,16 +2415,13 @@ export class Canvas {
       !this.sheetCtx.luckysheetcurrentisPivotTable &&
       this.sheetCtx.showGridLines
     ) {
-      renderCtx.beginPath();
-      renderCtx.moveTo(
+      this.gridLine(
+        renderCtx,
         startX + offsetLeft - 1,
+        endY + offsetTop - 2 + bodrder05,
+        endX + offsetLeft - 1,
         endY + offsetTop - 2 + bodrder05
       );
-      renderCtx.lineTo(endX + offsetLeft - 1, endY + offsetTop - 2 + bodrder05);
-      renderCtx.lineWidth = 1;
-      renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
-      renderCtx.stroke();
-      renderCtx.closePath();
     }
 
     // 单元格渲染后
@@ -2549,27 +2676,26 @@ export class Canvas {
     let stc: number | undefined;
     let edc: number | undefined;
 
-    _.forEach(map, (row, rkey) => {
-      _.forEach(row, (mapItem, ckey) => {
-        rowIndex = Number(rkey);
-        colIndex = Number(ckey);
-        stc = mapItem.stc;
-        edc = mapItem.edc;
+    // Only overflow ranges of row r can contain (r, c).
+    const row = map?.[r];
+    if (row) {
+      const ckeys = Object.keys(row);
+      for (let i = 0; i < ckeys.length; i += 1) {
+        const mapItem = row[ckeys[i]];
+        if (c >= mapItem.stc && c <= mapItem.edc) {
+          colIn = true;
+          rowIndex = r;
+          colIndex = Number(ckeys[i]);
+          stc = mapItem.stc;
+          edc = mapItem.edc;
 
-        if (rowIndex === r) {
-          if (c >= (stc as number) && c <= (edc as number)) {
-            colIn = true;
-
-            if (c === edc || c === col_ed) {
-              colLast = true;
-              return false;
-            }
+          if (c === edc || c === col_ed) {
+            colLast = true;
+            break;
           }
         }
-        return true;
-      });
-      return !colLast;
-    });
+      }
+    }
 
     return {
       colIn,
