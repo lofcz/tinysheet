@@ -94,6 +94,141 @@ function canvasInputsChanged(prev: Context, next: Context) {
   return Object.keys(prev).length !== keys.length;
 }
 
+/** Whether the only canvas-relevant change is the scroll position. */
+function onlyScrolled(prev: Context, next: Context) {
+  if (prev.scrollLeft === next.scrollLeft && prev.scrollTop === next.scrollTop)
+    return false;
+  const keys = Object.keys(next) as (keyof Context)[];
+  if (Object.keys(prev).length !== keys.length) return false;
+  for (let i = 0; i < keys.length; i += 1) {
+    const k = keys[i];
+    if (
+      prev[k] !== next[k] &&
+      k !== "scrollLeft" &&
+      k !== "scrollTop" &&
+      !OVERLAY_ONLY_KEYS.has(k)
+    )
+      return false;
+  }
+  return true;
+}
+
+// Extra rows/columns (in px) drawn around an exposed strip, so borders and
+// cells bleeding across its edge are repainted too (the strip is clipped).
+const STRIP_MARGIN = 4;
+
+/**
+ * Scroll by moving the pixels already on the canvas and drawing only the
+ * newly exposed strip. Applies to unfrozen sheets scrolled along one axis by
+ * less than half the view, when every edge lands on a device pixel (so the
+ * copy is exact). Returns false when a full redraw is needed instead.
+ */
+function blitScroll(
+  canvasElement: HTMLCanvasElement,
+  prev: Context,
+  next: Context
+) {
+  const dx = next.scrollLeft - prev.scrollLeft;
+  const dy = next.scrollTop - prev.scrollTop;
+  if ((dx !== 0) === (dy !== 0)) return false;
+  const dpr = next.devicePixelRatio;
+  const [width, height] = next.luckysheetTableContentHW;
+  // main cell area: drawMain paints from one pixel above/left of the headers
+  const left = next.rowHeaderWidth - 1;
+  const top = next.columnHeaderHeight - 1;
+  const delta = dx || dy;
+  const span = dx ? width - left : height - top;
+  if (Math.abs(delta) * 2 > span) return false;
+  if (
+    ![left, top, width, height, delta].every((v) => Number.isInteger(v * dpr))
+  ) {
+    return false;
+  }
+  const ctx2d = canvasElement.getContext("2d");
+  if (!ctx2d || typeof ctx2d.setTransform !== "function") return false;
+
+  // 1. shift the existing cell area (device pixels, identity transform)
+  let w = width - left;
+  let h = height - top;
+  let sx = left;
+  let sy = top;
+  let tx = left;
+  let ty = top;
+  if (dy) {
+    h -= Math.abs(dy);
+    if (dy > 0) sy += dy;
+    else ty -= dy;
+  } else {
+    w -= Math.abs(dx);
+    if (dx > 0) sx += dx;
+    else tx -= dx;
+  }
+  ctx2d.save();
+  ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+  ctx2d.beginPath();
+  ctx2d.rect(tx * dpr, ty * dpr, w * dpr, h * dpr);
+  ctx2d.clip();
+  ctx2d.globalCompositeOperation = "copy";
+  ctx2d.drawImage(
+    canvasElement,
+    sx * dpr,
+    sy * dpr,
+    w * dpr,
+    h * dpr,
+    tx * dpr,
+    ty * dpr,
+    w * dpr,
+    h * dpr
+  );
+  ctx2d.restore();
+
+  // 2. draw the exposed strip, clipped to it
+  let stripX = left;
+  let stripY = top;
+  let stripW = width - left;
+  let stripH = height - top;
+  if (dy) {
+    stripH = Math.abs(dy);
+    if (dy > 0) stripY = height - dy;
+  } else {
+    stripW = Math.abs(dx);
+    if (dx > 0) stripX = width - dx;
+  }
+  const tableCanvas = new Canvas(canvasElement, next);
+  ctx2d.save();
+  ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+  ctx2d.beginPath();
+  ctx2d.rect(stripX * dpr, stripY * dpr, stripW * dpr, stripH * dpr);
+  ctx2d.clip();
+  // Shifting scroll offset and draw offset by the same k keeps every cell
+  // at the canvas position a full draw would give it.
+  if (dy) {
+    const k = stripY - STRIP_MARGIN - next.columnHeaderHeight;
+    tableCanvas.drawMain({
+      scrollWidth: next.scrollLeft,
+      scrollHeight: next.scrollTop + k,
+      drawHeight: stripH + 2 * STRIP_MARGIN,
+      offsetTop: next.columnHeaderHeight + k,
+      clear: true,
+    });
+  } else {
+    const k = stripX - STRIP_MARGIN - next.rowHeaderWidth;
+    tableCanvas.drawMain({
+      scrollWidth: next.scrollLeft + k,
+      scrollHeight: next.scrollTop,
+      drawWidth: stripW + 2 * STRIP_MARGIN,
+      offsetLeft: next.rowHeaderWidth + k,
+      clear: true,
+    });
+  }
+  ctx2d.restore();
+
+  // 3. headers are cheap: redraw the one that moved
+  if (dy) tableCanvas.drawRowHeader(next.scrollTop);
+  else tableCanvas.drawColumnHeader(next.scrollLeft);
+  return true;
+}
+
 function drawSheet(
   canvasElement: HTMLCanvasElement,
   context: Context,
@@ -270,18 +405,30 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
   }, [data, refs.canvas, setContext, settings.devicePixelRatio]);
 
   /**
-   * Recalculate row/col info when data changes
+   * Recalculate row/col info when the sheet's dimensions or row/column
+   * sizes change. Cell edits replace `data` without changing its shape, and
+   * must not rebuild visibledatarow/visibledatacolumn (and with them the
+   * freeze cache and every consumer of those arrays).
    */
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const rowCount = data?.length ?? 0;
+  const colCount = data?.[0]?.length ?? 0;
   useEffect(() => {
-    if (!data) return;
-    setContext((draftCtx) => updateContextWithSheetData(draftCtx, data));
+    const currentData = dataRef.current;
+    if (!currentData) return;
+    setContext((draftCtx) => updateContextWithSheetData(draftCtx, currentData));
   }, [
     context.config?.rowlen,
     context.config?.columnlen,
     context.config?.rowhidden,
     context.config.colhidden,
-    data,
+    rowCount,
+    colCount,
+    sheet.id,
     context.zoomRatio,
+    context.defaultrowlen,
+    context.defaultcollen,
     setContext,
   ]);
 
@@ -326,6 +473,16 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     freeze: Freeze | undefined;
     sheetId?: string;
   } | null>(null);
+  // What is actually on the canvas (lastDrawn is updated when a draw is
+  // scheduled); lets a pure scroll reuse the pixels.
+  const lastPainted = useRef<{
+    context: Context;
+    freeze: Freeze | undefined;
+    sheetId?: string;
+    canvas: HTMLCanvasElement;
+    width: number;
+    height: number;
+  } | null>(null);
   // Draws are coalesced into one per animation frame; this holds the latest.
   const pendingDraw = useRef<(() => void) | null>(null);
   const frameId = useRef<number | null>(null);
@@ -363,7 +520,29 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
 
     const canvasElement = refs.canvas.current;
     if (!canvasElement) return;
-    pendingDraw.current = () => drawSheet(canvasElement, context, freeze);
+    pendingDraw.current = () => {
+      const painted = lastPainted.current;
+      const canBlit =
+        painted != null &&
+        painted.canvas === canvasElement &&
+        painted.width === canvasElement.width &&
+        painted.height === canvasElement.height &&
+        painted.sheetId === sheet.id &&
+        !freeze &&
+        !painted.freeze &&
+        onlyScrolled(painted.context, context);
+      if (!canBlit || !blitScroll(canvasElement, painted!.context, context)) {
+        drawSheet(canvasElement, context, freeze);
+      }
+      lastPainted.current = {
+        context,
+        freeze,
+        sheetId: sheet.id,
+        canvas: canvasElement,
+        width: canvasElement.width,
+        height: canvasElement.height,
+      };
+    };
     if (frameId.current == null) {
       frameId.current = requestFrame(() => {
         frameId.current = null;
