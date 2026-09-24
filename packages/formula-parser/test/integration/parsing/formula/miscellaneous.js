@@ -10,14 +10,17 @@ describe(".parse() miscellaneous formulas", () => {
     parser = null;
   });
 
+  // formulajs' variadic UNIQUE is overridden by the Excel-semantics version in
+  // src/functions/lookup-array.js (tested in formula/lookup-array.js).
   it("UNIQUE", () => {
+    parser.setVariable("list", [[1], [2], [2], [3]]);
     expect(
       parser.parse("UNIQUE()")
-    ).toMatchObject({ error: null, result: [] });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
-      parser.parse("UNIQUE(1, 2, 3, 4, 4, 4, 4, 3)")
-    ).toMatchObject({ error: null, result: [1,2,3,4] });
-    expect(parser.parse('UNIQUE("foo", "bar", "foo")')).toMatchObject({ error: null, result: ["foo","bar"] });
+      parser.parse("UNIQUE(list)")
+    ).toMatchObject({ error: null, result: [[1], [2], [3]] });
+    expect(parser.parse('UNIQUE("foo")')).toMatchObject({ error: null, result: "foo" });
   });
 
   it("ARGS2ARRAY", () => {
