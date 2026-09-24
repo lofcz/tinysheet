@@ -3,9 +3,11 @@
  * higher-order functions: error values, coercion (number / text / logical)
  * and comparison.
  *
- * Error values are `Error` instances. Whenever possible the formulajs
- * singletons are used (`#N/A` is always the same object), so formulajs
- * functions such as ISERROR/ISNA recognise errors produced by the grammar.
+ * Error values are `Error` instances whose message is the short error id
+ * from ../error.js ("N/A", "DIV/0", "VALUE", ...), the convention of the
+ * function registry (see ../functions/index.js). One instance is shared per
+ * error. `toFormulajsError` maps them to the formulajs singletons for the
+ * formulajs functions that recognise errors by identity (ISERROR, ISNA, ...).
  */
 import formulajs from "../formulajs";
 import errorParser from "../error";
@@ -23,22 +25,24 @@ const ERROR_CODES = [
   "#CALC!",
 ];
 
-const ERROR_VALUES = new Map();
+// "#DIV/0!" -> Error("DIV/0")
+const ERROR_VALUES = new Map(
+  ERROR_CODES.map((code) => [code, new Error(code.replace(/^#|[!?]$/g, ""))])
+);
 
-(function registerErrorValues() {
+// "#DIV/0!" -> formulajs' own error singleton
+const FORMULAJS_ERRORS = new Map();
+
+(function registerFormulajsErrors() {
   const fjErrors =
     (formulajs && formulajs.utils && formulajs.utils.errors) || {};
 
   Object.keys(fjErrors).forEach((key) => {
     const value = fjErrors[key];
+    const code = value instanceof Error ? errorParser(value.message) : null;
 
-    if (value instanceof Error && !ERROR_VALUES.has(value.message)) {
-      ERROR_VALUES.set(value.message, value);
-    }
-  });
-  ERROR_CODES.forEach((code) => {
-    if (!ERROR_VALUES.has(code)) {
-      ERROR_VALUES.set(code, new Error(code));
+    if (code && !FORMULAJS_ERRORS.has(code)) {
+      FORMULAJS_ERRORS.set(code, value);
     }
   });
 })();
@@ -71,6 +75,21 @@ export function toErrorValue(err) {
   const code = errorCode(err);
 
   return ERROR_VALUES.get(code) || ERROR_VALUES.get("#ERROR!");
+}
+
+/**
+ * The formulajs singleton for an error value (formulajs compares errors by
+ * identity); other values are returned unchanged.
+ *
+ * @param {*} value
+ * @returns {*}
+ */
+export function toFormulajsError(value) {
+  if (!(value instanceof Error)) {
+    return value;
+  }
+
+  return FORMULAJS_ERRORS.get(errorCode(value)) || value;
 }
 
 /**

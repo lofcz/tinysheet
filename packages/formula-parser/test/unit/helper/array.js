@@ -35,7 +35,7 @@ describe("helper/array", () => {
       b instanceof Error ? b.message : a + b
     );
 
-    expect(result).toEqual([[2, 4, "#N/A"]]);
+    expect(result).toEqual([[2, 4, "N/A"]]);
   });
 
   it("broadcast() supports any number of inputs", () => {
