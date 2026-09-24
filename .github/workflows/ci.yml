@@ -26,3 +26,6 @@ jobs:
 
       - name: Run formula-parser tests
         run: bun run test:formula-parser
+
+      - name: Run core/react tests
+        run: bun run test:jest
