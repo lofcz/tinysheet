@@ -17,7 +17,29 @@ fixed set of files, so the streams can run in parallel and merge cleanly.
 | UI | Light theme only, ad-hoc colours across about 20 CSS files, and a few untranslated strings. |
 | Tests | Formula-parser vitest suite (503 tests). The core/react jest suite was broken and is fixed in this roadmap's first commit (25 suites / 125 tests), and now runs in CI. |
 
-## Workstreams (phase 1: in progress)
+## Phase 1 status: delivered
+
+All 12 workstreams below are merged. Test counts went from 503 (formula-parser)
+plus a broken jest suite to 975 formula-parser tests and 1132 core/react tests.
+
+| Measure | Before | After |
+| --- | --- | --- |
+| Edit a cell nothing depends on (50k formulas) | 150 ms | 0.1 ms |
+| Edit the head of a 50k-formula chain | 7.5 s | 1.1 s |
+| Vertical scroll, script time per frame (131k cells) | 19 ms | 4.3 ms |
+| Click to select a cell | 102 ms | 16 ms |
+
+Carried over from phase 1:
+
+* Spill: re-spill after inserting/deleting rows, sorting and autofill; a spill-range border; greyed formula in spilled cells.
+* Typed text arguments (`SUM("abc")`) return 0 instead of `#VALUE!`; the engine can't yet tell a typed value from a single-cell reference.
+* Whole-column ranges stop at the last used row, so `COUNTBLANK(A:A)` differs from Excel.
+* Array lifting for formulajs scalar functions (`ABS({-1,2})`); union operator; dynamic ranges such as `A1:INDEX(…)`.
+* Date results inherit a date format only from a leading date function, not from referenced date cells (`=A1+7`).
+* Frozen panes still redraw fully on scroll; the single React context still re-renders the toolbar on every change.
+* `tsc --noEmit` fails because React types aren't resolved (pre-existing).
+
+## Workstreams (phase 1)
 
 | # | Workstream | Scope | Owned files |
 | --- | --- | --- | --- |
