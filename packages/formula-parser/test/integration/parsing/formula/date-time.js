@@ -1,12 +1,22 @@
 import Parser from "../../../../src/parser";
 
-/** formulajs returns local-midnight Date values; compare calendar parts, not UTC ISO. */
-function expectLocalDate(parsed, year, monthIndex, day) {
-  expect(parsed.error).toBeNull();
-  expect(parsed.result).toBeInstanceOf(Date);
-  expect(parsed.result.getFullYear()).toBe(year);
-  expect(parsed.result.getMonth()).toBe(monthIndex);
-  expect(parsed.result.getDate()).toBe(day);
+/** Date functions return Excel serial numbers (1900 date system). */
+function expectSerial(parsed, serial) {
+  expect(parsed).toMatchObject({ error: null, result: serial });
+}
+
+/** Serial number of the current local date (and time). */
+function serialNow(withTime) {
+  const now = new Date();
+  const days =
+    (Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) -
+      Date.UTC(1899, 11, 30)) /
+    86400000;
+  if (!withTime) return days;
+  return (
+    days +
+    (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400
+  );
 }
 
 describe(".parse() date & time formulas", () => {
@@ -20,22 +30,19 @@ describe(".parse() date & time formulas", () => {
   });
 
   it("DATE", () => {
-    expectLocalDate(parser.parse("DATE()"), 1899, 10, 30);
-
-    const { error, result } = parser.parse("DATE(2001, 5, 12)");
-
-    expect(error).toBeNull();
-    expect(result.getFullYear()).toBe(2001);
-    expect(result.getMonth()).toBe(4); // counting from zero
-    expect(result.getDate()).toBe(12);
+    expect(parser.parse("DATE()")).toMatchObject({
+      error: "#VALUE!",
+      result: null,
+    });
+    expectSerial(parser.parse("DATE(2001, 5, 12)"), 37023);
   });
 
   it("DATEVALUE", () => {
     expect(
       parser.parse("DATEVALUE()")
     ).toMatchObject({ error: "#VALUE!", result: null });
-    expectLocalDate(parser.parse('DATEVALUE("1/1/1900")'), 1900, 0, 1);
-    expectLocalDate(parser.parse('DATEVALUE("1/1/2000")'), 2000, 0, 1);
+    expectSerial(parser.parse('DATEVALUE("1/1/1900")'), 1);
+    expectSerial(parser.parse('DATEVALUE("1/1/2000")'), 36526);
   });
 
   it("DAY", () => {
@@ -93,7 +100,7 @@ describe(".parse() date & time formulas", () => {
     expect(
       parser.parse("EDATE(1)")
     ).toMatchObject({ error: "#VALUE!", result: null });
-    expectLocalDate(parser.parse('EDATE("1/1/1900", 1)'), 1900, 1, 1);
+    expectSerial(parser.parse('EDATE("1/1/1900", 1)'), 32);
   });
 
   it("EOMONTH", () => {
@@ -103,7 +110,8 @@ describe(".parse() date & time formulas", () => {
     expect(
       parser.parse("EOMONTH(1)")
     ).toMatchObject({ error: "#VALUE!", result: null });
-    expectLocalDate(parser.parse('EOMONTH("1/1/1900", 1)'), 1900, 1, 28);
+    // Excel's calendar has a 29 February 1900 (serial 60).
+    expectSerial(parser.parse('EOMONTH("1/1/1900", 1)'), 60);
   });
 
   it("HOUR", () => {
@@ -186,10 +194,9 @@ describe(".parse() date & time formulas", () => {
 
   it("NOW", () => {
     const { error, result } = parser.parse("NOW()");
-    const now = new Date();
 
     expect(error).toBeNull();
-    expect(result.toString()).toBe(now.toString());
+    expect(Math.abs(result - serialNow(true))).toBeLessThan(5 / 86400);
   });
 
   it("SECOND", () => {
@@ -204,13 +211,13 @@ describe(".parse() date & time formulas", () => {
   it("TIME", () => {
     expect(
       parser.parse("TIME()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("TIME(0)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("TIME(0, 0)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("TIME(0, 0, 0)")
     ).toMatchObject({ error: null, result: 0 });
@@ -218,8 +225,9 @@ describe(".parse() date & time formulas", () => {
       parser.parse("TIME(1, 1, 1)")
     ).toMatchObject({ error: null, result: 0.04237268518518519 });
     expect(
+      // TIME wraps at 24 hours.
       parser.parse("TIME(24, 0, 0)")
-    ).toMatchObject({ error: null, result: 1 });
+    ).toMatchObject({ error: null, result: 0 });
   });
 
   it("TIMEVALUE", () => {
@@ -235,11 +243,7 @@ describe(".parse() date & time formulas", () => {
   });
 
   it("TODAY", () => {
-    const { error, result } = parser.parse("TODAY()");
-    const now = new Date();
-
-    expect(error).toBeNull();
-    expect(result.getDate()).toBe(now.getDate());
+    expectSerial(parser.parse("TODAY()"), serialNow(false));
   });
 
   it("WEEKDAY", () => {
@@ -270,12 +274,11 @@ describe(".parse() date & time formulas", () => {
     expect(
       parser.parse("WORKDAY()")
     ).toMatchObject({ error: "#VALUE!", result: null });
-    expectLocalDate(parser.parse('WORKDAY("1/1/1900")'), 1900, 0, 1);
-
-    const { result, error } = parser.parse('WORKDAY("1/1/1900", 1)');
-
-    expect(error).toBeNull();
-    expect(result.getDate()).toBe(2);
+    expect(parser.parse('WORKDAY("1/1/1900")')).toMatchObject({
+      error: "#VALUE!",
+      result: null,
+    });
+    expectSerial(parser.parse('WORKDAY("1/1/1900", 1)'), 2);
   });
 
   it("YEAR", () => {

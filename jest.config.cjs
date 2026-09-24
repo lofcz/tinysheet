@@ -46,8 +46,11 @@ module.exports = {
   // Legacy preview test targets a removed dist/main.js bundle.
   testPathIgnorePatterns: [
     "/node_modules/",
+    "/worktrees/",
     "packages/excel/test/transformExcelToFortune.xls_preview.test.js",
   ],
+  // Local git worktrees duplicate every package.
+  modulePathIgnorePatterns: ["/worktrees/"],
   unmockedModulePathPatterns: ["node_modules/react/", "node_modules/enzyme/"],
   verbose: true,
   setupFiles: ["./tests/setup.js"],

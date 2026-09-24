@@ -42,6 +42,7 @@ import {
   setFormulaCellInfo,
   getFormulaRunList,
 } from "./formulaHelper";
+import { registerFormatFunctions } from "./formatFunctions";
 
 let functionHTMLIndex = 0;
 let rangeIndexes: number[] = [];
@@ -130,6 +131,7 @@ export class FormulaCache {
     this.formulaCellInfoMap = null;
     this.cellTextToIndexList = {};
     this.parser = new Parser();
+    registerFormatFunctions(this.parser);
     this.parser.on(
       "callCellValue",
       (cellCoord: any, options: any, done: any) => {
