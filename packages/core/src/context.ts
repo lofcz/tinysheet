@@ -133,6 +133,10 @@ export type Context = {
   formulaRangeSelect: ({ rangeIndex: number } & Rect) | undefined;
   functionCandidates: any[];
   functionHint: string | null | undefined;
+  /** highlighted item of `functionCandidates` (formula autocomplete) */
+  functionCandidateIndex?: number;
+  /** argument of `functionHint` the caret is in */
+  functionHintArgIndex?: number;
 
   luckysheet_copy_save?: {
     dataSheetId: string;

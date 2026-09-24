@@ -1,0 +1,1072 @@
+/**
+ * Formula editor helpers: tokenizing formula text while it is being typed,
+ * function autocomplete ranking, argument hints, F4 reference cycling,
+ * colour-coded references, bracket matching and plain-value autocomplete.
+ *
+ * The first half of this file is pure string logic (unit tested in
+ * `packages/core/test/formulaEditor`). The second half contains small DOM
+ * helpers used by the in-cell editor and the formula bar, which are both
+ * `contenteditable` elements rendering the HTML produced by
+ * {@link formulaTextToHTML}.
+ */
+import type { Context } from "../context";
+import type { Cell, CellMatrix } from "../types";
+import { locale } from "../locale";
+import { colors } from "./color";
+
+/* -------------------------------------------------------------------------- */
+/*                                  Tokenizer                                 */
+/* -------------------------------------------------------------------------- */
+
+export type FormulaTokenType =
+  | "operator"
+  | "function"
+  | "lparen"
+  | "rparen"
+  | "comma"
+  | "string"
+  | "reference"
+  | "number"
+  | "bool"
+  | "error"
+  | "array"
+  | "name"
+  | "whitespace"
+  | "unknown";
+
+export type FormulaToken = {
+  type: FormulaTokenType;
+  text: string;
+  /** offset of the first character (inclusive) */
+  start: number;
+  /** offset after the last character (exclusive) */
+  end: number;
+};
+
+const SHEET_PREFIX = "(?:'(?:[^']|'')*'|[A-Za-z0-9_.\\u00C0-\\uFFFF]+)!";
+const CELL = "\\$?[A-Za-z]{1,3}\\$?[0-9]+";
+const COL = "\\$?[A-Za-z]{1,3}";
+const ROW = "\\$?[0-9]+";
+const REFERENCE_RE = new RegExp(
+  `(?:${SHEET_PREFIX})?(?:${CELL}(?::${CELL})?|${COL}:${COL}|${ROW}:${ROW})(?![A-Za-z0-9_.(!\\u00C0-\\uFFFF])`,
+  "y"
+);
+// sticky regexes are built with the RegExp constructor so the sources also
+// type-check with an ES5 target
+const sticky = (re: RegExp) => new RegExp(re.source, "y");
+const NUMBER_RE = sticky(/(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/);
+const IDENT_RE = sticky(/[A-Za-z_À-￿][A-Za-z0-9_.À-￿]*/);
+const ERROR_RE = sticky(
+  /#(?:NULL!|DIV\/0!|VALUE!|REF!|NAME\?|NUM!|N\/A|SPILL!|CALC!|GETTING_DATA)/
+);
+const WHITESPACE_RE = sticky(/\s+/);
+const OPERATOR_RE = sticky(/<>|<=|>=|[-+*/^&=<>%:]/);
+
+// order matters: `A1` is a reference before it is an identifier
+const MATCHERS: [FormulaTokenType | "ident", RegExp][] = [
+  ["whitespace", WHITESPACE_RE],
+  ["error", ERROR_RE],
+  ["reference", REFERENCE_RE],
+  ["number", NUMBER_RE],
+  ["ident", IDENT_RE],
+  ["operator", OPERATOR_RE],
+];
+
+function matchAt(
+  text: string,
+  pos: number
+): [FormulaTokenType | "ident", string] | null {
+  for (let k = 0; k < MATCHERS.length; k += 1) {
+    const [type, re] = MATCHERS[k];
+    re.lastIndex = pos;
+    const m = re.exec(text);
+    if (m) return [type, m[0]];
+  }
+  return null;
+}
+
+/**
+ * Splits formula text (with or without the leading `=`) into tokens. The
+ * tokenizer is lenient: it never throws and every character of the input ends
+ * up in exactly one token, so offsets can be mapped back to the editor.
+ */
+export function tokenizeFormula(text: string): FormulaToken[] {
+  const tokens: FormulaToken[] = [];
+  let i = 0;
+  const push = (type: FormulaTokenType, len: number) => {
+    tokens.push({ type, text: text.slice(i, i + len), start: i, end: i + len });
+    i += len;
+  };
+
+  while (i < text.length) {
+    const ch = text[i];
+
+    if (ch === '"') {
+      // string literal, `""` is an escaped quote; unterminated runs to the end
+      let j = i + 1;
+      while (j < text.length) {
+        if (text[j] === '"') {
+          if (text[j + 1] === '"') j += 2;
+          else {
+            j += 1;
+            break;
+          }
+        } else j += 1;
+      }
+      if (j > text.length) j = text.length;
+      push("string", j - i);
+    } else if (ch === "{") {
+      // array constant, commas inside do not separate arguments
+      let j = i + 1;
+      let inStr = false;
+      while (j < text.length) {
+        if (text[j] === '"') inStr = !inStr;
+        else if (text[j] === "}" && !inStr) {
+          j += 1;
+          break;
+        }
+        j += 1;
+      }
+      push("array", Math.min(j, text.length) - i);
+    } else if (ch === "(") {
+      push("lparen", 1);
+    } else if (ch === ")") {
+      push("rparen", 1);
+    } else if (ch === ",") {
+      push("comma", 1);
+    } else {
+      const hit = matchAt(text, i);
+      if (!hit) push("unknown", 1);
+      else if (hit[0] !== "ident") push(hit[0], hit[1].length);
+      else if (text[i + hit[1].length] === "(") push("function", hit[1].length);
+      else if (/^(TRUE|FALSE)$/i.test(hit[1])) push("bool", hit[1].length);
+      else push("name", hit[1].length);
+    }
+  }
+  return tokens;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         Call context / argument index                      */
+/* -------------------------------------------------------------------------- */
+
+export type FormulaCallContext = {
+  /** function name as typed (not upper-cased) */
+  name: string;
+  /** zero-based index of the argument the caret is in */
+  argIndex: number;
+  /** offset of the `(` that opens the call */
+  lparen: number;
+};
+
+/**
+ * Returns the innermost function call enclosing `caret`, and which argument
+ * the caret is in. Commas inside nested calls, strings, array constants and
+ * plain parentheses are not counted.
+ */
+export function getCallContext(
+  text: string,
+  caret: number,
+  tokens: FormulaToken[] = tokenizeFormula(text)
+): FormulaCallContext | null {
+  const stack: { name: string | null; argIndex: number; lparen: number }[] = [];
+  let prev: FormulaToken | null = null;
+  for (let i = 0; i < tokens.length; i += 1) {
+    const t = tokens[i];
+    if (t.end > caret) break;
+    if (t.type === "lparen") {
+      stack.push({
+        name: prev?.type === "function" ? prev.text : null,
+        argIndex: 0,
+        lparen: t.start,
+      });
+    } else if (t.type === "comma") {
+      if (stack.length > 0) stack[stack.length - 1].argIndex += 1;
+    } else if (t.type === "rparen") {
+      stack.pop();
+    }
+    prev = t;
+  }
+  for (let i = stack.length - 1; i >= 0; i -= 1) {
+    const frame = stack[i];
+    if (frame.name) {
+      return {
+        name: frame.name,
+        argIndex: frame.argIndex,
+        lparen: frame.lparen,
+      };
+    }
+  }
+  return null;
+}
+
+type FunctionParam = { name: string; require?: string; repeat?: string };
+
+/**
+ * Maps an argument index to the index of the parameter describing it,
+ * taking repeating parameter groups (`value1, [value2], ...`) into account.
+ * Returns -1 when the function takes fewer arguments.
+ */
+export function resolveParamIndex(
+  params: FunctionParam[] | undefined,
+  argIndex: number
+) {
+  if (!params || params.length === 0) return -1;
+  if (argIndex < params.length) return argIndex;
+  const repeatStart = params.findIndex((p) => p.repeat === "y");
+  if (repeatStart < 0) return -1;
+  const groupLen = params.length - repeatStart;
+  return repeatStart + ((argIndex - repeatStart) % groupLen);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                            Function autocomplete                           */
+/* -------------------------------------------------------------------------- */
+
+export type FunctionQuery = { query: string; start: number; end: number };
+
+/**
+ * Returns the (partial) function name ending at `caret`, e.g. `SU` in
+ * `=IF(SU|`, or null when the caret is not at the end of an identifier in a
+ * formula.
+ */
+export function getFunctionQuery(
+  text: string,
+  caret: number,
+  tokens: FormulaToken[] = tokenizeFormula(text)
+): FunctionQuery | null {
+  if (!text.startsWith("=")) return null;
+  let idx = -1;
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (tokens[i].start < caret && caret <= tokens[i].end) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) return null;
+  const t = tokens[idx];
+  if (t.end !== caret) return null;
+  const isNameLike =
+    t.type === "name" ||
+    t.type === "function" ||
+    t.type === "bool" ||
+    (t.type === "reference" && /^[A-Za-z]+[0-9]+$/.test(t.text));
+  if (!isNameLike) return null;
+  // `A1:B` - the identifier is the end of a range, not a function
+  let p = idx - 1;
+  while (p >= 0 && tokens[p].type === "whitespace") p -= 1;
+  if (p >= 0 && tokens[p].type === "operator" && tokens[p].text === ":") {
+    return null;
+  }
+  return { query: t.text.toUpperCase(), start: t.start, end: t.end };
+}
+
+export type RankedFunction<T> = {
+  item: T;
+  /** 0 exact, 1 prefix, 2 prefix of a dotted segment, 3 substring, 4 fuzzy */
+  tier: number;
+  /** [start, end) character ranges of the name that matched the query */
+  matches: [number, number][];
+};
+
+const POPULAR_FUNCTIONS = [
+  "SUM",
+  "IF",
+  "AVERAGE",
+  "COUNT",
+  "COUNTA",
+  "COUNTIF",
+  "COUNTIFS",
+  "SUMIF",
+  "SUMIFS",
+  "SUMPRODUCT",
+  "VLOOKUP",
+  "XLOOKUP",
+  "INDEX",
+  "MATCH",
+  "MAX",
+  "MIN",
+  "ROUND",
+  "IFERROR",
+  "AND",
+  "OR",
+  "NOT",
+  "CONCAT",
+  "TEXT",
+  "LEFT",
+  "RIGHT",
+  "MID",
+  "LEN",
+  "TODAY",
+  "NOW",
+  "DATE",
+  "ABS",
+  "FILTER",
+  "UNIQUE",
+  "SORT",
+];
+const POPULARITY: Record<string, number> = {};
+POPULAR_FUNCTIONS.forEach((n, i) => {
+  POPULARITY[n] = i;
+});
+
+function fuzzyMatch(name: string, query: string): [number, number][] | null {
+  if (name[0] !== query[0]) return null;
+  const matches: [number, number][] = [];
+  let qi = 0;
+  for (let i = 0; i < name.length && qi < query.length; i += 1) {
+    if (name[i] === query[qi]) {
+      const last = matches[matches.length - 1];
+      if (last && last[1] === i) last[1] = i + 1;
+      else matches.push([i, i + 1]);
+      qi += 1;
+    }
+  }
+  return qi === query.length ? matches : null;
+}
+
+/**
+ * Ranks function names against a typed query: exact match first, then
+ * prefix matches, then prefix of a dotted segment (`DIST` → `NORM.S.DIST`),
+ * then substring and finally subsequence matches. Popular functions are
+ * listed first within a tier, the rest alphabetically.
+ */
+export function rankFunctions<T extends { n: string }>(
+  list: T[],
+  rawQuery: string,
+  limit = 12
+): RankedFunction<T>[] {
+  const query = rawQuery.toUpperCase();
+  if (!query) return [];
+  // `A1` could be the start of a cell reference - only offer prefix matches
+  const refLike = /^[A-Z]+[0-9]+$/.test(query);
+  const seen = new Set<string>();
+  const ranked: RankedFunction<T>[] = [];
+
+  for (let i = 0; i < list.length; i += 1) {
+    const item = list[i];
+    const name = (item.n || "").toUpperCase();
+    if (!name || seen.has(name)) continue;
+
+    let tier = -1;
+    let matches: [number, number][] = [];
+    if (name === query) {
+      tier = 0;
+      matches = [[0, query.length]];
+    } else if (name.startsWith(query)) {
+      tier = 1;
+      matches = [[0, query.length]];
+    } else {
+      let segStart = -1;
+      for (let j = 1; j < name.length; j += 1) {
+        if (
+          (name[j - 1] === "." || name[j - 1] === "_") &&
+          name.startsWith(query, j)
+        ) {
+          segStart = j;
+          break;
+        }
+      }
+      if (segStart >= 0) {
+        tier = 2;
+        matches = [[segStart, segStart + query.length]];
+      } else if (!refLike && query.length >= 2) {
+        const idx = name.indexOf(query);
+        if (idx >= 0) {
+          tier = 3;
+          matches = [[idx, idx + query.length]];
+        } else if (query.length >= 3) {
+          const fm = fuzzyMatch(name, query);
+          if (fm) {
+            tier = 4;
+            matches = fm;
+          }
+        }
+      }
+    }
+    if (tier >= 0) {
+      seen.add(name);
+      ranked.push({ item, tier, matches });
+    }
+  }
+
+  ranked.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    const na = a.item.n.toUpperCase();
+    const nb = b.item.n.toUpperCase();
+    const pa = POPULARITY[na] ?? Infinity;
+    const pb = POPULARITY[nb] ?? Infinity;
+    if (pa !== pb) return pa - pb;
+    if (a.tier === 4 && na.length !== nb.length) return na.length - nb.length;
+    if (na === nb) return 0;
+    return na < nb ? -1 : 1;
+  });
+  return ranked.slice(0, limit);
+}
+
+/**
+ * Returns the text and caret after accepting function `name` for the
+ * identifier being typed at `caret` (`=IF(SU|` → `=IF(SUM(|`).
+ */
+export function insertFunctionName(
+  text: string,
+  caret: number,
+  name: string
+): { text: string; caret: number } {
+  const q = getFunctionQuery(text, caret);
+  const start = q ? q.start : caret;
+  const end = q ? q.end : caret;
+  const hasParen = text[end] === "(";
+  const before = start === 0 && !text.startsWith("=") ? "=" : "";
+  const newText = `${text.slice(0, start)}${before}${name}${
+    hasParen ? "" : "("
+  }${text.slice(end)}`;
+  return {
+    text: newText,
+    caret: start + before.length + name.length + 1,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               F4 ($) cycling                               */
+/* -------------------------------------------------------------------------- */
+
+const CELL_PART = /^(\$?)([A-Za-z]{1,3})(\$?)([0-9]+)$/;
+const COL_PART = /^(\$?)([A-Za-z]{1,3})$/;
+const ROW_PART = /^(\$?)([0-9]+)$/;
+
+function splitSheetPrefix(ref: string): [string, string] {
+  const bang = ref.lastIndexOf("!");
+  if (bang < 0) return ["", ref];
+  return [ref.slice(0, bang + 1), ref.slice(bang + 1)];
+}
+
+/**
+ * Cycles the absolute/relative state of a reference the way Excel's F4 does:
+ * `A1 → $A$1 → A$1 → $A1 → A1`. Ranges switch both ends to the state
+ * following the state of their first cell. Whole-column / whole-row
+ * references toggle between relative and absolute.
+ */
+export function cycleReference(ref: string): string {
+  const [prefix, body] = splitSheetPrefix(ref);
+  const parts = body.split(":");
+  if (parts.length > 2) return ref;
+
+  const cell0 = parts[0].match(CELL_PART);
+  if (cell0) {
+    const colAbs = cell0[1] === "$";
+    const rowAbs = cell0[3] === "$";
+    let next: [boolean, boolean];
+    if (!colAbs && !rowAbs) next = [true, true];
+    else if (colAbs && rowAbs) next = [false, true];
+    else if (!colAbs && rowAbs) next = [true, false];
+    else next = [false, false];
+    const fmt = (p: string) => {
+      const m = p.match(CELL_PART);
+      if (!m) return p;
+      return `${next[0] ? "$" : ""}${m[2]}${next[1] ? "$" : ""}${m[4]}`;
+    };
+    return prefix + parts.map(fmt).join(":");
+  }
+
+  const col0 = parts[0].match(COL_PART);
+  if (col0 && parts.length === 2) {
+    const abs = col0[1] !== "$";
+    return (
+      prefix +
+      parts
+        .map((p) => p.replace(COL_PART, (_m, _d, c) => (abs ? "$" : "") + c))
+        .join(":")
+    );
+  }
+  const row0 = parts[0].match(ROW_PART);
+  if (row0 && parts.length === 2) {
+    const abs = row0[1] !== "$";
+    return (
+      prefix +
+      parts
+        .map((p) => p.replace(ROW_PART, (_m, _d, r) => (abs ? "$" : "") + r))
+        .join(":")
+    );
+  }
+  return ref;
+}
+
+/**
+ * Cycles the reference under or immediately left of the caret. Returns the
+ * new text and a caret placed at the end of the reference, or null when there
+ * is no reference at the caret.
+ */
+export function cycleReferenceAtCaret(
+  text: string,
+  caret: number
+): { text: string; caret: number; start: number; end: number } | null {
+  if (!text.startsWith("=")) return null;
+  const tokens = tokenizeFormula(text);
+  const t = tokens.find(
+    (tk) => tk.type === "reference" && tk.start <= caret && caret <= tk.end
+  );
+  if (!t) return null;
+  const replaced = cycleReference(t.text);
+  const newText = text.slice(0, t.start) + replaced + text.slice(t.end);
+  return {
+    text: newText,
+    caret: t.start + replaced.length,
+    start: t.start,
+    end: t.start + replaced.length,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*                             Brackets / commit                              */
+/* -------------------------------------------------------------------------- */
+
+/** Maps each paren offset to the offset of its partner (-1 if unmatched). */
+export function getParenPairs(tokens: FormulaToken[]): Map<number, number> {
+  const pairs = new Map<number, number>();
+  const stack: number[] = [];
+  tokens.forEach((t) => {
+    if (t.type === "lparen") {
+      stack.push(t.start);
+      pairs.set(t.start, -1);
+    } else if (t.type === "rparen") {
+      const open = stack.pop();
+      if (open == null) pairs.set(t.start, -1);
+      else {
+        pairs.set(open, t.start);
+        pairs.set(t.start, open);
+      }
+    }
+  });
+  return pairs;
+}
+
+/**
+ * Returns the offsets `[open, close]` of the parenthesis pair to highlight
+ * for `caret`: the paren just left of the caret, else the paren right of the
+ * caret, else the innermost pair enclosing it. Either offset is -1 when the
+ * partner is missing.
+ */
+export function findBracketPair(
+  text: string,
+  caret: number,
+  tokens: FormulaToken[] = tokenizeFormula(text)
+): [number, number] | null {
+  const pairs = getParenPairs(tokens);
+  const order = (a: number, b: number): [number, number] =>
+    text[a] === "(" ? [a, b] : [b, a];
+  if (pairs.has(caret - 1)) return order(caret - 1, pairs.get(caret - 1)!);
+  if (pairs.has(caret)) return order(caret, pairs.get(caret)!);
+  let best: [number, number] | null = null;
+  pairs.forEach((partner, pos) => {
+    if (text[pos] !== "(" || pos >= caret) return;
+    if (partner !== -1 && partner < caret) return;
+    if (!best || pos > best[0]) best = [pos, partner];
+  });
+  return best;
+}
+
+/** Appends the closing parentheses a formula is missing (`=SUM(ABS(1` → `=SUM(ABS(1))`). */
+export function autoCloseFormula(text: string) {
+  if (!text.startsWith("=")) return text;
+  let depth = 0;
+  tokenizeFormula(text).forEach((t) => {
+    if (t.type === "lparen") depth += 1;
+    else if (t.type === "rparen" && depth > 0) depth -= 1;
+  });
+  if (depth <= 0) return text;
+  return text.replace(/\s+$/, "") + ")".repeat(depth);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         References and their colours                       */
+/* -------------------------------------------------------------------------- */
+
+export type ParsedReference = {
+  sheetName: string | null;
+  /** null for whole-column references */
+  row: [number, number] | null;
+  /** null for whole-row references */
+  column: [number, number] | null;
+};
+
+function columnIndex(letters: string) {
+  let n = 0;
+  const s = letters.toUpperCase();
+  for (let i = 0; i < s.length; i += 1) {
+    n = n * 26 + (s.charCodeAt(i) - 64);
+  }
+  return n - 1;
+}
+
+/** Parses `A1`, `$A$1:B2`, `A:C`, `1:3`, `Sheet2!A1`, `'My sheet'!A:A`. */
+export function parseReference(ref: string): ParsedReference | null {
+  const text = ref.trim();
+  const [prefix, body] = splitSheetPrefix(text);
+  let sheetName: string | null = null;
+  if (prefix) {
+    sheetName = prefix.slice(0, -1);
+    if (sheetName.startsWith("'") && sheetName.endsWith("'")) {
+      sheetName = sheetName.slice(1, -1).replace(/''/g, "'");
+    }
+  }
+  const parts = body.split(":");
+  if (parts.length > 2) return null;
+  const cells = parts.map((p) => p.match(CELL_PART));
+  if (cells.every((c) => c)) {
+    const rows = cells.map((c) => parseInt(c![4], 10) - 1);
+    const cols = cells.map((c) => columnIndex(c![2]));
+    return {
+      sheetName,
+      row: [Math.min(...rows), Math.max(...rows)],
+      column: [Math.min(...cols), Math.max(...cols)],
+    };
+  }
+  if (parts.length !== 2) return null;
+  const colParts = parts.map((p) => p.match(COL_PART));
+  if (colParts.every((c) => c)) {
+    const cols = colParts.map((c) => columnIndex(c![2]));
+    return {
+      sheetName,
+      row: null,
+      column: [Math.min(...cols), Math.max(...cols)],
+    };
+  }
+  const rowParts = parts.map((p) => p.match(ROW_PART));
+  if (rowParts.every((r) => r)) {
+    const rows = rowParts.map((r) => parseInt(r![2], 10) - 1);
+    if (rows.some((r) => r < 0)) return null;
+    return {
+      sheetName,
+      row: [Math.min(...rows), Math.max(...rows)],
+      column: null,
+    };
+  }
+  return null;
+}
+
+/**
+ * Key identifying the cells a reference points at, so `A1`, `$A$1` and `a1`
+ * share a colour (and a highlight box) like in Excel.
+ */
+export function referenceKey(ref: string) {
+  const [prefix, body] = splitSheetPrefix(ref.trim());
+  return (prefix + body.replace(/\$/g, "")).toUpperCase();
+}
+
+export function referenceColor(colorIndex: number) {
+  return colors[colorIndex % colors.length];
+}
+
+/**
+ * Assigns colour indexes to references in order of first appearance; equal
+ * references (see {@link referenceKey}) share a colour.
+ */
+export function assignReferenceColors(refs: string[]): number[] {
+  const map = new Map<string, number>();
+  return refs.map((r) => {
+    const key = referenceKey(r);
+    if (!map.has(key)) map.set(key, map.size);
+    return map.get(key)!;
+  });
+}
+
+function escapeHTML(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export const REFERENCE_SPAN_CLASS = "fortune-formula-functionrange-cell";
+
+/**
+ * Renders formula text as the span markup used by the editors. Each
+ * reference gets a `rangeindex` (taken from `preservedRangeIndexes` when
+ * given, so the range currently being picked keeps its identity) and a colour
+ * shared by equal references.
+ */
+export function formulaTextToHTML(
+  text: string,
+  preservedRangeIndexes: number[] = []
+): { html: string; refCount: number; nextRangeIndex: number } {
+  const tokens = tokenizeFormula(text);
+  const refTokens = tokens.filter((t) => t.type === "reference");
+  const colorIndexes = assignReferenceColors(refTokens.map((t) => t.text));
+  let refIdx = 0;
+  let maxRangeIndex = -1;
+  let html = "";
+  let plain = "";
+  const span = (cls: string, content: string, extra = "") =>
+    `<span dir="auto" class="${cls}"${extra}>${escapeHTML(content)}</span>`;
+  const flushPlain = () => {
+    if (plain) html += span("luckysheet-formula-text-color", plain);
+    plain = "";
+  };
+
+  tokens.forEach((t, i) => {
+    switch (t.type) {
+      case "function":
+        flushPlain();
+        html += span("luckysheet-formula-text-func", t.text);
+        break;
+      case "lparen":
+        flushPlain();
+        html += span("luckysheet-formula-text-lpar", t.text);
+        break;
+      case "rparen":
+        flushPlain();
+        html += span("luckysheet-formula-text-rpar", t.text);
+        break;
+      case "comma":
+        flushPlain();
+        html += span("luckysheet-formula-text-comma", t.text);
+        break;
+      case "string":
+        flushPlain();
+        html += span("luckysheet-formula-text-string", t.text);
+        break;
+      case "array":
+        flushPlain();
+        html += span(
+          "luckysheet-formula-text-array",
+          t.text,
+          ' style="color:#959a05"'
+        );
+        break;
+      case "operator":
+        if (i === 0 && t.text === "=") {
+          plain += t.text;
+          flushPlain();
+        } else {
+          flushPlain();
+          html += span("luckysheet-formula-text-calc", t.text);
+        }
+        break;
+      case "reference": {
+        flushPlain();
+        const rangeIndex =
+          refIdx < preservedRangeIndexes.length
+            ? preservedRangeIndexes[refIdx]
+            : Math.max(refIdx, maxRangeIndex + 1);
+        maxRangeIndex = Math.max(maxRangeIndex, rangeIndex);
+        const color = referenceColor(colorIndexes[refIdx]);
+        html += `<span class="${REFERENCE_SPAN_CLASS}" rangeindex="${rangeIndex}" dir="auto" style="color:${color};">${escapeHTML(
+          t.text
+        )}</span>`;
+        refIdx += 1;
+        break;
+      }
+      default:
+        plain += t.text;
+    }
+  });
+  flushPlain();
+  return {
+    html,
+    refCount: refTokens.length,
+    nextRangeIndex: maxRangeIndex + 1,
+  };
+}
+
+/**
+ * Re-applies the shared-colour scheme to the reference spans of an editor
+ * (used after a reference was inserted by picking a range with the mouse).
+ * Returns the spans with their colour.
+ */
+export function recolorReferenceSpans(root: Element | Document) {
+  const spans = Array.from(
+    root.querySelectorAll<HTMLElement>(`span.${REFERENCE_SPAN_CLASS}`)
+  );
+  const colorIndexes = assignReferenceColors(
+    spans.map((s) => s.textContent || "")
+  );
+  return spans.map((el, i) => {
+    const color = referenceColor(colorIndexes[i]);
+    if (el.style) el.style.color = color;
+    return {
+      el,
+      text: el.textContent || "",
+      rangeIndex: parseInt(el.getAttribute("rangeindex") || "0", 10),
+      color,
+    };
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          Plain value autocomplete                          */
+/* -------------------------------------------------------------------------- */
+
+function cellText(cell: Cell | null | undefined): string | null {
+  if (!cell) return null;
+  if (cell.f) return null;
+  if (cell.ct?.t === "inlineStr") {
+    const s = (cell.ct.s || []).map((x: any) => x?.v ?? "").join("");
+    return s.trim() || null;
+  }
+  const { v } = cell;
+  if (v == null || typeof v === "number" || typeof v === "boolean") {
+    return null;
+  }
+  if (cell.ct?.t === "n" || cell.ct?.t === "d") return null;
+  const s = String(v).trim();
+  return s || null;
+}
+
+/**
+ * Collects the distinct text values of the contiguous block of cells above
+ * and below (`row`, `col`), the way Excel's AutoComplete does: the scan stops
+ * at the first empty cell in each direction. Numbers, dates and formulas are
+ * skipped.
+ */
+export function collectColumnValues(
+  data: CellMatrix,
+  row: number,
+  col: number,
+  maxScan = 5000
+): string[] {
+  const values: string[] = [];
+  const seen = new Set<string>();
+  const add = (s: string) => {
+    const key = s.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      values.push(s);
+    }
+  };
+  const scan = (step: number) => {
+    for (let n = 1; n <= maxScan; n += 1) {
+      const r = row + n * step;
+      if (r < 0 || r >= data.length) break;
+      const cell = data[r]?.[col];
+      if (cell == null || (cell.v == null && !cell.f && !cell.ct?.s)) break;
+      const s = cellText(cell);
+      if (s) add(s);
+    }
+  };
+  scan(-1);
+  scan(1);
+  return values;
+}
+
+/**
+ * Case-insensitive prefix matches of `typed` among `values`. Formulas and
+ * numbers never autocomplete.
+ */
+export function matchColumnValues(
+  values: string[],
+  typed: string,
+  limit = 8
+): string[] {
+  const t = typed.replace(/\u00a0/g, " ");
+  if (!t.trim() || t.startsWith("=") || /^[\s]*[-+]?[\d.,]/.test(t)) return [];
+  const lower = t.toLowerCase();
+  return values
+    .filter((v) => {
+      const lv = v.toLowerCase();
+      return lv.startsWith(lower) && lv !== lower;
+    })
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, limit);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                DOM helpers                                 */
+/* -------------------------------------------------------------------------- */
+
+/** Text offset of the caret (selection focus) inside `el`, or null. */
+export function getCaretOffset(el: HTMLElement): number | null {
+  const sel = typeof window !== "undefined" ? window.getSelection() : null;
+  if (!sel || sel.rangeCount === 0) return null;
+  const { focusNode, focusOffset } = sel;
+  if (!focusNode || (focusNode !== el && !el.contains(focusNode))) return null;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  try {
+    range.setEnd(focusNode, focusOffset);
+  } catch {
+    return null;
+  }
+  return range.toString().length;
+}
+
+/** Places a collapsed caret at text offset `offset` inside `el`. */
+export function setCaretOffset(el: HTMLElement, offset: number) {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let remaining = Math.max(0, offset);
+  let target: Node | null = null;
+  let targetOffset = 0;
+  let node = walker.nextNode();
+  while (node) {
+    const len = node.textContent?.length ?? 0;
+    if (remaining <= len) {
+      target = node;
+      targetOffset = remaining;
+      break;
+    }
+    remaining -= len;
+    node = walker.nextNode();
+  }
+  const range = document.createRange();
+  if (target) {
+    range.setStart(target, targetOffset);
+    range.collapse(true);
+  } else {
+    range.selectNodeContents(el);
+    range.collapse(false);
+  }
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+export const BRACKET_MATCH_CLASS = "fortune-formula-paren-match";
+
+/** Highlights the parenthesis pair around `caret` (see {@link findBracketPair}). */
+export function highlightBracketPair(
+  el: HTMLElement,
+  caret: number | null,
+  text: string = el.textContent || ""
+) {
+  el.querySelectorAll(`.${BRACKET_MATCH_CLASS}`).forEach((e) =>
+    e.classList.remove(BRACKET_MATCH_CLASS)
+  );
+  if (caret == null || !text.startsWith("=")) return;
+  const pair = findBracketPair(text, caret);
+  if (!pair) return;
+  const targets = new Set(pair.filter((p) => p >= 0));
+  if (targets.size === 0) return;
+  let pos = 0;
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    const len = node.textContent?.length ?? 0;
+    const parent = node.parentElement;
+    if (
+      parent &&
+      len === 1 &&
+      targets.has(pos) &&
+      (parent.classList.contains("luckysheet-formula-text-lpar") ||
+        parent.classList.contains("luckysheet-formula-text-rpar"))
+    ) {
+      parent.classList.add(BRACKET_MATCH_CLASS);
+    }
+    pos += len;
+    node = walker.nextNode();
+  }
+}
+
+/**
+ * Replaces the identifier being typed with `name(`, caret after the `(`.
+ * Only touches the DOM; callers re-render the formula afterwards.
+ */
+export function applyFunctionCandidate(el: HTMLElement, name: string) {
+  const text = el.textContent || "";
+  const caret = getCaretOffset(el) ?? text.length;
+  const res = insertFunctionName(text, caret, name);
+  el.textContent = res.text;
+  setCaretOffset(el, res.caret);
+  return true;
+}
+
+/** F4: cycles `$` on the reference at the caret. Returns false if none. */
+export function applyReferenceCycle(el: HTMLElement) {
+  const text = el.textContent || "";
+  const caret = getCaretOffset(el) ?? text.length;
+  const res = cycleReferenceAtCaret(text, caret);
+  if (!res) return false;
+  el.textContent = res.text;
+  setCaretOffset(el, res.caret);
+  return true;
+}
+
+/** Adds missing closing parentheses to the formula in `el` before commit. */
+export function closeFormulaParens(el: HTMLElement | null | undefined) {
+  if (!el) return false;
+  const text = el.innerText ?? el.textContent ?? "";
+  if (!text.startsWith("=")) return false;
+  const closed = autoCloseFormula(text);
+  if (closed === text) return false;
+  el.textContent = closed;
+  return true;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                              Context updates                               */
+/* -------------------------------------------------------------------------- */
+
+export function getFunctionListMap(ctx: Context): Record<string, any> {
+  const map = ctx.formulaCache.functionlistMap;
+  if (map && Object.keys(map).length > 0) return map;
+  const { functionlist } = locale(ctx);
+  for (let i = 0; i < functionlist.length; i += 1) {
+    ctx.formulaCache.functionlistMap[functionlist[i].n] = functionlist[i];
+  }
+  return ctx.formulaCache.functionlistMap;
+}
+
+export function clearFormulaEditorState(ctx: Context) {
+  if (ctx.functionCandidates.length > 0) ctx.functionCandidates = [];
+  if (ctx.functionHint != null) ctx.functionHint = null;
+}
+
+/**
+ * Recomputes the function candidates, the argument hint and the bracket
+ * highlight for the caret position in `el`.
+ */
+export function refreshFormulaEditorState(ctx: Context, el: HTMLElement) {
+  const text = el.textContent || "";
+  const caretOffset = getCaretOffset(el);
+  highlightBracketPair(el, caretOffset, text);
+  if (!text.startsWith("=")) {
+    clearFormulaEditorState(ctx);
+    return;
+  }
+  const caret = caretOffset ?? text.length;
+  const tokens = tokenizeFormula(text);
+  const map = getFunctionListMap(ctx);
+
+  const query = getFunctionQuery(text, caret, tokens);
+  if (query) {
+    const { functionlist } = locale(ctx);
+    const ranked = rankFunctions(functionlist as any[], query.query);
+    if (ranked.length > 0) {
+      ctx.functionCandidates = ranked.map((r) => ({
+        n: r.item.n,
+        d: r.item.d,
+        a: r.item.a,
+        matches: r.matches,
+      }));
+      ctx.functionCandidateIndex = 0;
+      ctx.functionHint = null;
+      return;
+    }
+  }
+  if (ctx.functionCandidates.length > 0) ctx.functionCandidates = [];
+
+  const call = getCallContext(text, caret, tokens);
+  const name = call?.name.toUpperCase();
+  if (call && name && map[name]) {
+    ctx.functionHint = name;
+    ctx.functionHintArgIndex = call.argIndex;
+  } else if (ctx.functionHint != null) {
+    ctx.functionHint = null;
+  }
+}
+
+/** Moves the highlighted function candidate by `delta` (wrapping). */
+export function moveFunctionCandidate(ctx: Context, delta: number) {
+  const len = ctx.functionCandidates.length;
+  if (len === 0) return;
+  const cur = ctx.functionCandidateIndex ?? 0;
+  ctx.functionCandidateIndex = (((cur + delta) % len) + len) % len;
+}
+
+export function getActiveFunctionCandidate(ctx: Context): string | null {
+  const len = ctx.functionCandidates.length;
+  if (len === 0) return null;
+  const idx = Math.min(Math.max(ctx.functionCandidateIndex ?? 0, 0), len - 1);
+  return ctx.functionCandidates[idx]?.n ?? null;
+}

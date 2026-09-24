@@ -5,6 +5,7 @@ export * from "./color";
 export * from "./cursor";
 export * from "./format";
 export * from "./formula";
+export * from "./formulaEditor";
 export * from "./freeze";
 export * from "./inline-string";
 export * from "./location";

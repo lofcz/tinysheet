@@ -23,8 +23,17 @@ import {
 import { getRangetxt, mergeMoveMain, setCellValue } from "./cell";
 import { error } from "./validation";
 import { moveToEnd } from "./cursor";
-import { locale } from "../locale";
-import { colors } from "./color";
+import {
+  clearFormulaEditorState,
+  formulaTextToHTML,
+  getCaretOffset,
+  parseReference,
+  recolorReferenceSpans,
+  referenceColor,
+  referenceKey,
+  refreshFormulaEditorState,
+  setCaretOffset,
+} from "./formulaEditor";
 import { colLocation, mousePosition, rowLocation } from "./location";
 import { cancelFunctionrangeSelected, seletedHighlistByindex } from ".";
 import {
@@ -1546,38 +1555,41 @@ export function createRangeHightlight(
     height: number;
     backgroundColor: string;
   }[] = [];
-  $span
-    .querySelectorAll("span.fortune-formula-functionrange-cell")
-    .forEach((ele) => {
-      const rangeIndex = parseInt(ele.getAttribute("rangeindex") || "0", 10);
-      if (rangeIndex === ignoreRangeIndex) return;
-      const cellrange = getcellrange(ctx, ele.textContent || "");
-      if (
-        rangeIndex === ctx.formulaCache.selectingRangeIndex ||
-        cellrange == null
-      )
-        return;
-      if (
-        cellrange.sheetId === ctx.currentSheetId ||
-        (!cellrange.sheetId &&
-          ctx.formulaCache.rangetosheet === ctx.currentSheetId)
-      ) {
-        const rect = seletedHighlistByindex(
-          ctx,
-          cellrange.row[0],
-          cellrange.row[1],
-          cellrange.column[0],
-          cellrange.column[1]
-        );
-        if (rect) {
-          formulaRanges.push({
-            rangeIndex,
-            ...rect,
-            backgroundColor: colors[rangeIndex],
-          });
-        }
-      }
-    });
+  // equal references share a colour (see formulaTextToHTML) and one box
+  const drawn = new Set<string>();
+  recolorReferenceSpans($span).forEach(({ text, rangeIndex, color }) => {
+    if (
+      rangeIndex === ignoreRangeIndex ||
+      rangeIndex === ctx.formulaCache.selectingRangeIndex
+    )
+      return;
+    const ref = parseReference(text);
+    if (ref == null) return;
+    const key = referenceKey(text);
+    if (drawn.has(key)) return;
+    let sheetId: string | undefined | null = ctx.currentSheetId;
+    if (ref.sheetName != null) {
+      sheetId = ctx.luckysheetfile.find((f) => f.name === ref.sheetName)?.id;
+    }
+    if (sheetId !== ctx.currentSheetId) return;
+    const row = ref.row ?? [0, ctx.visibledatarow.length - 1];
+    const column = ref.column ?? [0, ctx.visibledatacolumn.length - 1];
+    const rect = seletedHighlistByindex(
+      ctx,
+      row[0],
+      row[1],
+      column[0],
+      column[1]
+    );
+    if (rect) {
+      drawn.add(key);
+      formulaRanges.push({
+        rangeIndex,
+        ...rect,
+        backgroundColor: color,
+      });
+    }
+  });
   ctx.formulaRangeHighlight = formulaRanges;
 }
 
@@ -1632,69 +1644,6 @@ function functionRange(
   }
 }
 
-function searchFunction(ctx: Context, searchtxt: string) {
-  const { functionlist } = locale(ctx);
-
-  // // 这里的逻辑在原项目上做了修改
-  // if (_.isNil($editer)) {
-  //   return;
-  // }
-  // const inputContent = $editer.innerText.toUpperCase();
-  // const reg = /^=([a-zA-Z_]+)\(?/;
-  // const match = inputContent.match(reg);
-  // if (!match) {
-  //   ctx.functionCandidates = [];
-  //   return;
-  // }
-
-  // const searchtxt = match[1];
-
-  const f: typeof functionlist = [];
-  const s: typeof functionlist = [];
-  const t: typeof functionlist = [];
-  let result_i = 0;
-
-  for (let i = 0; i < functionlist.length; i += 1) {
-    const item = functionlist[i];
-    const { n } = item;
-
-    if (n === searchtxt) {
-      f.unshift(item);
-      result_i += 1;
-    } else if (_.startsWith(n, searchtxt)) {
-      s.unshift(item);
-      result_i += 1;
-    } else if (n.indexOf(searchtxt) > -1) {
-      t.unshift(item);
-      result_i += 1;
-    }
-
-    if (result_i >= 10) {
-      break;
-    }
-  }
-
-  const list = [...f, ...s, ...t];
-  if (list.length <= 0) {
-    return;
-  }
-
-  ctx.functionCandidates = list;
-
-  // const listHTML = _this.searchFunctionHTML(list);
-  // $("#luckysheet-formula-search-c").html(listHTML).show();
-  // $("#luckysheet-formula-help-c").hide();
-
-  // const $c = $editer.parent();
-  // const offset = $c.offset();
-  // _this.searchFunctionPosition(
-  //   $("#luckysheet-formula-search-c"),
-  //   $c,
-  //   offset.left,
-  //   offset.top
-  // );
-}
-
 export function getrangeseleciton() {
   const currSelection = window.getSelection();
   if (!currSelection) return null;
@@ -1744,403 +1693,28 @@ export function getrangeseleciton() {
   return null;
 }
 
-function helpFunctionExe(
-  $editer: HTMLDivElement,
-  currSelection: Node,
-  ctx: Context
-) {
-  const { functionlist } = locale(ctx);
-  // let _locale = locale();
-  // let locale_formulaMore = _locale.formulaMore;
-  // if ($("#luckysheet-formula-help-c").length === 0) {
-  //   $("body").after(
-  //     replaceHtml(_this.helpHTML, {
-  //       helpClose: locale_formulaMore.helpClose,
-  //       helpCollapse: locale_formulaMore.helpCollapse,
-  //       helpExample: locale_formulaMore.helpExample,
-  //       helpAbstract: locale_formulaMore.helpAbstract,
-  //     })
-  //   );
-  //   $("#luckysheet-formula-help-c .luckysheet-formula-help-close").click(
-  //     function () {
-  //       $("#luckysheet-formula-help-c").hide();
-  //     }
-  //   );
-  //   $("#luckysheet-formula-help-c .luckysheet-formula-help-collapse").click(
-  //     function () {
-  //       let $content = $(
-  //         "#luckysheet-formula-help-c .luckysheet-formula-help-content"
-  //       );
-  //       $content.slideToggle(100, function () {
-  //         let $c = _this.rangeResizeTo.parent(),
-  //           offset = $c.offset();
-  //         _this.searchFunctionPosition(
-  //           $("#luckysheet-formula-help-c"),
-  //           $c,
-  //           offset.left,
-  //           offset.top,
-  //           true
-  //         );
-  //       });
-
-  //       if ($content.is(":hidden")) {
-  //         $(this).html('<i class="fa fa-angle-up" aria-hidden="true"></i>');
-  //       } else {
-  //         $(this).html('<i class="fa fa-angle-down" aria-hidden="true"></i>');
-  //       }
-  //     }
-  //   );
-
-  //   for (let i = 0; i < functionlist.length; i++) {
-  //     functionlistPosition[functionlist[i].n] = i;
-  //   }
-  // }
-  if (_.isEmpty(ctx.formulaCache.functionlistMap)) {
-    for (let i = 0; i < functionlist.length; i += 1) {
-      ctx.formulaCache.functionlistMap[functionlist[i].n] = functionlist[i];
-    }
-  }
-  if (!currSelection) {
-    return null;
-  }
-
-  const $prev = currSelection;
-  const $span = $editer.querySelectorAll("span");
-  const currentIndex = _.indexOf(
-    currSelection.parentNode?.childNodes,
-    currSelection
-  );
-  let i = currentIndex;
-
-  if ($prev == null) {
-    return null;
-  }
-
-  let funcName = null;
-  let paramindex = null;
-
-  if ($span[i].classList.contains("luckysheet-formula-text-func")) {
-    funcName = $span[i].textContent;
-  } else {
-    let $cur = null;
-    let exceptIndex = [-1, -1];
-
-    // eslint-disable-next-line no-plusplus
-    while (--i > 0) {
-      $cur = $span[i];
-
-      if (
-        $cur.classList.contains("luckysheet-formula-text-func") ||
-        _.trim($cur.textContent || "").toUpperCase() in
-          ctx.formulaCache.functionlistMap
-      ) {
-        funcName = $cur.textContent;
-        paramindex = null;
-        let endstate = true;
-
-        for (let a = i; a <= currentIndex; a += 1) {
-          if (!paramindex) {
-            paramindex = 0;
-          }
-
-          if (a >= exceptIndex[0] && a <= exceptIndex[1]) {
-            continue;
-          }
-
-          $cur = $span[a];
-          if ($cur.classList.contains("luckysheet-formula-text-rpar")) {
-            exceptIndex = [i, a];
-            funcName = null;
-            endstate = false;
-            break;
-          }
-
-          if ($cur.classList.contains("luckysheet-formula-text-comma")) {
-            paramindex += 1;
-          }
-        }
-
-        if (endstate) {
-          break;
-        }
-      }
-    }
-  }
-
-  return funcName;
-}
-
+/**
+ * Updates function autocomplete candidates, the argument hint and the bracket
+ * highlight for the caret position in `$editor`.
+ */
 export function rangeHightlightselected(ctx: Context, $editor: HTMLDivElement) {
-  const currSelection = getrangeseleciton();
-  // $("#luckysheet-formula-search-c, #luckysheet-formula-help-c").hide();
-  // $(
-  //   "#fortune-formula-functionrange .fortune-formula-functionrange-highlight .fortune-selection-copy-hc"
-  // ).css("opacity", "0.03");
-  // $("#luckysheet-formula-search-c, #luckysheet-formula-help-c").hide();
-
-  // if (
-  //   $(currSelection).closest(".fortune-formula-functionrange-cell").length ==
-  //   0
-  // ) {
-  if (!currSelection) return;
-
-  const currText = _.trim(currSelection.textContent || "");
-  if (currText?.match(/^[a-zA-Z_]+$/)) {
-    searchFunction(ctx, currText.toUpperCase());
-    ctx.functionHint = null;
-  } else {
-    const funcName = helpFunctionExe($editor, currSelection, ctx);
-    ctx.functionHint = funcName?.toUpperCase();
-    ctx.functionCandidates = [];
-  }
-  // return;
-  // }
-
-  // const $anchorOffset = $(currSelection).closest(
-  //   ".fortune-formula-functionrange-cell"
-  // );
-  // const rangeindex = $anchorOffset.attr("rangeindex");
-  // const rangeid = `fortune-formula-functionrange-highlight-${rangeindex}`;
-
-  // $(`#${rangeid}`).find(".fortune-selection-copy-hc").css({
-  //   opacity: "0.13",
-  // });
+  refreshFormulaEditorState(ctx, $editor);
 }
 
-function functionHTML(txt: string) {
-  if (txt.substr(0, 1) === "=") {
-    txt = txt.substr(1);
-  }
-
-  const funcstack = txt.split("");
-  let i = 0;
-  let str = "";
-  let function_str = "";
-  const matchConfig = {
-    bracket: 0,
-    comma: 0,
-    squote: 0,
-    dquote: 0,
-    braces: 0,
-  };
-
-  while (i < funcstack.length) {
-    const s = funcstack[i];
-
-    if (
-      s === "(" &&
-      matchConfig.squote === 0 &&
-      matchConfig.dquote === 0 &&
-      matchConfig.braces === 0
-    ) {
-      matchConfig.bracket += 1;
-
-      if (str.length > 0) {
-        function_str += `<span dir="auto" class="luckysheet-formula-text-func">${str}</span><span dir="auto" class="luckysheet-formula-text-lpar">(</span>`;
-      } else {
-        function_str +=
-          '<span dir="auto" class="luckysheet-formula-text-lpar">(</span>';
-      }
-
-      str = "";
-    } else if (
-      s === ")" &&
-      matchConfig.squote === 0 &&
-      matchConfig.dquote === 0 &&
-      matchConfig.braces === 0
-    ) {
-      matchConfig.bracket -= 1;
-      function_str += `${functionHTML(
-        str
-      )}<span dir="auto" class="luckysheet-formula-text-rpar">)</span>`;
-      str = "";
-    } else if (
-      s === "{" &&
-      matchConfig.squote === 0 &&
-      matchConfig.dquote === 0
-    ) {
-      str += "{";
-      matchConfig.braces += 1;
-    } else if (
-      s === "}" &&
-      matchConfig.squote === 0 &&
-      matchConfig.dquote === 0
-    ) {
-      str += "}";
-      matchConfig.braces -= 1;
-    } else if (s === '"' && matchConfig.squote === 0) {
-      if (matchConfig.dquote > 0) {
-        if (str.length > 0) {
-          function_str += `${str}"</span>`;
-        } else {
-          function_str += '"</span>';
-        }
-
-        matchConfig.dquote -= 1;
-        str = "";
-      } else {
-        matchConfig.dquote += 1;
-
-        if (str.length > 0) {
-          function_str += `${functionHTML(
-            str
-          )}<span dir="auto" class="luckysheet-formula-text-string">"`;
-        } else {
-          function_str +=
-            '<span dir="auto" class="luckysheet-formula-text-string">"';
-        }
-
-        str = "";
-      }
-    }
-    // 修正例如输入公式='1-2'!A1时，只有2'!A1是fortune-formula-functionrange-cell色，'1-是黑色的问题。
-    else if (s === "'" && matchConfig.dquote === 0) {
-      str += "'";
-      matchConfig.squote = matchConfig.squote === 0 ? 1 : 0;
-    } else if (
-      s === "," &&
-      matchConfig.squote === 0 &&
-      matchConfig.dquote === 0 &&
-      matchConfig.braces === 0
-    ) {
-      // matchConfig.comma += 1;
-      function_str += `${functionHTML(
-        str
-      )}<span dir="auto" class="luckysheet-formula-text-comma">,</span>`;
-      str = "";
-    } else if (
-      s === "&" &&
-      matchConfig.squote === 0 &&
-      matchConfig.dquote === 0 &&
-      matchConfig.braces === 0
-    ) {
-      if (str.length > 0) {
-        function_str +=
-          `${functionHTML(
-            str
-          )}<span dir="auto" class="luckysheet-formula-text-calc">` +
-          `&` +
-          `</span>`;
-        str = "";
-      } else {
-        function_str +=
-          '<span dir="auto" class="luckysheet-formula-text-calc">' +
-          "&" +
-          "</span>";
-      }
-    } else if (
-      s in operatorjson &&
-      matchConfig.squote === 0 &&
-      matchConfig.dquote === 0 &&
-      matchConfig.braces === 0
-    ) {
-      let s_next = "";
-      if (i + 1 < funcstack.length) {
-        s_next = funcstack[i + 1];
-      }
-
-      let p = i - 1;
-      let s_pre = null;
-      if (p >= 0) {
-        do {
-          s_pre = funcstack[p];
-          p -= 1;
-        } while (p >= 0 && s_pre === " ");
-      }
-
-      if (s + s_next in operatorjson) {
-        if (str.length > 0) {
-          function_str += `${functionHTML(
-            str
-          )}<span dir="auto" class="luckysheet-formula-text-calc">${s}${s_next}</span>`;
-          str = "";
-        } else {
-          function_str += `<span dir="auto" class="luckysheet-formula-text-calc">${s}${s_next}</span>`;
-        }
-
-        i += 1;
-      } else if (
-        !/[^0-9]/.test(s_next) &&
-        s === "-" &&
-        (s_pre === "(" ||
-          _.isNil(s_pre) ||
-          s_pre === "," ||
-          s_pre === " " ||
-          s_pre in operatorjson)
-      ) {
-        str += s;
-      } else {
-        if (str.length > 0) {
-          function_str += `${functionHTML(
-            str
-          )}<span dir="auto" class="luckysheet-formula-text-calc">${s}</span>`;
-          str = "";
-        } else {
-          function_str += `<span dir="auto" class="luckysheet-formula-text-calc">${s}</span>`;
-        }
-      }
-    } else {
-      str += s;
-    }
-
-    if (i === funcstack.length - 1) {
-      // function_str += str;
-      if (iscelldata(_.trim(str))) {
-        const rangeIndex =
-          rangeIndexes.length > functionHTMLIndex
-            ? rangeIndexes[functionHTMLIndex]
-            : functionHTMLIndex;
-        function_str += `<span class="fortune-formula-functionrange-cell" rangeindex="${rangeIndex}" dir="auto" style="color:${colors[rangeIndex]};">${str}</span>`;
-        functionHTMLIndex += 1;
-      } else if (matchConfig.dquote > 0) {
-        function_str += `${str}</span>`;
-      } else if (str.indexOf("</span>") === -1 && str.length > 0) {
-        const regx = /{.*?}/;
-
-        if (regx.test(_.trim(str))) {
-          const arraytxt = regx.exec(str)![0];
-          const arraystart = str.search(regx);
-          let alltxt = "";
-
-          if (arraystart > 0) {
-            alltxt += `<span dir="auto" class="luckysheet-formula-text-color">${str.substr(
-              0,
-              arraystart
-            )}</span>`;
-          }
-
-          alltxt += `<span dir="auto" style="color:#959a05" class="luckysheet-formula-text-array">${arraytxt}</span>`;
-
-          if (arraystart + arraytxt.length < str.length) {
-            alltxt += `<span dir="auto" class="luckysheet-formula-text-color">${str.substr(
-              arraystart + arraytxt.length,
-              str.length
-            )}</span>`;
-          }
-
-          function_str += alltxt;
-        } else {
-          function_str += `<span dir="auto" class="luckysheet-formula-text-color">${str}</span>`;
-        }
-      }
-    }
-
-    i += 1;
-  }
-
-  return function_str;
-}
+let functionHTMLRefCount = 0;
 
 export function functionHTMLGenerate(txt: string) {
   if (txt.length === 0 || txt.substring(0, 1) !== "=") {
     return txt;
   }
 
-  functionHTMLIndex = 0;
-
-  return `<span dir="auto" class="luckysheet-formula-text-color">=</span>${functionHTML(
-    txt
-  )}`;
+  const { html, refCount, nextRangeIndex } = formulaTextToHTML(
+    txt,
+    rangeIndexes
+  );
+  functionHTMLIndex = nextRangeIndex;
+  functionHTMLRefCount = refCount;
+  return html;
 }
 
 function getRangeIndexes($editor: HTMLDivElement) {
@@ -2165,29 +1739,29 @@ export function handleFormulaInput(
   preText?: string,
   refreshRangeSelect = true
 ) {
-  // if (isEditMode()) {
-  //   // 此模式下禁用公式栏
-  //   return;
-  // }
-  let value1: string;
   const value1txt = preText ?? $editor.innerText;
   let value = $editor.innerText;
-  value = escapeScriptTag(value);
+  // innerText may report a trailing newline for the <br> a contenteditable
+  // leaves behind; it is not part of the formula
+  if (value.endsWith("\n") && !($editor.textContent || "").endsWith("\n")) {
+    value = value.slice(0, -1);
+  }
   if (
     value.length > 0 &&
     value.substring(0, 1) === "=" &&
     (kcode !== 229 || value.length === 1)
   ) {
     if (!refreshRangeSelect) rangeIndexes = getRangeIndexes($editor);
-    value = functionHTMLGenerate(value);
-    if (!refreshRangeSelect && functionHTMLIndex < rangeIndexes.length)
+    // caret as a text offset, restored after the markup is regenerated
+    const caret = getCaretOffset($editor);
+    const html = functionHTMLGenerate(value);
+    if (!refreshRangeSelect && functionHTMLRefCount < rangeIndexes.length)
       refreshRangeSelect = true;
-    value1 = functionHTMLGenerate(value1txt);
 
     rangeIndexes = [];
 
-    if (window.getSelection) {
-      // all browsers, except IE before version 9
+    if (caret == null && window.getSelection) {
+      // legacy caret tracking, used when the selection is outside the editor
       const currSelection = window.getSelection();
       if (!currSelection) return;
       if (currSelection.anchorNode?.nodeName.toLowerCase() === "div") {
@@ -2208,38 +1782,42 @@ export function handleFormulaInput(
           currSelection.anchorOffset,
         ];
       }
-    } else {
-      // Internet Explorer before version 9
-      // @ts-ignore
-      const textRange = document.selection.createRange();
-      ctx.formulaCache.functionRangeIndex = textRange;
     }
 
-    $editor.innerHTML = value;
-    if ($copyTo) $copyTo.innerHTML = value;
+    $editor.innerHTML = html;
+    if ($copyTo) $copyTo.innerHTML = html;
 
     // the cursor will be set to the beginning of input box after set innerHTML,
     // restoring it to the correct position
-    functionRange(ctx, $editor, value, value1);
+    if (caret != null) {
+      setCaretOffset($editor, caret);
+    } else {
+      functionRange(
+        ctx,
+        $editor,
+        html,
+        formulaTextToHTML(escapeScriptTag(value1txt)).html
+      );
+    }
 
     if (refreshRangeSelect) {
       cancelFunctionrangeSelected(ctx);
-
-      if (kcode !== 46) {
-        // delete不执行此函数
-        createRangeHightlight(ctx, value);
-      }
+      createRangeHightlight(ctx, html);
 
       ctx.formulaCache.rangestart = false;
       ctx.formulaCache.rangedrag_column_start = false;
       ctx.formulaCache.rangedrag_row_start = false;
-
-      rangeHightlightselected(ctx, $editor);
     }
+    rangeHightlightselected(ctx, $editor);
   } else if (_.startsWith(value1txt, "=") && !_.startsWith(value, "=")) {
+    value = escapeScriptTag(value);
     if ($copyTo) $copyTo.innerHTML = value;
     $editor.innerHTML = escapeHTMLTag(value);
+    clearFormulaEditorState(ctx);
+    ctx.formulaRangeHighlight = [];
   } else if (!_.startsWith(value1txt, "=")) {
+    value = escapeScriptTag(value);
+    clearFormulaEditorState(ctx);
     if (!$copyTo) return;
     if ($copyTo.id === "luckysheet-rich-text-editor") {
       if (!_.startsWith($copyTo.innerHTML, "<span")) {
@@ -2889,11 +2467,13 @@ export function rangeSetValue(
     }
     //   }
   } else {
-    const function_str = `<span class="fortune-formula-functionrange-cell" rangeindex="${functionHTMLIndex}" dir="auto" style="color:${colors[functionHTMLIndex]};">${range}</span>`;
+    const function_str = `<span class="fortune-formula-functionrange-cell" rangeindex="${functionHTMLIndex}" dir="auto" style="color:${referenceColor(
+      functionHTMLIndex
+    )};">${range}</span>`;
     const newEle = parseElement(function_str);
     const refEle = ctx.formulaCache.rangeSetValueTo;
     if (refEle && refEle.parentNode) {
-      const leftPar = document.getElementsByClassName(
+      const leftPar = $editor.getElementsByClassName(
         "luckysheet-formula-text-lpar"
       )?.[0];
 
@@ -2903,9 +2483,7 @@ export function rangeSetValue(
           "luckysheet-formula-text-color"
         )
       ) {
-        document
-          .getElementsByClassName("luckysheet-formula-text-lpar")?.[0]
-          .parentNode?.appendChild(newEle);
+        leftPar.parentNode?.appendChild(newEle);
       } else {
         refEle.parentNode.insertBefore(newEle, refEle.nextSibling);
       }
@@ -2921,6 +2499,8 @@ export function rangeSetValue(
     functionHTMLIndex += 1;
   }
 
+  // equal references share a colour, matching the highlight boxes
+  recolorReferenceSpans($editor);
   if ($copyTo) $copyTo.innerHTML = $editor.innerHTML;
 }
 
