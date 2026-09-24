@@ -1,4 +1,5 @@
 /* eslint-disable max-classes-per-file */
+import type { Context } from "../context";
 import type {
   FormulaCellInfo,
   FormulaCellInfoMap,
@@ -25,6 +26,82 @@ import type {
  * This module is pure data-structure code: it knows nothing about the
  * context, parsing or evaluation (see formulaHelper.ts for the glue).
  */
+
+const DRAFT_STATE = Symbol.for("immer-state");
+
+/**
+ * Latest value of a possibly-immer-draft object, *without* creating child
+ * drafts. Reading a big sheet through a draft creates a proxy per row/cell
+ * touched (and makes the final produce() walk them); formula evaluation only
+ * reads, so it peeks at the draft's current copy (or its base) instead.
+ * The result is READ-ONLY: never write through it. Falls back to the value
+ * itself for plain objects or an unknown immer version.
+ */
+export function peek<T>(value: T): T {
+  if (value == null || typeof value !== "object") return value;
+  const state = (value as any)[DRAFT_STATE];
+  if (state == null || typeof state !== "object") return value;
+  const latest = state.copy_ ?? state.base_;
+  return latest == null ? value : latest;
+}
+
+/** Read-only cell lookup that does not create immer drafts. */
+export function peekCell(data: any, r: number, c: number) {
+  return peek(peek(peek(data)?.[r])?.[c]);
+}
+
+/* Draft-free, memoised sheet lookups */
+
+const sheetIndexCache = new Map<string, number>();
+const sheetNameCache = new Map<string, number>();
+
+/**
+ * `getSheetIndex` with a validated memo: the remembered position is checked
+ * against the current sheet list, so reordering/deleting sheets is safe.
+ */
+export function getSheetIndexCached(ctx: Context, id: string | undefined) {
+  if (id == null) return null;
+  const files = peek(peek(ctx).luckysheetfile);
+  if (!files) return null;
+  const cached = sheetIndexCache.get(id);
+  if (cached != null && peek(files[cached])?.id === id) return cached;
+  for (let i = 0; i < files.length; i += 1) {
+    if (peek(files[i])?.id === id) {
+      sheetIndexCache.set(id, i);
+      return i;
+    }
+  }
+  return null;
+}
+
+export function getSheetIdByNameCached(ctx: Context, name: string) {
+  const files = peek(peek(ctx).luckysheetfile);
+  if (!files) return null;
+  const cached = sheetNameCache.get(name);
+  if (cached != null && peek(files[cached])?.name === name) {
+    return peek(files[cached]).id;
+  }
+  for (let i = 0; i < files.length; i += 1) {
+    const file = peek(files[i]);
+    if (file?.name === name) {
+      sheetNameCache.set(name, i);
+      return file.id;
+    }
+  }
+  return null;
+}
+
+/** READ-ONLY view of a sheet (see `peek`). */
+export function peekSheet(ctx: Context, id: string | undefined) {
+  const idx = getSheetIndexCached(ctx, id);
+  if (idx == null) return null;
+  return peek(peek(peek(ctx).luckysheetfile)[idx]);
+}
+
+/** READ-ONLY view of a sheet's cell matrix (see `peek`). */
+export function getSheetDataCached(ctx: Context, id: string | undefined) {
+  return peek(peekSheet(ctx, id)?.data);
+}
 
 /** Column stride of the numeric cell index (`r * COL_STRIDE + c`). */
 export const COL_STRIDE = 1 << 20;

@@ -40,6 +40,7 @@ import type { Cell, CellMatrix, FormulaDependency } from "../types";
 import { columnCharToIndex, getSheetIndex, indexToColumnChar } from "../utils";
 import { error as ERRORS, isRealNull, valueIsError } from "./validation";
 import { setCellValue } from "./cell";
+import { getSheetDataCached, peekCell } from "./dependencyGraph";
 
 // ---------------------------------------------------------------------------
 // Types and per-workbook state
@@ -1209,7 +1210,9 @@ export function prepareFormulaEvaluation(
   const hasCell = !_.isNil(r) && !_.isNil(c);
   const isCell =
     hasCell &&
-    (!!isrefresh || (getFlowdata(ctx, id)?.[r]?.[c] as Cell)?.f === txt);
+    (!!isrefresh ||
+      // read-only peek: no immer draft per evaluated formula
+      (peekCell(getSheetDataCached(ctx, id), r, c) as Cell)?.f === txt);
   state.current = {
     ctx,
     r: hasCell ? r : 0,
@@ -1424,6 +1427,19 @@ function spillResult(
   id: string,
   deps: FormulaDependency[]
 ) {
+  const view = getSheetDataCached(ctx, id); // read-only, no immer drafts
+  if (!view || !view[r]) return value;
+  const scalar = toMatrix(value);
+  if (!scalar || (scalar.length === 1 && scalar[0].length <= 1)) {
+    // Fast path for the common scalar result of a cell that never spilled:
+    // decided on a read-only peek, so no immer draft is created for it.
+    const peeked = peekCell(view, r, c) as SpillCell | null;
+    if (!peeked?.spillFrom && !peeked?.spill) {
+      if (!scalar) return value;
+      const v = scalar[0][0];
+      return v instanceof Error ? toErrorString(v) : v ?? null;
+    }
+  }
   const data = getFlowdata(ctx, id);
   if (!data || !data[r]) return value;
   let anchor = data[r][c] as SpillCell | null;

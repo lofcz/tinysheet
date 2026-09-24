@@ -1349,19 +1349,26 @@ function insertUpdateDynamicArray(ctx: Context, dynamicArrayItem: any) {
 
 export function groupValuesRefresh(ctx: Context) {
   const { luckysheetfile } = ctx;
-  if (ctx.groupValuesRefreshData.length > 0) {
-    for (let i = 0; i < ctx.groupValuesRefreshData.length; i += 1) {
-      const item = ctx.groupValuesRefreshData[i];
+  // items are only read: peek so immer does not draft every queued item
+  const items: any[] = peek(ctx.groupValuesRefreshData) ?? [];
+  if (items.length > 0) {
+    let lastId: string | undefined;
+    let file: any;
+    let data: CellMatrix | undefined;
+    for (let i = 0; i < items.length; i += 1) {
+      const item = peek(items[i]);
 
       // if(item.i !== ctx.currentSheetId){
       //     continue;
       // }
 
-      const idx = getSheetIndexCached(ctx, item.id);
-      if (idx == null) continue;
-
-      const file = luckysheetfile[idx];
-      const { data } = file;
+      if (item.id !== lastId || file == null) {
+        const idx = getSheetIndexCached(ctx, item.id);
+        if (idx == null) continue;
+        lastId = item.id;
+        file = luckysheetfile[idx];
+        data = file.data;
+      }
       if (_.isNil(data)) {
         continue;
       }
