@@ -1,49 +1,7 @@
 /**
  * Function names that older TinySheet/FortuneSheet catalogs listed (and that
  * saved workbooks may therefore contain), mapped to the Excel name the
- * engine understands. They are deliberately not in the catalog; the formula
- * engine can use this map to alias them.
+ * engine understands. The engine registers them as aliases; they are
+ * deliberately not in the catalog.
  */
-export const LEGACY_FUNCTION_NAMES: Readonly<Record<string, string>> = {
-  BINOM_DIST: "BINOM.DIST",
-  BINOM_INV: "BINOM.INV",
-  CONFIDENCE_NORM: "CONFIDENCE.NORM",
-  COVARIANCE_P: "COVARIANCE.P",
-  COVARIANCE_S: "COVARIANCE.S",
-  ERROR_TYPE: "ERROR.TYPE",
-  EXPON_DIST: "EXPON.DIST",
-  F_DIST: "F.DIST",
-  F_DIST_RT: "F.DIST.RT",
-  LOGNORM_DIST: "LOGNORM.DIST",
-  LOGNORM_INV: "LOGNORM.INV",
-  MODE_SNGL: "MODE.SNGL",
-  NEGBINOM_DIST: "NEGBINOM.DIST",
-  NETWORKDAYS_INTL: "NETWORKDAYS.INTL",
-  NORM_DIST: "NORM.DIST",
-  NORM_INV: "NORM.INV",
-  NORM_S_DIST: "NORM.S.DIST",
-  NORM_S_INV: "NORM.S.INV",
-  PERCENTILE_EXC: "PERCENTILE.EXC",
-  PERCENTILE_INC: "PERCENTILE.INC",
-  PERCENTRANK_EXC: "PERCENTRANK.EXC",
-  PERCENTRANK_INC: "PERCENTRANK.INC",
-  POISSON_DIST: "POISSON.DIST",
-  QUARTILE_EXC: "QUARTILE.EXC",
-  QUARTILE_INC: "QUARTILE.INC",
-  RANK_AVG: "RANK.AVG",
-  RANK_EQ: "RANK.EQ",
-  SKEW_P: "SKEW.P",
-  T_DIST: "T.DIST",
-  T_DIST_2T: "T.DIST.2T",
-  T_DIST_RT: "T.DIST.RT",
-  T_INV: "T.INV",
-  T_INV_2T: "T.INV.2T",
-  T_TEST: "T.TEST",
-  VAR_P: "VAR.P",
-  VAR_S: "VAR.S",
-  WEIBULL_DIST: "WEIBULL.DIST",
-  WORKDAY_INTL: "WORKDAY.INTL",
-  Z_TEST: "Z.TEST",
-  // Google Sheets name for Excel's REGEXTEST(text, pattern).
-  REGEXMATCH: "REGEXTEST",
-};
+export { LEGACY_FUNCTION_NAMES } from "@lofcz/tinysheet-formula-parser";

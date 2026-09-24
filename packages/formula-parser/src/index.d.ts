@@ -50,3 +50,6 @@ export declare class Parser {
 }
 
 export { Parser as default };
+
+/** Old underscore-style names (e.g. RANK_EQ) mapped to their Excel names. */
+export const LEGACY_FUNCTION_NAMES: Readonly<Record<string, string>>;

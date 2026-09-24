@@ -42,3 +42,5 @@ export {
   rowIndexToLabel,
   rowLabelToIndex,
 };
+
+export { LEGACY_FUNCTION_NAMES } from "./functions";
