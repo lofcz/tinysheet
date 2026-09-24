@@ -27,7 +27,8 @@
  *    anchor carries `spill: { rs, cs, blocked? }`. If any target cell is not
  *    empty the anchor shows `#SPILL!`. Ghost writes are queued on
  *    `ctx.groupValuesRefreshData` (applied at the end of the same update) and
- *    mirrored into `execFunctionGlobalData` so formulas evaluated in the same
+ *    mirrored into the recalculation overlay (`formulaCache.setGlobalCell`,
+ *    formerly `execFunctionGlobalData`) so formulas evaluated in the same
  *    pass read the new values.
  */
 import _ from "lodash";
@@ -39,6 +40,7 @@ import type { Cell, CellMatrix, FormulaDependency } from "../types";
 import { columnCharToIndex, getSheetIndex, indexToColumnChar } from "../utils";
 import { error as ERRORS, isRealNull, valueIsError } from "./validation";
 import { setCellValue } from "./cell";
+import { getSheetDataCached, peekCell } from "./dependencyGraph";
 
 // ---------------------------------------------------------------------------
 // Types and per-workbook state
@@ -640,7 +642,7 @@ function readCell(
   r: number,
   c: number
 ): SpillCell | null {
-  const g = ctx.formulaCache.execFunctionGlobalData?.[`${r}_${c}_${sheetId}`];
+  const g = ctx.formulaCache.getGlobalCell(r, c, sheetId);
   if (g) return g;
   return (getFlowdata(ctx, sheetId)?.[r]?.[c] as SpillCell) ?? null;
 }
@@ -1208,7 +1210,9 @@ export function prepareFormulaEvaluation(
   const hasCell = !_.isNil(r) && !_.isNil(c);
   const isCell =
     hasCell &&
-    (!!isrefresh || (getFlowdata(ctx, id)?.[r]?.[c] as Cell)?.f === txt);
+    (!!isrefresh ||
+      // read-only peek: no immer draft per evaluated formula
+      (peekCell(getSheetDataCached(ctx, id), r, c) as Cell)?.f === txt);
   state.current = {
     ctx,
     r: hasCell ? r : 0,
@@ -1326,13 +1330,6 @@ function queueRefresh(ctx: Context, item: any) {
   ctx.groupValuesRefreshData.push(item);
 }
 
-function globalData(ctx: Context) {
-  if (!ctx.formulaCache.execFunctionGlobalData) {
-    ctx.formulaCache.execFunctionGlobalData = {};
-  }
-  return ctx.formulaCache.execFunctionGlobalData;
-}
-
 /** The current ghost cell of anchor (ar, ac) at (r, c), pending writes included. */
 function currentGhost(
   ctx: Context,
@@ -1343,7 +1340,7 @@ function currentGhost(
   ar: number,
   ac: number
 ): SpillCell | null {
-  const g = ctx.formulaCache.execFunctionGlobalData?.[`${r}_${c}_${id}`];
+  const g = ctx.formulaCache.getGlobalCell(r, c, id);
   if (g) return isGhostOf(g, r, c, ar, ac) ? g : null;
   const cell = data[r]?.[c] as SpillCell | null | undefined;
   return isGhostOf(cell, r, c, ar, ac) ? cell! : null;
@@ -1358,7 +1355,7 @@ function isBlocking(
   ar: number,
   ac: number
 ) {
-  const g = ctx.formulaCache.execFunctionGlobalData?.[`${r}_${c}_${id}`];
+  const g = ctx.formulaCache.getGlobalCell(r, c, id);
   if (g) {
     if (isGhostOf(g, r, c, ar, ac)) return false;
     return !!g.spillFrom || !isEmptyCell(g);
@@ -1394,7 +1391,7 @@ function clearGhost(
     id,
     spe: { type: "spillClear", r: ar, c: ac },
   });
-  globalData(ctx)[`${r}_${c}_${id}`] = {};
+  ctx.formulaCache.setGlobalCell(r, c, id, {});
   markChanged(state, r, c, id);
 }
 
@@ -1430,6 +1427,19 @@ function spillResult(
   id: string,
   deps: FormulaDependency[]
 ) {
+  const view = getSheetDataCached(ctx, id); // read-only, no immer drafts
+  if (!view || !view[r]) return value;
+  const scalar = toMatrix(value);
+  if (!scalar || (scalar.length === 1 && scalar[0].length <= 1)) {
+    // Fast path for the common scalar result of a cell that never spilled:
+    // decided on a read-only peek, so no immer draft is created for it.
+    const peeked = peekCell(view, r, c) as SpillCell | null;
+    if (!peeked?.spillFrom && !peeked?.spill) {
+      if (!scalar) return value;
+      const v = scalar[0][0];
+      return v instanceof Error ? toErrorString(v) : v ?? null;
+    }
+  }
   const data = getFlowdata(ctx, id);
   if (!data || !data[r]) return value;
   let anchor = data[r][c] as SpillCell | null;
@@ -1506,11 +1516,11 @@ function spillResult(
         v,
         spe: { type: "spillCell", r, c },
       });
-      globalData(ctx)[`${rr}_${cc}_${id}`] = {
+      ctx.formulaCache.setGlobalCell(rr, cc, id, {
         v,
         spillFrom: { dr: i, dc: j },
         ...(typeof v === "number" ? { ct: { fa: "General", t: "n" } } : {}),
-      };
+      });
       markChanged(state, rr, cc, id);
     }
   }

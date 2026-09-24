@@ -104,4 +104,26 @@ describe("formula results", () => {
       ct: { t: "e" },
     });
   });
+
+  test("date/time functions format a General cell like Excel", () => {
+    expect(typeInto({ v: 45366, f: "=DATE(2024,3,15)" })).toMatchObject({
+      m: "3/15/2024",
+      ct: { fa: "m/d/yyyy", t: "d" },
+    });
+    expect(typeInto({ v: 45366.5, f: "=now()" })).toMatchObject({
+      m: "3/15/2024 12:00",
+      ct: { t: "d" },
+    });
+    expect(typeInto({ v: 0.75, f: "=TIME(18,0,0)" })).toMatchObject({
+      m: "6:00 PM",
+    });
+    // An explicit format wins, and only a leading date function counts.
+    expect(
+      typeInto({ v: 45366, f: "=TODAY()" }, { ct: { fa: "0.00", t: "n" } })
+    ).toMatchObject({ m: "45366.00" });
+    expect(typeInto({ v: 3, f: "=YEAR(TODAY())-2021" })).toMatchObject({
+      m: "3",
+      ct: { fa: "General" },
+    });
+  });
 });

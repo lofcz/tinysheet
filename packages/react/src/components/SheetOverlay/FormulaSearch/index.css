@@ -42,3 +42,57 @@
   .luckysheet-formula-search-detail {
   display: block;
 }
+
+.luckysheet-formula-search-c {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.luckysheet-formula-search-c .luckysheet-formula-search-item {
+  padding: 4px 10px;
+}
+
+.luckysheet-formula-search-c .luckysheet-formula-search-item:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.luckysheet-formula-search-c
+  .luckysheet-formula-search-item
+  .luckysheet-formula-search-match {
+  font-weight: bold;
+}
+
+/* short description for every item, full one for the highlighted item */
+.luckysheet-formula-search-c
+  .luckysheet-formula-search-item
+  .luckysheet-formula-search-detail {
+  display: block;
+  color: var(--fortune-text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.luckysheet-formula-search-c
+  .luckysheet-formula-search-item-active
+  .luckysheet-formula-search-detail {
+  color: var(--fortune-text-muted);
+  white-space: normal;
+}
+
+/* parenthesis pair around the caret while editing a formula */
+.fortune-formula-paren-match {
+  font-weight: bold;
+  background-color: var(--fortune-bg-active);
+  border-radius: 2px;
+}
+
+/* formula tokens are drawn in the theme text colour, not the cell's font
+   colour (which may be unreadable on the editor background in dark mode) */
+.luckysheet-formula-text-func,
+.luckysheet-formula-text-lpar,
+.luckysheet-formula-text-rpar,
+.luckysheet-formula-text-comma,
+.luckysheet-formula-text-calc {
+  color: var(--fortune-text);
+}

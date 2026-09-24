@@ -1,7 +1,7 @@
 import { SUPPORTED_FORMULAS } from "@lofcz/tinysheet-formula-parser";
 import { locale, FUNCTION_CATEGORIES } from "../../src/locale";
 import englishCatalog from "../../src/locale/functions/en";
-import { FUNCTIONS_PENDING_ENGINE_SUPPORT } from "../../src/locale/functions/pending";
+import { WORKBOOK_FUNCTION_NAMES } from "../../src/modules/formulaFunctions";
 import { LEGACY_FUNCTION_NAMES } from "../../src/locale/functions/legacy";
 import { mergeFunctionList } from "../../src/locale/functions/merge";
 
@@ -28,19 +28,16 @@ describe("function catalog", () => {
     expect(catalog.length).toBeGreaterThan(400);
   });
 
-  test("every function is supported by the engine or pending in another workstream", () => {
-    const known = new Set([
-      ...SUPPORTED_FORMULAS,
-      ...FUNCTIONS_PENDING_ENGINE_SUPPORT,
-    ]);
+  test("every function is supported by the engine or core", () => {
+    const known = new Set([...SUPPORTED_FORMULAS, ...WORKBOOK_FUNCTION_NAMES]);
     expect(names(catalog).filter((n) => !known.has(n))).toEqual([]);
   });
 
-  test("every pending function has a catalog entry", () => {
+  test("every core workbook function has a catalog entry", () => {
     const catalogNames = new Set(names(catalog));
-    expect(
-      FUNCTIONS_PENDING_ENGINE_SUPPORT.filter((n) => !catalogNames.has(n))
-    ).toEqual([]);
+    expect(WORKBOOK_FUNCTION_NAMES.filter((n) => !catalogNames.has(n))).toEqual(
+      []
+    );
   });
 
   test("names are unique, upper-case Excel names", () => {
