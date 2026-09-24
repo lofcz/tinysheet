@@ -13572,6 +13572,168 @@ const functionlist: FunctionListEntry[] = [
       },
     ],
   },
+  {
+    n: "MODE",
+    t: 16,
+    d: "Returns the most frequently occurring value in a data set. Retained for compatibility; see MODE.SNGL.",
+    a: "Most common value (legacy).",
+    m: [1, 255],
+    p: [
+      {
+        name: "number1",
+        detail: "The first number or range to evaluate.",
+        example: "A2:A10",
+        require: "m",
+        repeat: "n",
+        type: "rangeall",
+      },
+      {
+        name: "number2",
+        detail: "Additional numbers or ranges, up to 254 in total.",
+        example: "5",
+        require: "o",
+        repeat: "y",
+        type: "rangeall",
+      },
+    ],
+  },
+  {
+    n: "STDEV",
+    t: 16,
+    d: "Estimates standard deviation based on a sample. Retained for compatibility; see STDEV.S.",
+    a: "Sample standard deviation (legacy).",
+    m: [1, 255],
+    p: [
+      {
+        name: "number1",
+        detail:
+          "The first number or range corresponding to a sample of a population.",
+        example: "A2:A11",
+        require: "m",
+        repeat: "n",
+        type: "rangeall",
+      },
+      {
+        name: "number2",
+        detail: "Additional numbers or ranges, up to 254 in total.",
+        example: "5",
+        require: "o",
+        repeat: "y",
+        type: "rangeall",
+      },
+    ],
+  },
+  {
+    n: "VAR",
+    t: 16,
+    d: "Estimates variance based on a sample. Retained for compatibility; see VAR.S.",
+    a: "Sample variance (legacy).",
+    m: [1, 255],
+    p: [
+      {
+        name: "number1",
+        detail:
+          "The first number or range corresponding to a sample of a population.",
+        example: "A2:A11",
+        require: "m",
+        repeat: "n",
+        type: "rangeall",
+      },
+      {
+        name: "number2",
+        detail: "Additional numbers or ranges, up to 254 in total.",
+        example: "5",
+        require: "o",
+        repeat: "y",
+        type: "rangeall",
+      },
+    ],
+  },
+  {
+    n: "RANK",
+    t: 16,
+    d: "Returns the rank of a number in a list of numbers. Retained for compatibility; see RANK.EQ.",
+    a: "Rank of a number (legacy).",
+    m: [2, 3],
+    p: [
+      {
+        name: "number",
+        detail: "The number whose rank you want to find.",
+        example: "A3",
+        require: "m",
+        repeat: "n",
+        type: "rangenumber",
+      },
+      {
+        name: "ref",
+        detail: "The list of numbers; non-numeric values are ignored.",
+        example: "A2:A6",
+        require: "m",
+        repeat: "n",
+        type: "range",
+      },
+      {
+        name: "order",
+        detail:
+          "0 or omitted ranks in descending order; any other value ranks in ascending order.",
+        example: "0",
+        require: "o",
+        repeat: "n",
+        type: "rangenumber",
+      },
+    ],
+  },
+  {
+    n: "PERCENTILE",
+    t: 16,
+    d: "Returns the k-th percentile of values in a range. Retained for compatibility; see PERCENTILE.INC.",
+    a: "k-th percentile (legacy).",
+    m: [2, 2],
+    p: [
+      {
+        name: "array",
+        detail: "The array or range of data that defines relative standing.",
+        example: "A2:A10",
+        require: "m",
+        repeat: "n",
+        type: "rangenumber",
+      },
+      {
+        name: "k",
+        detail: "The percentile value in the range 0 to 1, inclusive.",
+        example: "0.3",
+        require: "m",
+        repeat: "n",
+        type: "rangenumber",
+      },
+    ],
+  },
+  {
+    n: "QUARTILE",
+    t: 16,
+    d: "Returns the quartile of a data set. Retained for compatibility; see QUARTILE.INC.",
+    a: "Quartile of a data set (legacy).",
+    m: [2, 2],
+    p: [
+      {
+        name: "array",
+        detail: "The array or range of numeric values.",
+        example: "A2:A9",
+        require: "m",
+        repeat: "n",
+        type: "rangenumber",
+      },
+      {
+        name: "quart",
+        detail:
+          "Which value to return: 0 minimum, 1 first quartile, 2 median, 3 third quartile, 4 maximum.",
+        example: "1",
+        require: "m",
+        repeat: "n",
+        type: "rangenumber",
+      },
+    ],
+  },
 ];
 
 export default functionlist;
