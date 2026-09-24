@@ -54,6 +54,16 @@ import { CustomColor } from "./CustomColor";
 import CustomBorder from "./CustomBorder";
 import { FormatSearch } from "../FormatSearch";
 
+const toolbarTooltipAliases: Record<string, string> = {
+  link: "insertLink",
+  image: "insertImage",
+  conditionFormat: "conditionalFormat",
+  "horizontal-align": "horizontalAlign",
+  "vertical-align": "verticalAlign",
+  "text-wrap": "textWrap",
+  "text-rotation": "textRotate",
+};
+
 const Toolbar: React.FC<{
   setMoreItems: React.Dispatch<React.SetStateAction<React.ReactNode>>;
   moreItemsOpen: boolean;
@@ -201,8 +211,10 @@ const Toolbar: React.FC<{
 
   const getToolbarItem = useCallback(
     (name: string, i: number) => {
+      // Items whose locale key differs from the toolbar item name.
+      const tooltipKey = toolbarTooltipAliases[name] ?? name;
       // @ts-ignore
-      const tooltip = toolbar[name];
+      const tooltip: string = toolbar[tooltipKey] ?? "";
       if (name === "|") {
         return <Divider key={i} />;
       }
@@ -1035,7 +1047,7 @@ const Toolbar: React.FC<{
             iconId="merge-all"
             key={name}
             tooltip={tooltip}
-            text="合并单元格"
+            text={merge.mergeAll}
             onClick={() =>
               setContext((ctx) => {
                 handleMerge(ctx, "merge-all");
@@ -1120,7 +1132,7 @@ const Toolbar: React.FC<{
             iconId="border-all"
             key={name}
             tooltip={tooltip}
-            text="边框设置"
+            text={border.borderAll}
             onClick={() =>
               setContext((ctx) => {
                 handleBorder(ctx, "border-all", customColor, customStyle);

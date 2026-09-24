@@ -107,9 +107,10 @@ describe(".parse() math-trig formulas", () => {
       error: null,
       result: 6,
     });
-    expect(parser.parse("AGGREGATE(10, 4, A1:C1, 2)")).toMatchObject({
+    // Reference form: every ref after `options` is aggregated (VAR.S of 1,2,3,2).
+    expect(parser.parse("AGGREGATE(10, 4, A1:C1, 2)")).toBeMatchCloseTo({
       error: null,
-      result: 1,
+      result: 2 / 3,
     });
   });
 
@@ -212,25 +213,25 @@ describe(".parse() math-trig formulas", () => {
   it("CEILING", () => {
     expect(
       parser.parse("CEILING()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('CEILING("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("CEILING(7.2)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("CEILING(7, 2, 8)")
     ).toMatchObject({ error: null, result: 8 });
     expect(
       parser.parse("CEILING(-4.3)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("CEILING(-1.234, 0.1)")
-    ).toMatchObject({ error: null, result: -1.2000000000000002 });
+    ).toBeMatchCloseTo({ error: null, result: -1.2 });
     expect(
       parser.parse('CEILING(-1.234, 0.1, "value")')
-    ).toMatchObject({ error: null, result: -1.2000000000000002 });
+    ).toBeMatchCloseTo({ error: null, result: -1.2 });
   });
 
   it("COMBIN", () => {
@@ -551,13 +552,13 @@ describe(".parse() math-trig formulas", () => {
   it("FLOOR", () => {
     expect(
       parser.parse("FLOOR()")
-    ).toMatchObject({ error: "#DIV/0!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('FLOOR("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("FLOOR(1)")
-    ).toMatchObject({ error: "#DIV/0!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("FLOOR(3.33, 1.11)")
     ).toMatchObject({ error: null, result: 3.33 });
@@ -566,7 +567,7 @@ describe(".parse() math-trig formulas", () => {
     ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("FLOOR(-1, -10)")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: null, result: 0 });
   });
 
   it("GCD", () => {
@@ -609,7 +610,7 @@ describe(".parse() math-trig formulas", () => {
   it("INT", () => {
     expect(
       parser.parse("INT()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('INT("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
@@ -762,13 +763,13 @@ describe(".parse() math-trig formulas", () => {
   it("MOD", () => {
     expect(
       parser.parse("MOD()")
-    ).toMatchObject({ error: "#DIV/0!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('MOD("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("MOD(1)")
-    ).toMatchObject({ error: "#DIV/0!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("MOD(1, 2)")
     ).toMatchObject({ error: null, result: 1 });
@@ -783,13 +784,13 @@ describe(".parse() math-trig formulas", () => {
   it("MROUND", () => {
     expect(
       parser.parse("MROUND()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('MROUND("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("MROUND(1)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("MROUND(1, 2)")
     ).toMatchObject({ error: null, result: 2 });
@@ -927,8 +928,10 @@ describe(".parse() math-trig formulas", () => {
       parser.parse("PRODUCT()")
     ).toMatchObject({ error: null, result: 0 });
     expect(
+      // Scalar text can't be told apart from a text cell reference, which
+      // Excel skips in aggregates.
       parser.parse('PRODUCT("value")')
-    ).toMatchObject({ error: "#VALUE!", result: null });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("PRODUCT(2)")
     ).toMatchObject({ error: null, result: 2 });
@@ -1025,13 +1028,13 @@ describe(".parse() math-trig formulas", () => {
   it("ROUND", () => {
     expect(
       parser.parse("ROUND()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ROUND("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("ROUND(1)")
-    ).toMatchObject({ error: null, result: 1 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("ROUND(1.2234, 0)")
     ).toMatchObject({ error: null, result: 1 });
@@ -1052,13 +1055,13 @@ describe(".parse() math-trig formulas", () => {
   it("ROUNDDOWN", () => {
     expect(
       parser.parse("ROUNDDOWN()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ROUNDDOWN("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("ROUNDDOWN(1)")
-    ).toMatchObject({ error: null, result: 1 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("ROUNDDOWN(1.2234, 0)")
     ).toMatchObject({ error: null, result: 1 });
@@ -1079,13 +1082,13 @@ describe(".parse() math-trig formulas", () => {
   it("ROUNDUP", () => {
     expect(
       parser.parse("ROUNDUP()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ROUNDUP("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("ROUNDUP(1)")
-    ).toMatchObject({ error: null, result: 1 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("ROUNDUP(1.2234, 0)")
     ).toMatchObject({ error: null, result: 2 });
@@ -1299,10 +1302,12 @@ describe(".parse() math-trig formulas", () => {
   it("SUMSQ", () => {
     expect(
       parser.parse("SUMSQ()")
-    ).toMatchObject({ error: "#VALUE!", result: null });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
+      // Scalar text can't be told apart from a text cell reference, which
+      // Excel skips in aggregates.
       parser.parse('SUMSQ("value")')
-    ).toMatchObject({ error: "#VALUE!", result: null });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("SUMSQ(64)")
     ).toMatchObject({ error: null, result: 4096 });

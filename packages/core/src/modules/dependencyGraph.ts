@@ -43,12 +43,13 @@ export const SHEET_FULL = 2;
 export type SheetState = 0 | 1 | 2;
 
 const VOLATILE_RE =
-  /(?:^|[^A-Za-z0-9_.])(?:NOW|TODAY|RAND|RANDBETWEEN|RANDARRAY|OFFSET|INDIRECT)\s*\(/i;
+  /(?:^|[^A-Za-z0-9_.])(?:NOW|TODAY|RAND|RANDBETWEEN|RANDARRAY|OFFSET|INDIRECT|CELL|SUBTOTAL)\s*\(/i;
 
 /**
  * Volatile functions are recalculated on every recalculation pass, like in
  * Excel. OFFSET and INDIRECT are included because their precedents cannot be
- * known statically.
+ * known statically, CELL and SUBTOTAL because they read formats / hidden rows
+ * (same list as formulaFunctions.isVolatileFormula, plus NOW/TODAY/RAND*).
  */
 export function isVolatileFormula(f: string) {
   return VOLATILE_RE.test(f);
@@ -256,7 +257,8 @@ export class DependencyGraph {
     return this.nodes.has(key);
   }
 
-  setNode(info: FormulaCellInfo) {
+  /** `volatile` defaults to testing the formula text (isVolatileFormula). */
+  setNode(info: FormulaCellInfo, volatile?: boolean) {
     const { key } = info;
     if (this.nodes.has(key)) this.removeNode(key);
     this.nodes.set(key, info);
@@ -267,8 +269,9 @@ export class DependencyGraph {
       if (dep.sheetId != null) this.sheet(dep.sheetId).add(dep, key);
     }
     if (
-      info.calc_funcStr.indexOf("(") > -1 &&
-      isVolatileFormula(info.calc_funcStr)
+      volatile ??
+      (info.calc_funcStr.indexOf("(") > -1 &&
+        isVolatileFormula(info.calc_funcStr))
     ) {
       this.volatile.add(key);
     }

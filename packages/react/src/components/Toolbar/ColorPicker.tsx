@@ -1,4 +1,5 @@
 import React from "react";
+import { activateOnKey } from "./Button";
 
 const palette = [
   [
@@ -97,7 +98,11 @@ const ColorPicker: React.FC<Props> = ({ onPick }) => {
               key={c}
               className="fortune-toolbar-color-picker-item"
               onClick={() => onPick(c)}
+              onKeyDown={activateOnKey}
               tabIndex={0}
+              role="button"
+              aria-label={c}
+              title={c}
               style={{ backgroundColor: c }}
             />
           ))}

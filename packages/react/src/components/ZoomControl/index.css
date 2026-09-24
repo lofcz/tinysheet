@@ -3,6 +3,7 @@
   overflow: visible;
   display: flex;
   align-items: center;
+  gap: 2px;
   user-select: none;
 }
 
@@ -11,44 +12,65 @@
   cursor: pointer;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--fortune-radius-sm);
+  transition: background-color var(--fortune-transition);
 }
 
 .fortune-zoom-button:hover {
-  background: #efefef;
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-zoom-button:active {
+  background: var(--fortune-bg-active);
 }
 
 .fortune-zoom-ratio {
   position: relative;
   display: flex;
   justify-content: center;
-  width: 48px;
-  color: #1e1e1f;
-  font-size: 12px;
+  width: 52px;
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size-sm);
   cursor: pointer;
 }
 
 .fortune-zoom-ratio-current {
   width: 100%;
+  font-variant-numeric: tabular-nums;
 }
 
-.fortune-zoom-ratio-item:hover {
-  background: #efefef;
+.fortune-zoom-ratio-item {
+  cursor: pointer;
+  outline: none;
+}
+
+.fortune-zoom-ratio-item:hover,
+.fortune-zoom-ratio-item:focus-visible {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-zoom-ratio-item[aria-selected="true"] {
+  background: var(--fortune-accent-soft);
+  color: var(--fortune-accent-text);
 }
 
 .fortune-zoom-ratio-menu {
   position: absolute;
-  bottom: 30px;
+  bottom: 34px;
   left: 0;
-  line-height: 24px;
-  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
-  padding: 10px 0px 10px 0px;
-  border-radius: 6px;
-  background: white;
+  min-width: 72px;
+  line-height: 28px;
+  box-shadow: var(--fortune-shadow);
+  border: 1px solid var(--fortune-border);
+  padding: var(--fortune-space-1) 0;
+  border-radius: var(--fortune-radius);
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
   z-index: 1004;
 }
 
 .fortune-zoom-ratio-text {
-  padding: 0px 10px 0px 10px;
+  padding: 0 var(--fortune-space-3);
 }

@@ -9,17 +9,26 @@ import {
   FormulaDependency,
   getcellrange,
   iscelldata,
-  isFunctionRange,
 } from "..";
 import {
   cellIndex,
   DependencyGraph,
   formulaKey,
   isCrossSheetCandidate,
+  isVolatileFormula,
   SHEET_CROSS,
   SHEET_FULL,
   SheetState,
 } from "./dependencyGraph";
+import {
+  getFormulaDependencies,
+  isVolatileFormula as isWorkbookVolatileFormula,
+} from "./formulaFunctions";
+
+/** Graph node: FormulaCellInfo plus the formula's literal references. */
+type GraphFormulaInfo = FormulaCellInfo & {
+  staticDependency?: FormulaDependency[];
+};
 
 /* ------------------------------------------------------------------------ */
 /* Sheet lookups                                                            */
@@ -270,32 +279,11 @@ export function buildFormulaCellInfo(
   id: string,
   calc_funcStr: string,
   data?: CellMatrix | null
-): FormulaCellInfo {
-  const formulaDependency = extractReferences(ctx, calc_funcStr, id, data);
-  const txt1 = calc_funcStr.toUpperCase();
-  if (txt1.indexOf("INDIRECT(") > -1 || txt1.indexOf("OFFSET(") > -1) {
-    // Also pick up references written as string literals, e.g.
-    // INDIRECT("B2"). These formulas are volatile anyway; the extra edges
-    // only make the evaluation order right.
-    try {
-      isFunctionRange(
-        ctx,
-        calc_funcStr,
-        null,
-        null,
-        id,
-        null,
-        (str: string) => {
-          const range = getcellrange(ctx, _.trim(str), id, data || undefined);
-          if (!_.isNil(range)) formulaDependency.push(range);
-        }
-      );
-    } catch {
-      // ignore, the literal references above are still tracked
-    }
-  }
-  return {
-    formulaDependency,
+): GraphFormulaInfo {
+  const staticDependency = extractReferences(ctx, calc_funcStr, id, data);
+  const info: GraphFormulaInfo = {
+    formulaDependency: staticDependency,
+    staticDependency,
     calc_funcStr,
     key: formulaKey(r, c, id),
     r,
@@ -305,6 +293,14 @@ export function buildFormulaCellInfo(
     chidren: {},
     color: "w",
   };
+  // + references resolved at run time by formulaFunctions.ts (INDIRECT /
+  // OFFSET targets, the spill rectangle of a dynamic-array anchor)
+  info.formulaDependency = getFormulaDependencies(ctx, info);
+  return info;
+}
+
+function isVolatile(f: string) {
+  return isVolatileFormula(f) || isWorkbookVolatileFormula(f);
 }
 
 function registerFormula(
@@ -317,8 +313,47 @@ function registerFormula(
   data?: CellMatrix | null
 ) {
   const info = buildFormulaCellInfo(ctx, r, c, id, f, data);
-  graph.setNode(info);
+  graph.setNode(info, isVolatile(f));
   return info;
+}
+
+function sameDependencies(a: FormulaDependency[], b: FormulaDependency[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const x = a[i];
+    const y = b[i];
+    if (
+      x.sheetId !== y.sheetId ||
+      x.row[0] !== y.row[0] ||
+      x.row[1] !== y.row[1] ||
+      x.column[0] !== y.column[0] ||
+      x.column[1] !== y.column[1]
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Re-merge a node's run-time dependencies after it was evaluated (an
+ * INDIRECT target or spill size may have changed) and re-index it if needed.
+ */
+function refreshDynamicDependencies(
+  ctx: Context,
+  graph: DependencyGraph,
+  info: GraphFormulaInfo
+) {
+  const deps = getFormulaDependencies(ctx, {
+    ...info,
+    formulaDependency: info.staticDependency ?? info.formulaDependency,
+  });
+  if (sameDependencies(deps, info.formulaDependency)) return;
+  graph.setNode(
+    { ...info, formulaDependency: deps },
+    isVolatile(info.calc_funcStr)
+  );
 }
 
 /* ------------------------------------------------------------------------ */
@@ -457,7 +492,11 @@ function registerCellInGraph(
     return;
   }
   const existing = graph.nodes.get(key);
-  if (existing && existing.calc_funcStr === f) return;
+  if (existing && existing.calc_funcStr === f) {
+    // same formula: only run-time references (INDIRECT, spill) may differ
+    refreshDynamicDependencies(ctx, graph, existing);
+    return;
+  }
   registerFormula(ctx, graph, r, c, id, f, d);
 }
 
@@ -487,6 +526,19 @@ export function setFormulaCellInfoList(
     if (cell && graph.getState(cell.id) !== 0) {
       registerCellInGraph(ctx, graph, cell, data);
     }
+  }
+}
+
+/** Forget the formula node at (r, c) (the formula is being removed). */
+export function removeFormulaNode(
+  ctx: Context,
+  r: number,
+  c: number,
+  id: string
+) {
+  const graph = ctx.formulaCache.dependencyGraph;
+  if (graph && graph.token === ctx.formulaCache.formulaCellInfoMap) {
+    graph.removeNode(formulaKey(r, c, id));
   }
 }
 
@@ -553,6 +605,7 @@ export function executeAffectedFormulas(
     if (info) {
       const { r, c, id } = info;
       const v = execfunction(ctx, info.calc_funcStr, r, c, id);
+      refreshDynamicDependencies(ctx, graph, info);
       ctx.groupValuesRefreshData.push({
         r,
         c,

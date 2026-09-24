@@ -39,8 +39,9 @@ describe(".parse() statistical formulas", () => {
       parser.parse("AVERAGE(1.1, 2, 5, 10)")
     ).toBeMatchCloseTo({ error: null, result: 4.525 });
     expect(
+      // Booleans typed as arguments count (TRUE = 1), as in Excel.
       parser.parse("AVERAGE(1.1, TRUE, 2, NULL, 5, 10)")
-    ).toBeMatchCloseTo({ error: null, result: 4.525 });
+    ).toBeMatchCloseTo({ error: null, result: 3.82 });
   });
 
   it("AVERAGEA", () => {
@@ -340,7 +341,8 @@ describe(".parse() statistical formulas", () => {
     expect(
       parser.parse("COUNT(0.5)")
     ).toMatchObject({ error: null, result: 1 });
-    expect(parser.parse('COUNT(TRUE, 0.5, "foo", 1, 8)')).toMatchObject({ error: null, result: 3 });
+    // Booleans typed as arguments are counted, as in Excel.
+    expect(parser.parse('COUNT(TRUE, 0.5, "foo", 1, 8)')).toMatchObject({ error: null, result: 4 });
   });
 
   it("COUNTA", () => {
@@ -883,9 +885,10 @@ describe(".parse() statistical formulas", () => {
       error: null,
       result: [2, 3, 1],
     });
+    // Excel returns a vertical array, modes in order of first appearance.
     expect(parser.parse("MODE.MULT(foo)")).toMatchObject({
       error: null,
-      result: [2, 3, 1],
+      result: [[1], [2], [3]],
     });
     expect(parser.parse("MODEMULT(bar)")).toMatchObject({
       error: "#VALUE!",
@@ -1377,9 +1380,10 @@ describe(".parse() statistical formulas", () => {
       error: null,
       result: 4,
     });
+    // Text inside an array is ignored.
     expect(parser.parse("SMALL(bar, 4)")).toMatchObject({
-      error: "#VALUE!",
-      result: null,
+      error: null,
+      result: 4,
     });
   });
 
@@ -1599,7 +1603,7 @@ describe(".parse() statistical formulas", () => {
   it("VARP", () => {
     expect(
       parser.parse("VARP()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#DIV/0!", result: null });
     expect(
       parser.parse("VARP(1)")
     ).toMatchObject({ error: null, result: 0 });
@@ -1636,16 +1640,17 @@ describe(".parse() statistical formulas", () => {
     expect(
       parser.parse("VAR.S(1, 2, 3, 4)")
     ).toBeMatchCloseTo({ error: null, result: 1.6666666666666667 });
-    expect(parser.parse('VAR.S(1, 2, 3, 4, TRUE, "foo")')).toBeMatchCloseTo({ error: null, result: 1.6666666666666667 });
+    // A typed TRUE counts as 1 (Excel); scalar text is skipped.
+    expect(parser.parse('VAR.S(1, 2, 3, 4, TRUE, "foo")')).toBeMatchCloseTo({ error: null, result: 1.7 });
   });
 
   it("VARA", () => {
     expect(
       parser.parse("VARA()")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: "#DIV/0!", result: null });
     expect(
       parser.parse("VARA(1)")
-    ).toBeMatchCloseTo({ error: null, result: NaN });
+    ).toMatchObject({ error: "#DIV/0!", result: null });
     expect(
       parser.parse("VARA(1, 2)")
     ).toBeMatchCloseTo({ error: null, result: 0.5 });
@@ -1661,7 +1666,7 @@ describe(".parse() statistical formulas", () => {
   it("VARPA", () => {
     expect(
       parser.parse("VARPA()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#DIV/0!", result: null });
     expect(
       parser.parse("VARPA(1)")
     ).toMatchObject({ error: null, result: 0 });

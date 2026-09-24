@@ -36,12 +36,23 @@ import {
   isInCalcChain,
   noteCalcChainChange,
   recalculate,
+  removeFormulaNode,
   setFormulaCellInfo,
   setFormulaCellInfoList,
   ChangedCell,
 } from "./formulaHelper";
 import type { DependencyGraph } from "./dependencyGraph";
 import { COL_STRIDE } from "./dependencyGraph";
+import { registerFormatFunctions } from "./formatFunctions";
+import {
+  applySpillRefreshItem,
+  beforeRecalculation,
+  finishFormulaEvaluation,
+  onFormulaRemoved,
+  prepareFormulaEvaluation,
+  runSpillPropagation,
+  takeSpillChanges,
+} from "./formulaFunctions";
 
 let functionHTMLIndex = 0;
 let rangeIndexes: number[] = [];
@@ -200,6 +211,7 @@ export class FormulaCache {
     this.formulaCellInfoMap = null;
     this.cellTextToIndexList = {};
     this.parser = new Parser();
+    registerFormatFunctions(this.parser);
     this.parser.on(
       "callCellValue",
       (cellCoord: any, options: any, done: any) => {
@@ -1011,6 +1023,12 @@ export function delFunctionGroup(
     id = ctx.currentSheetId;
   }
 
+  // Clear the cells spilled by this formula / detach an overwritten spill cell.
+  onFormulaRemoved(ctx, r, c, id);
+  // The formula is going away: drop its node so the recalculation that
+  // follows (and nested spill passes) never re-evaluate the old formula.
+  removeFormulaNode(ctx, r, c, id);
+
   const sheetIndex = getSheetIndexCached(ctx, id);
   if (sheetIndex == null) return;
   const file = ctx.luckysheetfile[sheetIndex];
@@ -1186,7 +1204,10 @@ export function execfunction(
   ctx.calculateSheetId = id;
 
   ctx.formulaCache.parser.context = ctx;
-  const parsedResponse = ctx.formulaCache.parser.parse(txt.substring(1), {
+  // Reference-taking functions (ROW, OFFSET, ...) get their reference
+  // arguments rewritten to markers; see formulaFunctions.ts.
+  const expression = prepareFormulaEvaluation(ctx, txt, r, c, id, isrefresh);
+  const parsedResponse = ctx.formulaCache.parser.parse(expression, {
     sheetId: id || ctx.currentSheetId,
   });
 
@@ -1202,14 +1223,24 @@ export function execfunction(
     result = result.toString();
   }
 
+  // Spill matrix results of formula cells into neighbouring cells.
+  const value = finishFormulaEvaluation(
+    ctx,
+    _.isNil(formulaError) ? result : formulaError,
+    r,
+    c,
+    id
+  );
+
   if (!_.isNil(r) && !_.isNil(c)) {
     if (isrefresh) {
+      // pass the formula too, so dependents see the cell as a formula cell
       // eslint-disable-next-line no-use-before-define
       execFunctionGroup(
         ctx,
         r,
         c,
-        _.isNil(formulaError) ? result : formulaError,
+        { v: value, f: txt },
         id,
         undefined,
         false,
@@ -1238,7 +1269,7 @@ export function execfunction(
   */
 
   // console.log(result, txt);
-  return [true, _.isNil(formulaError) ? result : formulaError, txt];
+  return [true, value, txt];
 }
 
 function insertUpdateDynamicArray(ctx: Context, dynamicArrayItem: any) {
@@ -1288,6 +1319,10 @@ export function groupValuesRefresh(ctx: Context) {
       const file = luckysheetfile[idx];
       const { data } = file;
       if (_.isNil(data)) {
+        continue;
+      }
+
+      if (applySpillRefreshItem(ctx, item, data)) {
         continue;
       }
 
@@ -1373,6 +1408,11 @@ export function execFunctionGroup(
 
   const changed: ChangedCell[] = [];
   let origin: ChangedCell | undefined;
+  // Clear cells spilled by anchors that lost their formula.
+  beforeRecalculation(
+    ctx,
+    fc.execFunctionExist ?? [{ r: origin_r, c: origin_c, id }]
+  );
   if (_.isNil(fc.execFunctionExist)) {
     if (!_.isNil(origin_r) && !_.isNil(origin_c)) {
       origin = { r: origin_r, c: origin_c, id };
@@ -1388,6 +1428,15 @@ export function execFunctionGroup(
   recalculate(ctx, changed, data, { origin, originFormula, isForce });
 
   fc.execFunctionExist = undefined;
+
+  // recalculate formulas that read cells whose spilled value changed
+  const spillChanges = takeSpillChanges(ctx);
+  if (spillChanges) {
+    runSpillPropagation(ctx, () => {
+      fc.execFunctionExist = spillChanges;
+      execFunctionGroup(ctx, null as any, null as any, null, id, data);
+    });
+  }
 }
 
 function findrangeindex(ctx: Context, v: string, vp: string) {

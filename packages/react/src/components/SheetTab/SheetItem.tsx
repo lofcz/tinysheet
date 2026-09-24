@@ -16,6 +16,7 @@ import React, {
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import SVGIcon from "../SVGIcon";
+import { activateOnKey } from "../Toolbar/Button";
 
 type Props = {
   sheet: Sheet;
@@ -28,7 +29,6 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const editable = useRef<HTMLSpanElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [svgColor, setSvgColor] = useState<string>("#c3c3c3");
   const { showAlert } = useAlert();
   const { info } = locale(context);
 
@@ -139,7 +139,9 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
 
   return (
     <div
-      role="button"
+      role="tab"
+      aria-selected={context.currentSheetId === sheet.id}
+      onKeyDown={activateOnKey}
       onDragOver={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -206,7 +208,7 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         });
       }}
       style={{
-        borderLeft: dragOver ? "2px solid #0188fb" : "",
+        borderLeft: dragOver ? "2px solid var(--fortune-accent)" : "",
         display: sheet.hide === 1 ? "none" : "",
       }}
     >
@@ -225,8 +227,6 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
       </span>
       <span
         className="luckysheet-sheets-item-function"
-        onMouseEnter={() => setSvgColor("#5c5c5c")}
-        onMouseLeave={() => setSvgColor("#c3c3c3")}
         onClick={(e) => {
           if (isDropPlaceholder || context.allowEdit === false) return;
           const rect = refs.workbookContainer.current!.getBoundingClientRect();
@@ -242,10 +242,13 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
             };
           });
         }}
+        onKeyDown={activateOnKey}
         tabIndex={0}
+        role="button"
         aria-label={info.sheetOptions}
+        aria-haspopup="menu"
       >
-        <SVGIcon name="downArrow" width={12} style={{ fill: svgColor }} />
+        <SVGIcon name="downArrow" width={12} />
       </span>
       {!!sheet.color && (
         <div

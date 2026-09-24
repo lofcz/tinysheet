@@ -11,7 +11,7 @@ import {
 import { getSheetIndex, indexToColumnChar, rgbToHex } from "../utils";
 import { checkCF, getComputeMap } from "./ConditionFormat";
 import { getFailureText, validateCellData } from "./dataVerification";
-import { genarate, update } from "./format";
+import { formatValue, is_date, resolveTypedInput } from "./format";
 import {
   delFunctionGroup,
   execfunction,
@@ -134,6 +134,30 @@ export function getCellValue(
   return retv;
 }
 
+/** Store a formula's computed value and its display text on the cell. */
+function setFormulaResult(cell: Cell, value: any) {
+  const fa = cell.ct?.fa || "General";
+  if (_.isBoolean(value) || /^(true|false)$/i.test(`${value}`)) {
+    cell.v = _.isBoolean(value) ? value : `${value}`.toUpperCase() === "TRUE";
+    cell.m = cell.v ? "TRUE" : "FALSE";
+    cell.ct = { fa, t: "b" };
+  } else if (valueIsError(value)) {
+    cell.v = value;
+    cell.m = `${value}`;
+    cell.ct = { fa, t: "e" };
+  } else if (isRealNum(value)) {
+    cell.v = parseFloat(value);
+    if (fa !== "@") {
+      cell.ct = { fa, t: is_date(fa) ? "d" : "n" };
+    }
+    cell.m = Number.isFinite(cell.v) ? formatValue(fa, cell.v) : `${cell.v}`;
+  } else {
+    cell.v = value;
+    cell.m = formatValue(fa, `${value}`);
+    cell.ct = fa === "@" ? { fa, t: "s" } : { fa, t: "g" };
+  }
+}
+
 export function setCellValue(
   ctx: Context,
   r: number,
@@ -207,7 +231,10 @@ export function setCellValue(
 
   const vupdateStr = vupdate.toString();
 
-  if (vupdateStr.substr(0, 1) === "'") {
+  if (!_.isNil(cell.f)) {
+    // Formula result: not re-interpreted as typed input (="1/2" stays text).
+    setFormulaResult(cell, vupdate);
+  } else if (vupdateStr.substr(0, 1) === "'") {
     cell.m = vupdateStr.substr(1);
     cell.ct = { fa: "@", t: "s" };
     cell.v = vupdateStr.substr(1);
@@ -216,146 +243,13 @@ export function setCellValue(
     cell.m = vupdateStr;
     cell.ct = { fa: "@", t: "s" };
     cell.v = vupdateStr;
-  } else if (
-    vupdateStr.toUpperCase() === "TRUE" &&
-    (_.isNil(cell.ct?.fa) || cell.ct?.fa !== "@")
-  ) {
-    cell.m = "TRUE";
-    cell.ct = { fa: "General", t: "b" };
-    cell.v = true;
-  } else if (
-    vupdateStr.toUpperCase() === "FALSE" &&
-    (_.isNil(cell.ct?.fa) || cell.ct?.fa !== "@")
-  ) {
-    cell.m = "FALSE";
-    cell.ct = { fa: "General", t: "b" };
-    cell.v = false;
-  } else if (
-    vupdateStr.substr(-1) === "%" &&
-    isRealNum(vupdateStr.substring(0, vupdateStr.length - 1)) &&
-    (_.isNil(cell.ct?.fa) || cell.ct?.fa !== "@")
-  ) {
-    cell.ct = { fa: "0%", t: "n" };
-    cell.v = vupdateStr.substring(0, vupdateStr.length - 1) / 100;
-    cell.m = vupdate;
-  } else if (valueIsError(vupdate)) {
-    cell.m = vupdateStr;
-    // cell.ct = { "fa": "General", "t": "e" };
-    if (!_.isNil(cell.ct)) {
-      cell.ct.t = "e";
-    } else {
-      cell.ct = { fa: "General", t: "e" };
-    }
-    cell.v = vupdate;
   } else {
-    if (
-      !_.isNil(cell.f) &&
-      isRealNum(vupdate) &&
-      !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(
-        vupdate
-      )
-    ) {
-      cell.v = parseFloat(vupdate);
-      if (_.isNil(cell.ct)) {
-        cell.ct = { fa: "General", t: "n" };
-      }
-
-      if (cell.v === Infinity || cell.v === -Infinity) {
-        cell.m = cell.v.toString();
-      } else {
-        if (cell.v.toString().indexOf("e") > -1) {
-          let len;
-          if (cell.v.toString().split(".").length === 1) {
-            len = 0;
-          } else {
-            len = cell.v.toString().split(".")[1].split("e")[0].length;
-          }
-          if (len > 5) {
-            len = 5;
-          }
-
-          cell.m = cell.v.toExponential(len).toString();
-        } else {
-          const v_p = Math.round(cell.v * 1000000000) / 1000000000;
-          if (_.isNil(cell.ct)) {
-            const mask = genarate(v_p);
-            if (mask != null) {
-              cell.m = mask[0].toString();
-            }
-          } else {
-            const mask = update(cell.ct.fa!, v_p);
-            cell.m = mask.toString();
-          }
-
-          // cell.m = mask[0].toString();
-        }
-      }
-    } else if (!_.isNil(cell.ct) && cell.ct.fa === "@") {
-      cell.m = vupdateStr;
-      cell.v = vupdate;
-    } else if (cell.ct != null && cell.ct.t === "d" && _.isString(vupdate)) {
-      const mask = genarate(vupdate) as any;
-      if (mask[1].t !== "d" || mask[1].fa === cell.ct.fa) {
-        [cell.m, cell.ct, cell.v] = mask;
-      } else {
-        [, , cell.v] = mask;
-        cell.m = update(cell.ct.fa!, cell.v);
-      }
-    } else if (
-      !_.isNil(cell.ct) &&
-      !_.isNil(cell.ct.fa) &&
-      cell.ct.fa !== "General"
-    ) {
-      if (isRealNum(vupdate)) {
-        vupdate = parseFloat(vupdate);
-      }
-
-      let mask = update(cell.ct.fa, vupdate);
-
-      if (mask === vupdate) {
-        // 若原来单元格格式 应用不了 要更新的值，则获取更新值的 格式
-        mask = genarate(vupdate);
-
-        cell.m = mask[0].toString();
-        [, cell.ct, cell.v] = mask;
-      } else {
-        cell.m = mask.toString();
-        cell.v = vupdate;
-      }
-    } else {
-      if (
-        isRealNum(vupdate) &&
-        !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(
-          vupdate
-        )
-      ) {
-        if (typeof vupdate === "string") {
-          const flag = vupdate
-            .split("")
-            .every((ele) => ele === "0" || ele === ".");
-          if (flag) {
-            vupdate = parseFloat(vupdate);
-          }
-        }
-        cell.v =
-          vupdate; /* 备注：如果使用parseFloat，1.1111111111111111会转换为1.1111111111111112 ? */
-        cell.ct = { fa: "General", t: "n" };
-        if (cell.v === Infinity || cell.v === -Infinity) {
-          cell.m = cell.v.toString();
-        } else if (cell.v != null) {
-          const mask = genarate(cell.v as string);
-          if (mask) {
-            cell.m = mask[0].toString();
-          }
-        }
-      } else {
-        const mask = genarate(vupdate);
-        if (mask) {
-          cell.m = mask[0].toString();
-          [, cell.ct, cell.v] = mask;
-        }
-      }
-    }
+    // Typed input: recognise numbers, dates, % etc. like Excel, keeping the
+    // cell's existing number format where Excel would.
+    const typed = resolveTypedInput(vupdate, cell.ct?.fa);
+    cell.v = typed.v;
+    cell.ct = { fa: typed.fa, t: typed.t };
+    cell.m = formatValue(typed.fa, typed.v);
   }
 
   // if (!server.allowUpdate && !luckysheetConfigsetting.pointEdit) {

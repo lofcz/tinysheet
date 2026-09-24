@@ -1,12 +1,13 @@
 import React, { CSSProperties } from "react";
 import SVGIcon from "../SVGIcon";
+import { activateOnKey } from "./Button";
 
 const Select: React.FC<{
   children?: React.ReactNode;
   style?: CSSProperties;
 }> = ({ children, style }) => {
   return (
-    <div className="fortune-toolbar-select" style={style}>
+    <div className="fortune-toolbar-select" style={style} role="menu">
       {children}
     </div>
   );
@@ -29,7 +30,9 @@ const Option: React.FC<React.PropsWithChildren<OptionProps>> = ({
   return (
     <div
       onClick={onClick}
+      onKeyDown={activateOnKey}
       tabIndex={0}
+      role="menuitem"
       className="fortune-toolbar-select-option"
       onMouseLeave={(e) => onMouseLeave?.(e)}
       onMouseEnter={(e) => onMouseEnter?.(e)}
