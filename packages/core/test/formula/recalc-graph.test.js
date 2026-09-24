@@ -270,6 +270,42 @@ describe("recalculation engine", () => {
     expect(getDependencyGraph(ctx).nodes.size).toBe(0);
   });
 
+  test("whole-column / whole-row references", () => {
+    const s1 = makeSheet("Sheet1", "s1", 200, 6, 0);
+    const s2 = makeSheet("Sheet2", "s2", 50, 4, 1);
+    for (let r = 0; r < 3; r += 1) {
+      putValue(s1, r, 0, r + 1); // A1:A3 = 1,2,3
+      putValue(s1, r, 1, 10); // B1:B3 = 10
+    }
+    putFormula(s1, 0, 3, "=SUM(A:A)", 6);
+    putFormula(s1, 1, 3, "=SUMPRODUCT(A:A,B:B)", 60);
+    putFormula(s1, 3, 3, "=SUM(Sheet2!B:B)", 0);
+    putFormula(s1, 4, 3, "=SUM(2:2)", 12);
+    const ctx = makeCtx([s1, s2]);
+    loadWorkbook(ctx);
+
+    edit(ctx, 150, 0, "4", "s1"); // far below the data: extends the column
+    expect(val(ctx, 0, 3, "s1")).toBe(10);
+    // both whole columns are bounded to the same used extent
+    expect(val(ctx, 1, 3, "s1")).toBe(60);
+
+    edit(ctx, 7, 1, "5", "s2"); // Sheet2!B8
+    expect(val(ctx, 3, 3, "s1")).toBe(5);
+
+    edit(ctx, 1, 2, "100", "s1"); // C2, inside row 2
+    expect(val(ctx, 4, 3, "s1")).toBe(2 + 10 + 100 + 60); // A2+B2+C2+D2
+  });
+
+  test("implicit intersection @ tracks the referenced range", () => {
+    const s = makeSheet("Sheet1", "s1", 10, 4);
+    for (let r = 0; r < 5; r += 1) putValue(s, r, 0, r);
+    putFormula(s, 2, 1, "=@A1:A5*10", 20);
+    const ctx = makeCtx([s]);
+    loadWorkbook(ctx);
+    edit(ctx, 2, 0, "7");
+    expect(val(ctx, 2, 1)).toBe(70);
+  });
+
   test("peek reads immer drafts without creating child drafts", () => {
     // plain objects are returned as-is
     const o = { a: 1 };

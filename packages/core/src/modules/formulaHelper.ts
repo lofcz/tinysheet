@@ -118,6 +118,69 @@ function sheetData(ctx: Context, id: string, data?: CellMatrix | null) {
   return getSheetDataCached(ctx, id);
 }
 
+function isUsedCell(cell: any) {
+  const c = peek(cell);
+  return c != null && ((c.v != null && c.v !== "") || c.f != null);
+}
+
+/**
+ * Rows / columns (counts) of a sheet that hold values, used to bound
+ * whole-column and whole-row references (`A:A`, `1:3`) instead of reading
+ * every allocated row. Cells computed in the current pass count as used.
+ * At least one row/column is kept so the range is never empty. The data
+ * scan is memoised for the duration of a recalculation pass only.
+ */
+export function getUsedExtent(
+  ctx: Context,
+  id: string,
+  data: any,
+  needCols: boolean
+) {
+  const fc = ctx.formulaCache;
+  const d = peek(data);
+  const totalRows = d?.length ?? 0;
+  const totalCols = peek(d?.[0])?.length ?? 0;
+  let base = fc.recalcDepth > 0 ? fc.usedExtentCache.get(id) : undefined;
+  if (base == null) {
+    let rows = 0;
+    for (let r = totalRows - 1; r >= 0 && rows === 0; r -= 1) {
+      const row = peek(d[r]);
+      if (row) {
+        for (let c = 0; c < row.length; c += 1) {
+          if (isUsedCell(row[c])) {
+            rows = r + 1;
+            break;
+          }
+        }
+      }
+    }
+    base = { rows, cols: -1 };
+  }
+  if (needCols && base.cols < 0) {
+    let cols = 0;
+    for (let r = 0; r < base.rows; r += 1) {
+      const row = peek(d[r]);
+      if (row) {
+        for (let c = row.length - 1; c >= cols; c -= 1) {
+          if (isUsedCell(row[c])) {
+            cols = c + 1;
+            break;
+          }
+        }
+      }
+    }
+    base = { rows: base.rows, cols };
+  }
+  if (fc.recalcDepth > 0) fc.usedExtentCache.set(id, base);
+  const overlay = fc.getGlobalExtent(id);
+  const rows = Math.max(base.rows, overlay?.rows ?? 0, 1);
+  const cols = Math.max(base.cols, overlay?.cols ?? 0, 1);
+  return {
+    rows: Math.min(rows, totalRows),
+    cols: Math.min(cols, totalCols),
+  };
+}
+
 function isFormulaText(f: any): f is string {
   return typeof f === "string" && f.length > 1 && f.charAt(0) === "=";
 }
@@ -176,9 +239,9 @@ const SINGLE_REF = /^\$?([A-Za-z]+)\$?([0-9]+)$/;
 const RANGE_REF = /^\$?([A-Za-z]+)\$?([0-9]+):\$?([A-Za-z]+)\$?([0-9]+)$/;
 
 // characters that end a reference token: operators, separators, brackets,
-// whitespace ("." too, like the historical splitter)
+// whitespace, @ ("." too, like the historical splitter)
 const SEPARATOR = new Uint8Array(128);
-",()=+-./*%&^><;{} \t\r\n".split("").forEach((ch) => {
+",()=+-./*%&^><;{}@ \t\r\n".split("").forEach((ch) => {
   SEPARATOR[ch.charCodeAt(0)] = 1;
 });
 const CH_DQUOTE = 34; // "
@@ -241,7 +304,11 @@ function extractReferences(
   // replaces and without growing cellTextToIndexList)
   const ownSheetOk =
     getSheetIndexCached(ctx, id) != null && sheetData(ctx, id, data) != null;
-  forEachReferenceToken(calc_funcStr, (t) => {
+  let needParser = false;
+  forEachReferenceToken(calc_funcStr, (token) => {
+    // A1# (spill reference) depends on the anchor A1
+    const t =
+      token.charAt(token.length - 1) === "#" ? token.slice(0, -1) : token;
     const first = t.charCodeAt(0);
     // a token starting with a digit can only be a row range like 1:3
     if (first >= 48 && first <= 57 && t.indexOf(":") === -1) return;
@@ -263,13 +330,52 @@ function extractReferences(
           sheetId: id,
         });
       }
-    } else if (iscelldata(t)) {
+    } else {
       // sheet-qualified references, whole rows / columns
-      const dep = getcellrange(ctx, t, id, data || undefined);
+      const dep = iscelldata(t)
+        ? getcellrange(ctx, t, id, data || undefined)
+        : null;
       if (!_.isNil(dep)) formulaDependency.push(dep);
+      else if (t.indexOf("!") > -1) needParser = true;
     }
   });
+  if (needParser) {
+    // forms the scanner does not resolve (e.g. Sheet2!A:A): ask the parser
+    // eslint-disable-next-line no-use-before-define
+    formulaDependency.push(...referencesFromParser(ctx, calc_funcStr, id));
+  }
   return formulaDependency;
+}
+
+/** References of a formula as reported by the grammar (AST based). */
+function referencesFromParser(ctx: Context, f: string, id: string) {
+  const out: FormulaDependency[] = [];
+  let refs: any[] | undefined;
+  try {
+    refs = ctx.formulaCache.parser.getReferences?.(
+      f.charAt(0) === "=" ? f.slice(1) : f
+    );
+  } catch {
+    return out; // syntax error: the formula evaluates to an error anyway
+  }
+  (refs || []).forEach((ref) => {
+    const sheetId =
+      ref.sheetName == null
+        ? id
+        : getSheetIdByNameCached(ctx, String(ref.sheetName));
+    if (sheetId == null) return;
+    const d = getSheetDataCached(ctx, sheetId);
+    const rows = d?.length ?? 0;
+    const cols = peek(d?.[0])?.length ?? 0;
+    const row: [number, number] =
+      ref.startRow === -1 ? [0, rows - 1] : [ref.startRow, ref.endRow];
+    const column: [number, number] =
+      ref.startColumn === -1 ? [0, cols - 1] : [ref.startColumn, ref.endColumn];
+    if (row[0] <= row[1] && column[0] <= column[1]) {
+      out.push({ row, column, sheetId });
+    }
+  });
+  return out;
 }
 
 export function buildFormulaCellInfo(
@@ -702,5 +808,12 @@ export function recalculate(
     }
   });
 
-  executeAffectedFormulas(ctx, graph, order, data);
+  const fc = ctx.formulaCache;
+  if (fc.recalcDepth === 0) fc.usedExtentCache.clear();
+  fc.recalcDepth += 1;
+  try {
+    executeAffectedFormulas(ctx, graph, order, data);
+  } finally {
+    fc.recalcDepth -= 1;
+  }
 }

@@ -40,6 +40,7 @@ import {
   getSheetDataCached,
   getSheetIdByNameCached,
   getSheetIndexCached,
+  getUsedExtent,
   peek,
   peekCell,
   isInCalcChain,
@@ -156,6 +157,15 @@ export class FormulaCache {
 
   private globalIndex: Map<string, Map<number, any>> | null = null;
 
+  /** per sheet: rows/cols spanned by the overlay (for whole-row/col reads) */
+  private globalExtent = new Map<string, { rows: number; cols: number }>();
+
+  /** used-extent memo, only trusted inside a recalculation pass */
+  usedExtentCache = new Map<string, { rows: number; cols: number }>();
+
+  /** > 0 while recalculate() runs (sheet data is not written meanwhile) */
+  recalcDepth = 0;
+
   get execFunctionGlobalData(): any {
     return this.globalData;
   }
@@ -163,6 +173,7 @@ export class FormulaCache {
   set execFunctionGlobalData(value: any) {
     this.globalData = value;
     this.globalIndex = null;
+    this.globalExtent.clear();
   }
 
   getGlobalCell(r: number, c: number, id: string) {
@@ -178,6 +189,22 @@ export class FormulaCache {
       index.set(id, sheet);
     }
     sheet.set(r * COL_STRIDE + c, cell);
+    this.noteGlobalExtent(id, r, c);
+  }
+
+  /** Rows/columns (counts) covered by overlay cells of a sheet. */
+  getGlobalExtent(id: string) {
+    this.getGlobalIndex();
+    return this.globalExtent.get(id);
+  }
+
+  private noteGlobalExtent(id: string, r: number, c: number) {
+    const ext = this.globalExtent.get(id);
+    if (!ext) this.globalExtent.set(id, { rows: r + 1, cols: c + 1 });
+    else {
+      if (r + 1 > ext.rows) ext.rows = r + 1;
+      if (c + 1 > ext.cols) ext.cols = c + 1;
+    }
   }
 
   /** Overlay of freshly computed cells for one sheet, if any. */
@@ -204,6 +231,7 @@ export class FormulaCache {
             Number(m[1]) * COL_STRIDE + Number(m[2]),
             this.globalData[key]
           );
+          this.noteGlobalExtent(m[3], Number(m[1]), Number(m[2]));
         });
       }
       this.globalIndex = index;
@@ -258,14 +286,18 @@ export class FormulaCache {
         const emptyRow = startRow === -1 || endRow === -1;
         const emptyCol = startCol === -1 || endCol === -1;
         if (emptyRow && emptyCol) throw Error(ERROR_REF);
-        // whole-column / whole-row references are bounded to the sheet extent
-        if (emptyRow) {
-          startRow = 0;
-          endRow = (flowdata?.length ?? 0) - 1;
-        }
-        if (emptyCol) {
-          startCol = 0;
-          endCol = (flowdata?.[0]?.length ?? 0) - 1;
+        // whole-column / whole-row references (A:A, 1:3) are bounded to the
+        // used extent of the sheet (trailing empty rows/columns dropped)
+        if (emptyRow || emptyCol) {
+          const used = getUsedExtent(context, id, flowdata, emptyCol);
+          if (emptyRow) {
+            startRow = 0;
+            endRow = used.rows - 1;
+          }
+          if (emptyCol) {
+            startCol = 0;
+            endCol = used.cols - 1;
+          }
         }
 
         const overlay = that.getGlobalSheet(id);
@@ -1218,6 +1250,9 @@ export function execfunction(
   const expression = prepareFormulaEvaluation(ctx, txt, r, c, id, isrefresh);
   const parsedResponse = ctx.formulaCache.parser.parse(expression, {
     sheetId: id || ctx.currentSheetId,
+    // position of the formula cell, for the implicit-intersection operator @
+    row: r,
+    column: c,
   });
 
   const { error: formulaError } = parsedResponse;
