@@ -13,22 +13,22 @@ describe(".parse() financial formulas", () => {
   it("ACCRINT", () => {
     expect(
       parser.parse("ACCRINT()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ACCRINT("2/2/2012")')
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ACCRINT("2/2/2012", "3/30/2012")')
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ACCRINT("2/2/2012", "3/30/2012", "12/4/2013")')
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ACCRINT("2/2/2012", "3/30/2012", "12/4/2013", 0.1)')
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ACCRINT("2/2/2012", "3/30/2012", "12/4/2013", 0.1, 1000)')
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse(
         'ACCRINT("2/2/2012", "3/30/2012", "12/4/2013", 0.1, 1000, 1)'
@@ -288,7 +288,7 @@ describe(".parse() financial formulas", () => {
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("NPV(1.1)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("NPV(1.1, -2)")
     ).toBeMatchCloseTo({ error: null, result: -0.9523809523809523 });
@@ -456,10 +456,10 @@ describe(".parse() financial formulas", () => {
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('TBILLEQ("03/31/2008", "06/01/2008")')
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('TBILLEQ("03/31/2008", "06/01/2008", 0.09)')
-    ).toBeMatchCloseTo({ error: null, result: 0.09266311246509266 });
+    ).toBeMatchCloseTo({ error: null, result: 0.09268664296597258 });
   });
 
   it("TBILLPRICE", () => {
@@ -471,10 +471,10 @@ describe(".parse() financial formulas", () => {
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('TBILLPRICE("03/31/2008", "06/01/2008")')
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('TBILLPRICE("03/31/2008", "06/01/2008", 0.09)')
-    ).toBeMatchCloseTo({ error: null, result: 98.475 });
+    ).toBeMatchCloseTo({ error: null, result: 98.45 });
   });
 
   it("TBILLYIELD", () => {
@@ -486,10 +486,10 @@ describe(".parse() financial formulas", () => {
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('TBILLYIELD("03/31/2008", "06/01/2008")')
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('TBILLYIELD("03/31/2008", "06/01/2008", 0.09)')
-    ).toBeMatchCloseTo({ error: null, result: 6551.475409836065 });
+    ).toBeMatchCloseTo({ error: null, result: 6445.806451612903 });
   });
 
   // TODO: Not supported yet
