@@ -20,12 +20,79 @@ export function hasChinaword(s: string) {
 }
 
 const textHeightCache: any = {};
-let measureTextCache: any = {};
-let measureTextCellInfoCache: any = {};
 
+/**
+ * Bounded cache with approximate LRU eviction: entries live in a "current"
+ * generation; when it fills up it becomes the "previous" generation and a
+ * fresh one starts. Hits in the previous generation are promoted, so entries
+ * in use survive while stale ones are dropped two generations later.
+ */
+class GenerationalCache<V> {
+  private cur = new Map<string, V>();
+
+  private prev = new Map<string, V>();
+
+  private readonly limit: number;
+
+  constructor(limit: number) {
+    this.limit = limit;
+  }
+
+  get(key: string): V | undefined {
+    let v = this.cur.get(key);
+    if (v === undefined) {
+      v = this.prev.get(key);
+      if (v !== undefined) this.set(key, v);
+    }
+    return v;
+  }
+
+  set(key: string, v: V) {
+    if (this.cur.size >= this.limit) {
+      this.prev = this.cur;
+      this.cur = new Map();
+    }
+    this.cur.set(key, v);
+  }
+
+  clear() {
+    this.cur = new Map();
+    this.prev = new Map();
+  }
+}
+
+// ctx.measureText results, keyed by text + font + baseline + zoom.
+const measureTextCache = new GenerationalCache<any>(20000);
+// Raw metrics of the reference strings used for alphabetic baselines, by font.
+const baselineMetricsCache = new Map<string, [TextMetrics, TextMetrics]>();
+// Cell text layouts (getCellTextInfo), keyed by everything the layout reads.
+const cellTextInfoCache = new GenerationalCache<{
+  info: any;
+  font: string;
+  textAlign: CanvasRenderingContext2D["textAlign"];
+  textBaseline: CanvasRenderingContext2D["textBaseline"];
+}>(10000);
+let supportBoundingBox: boolean | undefined;
+
+/**
+ * Drop all cached text measurements and layouts. Needed only when fonts
+ * change underneath (web fonts finishing loading does this automatically).
+ */
 export function clearMeasureTextCache() {
-  measureTextCache = {};
-  measureTextCellInfoCache = {};
+  measureTextCache.clear();
+  baselineMetricsCache.clear();
+  cellTextInfoCache.clear();
+}
+
+if (typeof document !== "undefined" && (document as any).fonts) {
+  try {
+    (document as any).fonts.addEventListener?.(
+      "loadingdone",
+      clearMeasureTextCache
+    );
+  } catch (e) {
+    // ignore: FontFaceSet events unsupported
+  }
 }
 
 function getTextSize(text: string, font: string) {
@@ -137,16 +204,15 @@ export function getMeasureText(
   sheetCtx: Context,
   fontset?: string
 ) {
-  let mtc = measureTextCache[`${value}_${renderCtx.font}`];
-  if (fontset) {
-    mtc = measureTextCache[`${value}_${fontset}`];
-  }
-
-  if (mtc != null) {
-    return mtc;
-  }
   if (fontset) {
     renderCtx.font = fontset;
+  }
+  const cacheKey = `${value}\u0001${fontset || renderCtx.font}\u0001${
+    renderCtx.textBaseline
+  }\u0001${sheetCtx.zoomRatio}`;
+  const mtc = measureTextCache.get(cacheKey);
+  if (mtc !== undefined) {
+    return mtc;
   }
 
   const measureText = renderCtx.measureText(value);
@@ -197,23 +263,16 @@ export function getMeasureText(
   if (renderCtx.textBaseline === "alphabetic") {
     const descText = "gjpqy";
     const matchText = "abcdABCD";
-    let descTextMeasure = measureTextCache[`${descText}_${renderCtx.font}`];
-    if (fontset) {
-      descTextMeasure = measureTextCache[`${descText}_${fontset}`];
+    const fontKey = renderCtx.font;
+    let refMetrics = baselineMetricsCache.get(fontKey);
+    if (refMetrics === undefined) {
+      refMetrics = [
+        renderCtx.measureText(descText),
+        renderCtx.measureText(matchText),
+      ];
+      baselineMetricsCache.set(fontKey, refMetrics);
     }
-
-    let matchTextMeasure = measureTextCache[`${matchText}_${renderCtx.font}`];
-    if (fontset) {
-      matchTextMeasure = measureTextCache[`${matchText}_${fontset}`];
-    }
-
-    if (descTextMeasure == null) {
-      descTextMeasure = renderCtx.measureText(descText);
-    }
-
-    if (matchTextMeasure == null) {
-      matchTextMeasure = renderCtx.measureText(matchText);
-    }
+    const [descTextMeasure, matchTextMeasure] = refMetrics;
 
     if (
       cache.actualBoundingBoxDescent <=
@@ -229,17 +288,17 @@ export function getMeasureText(
   cache.width *= sheetCtx.zoomRatio;
   cache.actualBoundingBoxDescent *= sheetCtx.zoomRatio;
   cache.actualBoundingBoxAscent *= sheetCtx.zoomRatio;
-  measureTextCache[`${value}_${sheetCtx.zoomRatio}_${renderCtx.font}`] = cache;
-  // console.log(measureText, value);
+  measureTextCache.set(cacheKey, cache);
   return cache;
 }
 
 export function isSupportBoundingBox(ctx: CanvasRenderingContext2D) {
-  const measureText = ctx.measureText("田");
-  if (_.isNil(measureText.actualBoundingBoxAscent)) {
-    return false;
+  // A property of the browser's canvas implementation, so measure it once.
+  if (supportBoundingBox === undefined) {
+    const measureText = ctx.measureText("田");
+    supportBoundingBox = !_.isNil(measureText.actualBoundingBoxAscent);
   }
-  return true;
+  return supportBoundingBox;
 }
 
 export function drawLineInfo(
@@ -332,10 +391,7 @@ export function drawLineInfo(
   }
 }
 
-// 获取单元格文本内容的渲染信息
-// let measureTextCache = {}, measureTextCacheTimeOut = null;
-// option {cellWidth,cellHeight,space_width,space_height}
-export function getCellTextInfo(
+function computeCellTextInfo(
   cell: Cell,
   renderCtx: CanvasRenderingContext2D,
   sheetCtx: Context,
@@ -345,16 +401,8 @@ export function getCellTextInfo(
   const { cellWidth } = option;
   const { cellHeight } = option;
   let isMode = "";
-  let isModeSplit = "";
-  // console.log("initialinfo", cell, option);
   if (cellWidth == null) {
     isMode = "onlyWidth";
-    isModeSplit = "_";
-  }
-  const textInfo =
-    measureTextCellInfoCache[`${option.r}_${option.c}${isModeSplit}${isMode}`];
-  if (textInfo) {
-    return textInfo;
   }
 
   // let cell = sheetCtx.flowdata[r][c];
@@ -1825,4 +1873,86 @@ export function getCellTextInfo(
     }
   }
   return textContent;
+}
+
+const SEP = "\u0001";
+
+/**
+ * Key for the layout cache: every input computeCellTextInfo reads. Returns
+ * null for cells whose content cannot be keyed cheaply and safely.
+ */
+function cellTextInfoKey(
+  cell: Cell,
+  sheetCtx: Context,
+  option: any,
+  ctx?: Context
+): string | null {
+  if (!(cell instanceof Object)) return null;
+  let content: string;
+  if (isInlineStringCell(cell)) {
+    content = `i${JSON.stringify(cell.ct!.s)}`;
+  } else {
+    const value = _.isNil(cell.m) ? cell.v : cell.m;
+    const type = typeof value;
+    if (type === "string") content = `s${value}`;
+    else if (type === "number" || type === "boolean" || _.isNil(value))
+      content = `${type}${value}`;
+    else return null;
+  }
+  return [
+    content,
+    cell.ht,
+    cell.vt,
+    cell.tb,
+    cell.tr,
+    cell.rt,
+    cell.cl,
+    cell.un,
+    cell.fs,
+    cell.ff,
+    cell.bl,
+    cell.it,
+    option.cellWidth,
+    option.cellHeight,
+    option.space_width,
+    option.space_height,
+    sheetCtx.zoomRatio,
+    sheetCtx.defaultFontSize,
+    ctx ? `L${ctx.lang}` : "",
+  ].join(SEP);
+}
+
+// 获取单元格文本内容的渲染信息
+// option {cellWidth,cellHeight,space_width,space_height}
+// Layouts are cached by content, style and cell size (not position), so
+// scrolling and redraws reuse them. The returned object is shared and must
+// be treated as read-only.
+export function getCellTextInfo(
+  cell: Cell,
+  renderCtx: CanvasRenderingContext2D,
+  sheetCtx: Context,
+  option: any,
+  ctx?: Context
+): any {
+  const key = cellTextInfoKey(cell, sheetCtx, option, ctx);
+  if (key !== null) {
+    const hit = cellTextInfoCache.get(key);
+    if (hit !== undefined) {
+      // restore the canvas state computing the layout leaves behind
+      renderCtx.font = hit.font;
+      renderCtx.textAlign = hit.textAlign;
+      renderCtx.textBaseline = hit.textBaseline;
+      return hit.info;
+    }
+  }
+  const info = computeCellTextInfo(cell, renderCtx, sheetCtx, option, ctx);
+  if (key !== null) {
+    cellTextInfoCache.set(key, {
+      info,
+      font: renderCtx.font,
+      textAlign: renderCtx.textAlign,
+      textBaseline: renderCtx.textBaseline,
+    });
+  }
+  return info;
 }
