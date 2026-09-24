@@ -36,6 +36,18 @@ import { setFormulaCellInfo } from "./formulaHelper";
 // let rangedrag_column_start = false;
 // let rangedrag_row_start = false;
 
+/**
+ * Excel's "General" horizontal alignment for a cell without an explicit one:
+ * numbers and dates right ("2"), booleans and errors centred ("0"), text left.
+ */
+function generalHorizontalAlign(cell: Cell | null | undefined) {
+  const t = cell?.ct?.t;
+  if (t === "n" || t === "d") return "2";
+  if (t === "b" || t === "e") return "0";
+  if (t == null && typeof cell?.v === "number") return "2";
+  return "1";
+}
+
 export function normalizedCellAttr(
   cell: Cell,
   attr: keyof Cell,
@@ -56,7 +68,7 @@ export function normalizedCellAttr(
   } else if (attr.substring(0, 2) === "bs") {
     value ||= "none";
   } else if (attr === "ht" || attr === "vt") {
-    const defaultValue = attr === "ht" ? "1" : "0";
+    const defaultValue = attr === "ht" ? generalHorizontalAlign(cell) : "0";
     value = !_.isNil(value) ? value.toString() : defaultValue;
     if (["0", "1", "2"].indexOf(value.toString()) === -1) {
       value = defaultValue;
