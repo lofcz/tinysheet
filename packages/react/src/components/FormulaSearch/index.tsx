@@ -1,8 +1,11 @@
 import React, { useContext, useState, useMemo, useCallback } from "react";
 import {
   cancelNormalSelected,
+  functionHTMLGenerate,
+  getFunctionListMap,
   locale,
-  setCaretPosition,
+  rankFunctions,
+  setCaretOffset,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
@@ -45,18 +48,19 @@ export const FormulaSearch: React.FC<{ onCancel: () => void }> = ({
 
   const filteredFunctionList = useMemo(() => {
     if (searchText) {
-      const list = [];
-      const text = _.cloneDeep(searchText.toUpperCase());
-      for (let i = 0; i < functionlist.length; i += 1) {
-        if (/^[a-zA-Z]+$/.test(text)) {
-          if (functionlist[i].n.indexOf(text) !== -1) {
-            list.push(functionlist[i]);
-          }
-        } else if (functionlist[i].a.indexOf(text) !== -1) {
-          list.push(functionlist[i]);
-        }
+      const text = searchText.trim().toUpperCase();
+      // function names: ranked like the in-cell autocomplete
+      if (/^[A-Z0-9._]+$/.test(text)) {
+        return rankFunctions(functionlist, text, functionlist.length).map(
+          (r) => r.item
+        );
       }
-      return list;
+      // anything else: search the descriptions
+      return functionlist.filter(
+        (f) =>
+          (f.a || "").toUpperCase().indexOf(text) !== -1 ||
+          (f.d || "").toUpperCase().indexOf(text) !== -1
+      );
     }
     return _.filter(functionlist, (v) => v.t === selectedType);
   }, [functionlist, selectedType, searchText]);
@@ -79,32 +83,24 @@ export const FormulaSearch: React.FC<{ onCancel: () => void }> = ({
         [col_index] = last.column;
       }
     }
-    const formulaTxt = `<span dir="auto" class="luckysheet-formula-text-color">=</span><span dir="auto" class="luckysheet-formula-text-color">${filteredFunctionList[
-      selectedFuncIndex
-    ].n.toUpperCase()}</span><span dir="auto" class="luckysheet-formula-text-color">(</span>`;
+    const formulaTxt = functionHTMLGenerate(
+      `=${filteredFunctionList[selectedFuncIndex].n.toUpperCase()}(`
+    );
     setContext((ctx) => {
       if (cellInput.current != null) {
         ctx.luckysheetCellUpdate = [row_index, col_index];
         globalCache.doNotUpdateCell = true;
         cellInput.current.innerHTML = formulaTxt;
-        const spans = cellInput.current.childNodes;
-        if (!_.isEmpty(spans)) {
-          setCaretPosition(
-            ctx,
-            spans[spans.length - 1] as HTMLSpanElement,
-            0,
-            1
-          );
-        }
+        cellInput.current.focus();
+        setCaretOffset(
+          cellInput.current,
+          cellInput.current.textContent?.length ?? 0
+        );
         ctx.functionHint =
           filteredFunctionList[selectedFuncIndex].n.toUpperCase();
+        ctx.functionHintArgIndex = 0;
         ctx.functionCandidates = [];
-        if (_.isEmpty(ctx.formulaCache.functionlistMap)) {
-          for (let i = 0; i < functionlist.length; i += 1) {
-            ctx.formulaCache.functionlistMap[functionlist[i].n] =
-              functionlist[i];
-          }
-        }
+        getFunctionListMap(ctx);
         _onCancel();
       }
     });
@@ -116,7 +112,6 @@ export const FormulaSearch: React.FC<{ onCancel: () => void }> = ({
     selectedFuncIndex,
     setContext,
     _onCancel,
-    functionlist,
   ]);
 
   const onCancel = useCallback(() => {

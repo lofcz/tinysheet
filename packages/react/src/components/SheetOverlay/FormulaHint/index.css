@@ -80,3 +80,29 @@
 .luckysheet-formula-help-collapse:hover {
   color: #555;
 }
+
+.luckysheet-formula-help-c .luckysheet-formula-help-title {
+  padding-right: 44px;
+}
+
+.luckysheet-formula-help-c .luckysheet-formula-help-close,
+.luckysheet-formula-help-c .luckysheet-formula-help-collapse {
+  line-height: 22px;
+  user-select: none;
+}
+
+.luckysheet-arguments-help-parameter-current {
+  font-weight: bold;
+  color: #222;
+}
+
+.luckysheet-arguments-help-section-current
+  .luckysheet-arguments-help-section-title {
+  font-weight: bold;
+  color: #222;
+}
+
+.luckysheet-arguments-help-argument-info {
+  font-weight: normal;
+  color: #888;
+}

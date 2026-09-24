@@ -9,7 +9,6 @@ import {
   escapeScriptTag,
   moveHighlightCell,
   handleFormulaInput,
-  rangeHightlightselected,
   valueShowEs,
   isShowHidenCR,
   escapeHTMLTag,
@@ -32,6 +31,7 @@ import FormulaSearch from "../SheetOverlay/FormulaSearch";
 import FormulaHint from "../SheetOverlay/FormulaHint";
 import NameBox from "./NameBox";
 import usePrevious from "../../hooks/usePrevious";
+import { useFormulaEditorKeys } from "../SheetOverlay/FormulaSearch/useFormulaEditorKeys";
 
 const FxEditor: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -44,6 +44,10 @@ const FxEditor: React.FC = () => {
   const prevSheetId = usePrevious(context.currentSheetId);
   const recentText = useRef("");
   const { info } = locale(context);
+  const formulaKeys = useFormulaEditorKeys(
+    useCallback(() => refs.fxInput.current, [refs.fxInput]),
+    useCallback(() => refs.cellInput.current, [refs.cellInput])
+  );
 
   useEffect(() => {
     // 当选中行列是处于隐藏状态的话则不允许编辑
@@ -128,114 +132,42 @@ const FxEditor: React.FC = () => {
       if (key === "ArrowLeft" || key === "ArrowRight") {
         e.stopPropagation();
       }
-      setContext((draftCtx) => {
-        if (context.luckysheetCellUpdate.length > 0) {
-          switch (key) {
-            case "Enter": {
-              // if (
-              //   $("#luckysheet-formula-search-c").is(":visible") &&
-              //   formula.searchFunctionCell != null
-              // ) {
-              //   formula.searchFunctionEnter(
-              //     $("#luckysheet-formula-search-c").find(
-              //       ".luckysheet-formula-search-item-active"
-              //     )
-              //   );
-              // } else {
-              const lastCellUpdate = _.clone(draftCtx.luckysheetCellUpdate);
-              updateCell(
-                draftCtx,
-                draftCtx.luckysheetCellUpdate[0],
-                draftCtx.luckysheetCellUpdate[1],
-                refs.fxInput.current!
-              );
-              draftCtx.luckysheet_select_save = [
-                {
-                  row: [lastCellUpdate[0], lastCellUpdate[0]],
-                  column: [lastCellUpdate[1], lastCellUpdate[1]],
-                  row_focus: lastCellUpdate[0],
-                  column_focus: lastCellUpdate[1],
-                },
-              ];
-              moveHighlightCell(draftCtx, "down", 1, "rangeOfSelect");
-              // $("#luckysheet-rich-text-editor").focus();
-              // }
-              e.preventDefault();
-              e.stopPropagation();
-              break;
-            }
-            case "Escape": {
-              cancelNormalSelected(draftCtx);
-              moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
-              // $("#luckysheet-functionbox-cell").blur();
-              // $("#luckysheet-rich-text-editor").focus();
-              e.preventDefault();
-              e.stopPropagation();
-              break;
-            }
-            /*
-              case "F4": {
-                formula.setfreezonFuc(event);
-                e.preventDefault();
-                e.stopPropagation();
-                break;
-              }
-              case "ArrowUp": {
-                if ($("#luckysheet-formula-search-c").is(":visible")) {
-                  let $up = $("#luckysheet-formula-search-c")
-                    .find(".luckysheet-formula-search-item-active")
-                    .prev();
-                  if ($up.length === 0) {
-                    $up = $("#luckysheet-formula-search-c")
-                      .find(".luckysheet-formula-search-item")
-                      .last();
-                  }
-                  $("#luckysheet-formula-search-c")
-                    .find(".luckysheet-formula-search-item")
-                    .removeClass("luckysheet-formula-search-item-active");
-                  $up.addClass("luckysheet-formula-search-item-active");
-                }
-                e.preventDefault();
-                e.stopPropagation();
-                break;
-              }
-              case "ArrowDown": {
-                if ($("#luckysheet-formula-search-c").is(":visible")) {
-                  let $up = $("#luckysheet-formula-search-c")
-                    .find(".luckysheet-formula-search-item-active")
-                    .next();
-                  if ($up.length === 0) {
-                    $up = $("#luckysheet-formula-search-c")
-                      .find(".luckysheet-formula-search-item")
-                      .first();
-                  }
-                  $("#luckysheet-formula-search-c")
-                    .find(".luckysheet-formula-search-item")
-                    .removeClass("luckysheet-formula-search-item-active");
-                  $up.addClass("luckysheet-formula-search-item-active");
-                }
-                e.preventDefault();
-                e.stopPropagation();
-                break;
-              }
-              */
-            case "ArrowLeft": {
-              rangeHightlightselected(draftCtx, refs.fxInput.current!);
-              break;
-            }
-            case "ArrowRight": {
-              rangeHightlightselected(draftCtx, refs.fxInput.current!);
-              break;
-            }
-            default:
-              break;
-          }
-        }
-      });
+      if (formulaKeys.onKeyDown(e)) return;
+      if (context.luckysheetCellUpdate.length === 0) return;
+      if (key === "Enter") {
+        setContext((draftCtx) => {
+          const lastCellUpdate = _.clone(draftCtx.luckysheetCellUpdate);
+          updateCell(
+            draftCtx,
+            draftCtx.luckysheetCellUpdate[0],
+            draftCtx.luckysheetCellUpdate[1],
+            refs.fxInput.current!
+          );
+          draftCtx.luckysheet_select_save = [
+            {
+              row: [lastCellUpdate[0], lastCellUpdate[0]],
+              column: [lastCellUpdate[1], lastCellUpdate[1]],
+              row_focus: lastCellUpdate[0],
+              column_focus: lastCellUpdate[1],
+            },
+          ];
+          moveHighlightCell(draftCtx, "down", 1, "rangeOfSelect");
+        });
+        e.preventDefault();
+        e.stopPropagation();
+      } else if (key === "Escape") {
+        setContext((draftCtx) => {
+          cancelNormalSelected(draftCtx);
+          moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
+        });
+        e.preventDefault();
+        e.stopPropagation();
+      }
     },
     [
       context.allowEdit,
       context.luckysheetCellUpdate.length,
+      formulaKeys,
       refs.fxInput,
       setContext,
     ]
@@ -313,6 +245,8 @@ const FxEditor: React.FC = () => {
             aria-label={info.currentCellInput}
             onFocus={onFocus}
             onKeyDown={onKeyDown}
+            onKeyUp={formulaKeys.onKeyUp}
+            onMouseUp={formulaKeys.onMouseUp}
             onChange={onChange}
             onBlur={() => setFocused(false)}
             tabIndex={0}
@@ -324,6 +258,7 @@ const FxEditor: React.FC = () => {
                 style={{
                   top: inputContainerRef.current!.clientHeight,
                 }}
+                onSelectCandidate={formulaKeys.acceptCandidate}
               />
               <FormulaHint
                 style={{
