@@ -1,5 +1,6 @@
 /*查找替换弹出框样式*/
 #fortune-search-replace {
+  color: var(--fortune-text);
   position: absolute;
   padding: 30px 42px;
   z-index: 1002;
@@ -20,20 +21,21 @@
   display: inline-block;
   text-align: center;
   width: 100px;
-  border: 1px solid rgb(235, 235, 235);
-  font-size: 14px;
+  border: 1px solid var(--fortune-border);
+  font-size: var(--fortune-font-size);
   line-height: 2;
+  cursor: pointer;
 }
 
 #fortune-search-replace .tabBox span.on {
-  background-color: #8c89fe;
-  border-color: #726efe;
-  color: #fff;
+  background-color: var(--fortune-accent-soft);
+  border-color: var(--fortune-accent);
+  color: var(--fortune-accent-text);
 }
 
 #fortune-search-replace .ctBox {
   padding: 5px 10px;
-  border: 1px solid rgb(235, 235, 235);
+  border: 1px solid var(--fortune-border);
   font-size: 14px;
   min-width: 500px;
 }
@@ -84,7 +86,7 @@
 
 #fortune-search-replace #searchAllbox {
   height: 210px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--fortune-border);
   margin-top: 10px;
   overflow-y: auto;
   position: relative;
@@ -95,8 +97,8 @@
   height: 30px;
   line-height: 29px;
   padding: 0 5px;
-  background-color: #fff;
-  border-bottom: 1px solid #d4d4d4;
+  background-color: var(--fortune-bg);
+  border-bottom: 1px solid var(--fortune-border);
   box-sizing: border-box;
   position: sticky;
   left: 0;
@@ -123,14 +125,14 @@
 #fortune-search-replace #searchAllbox .boxMain .boxItem {
   height: 30px;
   line-height: 29px;
-  border-bottom: 1px solid #d4d4d4;
+  border-bottom: 1px solid var(--fortune-border);
   padding: 0 5px;
   box-sizing: border-box;
 }
 
 #fortune-search-replace #searchAllbox .boxMain .boxItem.on {
-  background-color: #8c89fe;
-  color: #fff;
+  background-color: var(--fortune-accent-soft);
+  color: var(--fortune-accent-text);
 }
 
 #fortune-search-replace #searchAllbox .boxMain .boxItem span {

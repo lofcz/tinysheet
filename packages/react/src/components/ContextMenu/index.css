@@ -1,66 +1,78 @@
 .fortune-context-menu {
   max-height: 100%;
   overflow-y: auto;
-  border-radius: 4px;
-  box-shadow: 2px 2px 20px rgba(0, 0, 0, 0.15);
+  border-radius: var(--fortune-radius);
+  box-shadow: var(--fortune-shadow);
   transition: opacity 0.218s;
-  background: #fff;
-  border: 1px solid #ccc;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
+  border: 1px solid var(--fortune-border);
   cursor: default;
-  font-size: 13px;
+  font-size: var(--fortune-font-size);
   margin: 0;
   outline: none;
-  padding: 6px 0;
+  padding: var(--fortune-space-1) 0;
   position: absolute;
   z-index: 1004;
   box-sizing: border-box;
   user-select: none;
+  min-width: 180px;
 }
 
 .fortune-context-menu input.luckysheet-mousedown-cancel {
   width: 35px;
+  height: 22px;
+  box-sizing: border-box;
   text-align: center;
   margin-left: 5px;
   margin-right: 5px;
 }
 
 .fortune-context-menu-divider {
-  width: "100%";
+  width: 100%;
   height: 1px;
-  margin: 4px 0;
-  background-color: #e0e0e0;
+  margin: var(--fortune-space-1) 0;
+  background-color: var(--fortune-divider);
 }
 
 .luckysheet-cols-menu .luckysheet-cols-menuitem {
   position: relative;
-  color: #333;
+  color: var(--fortune-text);
   cursor: pointer;
   list-style: none;
   margin: 0;
-  padding: 1px 6em 1px 20px;
+  padding: 0;
   white-space: nowrap;
-  padding-left: 8px;
   vertical-align: middle;
-  padding-right: 24px;
   user-select: none;
+  outline: none;
 }
 
 /* 右击菜单项目 hover背景色 */
 .luckysheet-cols-menu .luckysheet-cols-menuitem:hover,
+.luckysheet-cols-menu .luckysheet-cols-menuitem:focus-visible,
 .luckysheet-cols-menu .luckysheet-cols-menuitem-hover {
-  background: #efefef;
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-container
+  .luckysheet-cols-menu
+  .luckysheet-cols-menuitem:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--fortune-accent);
 }
 
 .luckysheet-cols-menu
   .luckysheet-cols-menuitem
   .luckysheet-cols-menuitem-content {
   position: relative;
-  color: #333;
+  display: block;
+  line-height: 20px;
+  box-sizing: border-box;
+  color: var(--fortune-text);
   cursor: pointer;
   list-style: none;
   margin: 0;
-  padding: 6px 7em 6px 30px;
+  padding: 5px 40px 5px 32px;
   white-space: nowrap;
   user-select: none;
 }
@@ -72,7 +84,7 @@
 .fortune-filter-menu
   .luckysheet-cols-menuitem
   .luckysheet-cols-menuitem-content {
-  padding: 7px 24px;
+  padding: 5px 24px;
 }
 
 .fortune-menuitem-row {
@@ -84,7 +96,7 @@
 
 .fortune-byvalue-btn {
   cursor: pointer;
-  color: blue;
+  color: var(--fortune-accent-text);
   text-decoration: underline;
 }
 
@@ -94,9 +106,6 @@
   flex-flow: row nowrap;
   justify-content: center;
   align-items: center;
-  font-size: 14px;
-  padding: 4px 8px;
-  border-radius: 4px;
   cursor: pointer;
 }
 
@@ -106,36 +115,11 @@
 
 .luckysheet-filter-bycolor-submenu .button-default,
 .fortune-filter-menu .button-default {
-  color: rgb(38, 42, 51);
-  background-color: rgb(255, 255, 255);
-  border: 1px solid rgb(235, 235, 235);
   margin-left: 10px;
-}
-
-.luckysheet-filter-bycolor-submenu .button-default:hover,
-.fortune-filter-menu .button-default:hover {
-  background-color: #e6e6e6;
-}
-
-.luckysheet-filter-bycolor-submenu .button-primary,
-.fortune-filter-menu .button-primary {
-  color: white;
-  background-color: #0188fb;
-}
-
-.luckysheet-filter-bycolor-submenu .button-primary:hover,
-.fortune-filter-menu .button-primary:hover {
-  background: #5391ff;
 }
 
 .fortune-filter-menu .button-danger {
-  color: white;
-  background-color: #d9534f;
   margin-left: 10px;
-}
-
-.fortune-filter-menu .button-danger:hover {
-  background-color: #c9302c;
 }
 
 .filter-bycolor-container {
@@ -148,30 +132,20 @@
   padding: 0px;
 }
 
-.filtermenu-input-container input.luckysheet-mousedown-cancel {
+.fortune-container
+  .filtermenu-input-container
+  input.luckysheet-mousedown-cancel {
   margin: 0px 20px;
   width: 230px;
   box-sizing: border-box;
-  height: 26px;
-  border-radius: 3px;
-  border: 1px solid #d9d9d9;
-  font-size: 12px;
+  height: 28px;
+  font-size: var(--fortune-font-size-sm);
   padding: 1px 8px;
-  outline: none;
   -webkit-user-select: auto;
   -moz-user-select: auto;
   -ms-user-select: auto;
   user-select: auto;
   text-align: start;
-}
-
-.filtermenu-input-container input.luckysheet-mousedown-cancel {
-  border: 1px solid #a1a1a1;
-}
-
-.filtermenu-input-container input.luckysheet-mousedown-cancel:focus {
-  border: 1px solid rgb(1, 136, 251);
-  outline: none;
 }
 
 .byvalue-btn-row {
@@ -190,13 +164,13 @@
 .filter-caret.right {
   margin-left: 2px;
   margin-right: 3px;
-  border-left-color: #000000;
+  border-left-color: currentColor;
 }
 
 .filter-caret.down {
   margin-top: 5px;
   margin-right: 5px;
-  border-top-color: #000000;
+  border-top-color: currentColor;
 }
 
 .filter-checkbox {
@@ -213,7 +187,7 @@
 
 #luckysheet-filter-byvalue-select .count,
 #luckysheet-pivotTableFilter-byvalue-select .count {
-  color: gray;
+  color: var(--fortune-text-subtle);
   margin-left: 5px;
 }
 
@@ -226,18 +200,21 @@
 .luckysheet-filter-bycolor-submenu {
   position: absolute;
   min-width: 170px;
-  font-size: 12px;
+  font-size: var(--fortune-font-size-sm);
   padding: 5px 0;
   z-index: 1004;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  background-color: #ffffff;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  box-shadow: var(--fortune-shadow);
+  background-color: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
 }
 
 .luckysheet-filter-bycolor-submenu .title {
   padding: 10px;
   font-weight: 600;
-  color: #333;
-  background-color: #f4f4f4;
+  color: var(--fortune-text);
+  background-color: var(--fortune-bg-muted);
   text-align: center;
 }
 
@@ -255,18 +232,18 @@
   padding: 5px 40px 5px 20px;
   cursor: pointer;
   position: relative;
-  background-color: #ffffff;
+  background-color: transparent;
 }
 
 .luckysheet-filter-bycolor-submenu .item:hover {
-  background-color: #d3d3d3;
+  background-color: var(--fortune-bg-hover);
 }
 
 .luckysheet-filter-bycolor-submenu .item .color-label {
   display: block;
   width: 70px;
   height: 20px;
-  border: 1px solid #d1d1d1;
+  border: 1px solid var(--fortune-border);
 }
 
 .luckysheet-filter-bycolor-submenu .item input[type="checkbox"] {

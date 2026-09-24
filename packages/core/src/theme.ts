@@ -93,14 +93,6 @@ export function getCanvasTheme(
   return (name && canvasThemes[name]) || canvasThemes.light;
 }
 
-const AUTO_BLACK = new Set([
-  "#000",
-  "#000000",
-  "black",
-  "rgb(0,0,0)",
-  "rgb(0, 0, 0)",
-]);
-
 /** Relative luminance (0–1) of a `#rgb` / `#rrggbb` / `rgb()` colour. */
 function luminance(color: string): number | undefined {
   let r: number;
@@ -124,13 +116,26 @@ function luminance(color: string): number | undefined {
 }
 
 /**
+ * Luminance below which a font colour counts as "near black". Covers pure
+ * black (Excel's Automatic) and the `rgb(51, 51, 51)` Luckysheet default.
+ */
+const NEAR_BLACK = 0.05;
+
+/** Fill luminance above which a cell background counts as light. */
+const LIGHT_FILL = 0.4;
+
+/**
  * Text colour for a cell. `fc` is the cell's font colour (possibly the
  * `#000000` default filled in by `normalizedCellAttr`), `bg` its fill.
  *
- * In the light theme this returns `fc` unchanged (black when unset). In the
- * dark theme, "automatic" text (unset or pure black, as Excel treats
- * Automatic) becomes the theme text colour, or black on light cell fills so it
- * stays readable. Any other explicit colour is kept.
+ * Light theme: `fc` unchanged (black when unset), i.e. exactly the historic
+ * behaviour.
+ *
+ * Dark theme, following how Excel's dark mode treats "Automatic" text:
+ * - on a light cell fill, `fc` is kept (black when unset) so it stays legible;
+ * - otherwise unset or near-black text, which would vanish on the dark sheet,
+ *   becomes the theme text colour;
+ * - every other explicit colour is kept.
  */
 export function resolveCellTextColor(
   source: { theme?: ThemeName | null } | ThemeName | null | undefined,
@@ -138,12 +143,12 @@ export function resolveCellTextColor(
   bg?: string | null
 ): string {
   const theme = getCanvasTheme(source);
-  const isAuto = !fc || AUTO_BLACK.has(fc.trim().toLowerCase());
-  if (!isAuto) return fc!;
   if (theme === canvasThemes.light) return fc || theme.cellText;
-  if (bg) {
-    const l = luminance(bg);
-    if (l !== undefined && l > 0.4) return "#000000";
-  }
-  return theme.cellText;
+  const fillLum = bg ? luminance(bg) : undefined;
+  if (fillLum !== undefined && fillLum > LIGHT_FILL) return fc || "#000000";
+  if (!fc) return theme.cellText;
+  const textLum = luminance(fc);
+  if (fc.trim().toLowerCase() === "black") return theme.cellText;
+  if (textLum !== undefined && textLum < NEAR_BLACK) return theme.cellText;
+  return fc;
 }
