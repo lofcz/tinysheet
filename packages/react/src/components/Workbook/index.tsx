@@ -31,6 +31,7 @@ import React, {
   useEffect,
   useRef,
   useImperativeHandle,
+  useLayoutEffect,
 } from "react";
 import "./index.css";
 import produce, {
@@ -53,6 +54,7 @@ import { generateAPIs } from "./api";
 import { ModalProvider } from "../../context/modal";
 import FilterMenu from "../ContextMenu/FilterMenu";
 import SheetList from "../SheetList";
+import { useResolvedTheme } from "../../hooks/useResolvedTheme";
 
 enablePatches();
 
@@ -626,6 +628,19 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       mergedSettings.currency,
     ]);
 
+    // Colour theme: resolved here so the canvas (ctx.theme) and the CSS
+    // tokens (data-theme on the root) always agree. Layout effect so the
+    // first painted frame already uses the right palette.
+    const resolvedTheme = useResolvedTheme(mergedSettings.theme);
+    useLayoutEffect(() => {
+      setContextWithProduce(
+        (draftCtx) => {
+          draftCtx.theme = resolvedTheme;
+        },
+        { noHistory: true }
+      );
+    }, [resolvedTheme, setContextWithProduce]);
+
     const onKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
         const { nativeEvent } = e;
@@ -788,6 +803,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         <ModalProvider>
           <div
             className="fortune-container"
+            data-theme={resolvedTheme}
             ref={workbookContainer}
             onKeyDown={onKeyDown}
           >

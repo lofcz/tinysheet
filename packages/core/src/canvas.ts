@@ -12,6 +12,7 @@ import { isInlineStringCell } from "./modules/inline-string";
 import { getSheetIndex, indexToColumnChar } from "./utils";
 import { getBorderInfoComputeRange } from "./modules/border";
 import { checkCF, getComputeMap, validateCellData } from "./modules";
+import { getCanvasTheme, resolveCellTextColor } from "./theme";
 
 export const defaultStyle = {
   fillStyle: "#000000",
@@ -210,14 +211,14 @@ export class Canvas {
       }
 
       if (this.sheetCtx.config?.rowhidden?.[r] == null) {
-        renderCtx.fillStyle = "#ffffff";
+        renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).headerBackground;
         renderCtx.fillRect(
           0,
           start_r + offsetTop + firstOffset,
           this.sheetCtx.rowHeaderWidth - 1,
           end_r - start_r + 1 + lastOffset - firstOffset
         );
-        renderCtx.fillStyle = "#000000";
+        renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).headerText;
 
         // 行标题栏序列号
         renderCtx.save(); // save scale before draw text
@@ -248,7 +249,7 @@ export class Canvas {
       );
       renderCtx.lineWidth = 1;
 
-      renderCtx.strokeStyle = defaultStyle.strokeStyle;
+      renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
       renderCtx.stroke();
       renderCtx.closePath();
 
@@ -401,14 +402,14 @@ export class Canvas {
       }
 
       if (this.sheetCtx.config?.colhidden?.[c] == null) {
-        renderCtx.fillStyle = "#ffffff";
+        renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).headerBackground;
         renderCtx.fillRect(
           start_c + offsetLeft - 1,
           0,
           end_c - start_c,
           this.sheetCtx.columnHeaderHeight - 1
         );
-        renderCtx.fillStyle = "#000000";
+        renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).headerText;
 
         // 列标题栏序列号
         renderCtx.save(); // save scale before draw text
@@ -444,7 +445,7 @@ export class Canvas {
           this.sheetCtx.columnHeaderHeight - 2
         );
         renderCtx.lineWidth = 1;
-        renderCtx.strokeStyle = defaultStyle.strokeStyle;
+        renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
         renderCtx.closePath();
         renderCtx.stroke();
       } else if (
@@ -459,7 +460,7 @@ export class Canvas {
         );
 
         renderCtx.lineWidth = 1;
-        renderCtx.strokeStyle = defaultStyle.strokeStyle;
+        renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
         renderCtx.closePath();
         renderCtx.stroke();
       }
@@ -649,7 +650,7 @@ export class Canvas {
     const colEndX = this.sheetCtx.visibledatacolumn[colEnd];
 
     // 表格canvas 初始化处理
-    renderCtx.fillStyle = "#ffffff";
+    renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).cellBackground;
     renderCtx.fillRect(
       offsetLeft - 1,
       offsetTop - 1,
@@ -1638,7 +1639,7 @@ export class Canvas {
     // }
 
     if (!fillStyle) {
-      renderCtx.fillStyle = "#FFFFFF";
+      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).cellBackground;
     } else {
       renderCtx.fillStyle = fillStyle;
     }
@@ -1673,7 +1674,7 @@ export class Canvas {
     if (`${r}_${c}` in dynamicArrayCompute) {
       const value = dynamicArrayCompute[`${r}_${c}`].v;
 
-      renderCtx.fillStyle = "#000000";
+      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).cellText;
       // 文本宽度和高度
       const fontset = defaultFont(this.sheetCtx.defaultFontSize);
       renderCtx.font = fontset;
@@ -1700,7 +1701,7 @@ export class Canvas {
       renderCtx.moveTo(endX + offsetLeft - 1 - ps_w, startY + offsetTop);
       renderCtx.lineTo(endX + offsetLeft - 1, startY + offsetTop);
       renderCtx.lineTo(endX + offsetLeft - 1, startY + offsetTop + ps_h);
-      renderCtx.fillStyle = "#FC6666";
+      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).commentMarker;
       renderCtx.fill();
       renderCtx.closePath();
     }
@@ -1749,7 +1750,7 @@ export class Canvas {
         renderCtx.moveTo(endX + offsetLeft - 2 + bodrder05, startY + offsetTop);
         renderCtx.lineTo(endX + offsetLeft - 2 + bodrder05, endY + offsetTop);
         renderCtx.lineWidth = 1;
-        renderCtx.strokeStyle = defaultStyle.strokeStyle;
+        renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
         renderCtx.stroke();
         renderCtx.closePath();
       }
@@ -1769,7 +1770,7 @@ export class Canvas {
       renderCtx.lineTo(endX + offsetLeft - 1, endY + offsetTop - 2 + bodrder05);
       renderCtx.lineWidth = 1;
 
-      renderCtx.strokeStyle = defaultStyle.strokeStyle;
+      renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
       renderCtx.stroke();
       renderCtx.closePath();
     }
@@ -1843,7 +1844,7 @@ export class Canvas {
       fillStyle = checksCF.cellColor;
     }
     if (!fillStyle) {
-      renderCtx.fillStyle = "#FFFFFF";
+      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).cellBackground;
     } else {
       renderCtx.fillStyle = fillStyle;
     }
@@ -1898,7 +1899,7 @@ export class Canvas {
       renderCtx.moveTo(startX + offsetLeft, startY + offsetTop);
       renderCtx.lineTo(startX + offsetLeft + dv_w, startY + offsetTop);
       renderCtx.lineTo(startX + offsetLeft, startY + offsetTop + dv_h);
-      renderCtx.fillStyle = "#FC6666";
+      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).commentMarker;
       renderCtx.fill();
       renderCtx.closePath();
     }
@@ -1912,7 +1913,7 @@ export class Canvas {
       renderCtx.moveTo(endX + offsetLeft - ps_w, startY + offsetTop);
       renderCtx.lineTo(endX + offsetLeft, startY + offsetTop);
       renderCtx.lineTo(endX + offsetLeft, startY + offsetTop + ps_h);
-      renderCtx.fillStyle = "#FC6666";
+      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).commentMarker;
       renderCtx.fill();
       renderCtx.closePath();
     }
@@ -1926,7 +1927,7 @@ export class Canvas {
       renderCtx.moveTo(startX + offsetLeft + ps_w - 1, startY + offsetTop);
       renderCtx.lineTo(startX + offsetLeft - 1, startY + offsetTop);
       renderCtx.lineTo(startX + offsetLeft - 1, startY + offsetTop + ps_h);
-      renderCtx.fillStyle = "#487f1e";
+      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).numberAsTextMarker;
       renderCtx.fill();
       renderCtx.closePath();
     }
@@ -2021,7 +2022,7 @@ export class Canvas {
 
       // 复选框
       renderCtx.lineWidth = 1;
-      renderCtx.strokeStyle = "#000";
+      renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).checkboxStroke;
       renderCtx.strokeRect(horizonAlignPos, verticalAlignPos_checkbox, 10, 10);
 
       if (dataVerification[`${r}_${c}`].checked) {
@@ -2034,7 +2035,11 @@ export class Canvas {
       }
 
       // 文本
-      renderCtx.fillStyle = normalizedAttr(flowdata, r, c, "fc");
+      renderCtx.fillStyle = resolveCellTextColor(
+        this.sheetCtx,
+        normalizedAttr(flowdata, r, c, "fc"),
+        fillStyle
+      );
       renderCtx.fillText(
         _.isNil(value) ? "" : value,
         horizonAlignPos + 14,
@@ -2227,7 +2232,11 @@ export class Canvas {
       }
 
       // 单元格 文本颜色
-      renderCtx.fillStyle = normalizedAttr(flowdata, r, c, "fc");
+      renderCtx.fillStyle = resolveCellTextColor(
+        this.sheetCtx,
+        normalizedAttr(flowdata, r, c, "fc"),
+        fillStyle
+      );
 
       // 若单元格有交替颜色 文本颜色
       if (checksAF?.[0]) {
@@ -2265,7 +2274,7 @@ export class Canvas {
         renderCtx.moveTo(endX + offsetLeft - 2 + bodrder05, startY + offsetTop);
         renderCtx.lineTo(endX + offsetLeft - 2 + bodrder05, endY + offsetTop);
         renderCtx.lineWidth = 1;
-        renderCtx.strokeStyle = defaultStyle.strokeStyle;
+        renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
         renderCtx.stroke();
         renderCtx.closePath();
       }
@@ -2283,7 +2292,7 @@ export class Canvas {
       );
       renderCtx.lineTo(endX + offsetLeft - 1, endY + offsetTop - 2 + bodrder05);
       renderCtx.lineWidth = 1;
-      renderCtx.strokeStyle = defaultStyle.strokeStyle;
+      renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
       renderCtx.stroke();
       renderCtx.closePath();
     }
@@ -2390,7 +2399,11 @@ export class Canvas {
     const checksCF: any = checkCF(r, c, cfCompute);
 
     // 单元格 文本颜色
-    renderCtx.fillStyle = normalizedAttr(flowdata, r, c, "fc");
+    renderCtx.fillStyle = resolveCellTextColor(
+      this.sheetCtx,
+      normalizedAttr(flowdata, r, c, "fc"),
+      cell?.bg
+    );
 
     // 若单元格有交替颜色 文本颜色
     if (checksAF?.[0]) {
@@ -2606,7 +2619,7 @@ export class Canvas {
       const word = values[i];
       if (word.inline === true && word.style) {
         ctx.font = word.style.fontset;
-        ctx.fillStyle = word.style.fc;
+        ctx.fillStyle = resolveCellTextColor(this.sheetCtx, word.style.fc);
       } else {
         ctx.font = word.style;
       }
@@ -2676,7 +2689,7 @@ export class Canvas {
       this.sheetCtx.devicePixelRatio,
       this.sheetCtx.devicePixelRatio
     );
-    renderCtx.strokeStyle = "#ccc";
+    renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).freezeLine;
     renderCtx.lineWidth = 2;
 
     if (horizontalTop) {

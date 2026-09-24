@@ -222,7 +222,10 @@ const DataVerification: React.FC = () => {
     <div id="fortune-data-verification">
       <div className="title">{toolbar.dataVerification}</div>
       <div className="box">
-        <div className="box-item" style={{ borderTop: "1px solid #E1E4E8" }}>
+        <div
+          className="box-item"
+          style={{ borderTop: "1px solid var(--fortune-border)" }}
+        >
           <div className="box-item-title">{dataVerification.cellRange}</div>
           <div className="data-verification-range">
             <input

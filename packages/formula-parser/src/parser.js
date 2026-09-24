@@ -1,15 +1,26 @@
 import Emitter from "tiny-emitter";
 import evaluateByOperator from "./evaluate-by-operator/evaluate-by-operator";
-import { Parser as GrammarParser } from "./grammar-parser/grammar-parser";
+import {
+  Parser as GrammarParser,
+  parseToAst,
+} from "./grammar-parser/grammar-parser";
+import { collectReferences } from "./grammar-parser/references";
+import { isLambda } from "./functions/lambda";
 import { trimEdges } from "./helper/string";
 import { toNumber, invertNumber } from "./helper/number";
 import errorParser, {
   isValidStrict as isErrorValid,
   ERROR,
+  ERROR_CALC,
   ERROR_NAME,
   ERROR_VALUE,
 } from "./error";
-import { extractLabel, toLabel } from "./helper/cell";
+import {
+  extractLabel,
+  toLabel,
+  columnIndexToLabel,
+  rowIndexToLabel,
+} from "./helper/cell";
 
 /**
  * @class Parser
@@ -25,9 +36,22 @@ class Parser extends Emitter {
       throwError: (errorName) => this._throwError(errorName),
       callVariable: (variable) => this._callVariable(variable),
       evaluateByOperator,
-      callFunction: (name, params) => this._callFunction(name, params),
+      callFunction: (name, params, refs) =>
+        this._callFunction(name, params, refs),
       cellValue: (value) => this._callCellValue(value),
       rangeValue: (start, end) => this._callRangeValue(start, end),
+      wholeRangeValue: (kind, sheetName, start, startAbs, end, endAbs) =>
+        this._callWholeRangeValue(
+          kind,
+          sheetName,
+          start,
+          startAbs,
+          end,
+          endAbs
+        ),
+      hasFunction: (name) => this.getFunction(name) !== void 0,
+      getLambdaVariable: (name) => this._getLambdaVariable(name),
+      getOptions: () => this.options,
     };
     this.variables = Object.create(null);
     this.functions = Object.create(null);
@@ -69,6 +93,10 @@ class Parser extends Emitter {
 
     if (result instanceof Error) {
       error = errorParser(result.message) || errorParser(ERROR);
+      result = null;
+    } else if (isLambda(result)) {
+      // A LAMBDA that is never called cannot be a cell value.
+      error = errorParser(ERROR_CALC);
       result = null;
     }
 
@@ -125,6 +153,46 @@ class Parser extends Emitter {
   }
 
   /**
+   * LAMBDA stored as a variable (e.g. a named function), callable as `NAME(...)`.
+   *
+   * @param {String} name
+   * @returns {Function|undefined}
+   * @private
+   */
+  _getLambdaVariable(name) {
+    let value = this.variables[name];
+
+    if (value === void 0) {
+      value = this.variables[name.toUpperCase()];
+    }
+
+    return isLambda(value) ? value : void 0;
+  }
+
+  /**
+   * Parse a formula into its (cached) AST without evaluating it.
+   * Throws on syntax errors.
+   *
+   * @param {String} expression Formula without the leading "=".
+   * @returns {Object}
+   */
+  getAst(expression) {
+    return parseToAst(expression);
+  }
+
+  /**
+   * List the cell/range references of a formula (without evaluating it).
+   * LET/LAMBDA names that shadow cell-like names are excluded.
+   * Indexes are 0-based; -1 marks a whole-row/column span.
+   *
+   * @param {String} expression Formula without the leading "=".
+   * @returns {Array<{sheetName: string|null, startRow: number, startColumn: number, endRow: number, endColumn: number}>}
+   */
+  getReferences(expression) {
+    return collectReferences(parseToAst(expression));
+  }
+
+  /**
    * Set custom function which can be visible while parsing formula expression.
    *
    * @param {String} name Custom function name.
@@ -150,24 +218,36 @@ class Parser extends Emitter {
   /**
    * Call function with provided params.
    *
+   * Custom functions and `callFunction` listeners receive, after the usual
+   * arguments, `refs`: one entry per param, `null` or the reference the
+   * argument was written as ({sheetName, startRow, startColumn, endRow,
+   * endColumn}, 0-based, -1 = whole row/column).
+   *
    * @param name Function name.
    * @param params Function params.
+   * @param refs Reference descriptors of the params.
    * @returns {*}
    * @private
    */
-  _callFunction(name, params = []) {
+  _callFunction(name, params = [], refs = []) {
     const fn = this.getFunction(name);
     let value;
 
     if (fn) {
-      value = fn(params);
+      value = fn(params, refs);
     }
 
-    this.emit("callFunction", name, params, (newValue) => {
-      if (newValue !== void 0) {
-        value = newValue;
-      }
-    });
+    this.emit(
+      "callFunction",
+      name,
+      params,
+      (newValue) => {
+        if (newValue !== void 0) {
+          value = newValue;
+        }
+      },
+      refs
+    );
 
     return value === void 0 ? evaluateByOperator(name, params) : value;
   }
@@ -238,6 +318,66 @@ class Parser extends Emitter {
       endCell.column = startColumn;
     }
 
+    return this._emitRangeValue(startCell, endCell);
+  }
+
+  /**
+   * Retrieve whole columns (`A:C`) or rows (`2:5`). Emitted through
+   * `callRangeValue` with row (columns) or column (rows) indexes set to -1.
+   *
+   * @param {String} kind "columns" or "rows".
+   * @param {String|null} sheetName Sheet name or null for the current sheet.
+   * @param {Number} start First column/row index (0-based).
+   * @param {Boolean} startAbsolute
+   * @param {Number} end Last column/row index (0-based).
+   * @param {Boolean} endAbsolute
+   * @returns {Array}
+   * @private
+   */
+  _callWholeRangeValue(
+    kind,
+    sheetName,
+    start,
+    startAbsolute,
+    end,
+    endAbsolute
+  ) {
+    const whole = (isAbsolute = false) => ({
+      index: -1,
+      label: "",
+      isAbsolute,
+    });
+    const coord = (index, isAbsolute) => ({
+      index,
+      label:
+        kind === "columns" ? columnIndexToLabel(index) : rowIndexToLabel(index),
+      isAbsolute,
+    });
+    const startCell = { sheetName };
+    const endCell = {};
+
+    if (kind === "columns") {
+      startCell.row = whole();
+      endCell.row = whole();
+      startCell.column = coord(start, startAbsolute);
+      endCell.column = coord(end, endAbsolute);
+    } else {
+      startCell.row = coord(start, startAbsolute);
+      endCell.row = coord(end, endAbsolute);
+      startCell.column = whole();
+      endCell.column = whole();
+    }
+
+    return this._emitRangeValue(startCell, endCell);
+  }
+
+  /**
+   * @param {Object} startCell Top-left coordinates.
+   * @param {Object} endCell Bottom-right coordinates.
+   * @returns {Array}
+   * @private
+   */
+  _emitRangeValue(startCell, endCell) {
     startCell.label = toLabel(startCell.row, startCell.column);
     endCell.label = toLabel(endCell.row, endCell.column);
 

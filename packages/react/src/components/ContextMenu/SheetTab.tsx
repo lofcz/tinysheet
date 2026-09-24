@@ -102,6 +102,7 @@ const SheetTabContextMenu: React.FC = () => {
 
   return (
     <div
+      role="menu"
       className="fortune-context-menu luckysheet-cols-menu"
       onContextMenu={(e) => e.stopPropagation()}
       style={{ left: position.x, top: position.y, overflow: "visible" }}

@@ -1,18 +1,19 @@
 #fortune-change-color {
+  color: var(--fortune-text);
   min-width: 164px;
   height: 252px;
-  background: rgb(240, 240, 240);
+  background: var(--fortune-bg-muted);
   position: absolute;
   bottom: -110px;
   left: 197px;
-  border-radius: 6px;
-  box-shadow: 0 2px 4px rgb(0 0 0 / 20%);
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: var(--fortune-radius);
+  box-shadow: var(--fortune-shadow);
+  border: 1px solid var(--fortune-border);
 }
 
 #fortune-change-color .color-reset {
   position: relative;
-  color: #333;
+  color: var(--fortune-text);
   cursor: pointer;
   list-style: none;
   padding: 10px;
@@ -22,11 +23,11 @@
   padding-right: 24px;
   user-select: none;
   border-radius: 6px;
-  background: white;
+  background: var(--fortune-bg);
 }
 
 #fortune-change-color .color-reset:hover {
-  background: rgb(230, 230, 230);
+  background: var(--fortune-bg-hover);
 }
 
 #fortune-change-color .custom-color {
@@ -34,7 +35,7 @@
   margin: auto;
   padding: 10px;
   border-radius: 6px;
-  background: white;
+  background: var(--fortune-bg);
   display: flex;
   align-items: center;
   margin: 1px 0px;
@@ -42,25 +43,8 @@
   justify-content: space-around;
 }
 
-.button-basic {
-  display: inline-block;
-  margin-bottom: 0;
-  font-weight: 400;
-  text-align: center;
-  vertical-align: middle;
-  touch-action: manipulation;
-  cursor: pointer;
-  white-space: nowrap;
-  padding: 4px 8px;
-  font-size: 12px;
-  line-height: 1.42857143;
-  border-radius: 2px;
-  user-select: none;
-}
-
-.button-primary {
-  background: #0188fb;
-  border: 1px solid #0188fb;
-  color: #fff;
-  margin-right: -4px;
+#fortune-change-color .custom-color .button-basic {
+  min-height: 24px;
+  padding: 0 var(--fortune-space-2);
+  font-size: var(--fortune-font-size-sm);
 }

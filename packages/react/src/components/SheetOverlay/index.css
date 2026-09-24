@@ -22,7 +22,7 @@
   position: relative;
   flex-shrink: 0;
   outline-style: none;
-  color: #5e5e5e;
+  color: var(--fortune-header-text);
   overflow: hidden;
   padding: 0;
   margin-top: -2px;
@@ -39,18 +39,18 @@
   width: 100%;
   margin-top: 2px;
   display: none;
-  background-color: rgba(194, 194, 194, 0.4);
+  background-color: var(--fortune-header-hover);
 }
 
 .fortune-row-header-selected {
   position: absolute;
   z-index: 10;
-  border-right: 1px solid #0188fb;
+  border-right: 2px solid var(--fortune-selection);
   right: 0;
   width: 100%;
   margin-top: 2px;
   display: none;
-  background-color: rgba(76, 76, 76, 0.1);
+  background-color: var(--fortune-header-selected);
 }
 
 .fortune-col-header-wrap {
@@ -59,7 +59,7 @@
 }
 
 .fortune-col-header {
-  color: #5e5e5e;
+  color: var(--fortune-header-text);
   overflow: hidden;
   padding: 0;
   cursor: default;
@@ -70,7 +70,7 @@
 }
 
 .fortune-col-header-hover {
-  color: #5e5e5e;
+  color: var(--fortune-header-text);
   cursor: default;
   position: absolute;
   z-index: 11;
@@ -79,7 +79,7 @@
   height: 100%;
   margin-left: 0px;
   display: none;
-  background-color: rgba(194, 194, 194, 0.4);
+  background-color: var(--fortune-header-hover);
 }
 
 .fortune-col-header-hover .header-arrow {
@@ -90,28 +90,28 @@
 }
 
 .fortune-col-header-selected {
-  color: #5e5e5e;
+  color: var(--fortune-header-text);
   cursor: default;
   position: absolute;
   z-index: 10;
-  border-bottom: 1px solid #0188fb;
+  border-bottom: 2px solid var(--fortune-selection);
   bottom: 0;
   height: 100%;
   margin-left: 0px;
   display: none;
-  background-color: rgba(76, 76, 76, 0.1);
+  background-color: var(--fortune-header-selected);
 }
 
 .fortune-left-top {
   width: 44.5px;
   height: 18.5px;
-  border: solid 0 #dfdfdf;
+  border: solid 0 var(--fortune-grid-line);
   position: relative;
   padding-top: 0;
   border-width: 0 1px 1px 0;
   padding-left: 0;
   cursor: pointer;
-  background-color: white;
+  background-color: var(--fortune-header-bg);
 }
 
 .fortune-add-row-button {
@@ -121,14 +121,14 @@
   align-items: center;
   margin: 0 8px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--fortune-radius-sm);
   font-size: 14px;
   line-height: 20px;
   outline: none;
   cursor: pointer;
-  color: rgb(38, 42, 51);
-  background-color: rgb(255, 255, 255);
-  border: 1px solid rgb(200, 200, 200);
+  color: var(--fortune-text);
+  background-color: var(--fortune-bg);
+  border: 1px solid var(--fortune-border);
 }
 
 .luckysheet-cell-selected-focus {
@@ -137,7 +137,7 @@
   z-index: 14;
   /*border:1px solid #fff;*/
   margin: 0px 0 0 0px;
-  background: rgba(0, 80, 208, 0.15);
+  background: var(--fortune-selection-focus-fill);
   display: none;
 }
 
@@ -161,7 +161,7 @@
   right: 0;
   bottom: 0;
   left: 0;
-  border: 2px dashed #12a5ff;
+  border: 2px dashed var(--fortune-selection);
   z-index: 8;
 }
 
@@ -178,7 +178,7 @@
   position: absolute;
   pointer-events: none;
   z-index: 16;
-  border: 1px dashed #0188fb;
+  border: 1px dashed var(--fortune-selection);
   margin: -1px 0 0 -1px;
   display: none;
 }
@@ -188,7 +188,7 @@
   position: absolute;
   /* pointer-events: none; */
   z-index: 16;
-  border: 2px solid #0188fb;
+  border: 2px solid var(--fortune-selection);
   margin: -1px 0 0 -1px;
   display: none;
 }
@@ -197,16 +197,16 @@
   position: absolute;
   pointer-events: none;
   z-index: 15;
-  border: 1px solid #0188fb;
-  margin: -1px 0 0 -1px;
-  background: rgba(1, 136, 251, 0.15);
+  border: 2px solid var(--fortune-selection);
+  margin: -2px 0 0 -2px;
+  background: var(--fortune-selection-fill);
   display: none;
   box-sizing: content-box;
 }
 
 .luckysheet-cs-inner-border {
   pointer-events: none;
-  border: 1px solid #fff;
+  border: 1px solid transparent;
   position: absolute;
   top: 0;
   bottom: 0;
@@ -220,8 +220,8 @@
   height: 6px;
   bottom: -5px;
   cursor: crosshair;
-  background-color: #0188fb;
-  border: solid 1px #fff;
+  background-color: var(--fortune-selection);
+  border: solid 1px var(--fortune-bg);
   z-index: 16;
   pointer-events: auto;
   right: -5px;
@@ -281,8 +281,8 @@
   display: block;
   width: 16px;
   height: 16px;
-  border: 0.5px solid rgba(0, 0, 0, 0.15);
-  background-color: #ffffff;
+  border: 0.5px solid var(--fortune-border);
+  background-color: var(--fortune-bg);
   box-sizing: border-box;
   border-radius: 50%;
 }
@@ -313,7 +313,7 @@
   height: 10px;
   left: 8px;
   top: 8px;
-  background-color: #018ffb;
+  background-color: var(--fortune-selection);
   background-position: center;
   box-sizing: border-box;
   border-radius: 50%;
@@ -333,18 +333,17 @@
   text-align: left;
   max-height: 9900px;
   max-width: 9900px;
-  border: 1px #5292f7 solid;
+  border: 2px var(--fortune-selection) solid;
   padding: 0 2px;
   margin: 0;
   resize: none;
   overflow: hidden;
   white-space: pre-wrap;
   outline: none;
-  -webkit-box-shadow: 0 2px 5px rgb(0 0 0 / 40%);
-  -moz-box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
-  box-shadow: 0 2px 5px rgb(0 0 0 / 40%);
+  box-shadow: var(--fortune-shadow);
   word-wrap: break-word;
-  background-color: rgb(255, 255, 255);
+  background-color: var(--fortune-bg);
+  color: var(--fortune-text);
   font-size: 13px;
   right: auto;
   overflow-y: auto;
@@ -360,11 +359,11 @@
 }
 
 .luckysheet-formula-text-color {
-  color: black;
+  color: var(--fortune-text);
 }
 
 .luckysheet-formula-text-string {
-  color: forestgreen;
+  color: var(--fortune-success);
 }
 
 .luckysheet-cell-flow {
@@ -399,7 +398,7 @@
   /*background-color: #fff;*/
   text-align: left;
   font-size: 11pt;
-  color: #000000;
+  color: var(--fortune-text);
   text-decoration: none;
 }
 
@@ -442,7 +441,7 @@
 
 .luckysheet-cell-flow-column-line {
   position: absolute;
-  border-right: 1px solid #d4d4d4;
+  border-right: 1px solid var(--fortune-grid-line);
   height: inherit;
 }
 
@@ -459,7 +458,7 @@
 
 .luckysheet-cell-flow-row-line {
   position: absolute;
-  border-bottom: 1px solid #d4d4d4;
+  border-bottom: 1px solid var(--fortune-grid-line);
   width: inherit;
 }
 
@@ -479,7 +478,7 @@
 .fortune-cols-change-size {
   width: 5px;
   height: 100%;
-  background: #0188fb;
+  background: var(--fortune-selection);
   cursor: ew-resize;
   opacity: 0;
 }
@@ -487,13 +486,13 @@
 .fortune-rows-change-size {
   width: 100%;
   height: 5px;
-  background: #0188fb;
+  background: var(--fortune-selection);
   cursor: ns-resize;
   opacity: 0;
 }
 
 .fortune-change-size-line {
-  border-color: #0188fb;
+  border-color: var(--fortune-selection);
   border-style: solid;
   z-index: 15;
   cursor: ew-resize;
@@ -504,7 +503,7 @@
   left: 0;
   width: 3px;
   height: 100%;
-  background-color: #ddd;
+  background-color: var(--fortune-border);
   cursor: grab;
   z-index: 20;
 }
@@ -514,13 +513,13 @@
   top: 0;
   height: 3px;
   width: 100%;
-  background-color: #ddd;
+  background-color: var(--fortune-border);
   cursor: grab;
   z-index: 20;
 }
 
 .fortune-freeze-drag-line {
-  border-color: #ccc;
+  border-color: var(--fortune-border-strong);
   border-style: solid;
   z-index: 15;
   cursor: ew-resize;
@@ -580,7 +579,7 @@
 .luckysheet-postil-show-active
   .luckysheet-postil-dialog-move
   .luckysheet-postil-dialog-move-item {
-  border-color: #0188fb;
+  border-color: var(--fortune-selection);
 }
 
 .luckysheet-postil-dialog-resize {
@@ -598,7 +597,7 @@
   position: absolute;
   height: 6px;
   width: 6px;
-  border: 1px solid #0188fb;
+  border: 1px solid var(--fortune-selection);
   pointer-events: all;
 }
 
@@ -694,13 +693,13 @@
   right: 0;
   bottom: 0;
   left: 0;
-  border: 2px dashed #12a5ff;
+  border: 2px dashed var(--fortune-selection);
   z-index: 8;
 }
 
 .luckysheet-modal-dialog-resize {
   position: absolute;
-  border: 2px solid #0188fb;
+  border: 2px solid var(--fortune-selection);
   margin: 0px;
   padding: 0px;
   top: -2px;
@@ -714,8 +713,8 @@
   position: absolute;
   height: 6px;
   width: 6px;
-  background: #ffffff;
-  border: 2px solid #0188fb;
+  background: var(--fortune-bg);
+  border: 2px solid var(--fortune-selection);
   pointer-events: all;
   border-radius: 6px;
 }
@@ -774,7 +773,7 @@
 
 .fortune-formula-functionrange-highlight .fortune-copy {
   background-image: none;
-  background: #0188fb;
+  background: var(--fortune-selection);
   position: absolute;
   z-index: 18;
   cursor: move;
@@ -785,30 +784,30 @@
 
 .fortune-formula-functionrange-highlight .fortune-selection-copy-top {
   top: -2px;
-  border-top: 2px solid #fff;
-  border-bottom: 2px solid #fff;
+  border-top: 2px solid var(--fortune-bg);
+  border-bottom: 2px solid var(--fortune-bg);
 }
 
 .fortune-formula-functionrange-highlight .fortune-selection-copy-right {
   right: -2px;
-  border-left: 2px solid #fff;
-  border-right: 2px solid #fff;
+  border-left: 2px solid var(--fortune-bg);
+  border-right: 2px solid var(--fortune-bg);
 }
 
 .fortune-formula-functionrange-highlight .fortune-selection-copy-bottom {
   bottom: -2px;
-  border-top: 2px solid #fff;
-  border-bottom: 2px solid #fff;
+  border-top: 2px solid var(--fortune-bg);
+  border-bottom: 2px solid var(--fortune-bg);
 }
 
 .fortune-formula-functionrange-highlight .fortune-selection-copy-left {
   left: -2px;
-  border-left: 2px solid #fff;
-  border-right: 2px solid #fff;
+  border-left: 2px solid var(--fortune-bg);
+  border-right: 2px solid var(--fortune-bg);
 }
 
 .fortune-formula-functionrange-highlight .fortune-selection-copy-hc {
-  border: 2px solid #5e5e5e;
+  border: 2px solid var(--fortune-text-muted);
   opacity: 0.03;
   z-index: initial;
 }
@@ -840,8 +839,8 @@
 .fortune-formula-functionrange-highlight .luckysheet-highlight {
   position: absolute;
   z-index: 19;
-  border: 1px solid #fff;
-  background: #0188fb;
+  border: 1px solid var(--fortune-bg);
+  background: var(--fortune-selection);
   width: 6px;
   height: 6px;
 }
@@ -858,7 +857,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   box-sizing: content-box;
-  color: #fff;
+  color: #ffffff; /* on the collaborator colour */
 }
 
 .fortune-presence-selection {
@@ -869,32 +868,32 @@
 }
 
 .luckysheet-filter-options {
-  color: #897bff;
+  color: var(--fortune-filter);
   cursor: pointer;
   position: absolute;
   z-index: 200;
-  border: 1px solid #897bff;
+  border: 1px solid var(--fortune-filter);
   border-radius: 3px;
   top: 3px;
   margin-left: 0px;
-  display: "block";
+  display: block;
   padding: 0px 4px;
   font-size: 12px;
   height: 15px;
-  background: #fff;
+  background: var(--fortune-bg);
 }
 
 .luckysheet-filter-options:hover {
-  color: #fff;
-  border: 1px solid #fff;
-  background: #897bff;
+  color: var(--fortune-bg);
+  border: 1px solid var(--fortune-filter);
+  background: var(--fortune-filter);
 }
 
 .luckysheet-filter-options-active {
-  color: #fff;
-  border: 1px solid #897bff;
+  color: var(--fortune-bg);
+  border: 1px solid var(--fortune-filter);
   padding: 0px 1px;
-  background: #897bff;
+  background: var(--fortune-filter);
 }
 
 .caret {
@@ -906,11 +905,11 @@
 }
 
 .caret.down {
-  border-top-color: #897bff;
+  border-top-color: var(--fortune-filter);
 }
 
 .luckysheet-filter-options:hover .caret.down {
-  border-top-color: #ffffff;
+  border-top-color: var(--fortune-bg);
 }
 
 .luckysheet-filter-selected {
@@ -920,9 +919,11 @@
 #luckysheet-dataVerification-showHintBox {
   display: none;
   padding: 10px;
-  background-color: #ffffff;
-  border: 1px solid #ccc;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  background-color: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  box-shadow: var(--fortune-shadow);
   position: absolute;
   z-index: 1000;
   user-select: none;
@@ -935,7 +936,7 @@
   display: none;
   width: 20px;
   height: 20px;
-  background-color: #ffffff;
+  background-color: var(--fortune-bg);
   position: absolute;
   z-index: 10;
   overflow: hidden;
