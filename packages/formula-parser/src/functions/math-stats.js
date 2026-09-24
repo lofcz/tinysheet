@@ -42,6 +42,11 @@ export function fail(code) {
   throw Error(code);
 }
 
+/** Short error id ("N/A") for an Error or error string, whichever form it uses. */
+function errorId(v) {
+  return String(v instanceof Error ? v.message : v).replace(/#|!|\?/g, "");
+}
+
 /**
  * Wrap entries of `functions` so that calling one with fewer than its
  * required number of arguments yields #VALUE! (Excel refuses such formulas;
@@ -653,8 +658,8 @@ export function makeCriteria(criteria) {
   }
   if (typeof c === "boolean") return (v) => v === c;
   if (c instanceof Error) {
-    const code = c.message;
-    return (v) => isErrorValue(v) && toError(v).message === code;
+    const code = errorId(c);
+    return (v) => isErrorValue(v) && errorId(v) === code;
   }
   const str = String(c);
   const m = /^(<=|>=|<>|<|>|=)?([\s\S]*)$/.exec(str);
@@ -668,8 +673,8 @@ export function makeCriteria(criteria) {
     return () => false;
   }
   if (isValidStrict(rhs.toUpperCase())) {
-    const code = toError(rhs.toUpperCase()).message;
-    const eq = (v) => isErrorValue(v) && toError(v).message === code;
+    const code = errorId(rhs.toUpperCase());
+    const eq = (v) => isErrorValue(v) && errorId(v) === code;
     if (op === "=") return eq;
     if (op === "<>") return (v) => !eq(v);
     return () => false;

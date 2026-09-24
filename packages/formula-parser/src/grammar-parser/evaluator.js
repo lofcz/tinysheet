@@ -58,6 +58,7 @@ const BUILTIN_FUNCTIONS = new Set(
  */
 export const ERROR_TOLERANT = new Set([
   "ISERROR",
+  "ISREF",
   "ISERR",
   "ISNA",
   "ERROR.TYPE",
