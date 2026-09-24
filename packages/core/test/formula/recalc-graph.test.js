@@ -13,6 +13,7 @@ import {
   groupValuesRefresh,
   insertRowCol,
   getFlowdata,
+  getCircularReferences as publicGetCircularReferences,
 } from "../../src";
 import { DependencyGraph } from "../../src/modules/dependencyGraph";
 import {
@@ -193,6 +194,10 @@ describe("recalculation engine", () => {
 
     edit(ctx, 3, 3, "=D4+1"); // self reference
     expect(getCircularReferences(ctx)).toEqual([{ r: 3, c: 3, id: "s1" }]);
+    // also part of the public core API
+    expect(publicGetCircularReferences(ctx)).toEqual(
+      getCircularReferences(ctx)
+    );
   });
 
   test("a deleted and re-created sheet name resolves to the new sheet", () => {

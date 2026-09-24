@@ -64,6 +64,9 @@ import {
   takeSpillChanges,
 } from "./formulaFunctions";
 
+// public: formula cells detected on a reference cycle (for a UI warning)
+export { getCircularReferences } from "./formulaHelper";
+
 let functionHTMLIndex = 0;
 let rangeIndexes: number[] = [];
 const operatorPriority: any = {
