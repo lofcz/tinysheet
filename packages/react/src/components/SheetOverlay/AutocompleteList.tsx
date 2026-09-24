@@ -175,9 +175,11 @@ const AutocompleteList: React.FC = () => {
         minWidth: Math.max(col - colPre, 120),
         maxHeight: 200,
         overflowY: "auto",
-        backgroundColor: "white",
-        border: "1px solid #ccc",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+        backgroundColor: "var(--fortune-bg-elevated)",
+        color: "var(--fortune-text)",
+        border: "1px solid var(--fortune-border)",
+        borderRadius: "var(--fortune-radius-sm)",
+        boxShadow: "var(--fortune-shadow)",
         zIndex: 1001,
         fontSize: 13,
       }}
@@ -193,7 +195,10 @@ const AutocompleteList: React.FC = () => {
             padding: "4px 8px",
             cursor: "pointer",
             whiteSpace: "nowrap",
-            backgroundColor: index === activeIndex ? "#e6f7ff" : "white",
+            backgroundColor:
+              index === activeIndex
+                ? "var(--fortune-accent-soft)"
+                : "transparent",
           }}
           onMouseEnter={() => setActiveIndex(index)}
         >

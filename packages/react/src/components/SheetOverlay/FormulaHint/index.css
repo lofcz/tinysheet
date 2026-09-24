@@ -1,10 +1,11 @@
 .luckysheet-formula-help-c {
   position: absolute;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  color: #535353;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  box-shadow: var(--fortune-shadow);
+  color: var(--fortune-text-muted);
   font-size: 12px;
-  background: #fff;
+  background: var(--fortune-bg-elevated);
   z-index: 1003;
   width: 300px;
 }
@@ -20,9 +21,10 @@
 
 .luckysheet-formula-help-title {
   display: block;
-  border-top: 1px solid #ebebeb;
-  border-bottom: 1px solid #ebebeb;
-  background: #f5f5f5;
+  border-top: 1px solid var(--fortune-divider);
+  border-bottom: 1px solid var(--fortune-divider);
+  background: var(--fortune-bg-muted);
+  color: var(--fortune-text-muted);
   padding: 2px 10px;
   font-size: 14px;
 }
@@ -35,12 +37,12 @@
 .luckysheet-arguments-help-section {
   margin-top: 5px;
   margin-bottom: 5px;
-  color: #222;
+  color: var(--fortune-text);
 }
 
 .luckysheet-arguments-help-section-title {
   padding: 1px 10px;
-  color: #666;
+  color: var(--fortune-text-muted);
 }
 
 .luckysheet-arguments-help-parameter-content {
@@ -55,7 +57,7 @@
 }
 
 .luckysheet-arguments-help-parameter-active {
-  background-color: #fff9b2;
+  background-color: var(--fortune-accent-soft);
 }
 
 .luckysheet-formula-help-collapse {
@@ -64,7 +66,7 @@
   right: 25px;
   font-size: 16px;
   cursor: pointer;
-  color: #bbb;
+  color: var(--fortune-text-subtle);
 }
 
 .luckysheet-formula-help-close {
@@ -73,12 +75,12 @@
   right: 5px;
   font-size: 16px;
   cursor: pointer;
-  color: #bbb;
+  color: var(--fortune-text-subtle);
 }
 
 .luckysheet-formula-help-close:hover,
 .luckysheet-formula-help-collapse:hover {
-  color: #555;
+  color: var(--fortune-text);
 }
 
 .luckysheet-formula-help-c .luckysheet-formula-help-title {
@@ -93,16 +95,16 @@
 
 .luckysheet-arguments-help-parameter-current {
   font-weight: bold;
-  color: #222;
+  color: var(--fortune-text);
 }
 
 .luckysheet-arguments-help-section-current
   .luckysheet-arguments-help-section-title {
   font-weight: bold;
-  color: #222;
+  color: var(--fortune-text);
 }
 
 .luckysheet-arguments-help-argument-info {
   font-weight: normal;
-  color: #888;
+  color: var(--fortune-text-subtle);
 }

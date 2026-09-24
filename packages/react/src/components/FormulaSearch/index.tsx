@@ -1,6 +1,7 @@
 import React, { useContext, useState, useMemo, useCallback } from "react";
 import {
   cancelNormalSelected,
+  FUNCTION_CATEGORIES,
   functionHTMLGenerate,
   getFunctionListMap,
   locale,
@@ -24,27 +25,19 @@ export const FormulaSearch: React.FC<{ onCancel: () => void }> = ({
   const [searchText, setSearchText] = useState("");
   const { formulaMore, functionlist, button } = locale(context);
 
-  const typeList = useMemo(
-    () => [
-      { t: 0, n: formulaMore.Math },
-      { t: 1, n: formulaMore.Statistical },
-      { t: 2, n: formulaMore.Lookup },
-      { t: 3, n: formulaMore.luckysheet },
-      { t: 4, n: formulaMore.dataMining },
-      { t: 5, n: formulaMore.Database },
-      { t: 6, n: formulaMore.Date },
-      { t: 7, n: formulaMore.Filter },
-      { t: 8, n: formulaMore.Financial },
-      { t: 9, n: formulaMore.Engineering },
-      { t: 10, n: formulaMore.Logical },
-      { t: 11, n: formulaMore.Operator },
-      { t: 12, n: formulaMore.Text },
-      { t: 13, n: formulaMore.Parser },
-      { t: 14, n: formulaMore.Array },
-      { t: -1, n: formulaMore.other },
-    ],
-    [formulaMore]
-  );
+  // categories come from the catalog so that every function is reachable;
+  // functions of a category the catalog does not list end up in "other"
+  const typeList = useMemo(() => {
+    const known = new Set<number>(FUNCTION_CATEGORIES.map((c) => c.t));
+    const list: { t: number; n: string }[] = FUNCTION_CATEGORIES.map((c) => ({
+      t: c.t,
+      n: (formulaMore as Record<string, string>)[c.key] || c.key,
+    }));
+    if (functionlist.some((f) => !known.has(f.t))) {
+      list.push({ t: -1, n: formulaMore.other });
+    }
+    return list;
+  }, [formulaMore, functionlist]);
 
   const filteredFunctionList = useMemo(() => {
     if (searchText) {
@@ -61,6 +54,10 @@ export const FormulaSearch: React.FC<{ onCancel: () => void }> = ({
           (f.a || "").toUpperCase().indexOf(text) !== -1 ||
           (f.d || "").toUpperCase().indexOf(text) !== -1
       );
+    }
+    if (selectedType === -1) {
+      const known = new Set<number>(FUNCTION_CATEGORIES.map((c) => c.t));
+      return _.filter(functionlist, (v) => !known.has(v.t));
     }
     return _.filter(functionlist, (v) => v.t === selectedType);
   }, [functionlist, selectedType, searchText]);

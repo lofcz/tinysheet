@@ -20,6 +20,7 @@ import {
   highlightBracketPair,
   BRACKET_MATCH_CLASS,
 } from "../../src/modules/formulaEditor";
+import { locale } from "../../src/locale";
 
 const types = (text: string) =>
   tokenizeFormula(text).map((t) => `${t.type}:${t.text}`);
@@ -230,6 +231,29 @@ describe("rankFunctions", () => {
 
   it("only offers prefix matches for reference-like queries", () => {
     expect(names("M2")).toEqual([]);
+  });
+});
+
+describe("rankFunctions with the English catalog", () => {
+  const { functionlist } = locale({ lang: "en" } as any);
+  const names = (q: string) =>
+    rankFunctions(functionlist, q).map((r) => r.item.n);
+
+  it("handles names with digits and dots", () => {
+    expect(names("LOG1")).toContain("LOG10");
+    expect(names("ATAN")).toEqual(expect.arrayContaining(["ATAN", "ATAN2"]));
+    expect(names("NORM.S")).toEqual(
+      expect.arrayContaining(["NORM.S.DIST", "NORM.S.INV"])
+    );
+    expect(
+      rankFunctions(functionlist, "DIST", 100).map((r) => r.item.n)
+    ).toContain("NORM.S.DIST");
+    expect(names("SU")[0]).toBe("SUM");
+    expect(names("VLOOKUP")[0]).toBe("VLOOKUP");
+  });
+
+  it("returns at most 12 suggestions", () => {
+    expect(names("S").length).toBe(12);
   });
 });
 
