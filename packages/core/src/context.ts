@@ -3,6 +3,7 @@ import { SheetConfig } from ".";
 import { FormulaCache } from "./modules";
 import { normalizeSelection } from "./modules/selection";
 import { Hooks } from "./settings";
+import type { ThemeName } from "./theme";
 import {
   Sheet,
   Selection,
@@ -54,6 +55,8 @@ export type Context = {
   // 提醒弹窗
   warnDialog?: string;
   currency?: string;
+  /** Resolved colour theme (from `settings.theme`); read by the canvas. */
+  theme?: ThemeName;
   dataVerification?: {
     selectStatus: boolean;
     selectRange: [];
