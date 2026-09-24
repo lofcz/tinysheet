@@ -26,7 +26,7 @@ describe("functions/lambda", () => {
       throw Error("DIV/0");
     });
 
-    expect(callLambdaSafe(fn, [1]).message).toBe("#DIV/0!");
+    expect(callLambdaSafe(fn, [1]).message).toBe("DIV/0");
   });
 
   it("registers the functions in SUPPORTED_FORMULAS", () => {

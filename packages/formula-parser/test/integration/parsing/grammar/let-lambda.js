@@ -217,7 +217,7 @@ describe(".parse() LET and LAMBDA", () => {
       expect(isLambda(null)).toBe(false);
       expect(fn.params).toEqual(["X", "Y"]);
       expect(fn(4, 2)).toBe(42);
-      expect(() => fn(1, 2, 3)).toThrow("#VALUE!");
+      expect(() => fn(1, 2, 3)).toThrow("VALUE");
     });
 
     it("can be registered as named functions (with recursion)", () => {

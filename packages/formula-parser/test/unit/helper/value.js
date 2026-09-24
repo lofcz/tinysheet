@@ -9,6 +9,7 @@ import {
   parseNumericText,
   toBoolean,
   toErrorValue,
+  toFormulajsError,
   toNumber,
   toText,
 } from "../../../src/helper/value";
@@ -18,19 +19,31 @@ describe("helper/value", () => {
     it("reuses the formulajs error singletons", () => {
       const { errors } = formulajs.utils;
 
-      expect(toErrorValue("N/A")).toBe(errors.na);
-      expect(toErrorValue("#DIV/0!")).toBe(errors.div0);
-      expect(toErrorValue(new Error("VALUE"))).toBe(errors.value);
-      expect(toErrorValue("#CALC!").message).toBe("#CALC!");
-      expect(toErrorValue("#SPILL!").message).toBe("#SPILL!");
+      expect(toErrorValue("N/A")).toBe(toErrorValue("#N/A"));
+      expect(toErrorValue("#DIV/0!").message).toBe("DIV/0");
+      expect(toErrorValue(new Error("VALUE"))).toBe(toErrorValue("#VALUE!"));
+      expect(toErrorValue(errors.na)).toBe(toErrorValue("N/A"));
+      expect(toErrorValue("#CALC!").message).toBe("CALC");
+      expect(toErrorValue("#SPILL!").message).toBe("SPILL");
+      expect(toErrorValue("#NAME?").message).toBe("NAME");
+    });
+
+    it("maps error values to the formulajs singletons", () => {
+      const { errors } = formulajs.utils;
+
+      expect(toFormulajsError(toErrorValue("N/A"))).toBe(errors.na);
+      expect(toFormulajsError(toErrorValue("DIV/0"))).toBe(errors.div0);
+      expect(toFormulajsError(new Error("#VALUE!"))).toBe(errors.value);
+      expect(toFormulajsError(toErrorValue("SPILL")).message).toBe("SPILL");
+      expect(toFormulajsError(5)).toBe(5);
     });
 
     it("maps unknown failures to #ERROR! and stack overflows to #NUM!", () => {
       expect(toErrorValue(new TypeError("x is undefined")).message).toBe(
-        "#ERROR!"
+        "ERROR"
       );
       expect(toErrorValue(new RangeError("Maximum call stack")).message).toBe(
-        "#NUM!"
+        "NUM"
       );
     });
 
@@ -62,10 +75,10 @@ describe("helper/value", () => {
     });
 
     it("throws #VALUE! for text and the error for error values", () => {
-      expect(() => toNumber("abc")).toThrow("#VALUE!");
-      expect(() => toNumber("")).toThrow("#VALUE!");
-      expect(() => toNumber(() => 1)).toThrow("#VALUE!");
-      expect(() => toNumber(toErrorValue("REF"))).toThrow("#REF!");
+      expect(() => toNumber("abc")).toThrow("VALUE");
+      expect(() => toNumber("")).toThrow("VALUE");
+      expect(() => toNumber(() => 1)).toThrow("VALUE");
+      expect(() => toNumber(toErrorValue("REF"))).toThrow("REF");
     });
   });
 
@@ -120,7 +133,7 @@ describe("helper/value", () => {
       expect(toText(true)).toBe("TRUE");
       expect(toText(null)).toBe("");
       expect(toText(void 0)).toBe("");
-      expect(() => toText(toErrorValue("NUM"))).toThrow("#NUM!");
+      expect(() => toText(toErrorValue("NUM"))).toThrow("NUM");
     });
   });
 
@@ -131,7 +144,7 @@ describe("helper/value", () => {
       expect(toBoolean("true")).toBe(true);
       expect(toBoolean("FALSE")).toBe(false);
       expect(toBoolean(null)).toBe(false);
-      expect(() => toBoolean("yes")).toThrow("#VALUE!");
+      expect(() => toBoolean("yes")).toThrow("VALUE");
     });
   });
 
@@ -163,9 +176,9 @@ describe("helper/value", () => {
 
     it("throws error operands, left first", () => {
       expect(() => compare(toErrorValue("N/A"), toErrorValue("REF"))).toThrow(
-        "#N/A"
+        "N/A"
       );
-      expect(() => compare(1, toErrorValue("REF"))).toThrow("#REF!");
+      expect(() => compare(1, toErrorValue("REF"))).toThrow("REF");
     });
   });
 

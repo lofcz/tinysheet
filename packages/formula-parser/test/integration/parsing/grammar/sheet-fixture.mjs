@@ -1,4 +1,5 @@
 // Shared fixture for the grammar tests (not a test file itself).
+import error from "../../../../src/error";
 //
 //     A      B       C
 // 1   1      "x"     (blank)
@@ -62,11 +63,11 @@ export function attachSheet(parser) {
 }
 
 /**
- * Replace error values by their code so results compare with toEqual.
+ * Replace error values by their code ("#N/A") so results compare with toEqual.
  */
 export function plain(value) {
   if (value instanceof Error) {
-    return value.message;
+    return error(value.message) || value.message;
   }
   if (Array.isArray(value)) {
     return value.map(plain);
