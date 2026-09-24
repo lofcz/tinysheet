@@ -186,7 +186,9 @@ export const LocationCondition: React.FC<{}> = () => {
                 <label
                   htmlFor={v}
                   style={{
-                    color: isSelect("locationConstant") ? "#000" : "#666",
+                    color: isSelect("locationConstant")
+                      ? "var(--fortune-text)"
+                      : "var(--fortune-text-subtle)",
                   }}
                 >
                   {(findAndReplace as any)[v]}
@@ -233,7 +235,9 @@ export const LocationCondition: React.FC<{}> = () => {
                 <label
                   htmlFor={v}
                   style={{
-                    color: isSelect("locationFormula") ? "#000" : "#666",
+                    color: isSelect("locationFormula")
+                      ? "var(--fortune-text)"
+                      : "var(--fortune-text-subtle)",
                   }}
                 >
                   {(findAndReplace as any)[v]}
