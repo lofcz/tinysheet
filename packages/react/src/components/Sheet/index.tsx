@@ -50,6 +50,8 @@ const OVERLAY_ONLY_KEYS = new Set<string>([
   "formulaRangeSelect",
   "functionCandidates",
   "functionHint",
+  "functionCandidateIndex",
+  "functionHintArgIndex",
   "luckysheet_copy_save",
   "luckysheet_paste_iscut",
   "filterOptions",
