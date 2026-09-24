@@ -563,6 +563,7 @@ export function cancelNormalSelected(ctx: Context) {
   ctx.luckysheetCellUpdate = [];
   ctx.formulaRangeHighlight = [];
   ctx.functionHint = null;
+  ctx.functionCandidates = [];
   // $("#fortune-formula-functionrange .fortune-formula-functionrange-highlight").remove();
   // $("#luckysheet-input-box").removeAttr("style");
   // $("#luckysheet-input-box-index").hide();

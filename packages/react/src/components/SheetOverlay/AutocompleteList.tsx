@@ -1,230 +1,209 @@
-import React, {
-  useContext,
-  useEffect,
-  useState,
-  useRef,
-  useCallback,
-} from "react";
+import React, { useContext, useEffect, useState, useRef } from "react";
 import {
+  collectColumnValues,
   getFlowdata,
-  setCellValue,
-  jfrefreshgrid,
   getSheetIndex,
+  matchColumnValues,
+  setCaretOffset,
+  updateCell,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 
+/**
+ * Excel-style AutoComplete for plain values: while typing text into a cell,
+ * offers the values of the contiguous block of cells above/below in the same
+ * column that start with the typed text (case-insensitive).
+ *
+ * - column values are collected once per edit session;
+ * - nothing is offered for formulas, numbers or cells with data validation;
+ * - with a single match it is preselected and Enter/Tab accept it (like
+ *   Excel's inline completion); with several, Up/Down pick one;
+ * - Esc closes the list and keeps editing.
+ */
 const AutocompleteList: React.FC = () => {
-  const { context, setContext } = useContext(WorkbookContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [typed, setTyped] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
+  const cacheRef = useRef<{ key: string; values: string[] } | null>(null);
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const stateRef = useRef({ suggestions, activeIndex });
+  stateRef.current = { suggestions, activeIndex };
 
-  // Get unique values from current column
-  const getColumnValues = useCallback((): string[] => {
-    const flowdata = getFlowdata(context);
-    if (!flowdata) return [];
+  const [editRow, editCol] = context.luckysheetCellUpdate;
+  const editing = context.luckysheetCellUpdate.length > 0;
 
-    const selection = context.luckysheet_select_save?.[0];
-    if (!selection) return [];
-
-    const col_index = selection.column_focus;
-    if (col_index == null) return [];
-
-    const values = new Set<string>();
-
-    // Collect all non-empty values from the column
-    for (let r = 0; r < flowdata.length; r += 1) {
-      const cell = flowdata[r]?.[col_index];
-      if (cell && cell.v != null && cell.v !== "") {
-        const value = String(cell.v).trim();
-        if (value) {
-          values.add(value);
-        }
-      }
-    }
-
-    return Array.from(values).sort();
-  }, [context]);
-
-  // Select suggestion function
-  const selectSuggestion = useCallback(
-    (value: string) => {
-      setContext((ctx) => {
-        const selection = ctx.luckysheet_select_save?.[0];
-        if (!selection) return;
-
-        const row_index = selection.row_focus ?? selection.row[0];
-        const col_index = selection.column_focus ?? selection.column[0];
-
-        if (row_index == null || col_index == null) return;
-
-        const flowdata = getFlowdata(ctx);
-        if (!flowdata) return;
-
-        // Set cell value
-        setCellValue(ctx, row_index, col_index, flowdata, value);
-
-        // Refresh grid
-        jfrefreshgrid(ctx, null, undefined);
-
-        // Close autocomplete and exit edit mode
-        ctx.luckysheetCellUpdate = [];
-      });
-
-      setSuggestions([]);
-    },
-    [setContext]
-  );
-
-  // Monitor cell input changes
+  // a new edit session starts with a fresh cache and no list
   useEffect(() => {
-    const input = document.getElementById("luckysheet-rich-text-editor");
+    cacheRef.current = null;
+    setSuggestions([]);
+    setActiveIndex(-1);
+  }, [editing, editRow, editCol, context.currentSheetId]);
+
+  useEffect(() => {
+    const input = refs.cellInput.current;
     if (!input) return undefined;
 
-    const observer = new MutationObserver(() => {
-      // Check if current cell has data verification
-      const selection = context.luckysheet_select_save?.[0];
-      if (selection) {
-        const row_index = selection.row_focus ?? selection.row[0];
-        const col_index = selection.column_focus ?? selection.column[0];
+    const close = () => {
+      if (stateRef.current.suggestions.length > 0) setSuggestions([]);
+    };
 
-        if (row_index != null && col_index != null) {
-          const sheetIndex = getSheetIndex(context, context.currentSheetId);
-          if (sheetIndex != null) {
-            const { dataVerification } = context.luckysheetfile[sheetIndex];
-            if (
-              dataVerification &&
-              dataVerification[`${row_index}_${col_index}`]
-            ) {
-              // Don't show autocomplete for cells with data verification
-              setSuggestions([]);
-              return;
-            }
-          }
-        }
+    const onInput = () => {
+      const ctx = contextRef.current;
+      const [r, c] = ctx.luckysheetCellUpdate;
+      if (r == null || c == null) {
+        close();
+        return;
       }
+      const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
+      const dv =
+        sheetIndex != null
+          ? ctx.luckysheetfile[sheetIndex]?.dataVerification
+          : null;
+      // cells with data validation have their own dropdown
+      if (dv?.[`${r}_${c}`]) {
+        close();
+        return;
+      }
+      let text = input.innerText || "";
+      if (text.endsWith("\n")) text = text.slice(0, -1);
+      if (!text || text.startsWith("=") || text.includes("\n")) {
+        close();
+        return;
+      }
+      const key = `${ctx.currentSheetId}_${r}_${c}`;
+      if (cacheRef.current?.key !== key) {
+        const flowdata = getFlowdata(ctx);
+        cacheRef.current = {
+          key,
+          values: flowdata ? collectColumnValues(flowdata, r, c) : [],
+        };
+      }
+      const matches = matchColumnValues(cacheRef.current.values, text);
+      setTyped(text);
+      setSuggestions(matches);
+      setActiveIndex(matches.length === 1 ? 0 : -1);
+    };
 
-      const text = input.textContent || "";
-
-      if (text.trim()) {
-        const columnValues = getColumnValues();
-        const filtered = columnValues.filter(
-          (value) =>
-            value.toLowerCase().startsWith(text.toLowerCase()) &&
-            value.toLowerCase() !== text.toLowerCase() && // Don't show if exact match
-            !/^\d/.test(value) // Don't show if value starts with a number
-        );
-        setSuggestions(filtered);
-        setActiveIndex(0);
-      } else {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const { suggestions: list, activeIndex: idx } = stateRef.current;
+      if (list.length === 0) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        const delta = e.key === "ArrowDown" ? 1 : -1;
+        setActiveIndex((prev) => {
+          if (prev < 0) return delta > 0 ? 0 : list.length - 1;
+          return (prev + delta + list.length) % list.length;
+        });
+        e.preventDefault();
+        e.stopPropagation();
+      } else if (
+        (e.key === "Enter" || e.key === "Tab") &&
+        !e.altKey &&
+        !e.metaKey
+      ) {
+        // put the accepted value in the editor and let the normal
+        // Enter/Tab handling commit it
+        if (idx >= 0 && list[idx]) input.textContent = list[idx];
         setSuggestions([]);
-      }
-    });
-
-    observer.observe(input, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getColumnValues]);
-
-  // Handle keyboard navigation
-  useEffect(() => {
-    if (suggestions.length === 0) return undefined;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setActiveIndex((prev) => (prev + 1) % suggestions.length);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setActiveIndex((prev) =>
-          prev === 0 ? suggestions.length - 1 : prev - 1
-        );
-      } else if (e.key === "Tab" || e.key === "Enter") {
-        if (suggestions.length > 0) {
-          e.preventDefault();
-          selectSuggestion(suggestions[activeIndex]);
-        }
       } else if (e.key === "Escape") {
         setSuggestions([]);
+        e.preventDefault();
+        e.stopPropagation();
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown, true);
-    return () => document.removeEventListener("keydown", handleKeyDown, true);
-  }, [suggestions, activeIndex, selectSuggestion]);
+    input.addEventListener("input", onInput);
+    input.addEventListener("keydown", onKeyDown);
+    return () => {
+      input.removeEventListener("input", onInput);
+      input.removeEventListener("keydown", onKeyDown);
+    };
+  }, [refs.cellInput]);
 
-  // Scroll active item into view
+  // keep the highlighted item visible without scrolling the sheet
   useEffect(() => {
-    if (listRef.current) {
-      const activeItem = listRef.current.querySelector(
-        `[data-index="${activeIndex}"]`
-      ) as HTMLElement;
-      if (activeItem) {
-        activeItem.scrollIntoView({ block: "nearest" });
-      }
-    }
+    const list = listRef.current;
+    const el = list?.children[activeIndex] as HTMLElement | undefined;
+    if (!list || !el) return;
+    if (el.offsetTop < list.scrollTop) list.scrollTop = el.offsetTop;
+    else if (
+      el.offsetTop + el.offsetHeight >
+      list.scrollTop + list.clientHeight
+    )
+      list.scrollTop = el.offsetTop + el.offsetHeight - list.clientHeight;
   }, [activeIndex]);
 
-  if (suggestions.length === 0) return null;
+  if (!editing || suggestions.length === 0) return null;
 
-  const selection = context.luckysheet_select_save?.[0];
-  if (!selection) return null;
+  const selectSuggestion = (value: string) => {
+    const input = refs.cellInput.current;
+    if (!input) return;
+    input.textContent = value;
+    setCaretOffset(input, value.length);
+    setSuggestions([]);
+    setContext((ctx) => {
+      const [r, c] = ctx.luckysheetCellUpdate;
+      if (r == null || c == null) return;
+      updateCell(ctx, r, c, input);
+      ctx.luckysheet_select_save = [
+        { row: [r, r], column: [c, c], row_focus: r, column_focus: c },
+      ];
+    });
+  };
 
-  const col_index = selection.column_focus;
-  if (col_index == null) return null;
-
-  const row_index = selection.row_focus ?? selection.row[0];
-  if (row_index == null) return null;
-
-  // Don't show autocomplete if cell has data verification
-  const sheetIndex = getSheetIndex(context, context.currentSheetId);
-  if (sheetIndex != null) {
-    const { dataVerification } = context.luckysheetfile[sheetIndex];
-    if (dataVerification && dataVerification[`${row_index}_${col_index}`]) {
-      return null;
-    }
-  }
-
-  const col = context.visibledatacolumn[col_index];
-  const col_pre =
-    col_index === 0 ? 0 : context.visibledatacolumn[col_index - 1];
-  const row = context.visibledatarow[row_index];
+  const col = context.visibledatacolumn[editCol];
+  const colPre = editCol === 0 ? 0 : context.visibledatacolumn[editCol - 1];
+  const row = context.visibledatarow[editRow];
+  if (col == null || row == null) return null;
 
   return (
     <div
       ref={listRef}
+      className="fortune-autocomplete-list"
+      role="listbox"
+      onMouseDown={(e) => {
+        // keep focus in the cell editor
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       style={{
         position: "absolute",
-        left: col_pre,
+        left: colPre,
         top: row,
-        width: col - col_pre,
+        minWidth: Math.max(col - colPre, 120),
         maxHeight: 200,
         overflowY: "auto",
-        backgroundColor: "white",
-        border: "1px solid #ccc",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+        backgroundColor: "var(--fortune-bg-elevated)",
+        color: "var(--fortune-text)",
+        border: "1px solid var(--fortune-border)",
+        borderRadius: "var(--fortune-radius-sm)",
+        boxShadow: "var(--fortune-shadow)",
         zIndex: 1001,
+        fontSize: 13,
       }}
     >
       {suggestions.map((suggestion, index) => (
         <div
           key={suggestion}
           data-index={index}
+          role="option"
+          aria-selected={index === activeIndex}
           onClick={() => selectSuggestion(suggestion)}
           style={{
             padding: "4px 8px",
             cursor: "pointer",
-            backgroundColor: index === activeIndex ? "#e6f7ff" : "white",
-            borderBottom: "1px solid #f0f0f0",
+            whiteSpace: "nowrap",
+            backgroundColor:
+              index === activeIndex
+                ? "var(--fortune-accent-soft)"
+                : "transparent",
           }}
           onMouseEnter={() => setActiveIndex(index)}
         >
-          {suggestion}
+          <b>{suggestion.slice(0, typed.length)}</b>
+          {suggestion.slice(typed.length)}
         </div>
       ))}
     </div>

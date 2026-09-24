@@ -8,6 +8,8 @@ import {
   GlobalCache,
   Sheet as SheetType,
   handleGlobalKeyDown,
+  getRowColShortcutOp,
+  applyRowColShortcutOp,
   getSheetIndex,
   handlePaste,
   filterPatch,
@@ -660,6 +662,22 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           e.preventDefault();
           return;
         }
+        // Ctrl+- / Ctrl++ on whole rows/columns: run as a row/column op so
+        // undo and collaboration see it
+        const rowColOp = getRowColShortcutOp(
+          context,
+          nativeEvent,
+          cellInput.current,
+          fxInput.current
+        );
+        if (rowColOp) {
+          e.preventDefault();
+          e.stopPropagation();
+          setContextWithProduce((draftCtx) => {
+            applyRowColShortcutOp(draftCtx, rowColOp);
+          }, rowColOp);
+          return;
+        }
         setContextWithProduce((draftCtx) => {
           handleGlobalKeyDown(
             draftCtx,
@@ -673,7 +691,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           );
         });
       },
-      [handleRedo, handleUndo, setContextWithProduce]
+      [context, handleRedo, handleUndo, setContextWithProduce]
     );
 
     const onPaste = useCallback(

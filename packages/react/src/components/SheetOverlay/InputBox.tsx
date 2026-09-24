@@ -15,7 +15,6 @@ import {
   israngeseleciton,
   escapeHTMLTag,
   isAllowEdit,
-  getrangeseleciton,
   updateCell,
 } from "@lofcz/tinysheet-core";
 import React, {
@@ -33,6 +32,7 @@ import ContentEditable from "./ContentEditable";
 import FormulaSearch from "./FormulaSearch";
 import FormulaHint from "./FormulaHint";
 import usePrevious from "../../hooks/usePrevious";
+import { useFormulaEditorKeys } from "./FormulaSearch/useFormulaEditorKeys";
 
 const InputBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -139,84 +139,9 @@ const InputBox: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.luckysheet_select_save]);
 
-  const getActiveFormula = useCallback(
-    () => document.querySelector(".luckysheet-formula-search-item-active"),
-    []
-  );
-
-  const clearSearchItemActiveClass = useCallback(() => {
-    const activeFormula = getActiveFormula();
-    if (activeFormula) {
-      activeFormula.classList.remove("luckysheet-formula-search-item-active");
-    }
-  }, [getActiveFormula]);
-
-  const selectActiveFormula = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      const activeFormula = getActiveFormula();
-      const formulaNameDiv = activeFormula?.querySelector(
-        ".luckysheet-formula-search-func"
-      );
-      if (formulaNameDiv) {
-        const formulaName = formulaNameDiv.textContent;
-        const textEditor = document.getElementById(
-          "luckysheet-rich-text-editor"
-        );
-        if (textEditor) {
-          // text for which suggestions have been listed
-          const searchTxt = getrangeseleciton()?.textContent || "";
-          const deleteCount = searchTxt.length;
-          textEditor.focus();
-
-          const selection = window.getSelection();
-          if (selection?.rangeCount === 0) return;
-
-          const range = selection?.getRangeAt(0);
-          if (deleteCount !== 0 && range) {
-            const startOffset = Math.max(range.startOffset - deleteCount, 0);
-            const endOffset = range.startOffset;
-
-            // remove searchTxt
-            range.setStart(range.startContainer, startOffset);
-            range.setEnd(range.startContainer, endOffset);
-            range.deleteContents();
-          }
-
-          const functionStr = `<span dir="auto" class="luckysheet-formula-text-func">${formulaName}</span>`;
-          const lParStr = `<span dir="auto" class="luckysheet-formula-text-lpar">(</span>`;
-
-          const functionNode = new DOMParser().parseFromString(
-            functionStr,
-            "text/html"
-          ).body.childNodes[0];
-
-          const lParNode = new DOMParser().parseFromString(lParStr, "text/html")
-            .body.childNodes[0];
-
-          if (range?.startContainer.parentNode) {
-            range?.setStart(range.startContainer.parentNode, 1);
-          }
-
-          range?.insertNode(lParNode);
-          range?.insertNode(functionNode);
-
-          // move the cursor to the end of the inserted text node
-          range?.collapse();
-          selection?.removeAllRanges();
-
-          if (range) selection?.addRange(range);
-
-          setContext((draftCtx) => {
-            // clear functionCandidates and set functionHint
-            draftCtx.functionCandidates = [];
-            draftCtx.functionHint = formulaName;
-          });
-        }
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    },
-    [getActiveFormula, setContext]
+  const formulaKeys = useFormulaEditorKeys(
+    useCallback(() => inputRef.current, []),
+    useCallback(() => refs.fxInput.current, [refs.fxInput])
   );
 
   const onKeyDown = useCallback(
@@ -231,6 +156,8 @@ const InputBox: React.FC = () => {
       //   return;
       // }
 
+      if (formulaKeys.onKeyDown(e)) return;
+
       if (e.key === "Escape" && context.luckysheetCellUpdate.length > 0) {
         setContext((draftCtx) => {
           cancelNormalSelected(draftCtx);
@@ -243,7 +170,7 @@ const InputBox: React.FC = () => {
           document.execCommand("insertHTML", false, "\n "); // 换行符后面的空白符是为了强制让他换行，在下一步的delete中会删掉
           document.execCommand("delete", false);
           e.stopPropagation();
-        } else selectActiveFormula(e);
+        }
       } else if (e.key === "Tab" && context.luckysheetCellUpdate.length > 0) {
         // Save current cell and move to the right cell
         setContext((draftCtx) => {
@@ -272,57 +199,11 @@ const InputBox: React.FC = () => {
         e.preventDefault();
         e.stopPropagation();
       } else if (e.key === "F4" && context.luckysheetCellUpdate.length > 0) {
-        // formula.setfreezonFuc(event);
         e.preventDefault();
       } else if (
-        e.key === "ArrowUp" &&
+        (e.key === "ArrowUp" || e.key === "ArrowDown") &&
         context.luckysheetCellUpdate.length > 0
       ) {
-        if (document.getElementById("luckysheet-formula-search-c")) {
-          const formulaSearchContainer = document.getElementById(
-            "luckysheet-formula-search-c"
-          );
-          const activeItem = formulaSearchContainer?.querySelector(
-            ".luckysheet-formula-search-item-active"
-          );
-          let previousItem = activeItem
-            ? activeItem.previousElementSibling
-            : null;
-          if (!previousItem) {
-            previousItem =
-              formulaSearchContainer?.querySelector(
-                ".luckysheet-formula-search-item:last-child"
-              ) || null;
-          }
-          clearSearchItemActiveClass();
-          if (previousItem) {
-            previousItem.classList.add("luckysheet-formula-search-item-active");
-          }
-        }
-        e.preventDefault();
-      } else if (
-        e.key === "ArrowDown" &&
-        context.luckysheetCellUpdate.length > 0
-      ) {
-        if (document.getElementById("luckysheet-formula-search-c")) {
-          const formulaSearchContainer = document.getElementById(
-            "luckysheet-formula-search-c"
-          );
-          const activeItem = formulaSearchContainer?.querySelector(
-            ".luckysheet-formula-search-item-active"
-          );
-          let nextItem = activeItem ? activeItem.nextElementSibling : null;
-          if (!nextItem) {
-            nextItem =
-              formulaSearchContainer?.querySelector(
-                ".luckysheet-formula-search-item:first-child"
-              ) || null;
-          }
-          clearSearchItemActiveClass();
-          if (nextItem) {
-            nextItem.classList.add("luckysheet-formula-search-item-active");
-          }
-        }
         e.preventDefault();
       }
       // else if (
@@ -338,12 +219,7 @@ const InputBox: React.FC = () => {
       // }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      clearSearchItemActiveClass,
-      context.luckysheetCellUpdate.length,
-      selectActiveFormula,
-      setContext,
-    ]
+    [context.luckysheetCellUpdate.length, formulaKeys, setContext]
   );
 
   const onChange = useCallback(
@@ -458,6 +334,8 @@ const InputBox: React.FC = () => {
           }}
           onChange={onChange}
           onKeyDown={onKeyDown}
+          onKeyUp={formulaKeys.onKeyUp}
+          onMouseUp={formulaKeys.onMouseUp}
           onPaste={onPaste}
           allowEdit={edit ? !isHidenRC : edit}
         />
@@ -468,6 +346,7 @@ const InputBox: React.FC = () => {
             style={{
               top: (firstSelection?.height_move || 0) + 4,
             }}
+            onSelectCandidate={formulaKeys.acceptCandidate}
           />
           <FormulaHint
             style={{

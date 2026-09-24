@@ -2,6 +2,7 @@ import formulajs from "./../../formulajs";
 import CUSTOM_FUNCTIONS from "./../../functions";
 import SUPPORTED_FORMULAS from "./../../supported-formulas";
 import { ERROR_NAME } from "./../../error";
+import { toFormulajsError } from "./../../helper/value";
 
 export const SYMBOL = SUPPORTED_FORMULAS;
 
@@ -17,6 +18,8 @@ export default function func(symbol) {
       foundFormula = true;
       result = CUSTOM_FUNCTIONS[symbol](...params);
     } else if (symbolParts.length === 1) {
+      // formulajs recognises error arguments by identity.
+      params = params.map(toFormulajsError);
       if (formulajs[symbolParts[0]]) {
         foundFormula = true;
         result = formulajs[symbolParts[0]](...params);
@@ -37,7 +40,7 @@ export default function func(symbol) {
       }
       if (nestedFormula) {
         foundFormula = true;
-        result = nestedFormula(...params);
+        result = nestedFormula(...params.map(toFormulajsError));
       }
     }
 

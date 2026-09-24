@@ -22,6 +22,7 @@ import {
   handleOverlayTouchMove,
   handleOverlayTouchStart,
   createDropCellRange,
+  autoFillToDataEnd,
   getCellRowColumn,
   getCellHyperlink,
   showLinkCard,
@@ -722,6 +723,13 @@ const SheetOverlay: React.FC = () => {
                         );
                       });
                       e.stopPropagation();
+                    }}
+                    onDoubleClick={(e) => {
+                      // fill down to the end of the adjacent data
+                      e.stopPropagation();
+                      setContext((draftContext) => {
+                        autoFillToDataEnd(draftContext);
+                      });
                     }}
                   />
                   <div className="luckysheet-cs-inner-border" />
