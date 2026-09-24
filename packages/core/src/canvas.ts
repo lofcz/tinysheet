@@ -193,7 +193,8 @@ export class Canvas {
       drawHeight
     );
 
-    renderCtx.font = defaultFont(this.sheetCtx.defaultFontSize);
+    const headerFont = defaultFont(this.sheetCtx.defaultFontSize);
+    renderCtx.font = headerFont;
     // @ts-ignore
     renderCtx.textBaseline = defaultStyle.textBaseline; // 基准线 垂直居中
     renderCtx.fillStyle = defaultStyle.fillStyle;
@@ -264,7 +265,12 @@ export class Canvas {
         // 行标题栏序列号
         renderCtx.save(); // save scale before draw text
         renderCtx.scale(this.sheetCtx.zoomRatio, this.sheetCtx.zoomRatio);
-        const textMetrics = getMeasureText(r + 1, renderCtx, this.sheetCtx);
+        const textMetrics = getMeasureText(
+          r + 1,
+          renderCtx,
+          this.sheetCtx,
+          headerFont
+        );
 
         const horizonAlignPos =
           (this.sheetCtx.rowHeaderWidth - textMetrics.width) / 2;
@@ -382,7 +388,8 @@ export class Canvas {
       this.sheetCtx.columnHeaderHeight - 1
     );
 
-    renderCtx.font = defaultFont(this.sheetCtx.defaultFontSize);
+    const headerFont = defaultFont(this.sheetCtx.defaultFontSize);
+    renderCtx.font = headerFont;
     // @ts-ignore
     renderCtx.textBaseline = defaultStyle.textBaseline; // 基准线 垂直居中
     renderCtx.fillStyle = defaultStyle.fillStyle;
@@ -456,7 +463,12 @@ export class Canvas {
         renderCtx.save(); // save scale before draw text
         renderCtx.scale(this.sheetCtx.zoomRatio, this.sheetCtx.zoomRatio);
 
-        const textMetrics = getMeasureText(abc, renderCtx, this.sheetCtx);
+        const textMetrics = getMeasureText(
+          abc,
+          renderCtx,
+          this.sheetCtx,
+          headerFont
+        );
 
         const horizonAlignPos = Math.round(
           start_c + (end_c - start_c) / 2 + offsetLeft - textMetrics.width / 2

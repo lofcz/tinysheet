@@ -263,7 +263,7 @@ export function getMeasureText(
   if (renderCtx.textBaseline === "alphabetic") {
     const descText = "gjpqy";
     const matchText = "abcdABCD";
-    const fontKey = renderCtx.font;
+    const fontKey = fontset || renderCtx.font;
     let refMetrics = baselineMetricsCache.get(fontKey);
     if (refMetrics === undefined) {
       refMetrics = [
@@ -665,7 +665,7 @@ function computeCellTextInfo(
         preShareCell = shareCell;
       }
     } else {
-      const measureText = getMeasureText(value, renderCtx, sheetCtx);
+      const measureText = getMeasureText(value, renderCtx, sheetCtx, fontset);
       const textHeight =
         measureText.actualBoundingBoxDescent +
         measureText.actualBoundingBoxAscent;
@@ -678,7 +678,12 @@ function computeCellTextInfo(
       } else {
         vArr.push(value);
       }
-      const oneWordWidth = getMeasureText(vArr[0], renderCtx, sheetCtx).width;
+      const oneWordWidth = getMeasureText(
+        vArr[0],
+        renderCtx,
+        sheetCtx,
+        fontset
+      ).width;
 
       for (let i = 0; i < vArr.length; i += 1) {
         const textW = oneWordWidth + space_width;
@@ -1113,7 +1118,7 @@ function computeCellTextInfo(
         let parsedTextHeight = 0;
         while (i <= value.length) {
           const str = value.substring(anchor, i);
-          const measureText = getMeasureText(str, renderCtx, sheetCtx);
+          const measureText = getMeasureText(str, renderCtx, sheetCtx, fontset);
           const textWidth = measureText.width;
           const textHeight =
             measureText.actualBoundingBoxAscent +
@@ -1768,7 +1773,7 @@ function computeCellTextInfo(
       //     textContent.textHeightAll = textH_all;
       // }
     } else {
-      const measureText = getMeasureText(value, renderCtx, sheetCtx);
+      const measureText = getMeasureText(value, renderCtx, sheetCtx, fontset);
       const textWidth = measureText.width;
       const textHeight =
         measureText.actualBoundingBoxDescent +
