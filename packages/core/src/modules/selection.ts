@@ -12,6 +12,7 @@ import {
 import clipboard from "./clipboard";
 import { getBorderInfoCompute } from "./border";
 import { cellFocus } from "./dataVerification";
+import { delFunctionGroup } from "./formula";
 import {
   escapeHTMLTag,
   getSheetIndex,
@@ -2099,9 +2100,15 @@ export function deleteSelectedCellText(ctx: Context): string {
             // Ensure the row exists
             if (!data[r]) data[r] = [];
 
-            // Replace the entire cell with an empty object
-            if (data[r] && data[r][c]) {
-              data[r][c] = {}; // Fully replace cell with empty object
+            // Clear the contents but keep the formatting, like Excel's Delete
+            const cell = data[r]?.[c];
+            if (cell) {
+              if (cell.f) delFunctionGroup(ctx, r, c);
+              const kept = _.omit(cell, ["v", "m", "f", "spl", "qp", "hl"]);
+              if (kept.ct?.t === "inlineStr") {
+                kept.ct = { fa: "General", t: "g" };
+              }
+              data[r][c] = kept;
             }
 
             if (hyperlinkMap && hyperlinkMap[`${r}_${c}`]) {
