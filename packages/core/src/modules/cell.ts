@@ -134,9 +134,32 @@ export function getCellValue(
   return retv;
 }
 
+// Like Excel, a General cell whose formula starts with a date/time function
+// takes that function's format, so =TODAY() shows a date, not a serial.
+const FORMULA_RESULT_FORMATS: Record<string, string> = {
+  DATE: "m/d/yyyy",
+  DATEVALUE: "m/d/yyyy",
+  TODAY: "m/d/yyyy",
+  EDATE: "m/d/yyyy",
+  EOMONTH: "m/d/yyyy",
+  WORKDAY: "m/d/yyyy",
+  "WORKDAY.INTL": "m/d/yyyy",
+  NOW: "m/d/yyyy h:mm",
+  TIME: "h:mm AM/PM",
+  TIMEVALUE: "h:mm AM/PM",
+};
+
+export function formulaResultFormat(formula: string | undefined) {
+  const name = /^=\s*([A-Za-z][A-Za-z0-9_.]*)\s*\(/.exec(formula || "")?.[1];
+  return name ? FORMULA_RESULT_FORMATS[name.toUpperCase()] : undefined;
+}
+
 /** Store a formula's computed value and its display text on the cell. */
 function setFormulaResult(cell: Cell, value: any) {
-  const fa = cell.ct?.fa || "General";
+  let fa = cell.ct?.fa || "General";
+  if (fa === "General" && isRealNum(value)) {
+    fa = formulaResultFormat(cell.f) || fa;
+  }
   if (_.isBoolean(value) || /^(true|false)$/i.test(`${value}`)) {
     cell.v = _.isBoolean(value) ? value : `${value}`.toUpperCase() === "TRUE";
     cell.m = cell.v ? "TRUE" : "FALSE";
