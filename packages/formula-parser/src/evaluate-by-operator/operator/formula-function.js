@@ -1,4 +1,5 @@
 import formulajs from "./../../formulajs";
+import CUSTOM_FUNCTIONS from "./../../functions";
 import SUPPORTED_FORMULAS from "./../../supported-formulas";
 import { ERROR_NAME } from "./../../error";
 
@@ -12,7 +13,10 @@ export default function func(symbol) {
     let foundFormula = false;
     let result;
 
-    if (symbolParts.length === 1) {
+    if (CUSTOM_FUNCTIONS[symbol]) {
+      foundFormula = true;
+      result = CUSTOM_FUNCTIONS[symbol](...params);
+    } else if (symbolParts.length === 1) {
       if (formulajs[symbolParts[0]]) {
         foundFormula = true;
         result = formulajs[symbolParts[0]](...params);

@@ -16,7 +16,7 @@
     "tsc": "tsc --noEmit",
     "lint": "eslint --cache --ext .js,.jsx,.ts,.tsx,.json ./packages",
     "postinstall": "bun run build",
-    "test": "bun run test:formula-parser",
+    "test": "bun run test:formula-parser && bun run test:jest",
     "test:formula-parser": "bun run --cwd packages/formula-parser test",
     "test:jest": "jest",
     "coverage": "bun run --cwd packages/formula-parser coverage"
