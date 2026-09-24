@@ -20,6 +20,7 @@ import {
   rowIndexToLabel,
   rowLabelToIndex,
 } from "./helper/cell";
+import { isLambda } from "./functions/lambda";
 
 export {
   SUPPORTED_FORMULAS,
@@ -41,4 +42,5 @@ export {
   columnLabelToIndex,
   rowIndexToLabel,
   rowLabelToIndex,
+  isLambda,
 };
