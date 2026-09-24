@@ -1,4 +1,5 @@
 #fortune-data-verification {
+  color: var(--fortune-text);
   min-width: 500px;
   padding: 10px 0px;
   user-select: none;
@@ -14,7 +15,7 @@
 
 #fortune-data-verification .box .box-item {
   padding: 10px;
-  border-bottom: 1px solid #e1e4e8;
+  border-bottom: 1px solid var(--fortune-border);
 }
 
 #fortune-data-verification .box .box-item .box-item-title {
@@ -26,7 +27,7 @@
 #fortune-data-verification .box .box-item .data-verification-range {
   width: 100%;
   height: 30px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--fortune-border);
 }
 
 #fortune-data-verification .box .box-item .show-box-item {
@@ -43,14 +44,14 @@
 #fortune-data-verification .box .box-item .show-box-item .check-box input {
   height: 30px;
   padding: 0 10px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--fortune-border);
   box-sizing: border-box;
 }
 
 #fortune-data-verification .input-box input {
   height: 30px;
   padding: 4px 10px 4px 10px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--fortune-border);
   box-sizing: border-box;
   margin-top: 6px;
 }
@@ -60,9 +61,12 @@
 }
 
 .data-verification-range .formulaInputFocus {
+  background: transparent;
+  color: var(--fortune-text);
+  box-shadow: none !important;
   width: calc(100% - 30px);
   height: 30px;
-  padding: 0 10px px;
+  padding: 0 10px;
   float: left;
   border: none;
   outline-style: none;
@@ -79,7 +83,7 @@
 #fortune-data-verification .box .box-item .data-verification-type-select {
   width: 100%;
   height: 30px;
-  border-color: #d4d4d4;
+  border-color: var(--fortune-border);
   outline-style: none;
 }
 
@@ -93,44 +97,26 @@
 }
 
 #fortune-data-verification .button-basic {
-  display: inline-block;
-  margin-bottom: 0;
-  font-weight: 400;
-  text-align: center;
-  vertical-align: middle;
-  touch-action: manipulation;
-  cursor: pointer;
-  white-space: nowrap;
-  padding: 4px 8px;
-  font-size: 14px;
-  line-height: 1.42857143;
-  border-radius: 2px;
-  user-select: none;
   margin-top: 10px;
 }
 
 #fortune-data-verification .button-primary {
-  background: #0188fb;
-  border: 1px solid #0188fb;
-  color: #fff;
   margin-right: 10px;
 }
 
 #fortune-data-verification .button-close {
-  color: #333;
-  background-color: #fff;
-  border: 1px solid #ccc;
   margin-right: 10px;
 }
 
 #range-dialog {
-  box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
-  background: #fff;
+  box-shadow: var(--fortune-shadow-lg);
+  background: var(--fortune-bg-elevated);
+  border-radius: var(--fortune-radius-lg);
   background-clip: padding-box;
-  border: 1px solid rgba(0, 0, 0, 0.333);
+  border: 1px solid var(--fortune-border);
   outline: 0;
   position: fixed;
-  color: #000;
+  color: var(--fortune-text);
   padding: 30px 42px;
   z-index: 100003;
   left: 50%;
@@ -140,8 +126,8 @@
 }
 
 #range-dialog .dialog-title {
-  background-color: #fff;
-  color: #000;
+  background-color: transparent;
+  color: var(--fortune-text);
   cursor: default;
   font-size: 16px;
   font-weight: normal;
@@ -152,29 +138,26 @@
 #range-dialog input {
   height: 30px;
   padding: 0 10px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--fortune-border);
   outline-style: none;
   user-select: none;
 }
 
 #range-dialog .button-primary {
-  background: #0188fb;
-  border: 1px solid #0188fb;
-  color: #fff;
   margin-right: 10px;
 }
 
 #range-dialog .button-close {
-  color: #333;
-  background-color: #fff;
-  border: 1px solid #ccc;
   margin-right: 10px;
 }
 
 #luckysheet-dataVerification-dropdown-List {
-  background-color: #fff;
-  border: 1px solid #ccc;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  background-color: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
+  border-radius: var(--fortune-radius-sm);
+  padding: var(--fortune-space-1) 0;
+  border: 1px solid var(--fortune-border);
+  box-shadow: var(--fortune-shadow);
   position: absolute;
   z-index: 10000;
   box-sizing: border-box;
@@ -192,5 +175,5 @@
 }
 
 #luckysheet-dataVerification-dropdown-List .dropdown-List-item:hover {
-  background-color: #e1e1e1;
+  background-color: var(--fortune-bg-hover);
 }

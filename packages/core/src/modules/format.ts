@@ -1,10 +1,17 @@
-import numeral from "numeral";
 import _ from "lodash";
-import { isRealNum, valueIsError, isdatetime } from "./validation";
 // @ts-ignore
 import SSF from "./ssf";
-import { CellMatrix } from "../types";
+import { Cell, CellMatrix } from "../types";
 import { getCellValue } from "./cell";
+import { parseInput, setInputMonthNames } from "./inputParse";
+
+export {
+  parseInput,
+  resolveTypedInput,
+  dateToSerial,
+  setInputMonthNames,
+} from "./inputParse";
+export type { ParsedInput, TypedCellValue } from "./inputParse";
 
 const base1904 = new Date(1900, 2, 1, 0, 0, 0);
 
@@ -24,299 +31,237 @@ export function datenum_local(v: Date, date1904?: number) {
   return (epoch - dnthresh_utc) / (24 * 60 * 60 * 1000);
 }
 
-let good_pd_date = new Date("2017-02-19T19:06:09.000Z");
-if (Number.isNaN(good_pd_date.getFullYear()))
-  good_pd_date = new Date("2/19/17");
-const good_pd = good_pd_date.getFullYear() === 2017;
-
-/* parses a date as a local date */
-function parseDate(str: string | Date, fixdate?: number) {
-  const d = new Date(str);
-  // console.log(d);
-  if (good_pd) {
-    if (!_.isNil(fixdate)) {
-      if (fixdate > 0)
-        d.setTime(d.getTime() + d.getTimezoneOffset() * 60 * 1000);
-      else if (fixdate < 0)
-        d.setTime(d.getTime() - d.getTimezoneOffset() * 60 * 1000);
-    }
-    return d;
+/**
+ * Format a value with an Excel number format code. Never throws: an invalid
+ * code falls back to the value's text.
+ */
+export function formatValue(fmt: string | null | undefined, v: any): string {
+  if (_.isNil(v)) return "";
+  try {
+    return `${SSF.format(fmt || "General", v)}`;
+  } catch (e) {
+    return `${v}`;
   }
-  if (str instanceof Date) return str;
-  if (good_pd_date.getFullYear() === 1917 && !Number.isNaN(d.getFullYear())) {
-    const s = d.getFullYear();
-    if (str.indexOf(`${s}`) > -1) return d;
-    d.setFullYear(d.getFullYear() + 100);
-    return d;
-  }
-  const n = str.match(/\d+/g) || ["2017", "2", "19", "0", "0", "0"];
-  let out = new Date(
-    +n[0],
-    +n[1] - 1,
-    +n[2],
-    +n[3] || 0,
-    +n[4] || 0,
-    +n[5] || 0
-  );
-  if (str.indexOf("Z") > -1)
-    out = new Date(out.getTime() - out.getTimezoneOffset() * 60 * 1000);
-  return out;
 }
 
-export function genarate(value: string | number | boolean) {
-  // 万 单位格式增加！！！
-  let m: string | null = null;
-  let ct: any = {};
-  let v: any = value;
-
-  if (_.isNil(value)) {
-    return null;
-  }
-
-  if (/^-?[0-9]{1,}[,][0-9]{3}(.[0-9]{1,2})?$/.test(value as string)) {
-    value = value as string;
-    // 表述金额的字符串，如：12,000.00 或者 -12,000.00
-    m = value;
-    v = Number(value.split(".")[0].replace(",", ""));
-    let fa = "#,##0";
-    if (value.split(".")[1]) {
-      fa = "#,##0.";
-      for (let i = 0; i < value.split(".")[1].length; i += 1) {
-        fa += 0;
-      }
-    }
-    ct = { fa, t: "n" };
-  } else if (value.toString().substring(0, 1) === "'") {
-    m = value.toString().substring(1);
-    ct = { fa: "@", t: "s" };
-  } else if (value.toString().toUpperCase() === "TRUE") {
-    m = "TRUE";
-    ct = { fa: "General", t: "b" };
-    v = true;
-  } else if (value.toString().toUpperCase() === "FALSE") {
-    m = "FALSE";
-    ct = { fa: "General", t: "b" };
-    v = false;
-  } else if (valueIsError(value.toString())) {
-    m = value.toString();
-    ct = { fa: "General", t: "e" };
-  } else if (
-    /^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(
-      value as string
-    )
-  ) {
-    m = value.toString();
-    ct = { fa: "@", t: "s" };
-  } else if (
-    isRealNum(value) &&
-    Math.abs(parseFloat(value as string)) > 0 &&
-    (Math.abs(parseFloat(value as string)) >= 1e11 ||
-      Math.abs(parseFloat(value as string)) < 1e-9)
-  ) {
-    v = parseFloat(value as string);
-    const str = v.toExponential();
-    if (str.indexOf(".") > -1) {
-      let strlen = str.split(".")[1].split("e")[0].length;
-      if (strlen > 5) {
-        strlen = 5;
-      }
-
-      ct = { fa: `#0.${new Array(strlen + 1).join("0")}E+00`, t: "n" };
-    } else {
-      ct = { fa: "#0.E+00", t: "n" };
-    }
-
-    m = SSF.format(ct.fa, v);
-  } else if (value.toString().indexOf("%") > -1) {
-    const index = value.toString().indexOf("%");
-    const value2 = value.toString().substring(0, index);
-    const value3 = value2.replace(/,/g, "");
-
-    if (index === value.toString().length - 1 && isRealNum(value3)) {
-      if (value2.indexOf(".") > -1) {
-        if (value2.indexOf(".") === value2.lastIndexOf(".")) {
-          const value4 = value2.split(".")[0];
-          const value5 = value2.split(".")[1];
-
-          let len = value5.length;
-          if (len > 9) {
-            len = 9;
-          }
-
-          if (value4.indexOf(",") > -1) {
-            let isThousands = true;
-            const ThousandsArr = value4.split(",");
-
-            for (let i = 1; i < ThousandsArr.length; i += 1) {
-              if (ThousandsArr[i].length < 3) {
-                isThousands = false;
-                break;
-              }
-            }
-
-            if (isThousands) {
-              ct = {
-                fa: `#,##0.${new Array(len + 1).join("0")}%`,
-                t: "n",
-              };
-              v = numeral(value).value();
-              m = SSF.format(ct.fa, v);
-            } else {
-              m = value.toString();
-              ct = { fa: "@", t: "s" };
-            }
-          } else {
-            ct = { fa: `0.${new Array(len + 1).join("0")}%`, t: "n" };
-            v = numeral(value).value();
-            m = SSF.format(ct.fa, v);
-          }
-        } else {
-          m = value.toString();
-          ct = { fa: "@", t: "s" };
-        }
-      } else if (value2.indexOf(",") > -1) {
-        let isThousands = true;
-        const ThousandsArr = value2.split(",");
-
-        for (let i = 1; i < ThousandsArr.length; i += 1) {
-          if (ThousandsArr[i].length < 3) {
-            isThousands = false;
-            break;
-          }
-        }
-
-        if (isThousands) {
-          ct = { fa: "#,##0%", t: "n" };
-          v = numeral(value).value();
-          m = SSF.format(ct.fa, v);
-        } else {
-          m = value.toString();
-          ct = { fa: "@", t: "s" };
-        }
-      } else {
-        ct = { fa: "0%", t: "n" };
-        v = numeral(value).value();
-        m = SSF.format(ct.fa, v);
-      }
-    } else {
-      m = value.toString();
-      ct = { fa: "@", t: "s" };
-    }
-  } else if (value.toString().indexOf(".") > -1) {
-    if (value.toString().indexOf(".") === value.toString().lastIndexOf(".")) {
-      const value1 = value.toString().split(".")[0];
-      const value2 = value.toString().split(".")[1];
-
-      let len = value2.length;
-      if (len > 9) {
-        len = 9;
-      }
-
-      if (value1.indexOf(",") > -1) {
-        let isThousands = true;
-        const ThousandsArr = value1.split(",");
-
-        for (let i = 1; i < ThousandsArr.length; i += 1) {
-          if (!isRealNum(ThousandsArr[i]) || ThousandsArr[i].length < 3) {
-            isThousands = false;
-            break;
-          }
-        }
-
-        if (isThousands) {
-          ct = { fa: `#,##0.${new Array(len + 1).join("0")}`, t: "n" };
-          v = numeral(value).value();
-          m = SSF.format(ct.fa, v);
-        } else {
-          m = value.toString();
-          ct = { fa: "@", t: "s" };
-        }
-      } else {
-        if (isRealNum(value1) && isRealNum(value2)) {
-          ct = { fa: `0.${new Array(len + 1).join("0")}`, t: "n" };
-          v = numeral(value).value();
-          m = SSF.format(ct.fa, v);
-        } else {
-          m = value.toString();
-          ct = { fa: "@", t: "s" };
-        }
-      }
-    } else {
-      m = value.toString();
-      ct = { fa: "@", t: "s" };
-    }
-  } else if (isRealNum(value)) {
-    m = parseFloat(value as string).toString();
-    ct = { fa: "General", t: "n" };
-    v = parseFloat(value as string);
-  } else if (
-    isdatetime(value, "24") &&
-    (value.toString().indexOf(".") > -1 ||
-      value.toString().indexOf(":") > -1 ||
-      value.toString().length < 16)
-  ) {
-    v = datenum_local(parseDate(value.toString().replace(/-/g, "/")));
-
-    if (v.toString().indexOf(".") > -1) {
-      if (value.toString().length > 18) {
-        ct.fa = "yyyy-MM-dd hh:mm:ss";
-      } else if (value.toString().length > 11) {
-        ct.fa = "yyyy-MM-dd hh:mm";
-      } else {
-        ct.fa = "yyyy-MM-dd";
-      }
-    } else {
-      ct.fa = "yyyy-MM-dd";
-    }
-
-    ct.t = "d";
-    m = SSF.format(ct.fa, v);
-  } else if (
-    isdatetime(value, "12") &&
-    (value.toString().indexOf(".") > -1 ||
-      value.toString().indexOf(":") > -1 ||
-      value.toString().length < 20)
-  ) {
-    v = datenum_local(
-      parseDate(
-        value
-          .toString()
-          .replace(/-/g, "/")
-          .replace(/(AM|PM)/gi, " $1")
-          .replace(/  +/g, " ")
-      )
-    );
-
-    if (v.toString().indexOf(".") > -1) {
-      if (value.toString().length > 20) {
-        ct.fa = "yyyy-MM-dd hh:mm:ss AM/PM";
-      } else if (value.toString().length > 13) {
-        ct.fa = "yyyy-MM-dd hh:mm AM/PM";
-      } else {
-        ct.fa = "yyyy-MM-dd";
-      }
-    } else {
-      ct.fa = "yyyy-MM-dd";
-    }
-
-    ct.t = "d";
-    m = SSF.format(ct.fa, v);
-  } else {
-    m = value as string;
-    ct.fa = "General";
-    ct.t = "g";
-  }
-
-  return [m, ct, v];
+/**
+ * Excel's General format for a column wide enough: at most 11 characters,
+ * scientific notation for very large/small numbers, and no float noise
+ * (0.1 + 0.2 shows 0.3).
+ */
+export function formatGeneral(v: any): string {
+  return formatValue("General", v);
 }
 
+/** Apply a format code (kept for backwards compatibility). */
 export function update(fmt: string, v: any) {
-  return SSF.format(fmt, v);
+  try {
+    return SSF.format(fmt, v);
+  } catch (e) {
+    return v;
+  }
 }
 
 export function is_date(fmt: string, v?: any) {
   return SSF.is_date(fmt, v);
 }
+
+/**
+ * Number format implied by how a plain number is displayed in General, used
+ * by callers that need an explicit decimal count (e.g. increase/decrease
+ * decimal). 1.25 → "0.00", 7 → "General".
+ */
+function impliedDecimalFormat(display: string) {
+  const m = /^-?\d+\.(\d+)$/.exec(display);
+  if (!m) return "General";
+  return `0.${"0".repeat(Math.min(m[1].length, 9))}`;
+}
+
+/**
+ * Turn a raw value (typed text, pasted text or a number) into
+ * `[m, ct, v]`: display text, cell type/format and stored value.
+ *
+ * Recognition follows Excel (see inputParse.ts). Plain decimals keep the
+ * number of decimals they were written with (fa "0.00" for "1.50"), which
+ * callers such as paste and autofill rely on to preserve what was shown.
+ */
+export function genarate(
+  value: string | number | boolean
+): [string, { fa: string; t: string }, any] | null {
+  if (_.isNil(value)) {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    const m = formatGeneral(value);
+    return [m, { fa: impliedDecimalFormat(m), t: "n" }, value];
+  }
+
+  const str = value.toString();
+  if (str.substring(0, 1) === "'") {
+    const text = str.substring(1);
+    return [text, { fa: "@", t: "s" }, text];
+  }
+
+  const parsed = parseInput(value);
+  switch (parsed.type) {
+    case "boolean":
+      return [parsed.v ? "TRUE" : "FALSE", { fa: "General", t: "b" }, parsed.v];
+    case "error":
+      return [parsed.v, { fa: "General", t: "e" }, parsed.v];
+    case "text":
+      return [str, { fa: "General", t: "g" }, str];
+    case "date":
+      return [
+        formatValue(parsed.fa, parsed.v),
+        { fa: parsed.fa, t: "d" },
+        parsed.v,
+      ];
+    default: {
+      let { fa } = parsed;
+      const plainDecimal = /^\s*[+-]?\d*\.(\d+)\s*$/.exec(str);
+      if (fa === "General" && plainDecimal) {
+        fa = `0.${"0".repeat(Math.min(plainDecimal[1].length, 9))}`;
+      }
+      return [formatValue(fa, parsed.v), { fa, t: "n" }, parsed.v];
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Format colours ([Red], [Color10], ...)                              */
+/* ------------------------------------------------------------------ */
+
+const NAMED_COLORS: Record<string, string> = {
+  black: "#000000",
+  blue: "#0000FF",
+  cyan: "#00FFFF",
+  green: "#00FF00",
+  magenta: "#FF00FF",
+  red: "#FF0000",
+  white: "#FFFFFF",
+  yellow: "#FFFF00",
+};
+
+/** Excel's default 56-colour palette, used by [ColorN]. */
+const COLOR_PALETTE = [
+  "#000000",
+  "#FFFFFF",
+  "#FF0000",
+  "#00FF00",
+  "#0000FF",
+  "#FFFF00",
+  "#FF00FF",
+  "#00FFFF",
+  "#800000",
+  "#008000",
+  "#000080",
+  "#808000",
+  "#800080",
+  "#008080",
+  "#C0C0C0",
+  "#808080",
+  "#9999FF",
+  "#993366",
+  "#FFFFCC",
+  "#CCFFFF",
+  "#660066",
+  "#FF8080",
+  "#0066CC",
+  "#CCCCFF",
+  "#000080",
+  "#FF00FF",
+  "#FFFF00",
+  "#00FFFF",
+  "#800080",
+  "#800000",
+  "#008080",
+  "#0000FF",
+  "#00CCFF",
+  "#CCFFFF",
+  "#CCFFCC",
+  "#FFFF99",
+  "#99CCFF",
+  "#FF99CC",
+  "#CC99FF",
+  "#FFCC99",
+  "#3366FF",
+  "#33CCCC",
+  "#99CC00",
+  "#FFCC00",
+  "#FF9900",
+  "#FF6600",
+  "#666699",
+  "#969696",
+  "#003366",
+  "#339966",
+  "#003300",
+  "#333300",
+  "#993300",
+  "#993366",
+  "#333399",
+  "#333333",
+];
+
+const COLOR_RE =
+  /\[(black|blue|cyan|green|magenta|red|white|yellow|color\s*(\d{1,2}))\]/i;
+
+/**
+ * The font colour a number format assigns to a value, e.g. "#FF0000" for
+ * -5 with "0.00;[Red]-0.00", or null when the chosen section has none.
+ */
+export function getFormatColor(
+  fmt: string | null | undefined,
+  v: any
+): string | null {
+  if (!fmt || fmt.indexOf("[") === -1 || _.isNil(v) || v === "") return null;
+  let section: string;
+  try {
+    [, section] = SSF._choose(fmt, typeof v === "boolean" ? `${v}` : v);
+  } catch (e) {
+    return null;
+  }
+  if (!section) return null;
+  // Ignore brackets inside quoted literals.
+  const m = COLOR_RE.exec(section.replace(/"[^"]*"/g, ""));
+  if (!m) return null;
+  if (m[2] !== undefined) {
+    return COLOR_PALETTE[parseInt(m[2], 10) - 1] || null;
+  }
+  return NAMED_COLORS[m[1].toLowerCase()];
+}
+
+/** Format colour for a cell's current value (see getFormatColor). */
+export function getCellFormatColor(cell: Cell | null | undefined) {
+  const ct = cell?.ct;
+  if (!ct?.fa || ct.t === "inlineStr") return null;
+  return getFormatColor(ct.fa, cell?.v);
+}
+
+/**
+ * Localise month and weekday names used by date formats (mmm, mmmm, ddd,
+ * dddd) and recognised in typed dates. Pass English names to reset.
+ */
+export function setFormatLocale(names: {
+  /** 12 entries of [short, long], e.g. ["janv.", "janvier"]. */
+  months?: [string, string][];
+  /** 7 entries (Sunday first) of [short, long]. */
+  days?: [string, string][];
+}) {
+  SSF.set_names({
+    months: names.months?.map(([short, long]) => [
+      long.charAt(0).toUpperCase(),
+      short,
+      long,
+    ]),
+    days: names.days,
+  });
+  setInputMonthNames(names.months);
+}
+
+/* ------------------------------------------------------------------ */
+/* Value shown while editing a cell                                    */
+/* ------------------------------------------------------------------ */
 
 function fuzzynum(s: string | number) {
   let v = Number(s);
@@ -327,7 +272,7 @@ function fuzzynum(s: string | number) {
   let wt = 1;
   let ss = s
     .replace(/([\d]),([\d])/g, "$1$2")
-    .replace(/[$]/g, "")
+    .replace(/[$€£¥]/g, "")
     .replace(/[%]/g, () => {
       wt *= 100;
       return "";
@@ -340,6 +285,14 @@ function fuzzynum(s: string | number) {
   });
   v = Number(ss);
   if (!Number.isNaN(v)) return v / wt;
+  return v;
+}
+
+/** Excel shows at most 15 significant digits in the formula bar. */
+function editNumber(v: any) {
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return Number(v.toPrecision(15));
+  }
   return v;
 }
 
@@ -361,5 +314,5 @@ export function valueShowEs(r: number, c: number, d: CellMatrix) {
       value = getCellValue(r, c, d, "v");
     }
   }
-  return value;
+  return editNumber(value);
 }

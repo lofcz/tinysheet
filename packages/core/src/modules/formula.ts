@@ -33,6 +33,18 @@ import {
   setFormulaCellInfo,
   getFormulaRunList,
 } from "./formulaHelper";
+import { registerFormatFunctions } from "./formatFunctions";
+import {
+  applySpillRefreshItem,
+  beforeRecalculation,
+  finishFormulaEvaluation,
+  getFormulaDependencies,
+  isVolatileFormula,
+  onFormulaRemoved,
+  prepareFormulaEvaluation,
+  runSpillPropagation,
+  takeSpillChanges,
+} from "./formulaFunctions";
 
 let functionHTMLIndex = 0;
 let rangeIndexes: number[] = [];
@@ -121,6 +133,7 @@ export class FormulaCache {
     this.formulaCellInfoMap = null;
     this.cellTextToIndexList = {};
     this.parser = new Parser();
+    registerFormatFunctions(this.parser);
     this.parser.on(
       "callCellValue",
       (cellCoord: any, options: any, done: any) => {
@@ -897,6 +910,9 @@ export function delFunctionGroup(
     id = ctx.currentSheetId;
   }
 
+  // Clear the cells spilled by this formula / detach an overwritten spill cell.
+  onFormulaRemoved(ctx, r, c, id);
+
   const file = ctx.luckysheetfile[getSheetIndex(ctx, id)!];
 
   const { calcChain } = file;
@@ -1075,7 +1091,10 @@ export function execfunction(
   ctx.calculateSheetId = id;
 
   ctx.formulaCache.parser.context = ctx;
-  const parsedResponse = ctx.formulaCache.parser.parse(txt.substring(1), {
+  // Reference-taking functions (ROW, OFFSET, ...) get their reference
+  // arguments rewritten to markers; see formulaFunctions.ts.
+  const expression = prepareFormulaEvaluation(ctx, txt, r, c, id, isrefresh);
+  const parsedResponse = ctx.formulaCache.parser.parse(expression, {
     sheetId: id || ctx.currentSheetId,
   });
 
@@ -1091,16 +1110,20 @@ export function execfunction(
     result = result.toString();
   }
 
+  // Spill matrix results of formula cells into neighbouring cells.
+  const value = finishFormulaEvaluation(
+    ctx,
+    _.isNil(formulaError) ? result : formulaError,
+    r,
+    c,
+    id
+  );
+
   if (!_.isNil(r) && !_.isNil(c)) {
     if (isrefresh) {
+      // pass the formula too, so dependents see the cell as a formula cell
       // eslint-disable-next-line no-use-before-define
-      execFunctionGroup(
-        ctx,
-        r,
-        c,
-        _.isNil(formulaError) ? result : formulaError,
-        id
-      );
+      execFunctionGroup(ctx, r, c, { v: value, f: txt }, id);
     }
 
     if (!notInsertFunc) {
@@ -1124,7 +1147,7 @@ export function execfunction(
   */
 
   // console.log(result, txt);
-  return [true, _.isNil(formulaError) ? result : formulaError, txt];
+  return [true, value, txt];
 }
 
 function insertUpdateDynamicArray(ctx: Context, dynamicArrayItem: any) {
@@ -1174,6 +1197,10 @@ export function groupValuesRefresh(ctx: Context) {
       const file = luckysheetfile[idx];
       const { data } = file;
       if (_.isNil(data)) {
+        continue;
+      }
+
+      if (applySpillRefreshItem(ctx, item, data)) {
         continue;
       }
 
@@ -1249,6 +1276,11 @@ export function execFunctionGroup(
 
   // 2. Store the cells involved in the modification
   const updateValueObjects: any = {};
+  // Clear cells spilled by anchors that lost their formula.
+  beforeRecalculation(
+    ctx,
+    ctx.formulaCache.execFunctionExist ?? [{ r: origin_r, c: origin_c, id }]
+  );
   if (_.isNil(ctx.formulaCache.execFunctionExist)) {
     const key = `r${origin_r}c${origin_c}i${id}`;
     updateValueObjects[key] = 1;
@@ -1281,7 +1313,8 @@ export function execFunctionGroup(
     const formulaObject = formulaCellInfoMap[key];
     arrayMatch(
       arrayMatchCache,
-      formulaObject.formulaDependency,
+      // static references + INDIRECT/OFFSET targets + spill rectangle
+      getFormulaDependencies(ctx, formulaObject),
       formulaCellInfoMap,
       updateValueObjects,
       (childKey: string) => {
@@ -1296,7 +1329,7 @@ export function execFunctionGroup(
       }
     );
 
-    if (isForce) {
+    if (isForce || isVolatileFormula(formulaObject.calc_funcStr)) {
       updateValueArray.push(formulaObject);
     }
   });
@@ -1311,6 +1344,15 @@ export function execFunctionGroup(
   executeAffectedFormulas(ctx, formulaRunList, calcChains);
 
   ctx.formulaCache.execFunctionExist = undefined;
+
+  // 7. recalculate formulas that read cells whose spilled value changed
+  const spillChanges = takeSpillChanges(ctx);
+  if (spillChanges) {
+    runSpillPropagation(ctx, () => {
+      ctx.formulaCache.execFunctionExist = spillChanges;
+      execFunctionGroup(ctx, null as any, null as any, null, id, data);
+    });
+  }
 }
 
 function findrangeindex(ctx: Context, v: string, vp: string) {

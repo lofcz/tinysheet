@@ -3,6 +3,7 @@ import React, { useContext } from "react";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import "./index.css";
+import { activateOnKey } from "../Toolbar/Button";
 
 type Props = {
   type?: "ok" | "yesno";
@@ -24,14 +25,18 @@ const Dialog: React.FC<Props> = ({
   const { context } = useContext(WorkbookContext);
   const { button } = locale(context);
   return (
-    <div className="fortune-dialog" style={containerStyle}>
+    <div className="fortune-dialog" style={containerStyle} role="dialog">
       <div className="fortune-modal-dialog-header">
         <div
           className="fortune-modal-dialog-icon-close"
           onClick={onCancel}
+          onKeyDown={activateOnKey}
           tabIndex={0}
+          role="button"
+          aria-label={button.close}
+          title={button.close}
         >
-          <SVGIcon name="close" style={{ padding: 7, cursor: "pointer" }} />
+          <SVGIcon name="close" />
         </div>
       </div>
       <div className="fortune-dialog-box-content" style={contentStyle}>
@@ -41,8 +46,10 @@ const Dialog: React.FC<Props> = ({
         <div className="fortune-dialog-box-button-container">
           {type === "ok" ? (
             <div
-              className="fortune-message-box-button button-default"
+              className="fortune-message-box-button button-basic button-default"
               onClick={onOk}
+              onKeyDown={activateOnKey}
+              role="button"
               tabIndex={0}
             >
               {button.confirm}
@@ -50,15 +57,19 @@ const Dialog: React.FC<Props> = ({
           ) : (
             <>
               <div
-                className="fortune-message-box-button button-primary"
+                className="fortune-message-box-button button-basic button-primary"
                 onClick={onOk}
+                onKeyDown={activateOnKey}
+                role="button"
                 tabIndex={0}
               >
                 {button.confirm}
               </div>
               <div
-                className="fortune-message-box-button button-default"
+                className="fortune-message-box-button button-basic button-default"
                 onClick={onCancel}
+                onKeyDown={activateOnKey}
+                role="button"
                 tabIndex={0}
               >
                 {button.cancel}

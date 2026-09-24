@@ -694,6 +694,7 @@ const ContextMenu: React.FC = () => {
 
   return (
     <div
+      role="menu"
       className="fortune-context-menu luckysheet-cols-menu"
       ref={containerRef}
       onContextMenu={(e) => e.stopPropagation()}
