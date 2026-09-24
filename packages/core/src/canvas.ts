@@ -13,6 +13,7 @@ import { getSheetIndex, indexToColumnChar } from "./utils";
 import { getBorderInfoComputeRange } from "./modules/border";
 import { checkCF, getComputeMap, validateCellData } from "./modules";
 import { getCanvasTheme, resolveCellTextColor } from "./theme";
+import { getCellFormatColor } from "./modules/format";
 
 export const defaultStyle = {
   fillStyle: "#000000",
@@ -2247,14 +2248,9 @@ export class Canvas {
         renderCtx.fillStyle = checksCF.textColor;
       }
 
-      // 若单元格格式为自定义数字格式（[red]） 文本颜色为红色
-      if (
-        (cell?.ct?.fa?.indexOf("[Red]") ?? -1) > -1 &&
-        cell?.ct?.t === "n" &&
-        (cell?.v as number) < 0
-      ) {
-        renderCtx.fillStyle = "#ff0000";
-      }
+      // Number-format colour ([Red], [Color10], conditional sections)
+      const fc = getCellFormatColor(cell);
+      if (fc) renderCtx.fillStyle = fc;
 
       this.cellTextRender(textInfo, renderCtx, {
         pos_x,
