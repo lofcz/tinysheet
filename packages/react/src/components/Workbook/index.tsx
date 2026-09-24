@@ -649,7 +649,12 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         }
         // Ctrl+- / Ctrl++ on whole rows/columns: run as a row/column op so
         // undo and collaboration see it
-        const rowColOp = getRowColShortcutOp(context, nativeEvent);
+        const rowColOp = getRowColShortcutOp(
+          context,
+          nativeEvent,
+          cellInput.current,
+          fxInput.current
+        );
         if (rowColOp) {
           e.preventDefault();
           e.stopPropagation();

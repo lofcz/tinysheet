@@ -450,6 +450,53 @@ describe("editing keys", () => {
   });
 });
 
+describe("focus outside the grid", () => {
+  const dispatchOn = (target, ctx, key, cellInput) => {
+    const handler = (e) =>
+      handleGlobalKeyDown(
+        ctx,
+        cellInput,
+        null,
+        e,
+        {},
+        () => {},
+        () => {}
+      );
+    target.addEventListener("keydown", handler);
+    target.dispatchEvent(
+      new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })
+    );
+    target.removeEventListener("keydown", handler);
+  };
+
+  test("keys on toolbar buttons, menus and inputs do not move the selection", () => {
+    const ctx = makeCtx(dataSheet());
+    const cellInput = document.createElement("div");
+    const button = document.createElement("div");
+    button.setAttribute("role", "button");
+    const menuItem = document.createElement("span");
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    menu.appendChild(menuItem);
+    const input = document.createElement("input");
+    [button, menu, input, cellInput].forEach((el) =>
+      document.body.appendChild(el)
+    );
+    try {
+      dispatchOn(button, ctx, "Tab", cellInput);
+      dispatchOn(menuItem, ctx, "ArrowDown", cellInput);
+      dispatchOn(input, ctx, "Enter", cellInput);
+      expect(sel(ctx).focus).toEqual([0, 0]);
+      // the cell editor itself still navigates
+      cellInput.setAttribute("contenteditable", "true");
+      dispatchOn(cellInput, ctx, "Tab", cellInput);
+      expect(sel(ctx).focus).toEqual([0, 1]);
+    } finally {
+      [button, menu, input, cellInput].forEach((el) => el.remove());
+    }
+  });
+});
+
 describe("row/column shortcuts", () => {
   test("Ctrl+- / Ctrl++ produce delete/insert ops for whole rows or columns", () => {
     const ctx = makeCtx(dataSheet());

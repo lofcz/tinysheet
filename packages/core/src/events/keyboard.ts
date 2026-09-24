@@ -70,6 +70,53 @@ const NUMBER_FORMAT_SHORTCUTS: Record<string, string> = {
   Digit6: "0.00E+00",
 };
 
+/** Controls that own their keys (toolbar buttons, menus, dialog inputs...). */
+const INTERACTIVE_SELECTOR = [
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "a[href]",
+  '[contenteditable=""]',
+  '[contenteditable="true"]',
+  ...[
+    "button",
+    "checkbox",
+    "combobox",
+    "dialog",
+    "listbox",
+    "menu",
+    "menubar",
+    "menuitem",
+    "option",
+    "radio",
+    "slider",
+    "spinbutton",
+    "tab",
+    "tablist",
+    "textbox",
+  ].map((role) => `[role="${role}"]`),
+].join(",");
+
+/**
+ * True when the key event comes from an interactive element outside the grid
+ * (anything but the cell editor and the formula bar), which must keep its
+ * own keyboard behaviour (Tab, arrows, Enter...).
+ */
+export function isKeyFromForeignControl(
+  e: KeyboardEvent,
+  cellInput?: HTMLElement | null,
+  fxInput?: HTMLElement | null
+) {
+  const { target } = e;
+  if (typeof Element === "undefined" || !(target instanceof Element))
+    return false;
+  if (cellInput && (target === cellInput || cellInput.contains(target)))
+    return false;
+  if (fxInput && (target === fxInput || fxInput.contains(target))) return false;
+  return target.closest(INTERACTIVE_SELECTOR) != null;
+}
+
 function selectionContains(
   selection: Selection[] | undefined,
   r: number,
@@ -534,9 +581,12 @@ export type RowColShortcutOp = {
  */
 export function getRowColShortcutOp(
   ctx: Context,
-  e: KeyboardEvent
+  e: KeyboardEvent,
+  cellInput?: HTMLElement | null,
+  fxInput?: HTMLElement | null
 ): RowColShortcutOp | null {
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return null;
+  if (isKeyFromForeignControl(e, cellInput, fxInput)) return null;
   if (ctx.luckysheetCellUpdate.length > 0 || !ctx.sheetFocused) return null;
   if (!_.isEmpty(ctx.contextMenu) || ctx.filterContextMenu) return null;
   const isMinus =
@@ -660,6 +710,10 @@ export function handleGlobalKeyDown(
   }
   // Ensure key events only trigger when sheet focus is ON
   if (!ctx.sheetFocused) {
+    return;
+  }
+  // Keys typed into toolbar buttons, menus or dialog controls are theirs
+  if (isKeyFromForeignControl(e, cellInput, fxInput)) {
     return;
   }
   if (kstr === "Enter") {
