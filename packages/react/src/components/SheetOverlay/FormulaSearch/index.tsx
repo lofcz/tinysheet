@@ -1,5 +1,5 @@
 import _ from "lodash";
-import React, { useContext } from "react";
+import React, { useContext, useEffect, useRef } from "react";
 import WorkbookContext from "../../../context";
 import "./index.css";
 
@@ -28,15 +28,31 @@ function highlight(name: string, matches: [number, number][] | undefined) {
 
 const FormulaSearch: React.FC<Props> = ({ onSelectCandidate, ...props }) => {
   const { context, setContext } = useContext(WorkbookContext);
-  if (_.isEmpty(context.functionCandidates)) return null;
+  const listRef = useRef<HTMLDivElement>(null);
   const activeIndex = Math.min(
     context.functionCandidateIndex ?? 0,
     context.functionCandidates.length - 1
   );
 
+  // keep the highlighted item visible without scrolling the sheet
+  useEffect(() => {
+    const list = listRef.current;
+    const el = list?.children[activeIndex] as HTMLElement | undefined;
+    if (!list || !el) return;
+    if (el.offsetTop < list.scrollTop) list.scrollTop = el.offsetTop;
+    else if (
+      el.offsetTop + el.offsetHeight >
+      list.scrollTop + list.clientHeight
+    )
+      list.scrollTop = el.offsetTop + el.offsetHeight - list.clientHeight;
+  }, [activeIndex, context.functionCandidates]);
+
+  if (_.isEmpty(context.functionCandidates)) return null;
+
   return (
     <div
       {...props}
+      ref={listRef}
       id="luckysheet-formula-search-c"
       className="luckysheet-formula-search-c"
       role="listbox"

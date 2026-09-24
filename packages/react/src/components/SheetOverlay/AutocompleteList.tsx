@@ -122,14 +122,17 @@ const AutocompleteList: React.FC = () => {
     };
   }, [refs.cellInput]);
 
-  // Scroll active item into view
+  // keep the highlighted item visible without scrolling the sheet
   useEffect(() => {
-    if (listRef.current && activeIndex >= 0) {
-      const activeItem = listRef.current.querySelector(
-        `[data-index="${activeIndex}"]`
-      ) as HTMLElement | null;
-      activeItem?.scrollIntoView?.({ block: "nearest" });
-    }
+    const list = listRef.current;
+    const el = list?.children[activeIndex] as HTMLElement | undefined;
+    if (!list || !el) return;
+    if (el.offsetTop < list.scrollTop) list.scrollTop = el.offsetTop;
+    else if (
+      el.offsetTop + el.offsetHeight >
+      list.scrollTop + list.clientHeight
+    )
+      list.scrollTop = el.offsetTop + el.offsetHeight - list.clientHeight;
   }, [activeIndex]);
 
   if (!editing || suggestions.length === 0) return null;
