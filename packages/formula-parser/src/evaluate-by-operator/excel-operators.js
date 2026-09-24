@@ -13,7 +13,7 @@
  * `evaluateByOperator` (and the callFunction fallback) unchanged.
  */
 import { compare, fail, toNumber, toText, toErrorValue } from "../helper/value";
-import { broadcast } from "../helper/array";
+import { broadcast, broadcast2 } from "../helper/array";
 
 function checkNumber(result) {
   if (isNaN(result) || !isFinite(result)) {
@@ -107,11 +107,15 @@ const LIFTED_OPERATORS = Object.create(null);
 Object.keys(SCALAR_OPERATORS).forEach((op) => {
   const fn = SCALAR_OPERATORS[op];
 
-  LIFTED_OPERATORS[op] = safe((a, b) => {
-    checkErrors(a, b);
+  LIFTED_OPERATORS[op] = (a, b) => {
+    try {
+      checkErrors(a, b);
 
-    return fn(a, b);
-  });
+      return fn(a, b);
+    } catch (ex) {
+      return toErrorValue(ex);
+    }
+  };
 });
 
 /**
@@ -129,7 +133,7 @@ export function binaryOperation(op, a, b) {
     fail("NAME");
   }
   if (Array.isArray(a) || Array.isArray(b)) {
-    return broadcast([a, b], LIFTED_OPERATORS[op]);
+    return broadcast2(a, b, LIFTED_OPERATORS[op]);
   }
   checkErrors(a, b);
 

@@ -476,6 +476,11 @@ function compareNumbers(a, b) {
   if (a === b) {
     return 0;
   }
+  // Values further apart than the 15th significant digit cannot round to the
+  // same number; skip the (slow) toPrecision round trip for them.
+  if (Math.abs(a - b) > 1e-13 * Math.max(Math.abs(a), Math.abs(b))) {
+    return a < b ? -1 : 1;
+  }
   const ra = roundSignificant(a);
   const rb = roundSignificant(b);
 

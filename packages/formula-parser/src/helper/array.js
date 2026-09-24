@@ -110,6 +110,37 @@ export function broadcast(values, fn) {
 }
 
 /**
+ * Two-input `broadcast` without the variadic overhead (operators hot path).
+ *
+ * @param {*} a
+ * @param {*} b
+ * @param {Function} fn (a, b) => result.
+ * @returns {Array<Array>}
+ */
+export function broadcast2(a, b, fn) {
+  const ma = to2D(a);
+  const mb = to2D(b);
+  const ra = ma.length;
+  const rb = mb.length;
+  const ca = columnCount(ma);
+  const cb = columnCount(mb);
+  const rows = broadcastSize([ra, rb]);
+  const cols = broadcastSize([ca, cb]);
+  const result = new Array(rows);
+
+  for (let i = 0; i < rows; i++) {
+    const row = new Array(cols);
+
+    for (let j = 0; j < cols; j++) {
+      row[j] = fn(pick(ma, ra, ca, i, j), pick(mb, rb, cb, i, j));
+    }
+    result[i] = row;
+  }
+
+  return result;
+}
+
+/**
  * Map every element of an array (normalized to 2D).
  *
  * @param {*} value
