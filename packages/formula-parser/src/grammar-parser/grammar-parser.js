@@ -1,390 +1,427 @@
-import { createToken, Lexer, EmbeddedActionsParser } from "chevrotain";
-
-const simpleSheetName = "[A-Za-z0-9_\u00C0-\u02AF]+";
-const quotedSheetName = "'(?:(?!').|'')*'";
-const sheetNameRegexp = `(?:${simpleSheetName}|${quotedSheetName})!`;
-
-const WhiteSpace = createToken({
-  name: "WhiteSpace",
-  pattern: /\s+/,
-  group: Lexer.SKIPPED,
-});
-
-const StringLiteral = createToken({
-  name: "StringLiteral",
-  pattern: /"(?:\\["]|[^"])*"|'(?:\\[']|[^'])*'/,
-});
-
-const ErrorLiteral = createToken({
-  name: "ErrorLiteral",
-  pattern: /#[A-Z0-9/]+[!?]?/,
-});
-
-const FunctionName = createToken({
-  name: "FunctionName",
-  pattern: /[A-Za-z][A-Za-z0-9_.]*(?=\()/,
-});
-
-const AbsoluteCell = createToken({
-  name: "AbsoluteCell",
-  pattern: new RegExp(`(?:${sheetNameRegexp})?\\$[A-Za-z]+\\$[0-9]+`),
-});
-
-const MixedCell = createToken({
-  name: "MixedCell",
-  pattern: new RegExp(
-    `(?:${sheetNameRegexp})?(?:\\$[A-Za-z]+[0-9]+|[A-Za-z]+\\$[0-9]+)`
-  ),
-});
-
-const RelativeCell = createToken({
-  name: "RelativeCell",
-  pattern: new RegExp(`(?:${sheetNameRegexp})?[A-Za-z]+[0-9]+`),
-});
-
-const ArrayLiteral = createToken({
-  name: "ArrayLiteral",
-  pattern: /\[[^\]]*]/,
-});
-
-const NumberLiteral = createToken({
-  name: "NumberLiteral",
-  pattern: /(?:\d+\.?\d*|\.\d+)/,
-});
-
-const Variable = createToken({
-  name: "Variable",
-  pattern: /[A-Za-z_][A-Za-z0-9_.]*/,
-});
-
-const NotOp = createToken({
-  name: "NotOp",
-  pattern: /NOT/,
-  longer_alt: Variable,
-});
-
-const OpNe = createToken({ name: "OpNe", pattern: /<>/ });
-const OpLe = createToken({ name: "OpLe", pattern: /<=/ });
-const OpGe = createToken({ name: "OpGe", pattern: />=/ });
-const OpEq = createToken({ name: "OpEq", pattern: /=/ });
-const OpLt = createToken({ name: "OpLt", pattern: /</ });
-const OpGt = createToken({ name: "OpGt", pattern: />/ });
-const OpPlus = createToken({ name: "OpPlus", pattern: /\+/ });
-const OpMinus = createToken({ name: "OpMinus", pattern: /-/ });
-const OpMul = createToken({ name: "OpMul", pattern: /\*/ });
-const OpDiv = createToken({ name: "OpDiv", pattern: /\// });
-const OpPow = createToken({ name: "OpPow", pattern: /\^/ });
-const OpConcat = createToken({ name: "OpConcat", pattern: /&/ });
-const OpPercent = createToken({ name: "OpPercent", pattern: /%/ });
-const LParen = createToken({ name: "LParen", pattern: /\(/ });
-const RParen = createToken({ name: "RParen", pattern: /\)/ });
-const Colon = createToken({ name: "Colon", pattern: /:/ });
-const Semicolon = createToken({ name: "Semicolon", pattern: /;/ });
-const Comma = createToken({ name: "Comma", pattern: /,/ });
-const Dot = createToken({ name: "Dot", pattern: /\./ });
-
-const allTokens = [
-  WhiteSpace,
-  StringLiteral,
+/**
+ * Formula grammar: Chevrotain parser producing an AST, evaluated by
+ * ./evaluator.js through the `yy` hooks.
+ *
+ * Operator precedence (lowest → highest), matching Excel:
+ *   comparison (= <> < > <= >=) → & → + - → * / → ^ → % (postfix)
+ *   → unary - + → call suffix `f(...)(...)` → intersection (space)
+ *   → reference / literal / (expression)
+ *
+ * so `-2^2` = 4, `1+2&3` = "33" and `2^3^2` = 64 (left associative).
+ *
+ * Parsed ASTs are cached per formula string (LRU), so recalculating the same
+ * formula does not lex or parse again.
+ */
+import { EmbeddedActionsParser } from "chevrotain";
+import {
+  allTokens,
+  tokenize,
+  At,
+  ArrayLiteral,
+  AdditiveOperator,
+  CellReference,
+  Colon,
+  ColumnRange,
+  Comma,
+  CompareOperator,
   ErrorLiteral,
   FunctionName,
-  AbsoluteCell,
-  MixedCell,
-  RelativeCell,
-  ArrayLiteral,
+  Intersect,
+  LCurly,
+  LParen,
+  MultiplicativeOperator,
   NumberLiteral,
-  OpNe,
-  OpLe,
-  OpGe,
-  NotOp,
-  OpEq,
-  OpLt,
-  OpGt,
-  OpPlus,
-  OpMinus,
-  OpMul,
-  OpDiv,
-  OpPow,
   OpConcat,
   OpPercent,
-  LParen,
+  OpPow,
+  RCurly,
   RParen,
-  Colon,
+  RowRange,
   Semicolon,
-  Comma,
-  Dot,
+  StringLiteral,
   Variable,
-];
-
-const FormulaLexer = new Lexer(allTokens);
+} from "./lexer";
+import * as ast from "./ast";
+import Evaluator from "./evaluator";
+import LruCache from "./lru-cache";
 
 class FormulaParser extends EmbeddedActionsParser {
   constructor() {
-    super(allTokens);
+    super(allTokens, { maxLookahead: 2 });
     const $ = this;
 
-    // jison precedence (low → high): =, rel, +−, */, ^, &, unary
-    $.RULE("expression", () => $.SUBRULE($.equality));
+    $.RULE("expression", () => $.SUBRULE($.comparison));
 
-    $.RULE("equality", () => {
-      let left = $.SUBRULE($.relational);
+    $.RULE("comparison", () => {
+      let left = $.SUBRULE($.concat);
+
       $.MANY(() => {
-        $.CONSUME(OpEq);
-        const right = $.SUBRULE2($.relational);
-        left = $.yy.evaluateByOperator("=", [left, right]);
+        const op = $.CONSUME(CompareOperator);
+        const right = $.SUBRULE2($.concat);
+
+        left = $.ACTION(() => ast.binary(op.image, left, right));
       });
+
       return left;
     });
 
-    $.RULE("relational", () => {
+    $.RULE("concat", () => {
       let left = $.SUBRULE($.additive);
+
       $.MANY(() => {
-        const op = $.OR([
-          {
-            ALT: () => {
-              $.CONSUME(OpLe);
-              return "<=";
-            },
-          },
-          {
-            ALT: () => {
-              $.CONSUME(OpGe);
-              return ">=";
-            },
-          },
-          {
-            ALT: () => {
-              $.CONSUME(OpNe);
-              return "<>";
-            },
-          },
-          {
-            ALT: () => {
-              $.CONSUME(NotOp);
-              return "NOT";
-            },
-          },
-          {
-            ALT: () => {
-              $.CONSUME(OpLt);
-              return "<";
-            },
-          },
-          {
-            ALT: () => {
-              $.CONSUME(OpGt);
-              return ">";
-            },
-          },
-        ]);
+        $.CONSUME(OpConcat);
         const right = $.SUBRULE2($.additive);
-        left = $.yy.evaluateByOperator(op, [left, right]);
+
+        left = $.ACTION(() => ast.binary("&", left, right));
       });
+
       return left;
     });
 
     $.RULE("additive", () => {
       let left = $.SUBRULE($.multiplicative);
+
       $.MANY(() => {
-        const op = $.OR([
-          {
-            ALT: () => {
-              $.CONSUME(OpPlus);
-              return "+";
-            },
-          },
-          {
-            ALT: () => {
-              $.CONSUME(OpMinus);
-              return "-";
-            },
-          },
-        ]);
+        const op = $.CONSUME(AdditiveOperator);
         const right = $.SUBRULE2($.multiplicative);
-        left = $.yy.evaluateByOperator(op, [left, right]);
+
+        left = $.ACTION(() => ast.binary(op.image, left, right));
       });
+
       return left;
     });
 
     $.RULE("multiplicative", () => {
       let left = $.SUBRULE($.power);
+
       $.MANY(() => {
-        const op = $.OR([
-          {
-            ALT: () => {
-              $.CONSUME(OpMul);
-              return "*";
-            },
-          },
-          {
-            ALT: () => {
-              $.CONSUME(OpDiv);
-              return "/";
-            },
-          },
-        ]);
+        const op = $.CONSUME(MultiplicativeOperator);
         const right = $.SUBRULE2($.power);
-        left = $.yy.evaluateByOperator(op, [left, right]);
+
+        left = $.ACTION(() => ast.binary(op.image, left, right));
       });
+
       return left;
     });
 
     $.RULE("power", () => {
-      let left = $.SUBRULE($.concat);
+      let left = $.SUBRULE($.percent);
+
       $.MANY(() => {
         $.CONSUME(OpPow);
-        const right = $.SUBRULE2($.concat);
-        left = $.yy.evaluateByOperator("^", [left, right]);
+        const right = $.SUBRULE2($.percent);
+
+        left = $.ACTION(() => ast.binary("^", left, right));
       });
+
       return left;
     });
 
-    $.RULE("concat", () => {
-      let left = $.SUBRULE($.unary);
+    $.RULE("percent", () => {
+      let value = $.SUBRULE($.unary);
+
       $.MANY(() => {
-        $.CONSUME(OpConcat);
-        const right = $.SUBRULE2($.unary);
-        left = $.yy.evaluateByOperator("&", [left, right]);
+        $.CONSUME(OpPercent);
+        value = $.ACTION(() => ast.percent(value));
       });
-      return left;
+
+      return value;
     });
 
     $.RULE("unary", () =>
       $.OR([
         {
           ALT: () => {
-            $.CONSUME(OpMinus);
+            const op = $.CONSUME(AdditiveOperator);
             const value = $.SUBRULE($.unary);
-            let n1 = $.yy.invertNumber(value);
-            if (isNaN(n1)) n1 = 0;
-            return n1;
+
+            return $.ACTION(() => ast.unary(op.image, value));
           },
         },
-        {
-          ALT: () => {
-            $.CONSUME(OpPlus);
-            let n1 = $.yy.toNumber($.SUBRULE2($.unary));
-            if (isNaN(n1)) n1 = 0;
-            return n1;
-          },
-        },
-        { ALT: () => $.SUBRULE($.primary) },
+        { ALT: () => $.SUBRULE($.intersection) },
       ])
     );
 
+    $.RULE("intersection", () => {
+      let left = $.SUBRULE($.postfix);
+
+      $.MANY(() => {
+        $.CONSUME(Intersect);
+        const right = $.SUBRULE2($.postfix);
+
+        left = $.ACTION(() => ast.intersect(left, right));
+      });
+
+      return left;
+    });
+
+    $.RULE("postfix", () => {
+      let value = $.SUBRULE($.primary);
+
+      $.MANY(() => {
+        $.CONSUME(LParen);
+        const args = $.SUBRULE($.args);
+
+        $.CONSUME(RParen);
+        value = $.ACTION(() => ast.invoke(value, args));
+      });
+
+      return value;
+    });
+
     $.RULE("primary", () =>
       $.OR([
-        { ALT: () => $.SUBRULE($.number) },
+        {
+          ALT: () => {
+            const tok = $.CONSUME(NumberLiteral);
+
+            return $.ACTION(() => ast.number(tok.image));
+          },
+        },
         {
           ALT: () => {
             const tok = $.CONSUME(StringLiteral);
-            return $.yy.trimEdges(tok.image);
+
+            return $.ACTION(() => ast.string(tok.image));
           },
         },
-        { ALT: () => $.SUBRULE($.cell) },
+        { ALT: () => $.SUBRULE($.reference) },
         { ALT: () => $.SUBRULE($.functionCall) },
-        { ALT: () => $.SUBRULE($.variableSequence) },
+        {
+          ALT: () => {
+            const tok = $.CONSUME(Variable);
+
+            return $.ACTION(() => ast.name(tok.image));
+          },
+        },
         {
           ALT: () => {
             $.CONSUME(LParen);
             const value = $.SUBRULE($.expression);
+
             $.CONSUME(RParen);
+
             return value;
+          },
+        },
+        { ALT: () => $.SUBRULE($.arrayConstant) },
+        {
+          ALT: () => {
+            const tok = $.CONSUME(ArrayLiteral);
+
+            return $.ACTION(() => ast.legacyArray(tok.image));
+          },
+        },
+        {
+          ALT: () => {
+            $.CONSUME(At);
+            const value = $.SUBRULE($.primary);
+
+            return $.ACTION(() => ast.implicitIntersection(value));
           },
         },
         { ALT: () => $.SUBRULE($.error) },
       ])
     );
 
-    $.RULE("number", () => {
-      let value = $.yy.toNumber($.CONSUME(NumberLiteral).image);
-      $.OPTION(() => {
-        $.CONSUME(OpPercent);
-        value *= 0.01;
-      });
-      return value;
-    });
-
-    $.RULE("cell", () => {
-      const start = $.OR([
-        { ALT: () => $.CONSUME(AbsoluteCell).image },
-        { ALT: () => $.CONSUME(MixedCell).image },
-        { ALT: () => $.CONSUME(RelativeCell).image },
-      ]);
-      const end = $.OPTION(() => {
-        $.CONSUME(Colon);
-        return $.OR2([
-          { ALT: () => $.CONSUME2(AbsoluteCell).image },
-          { ALT: () => $.CONSUME2(MixedCell).image },
-          { ALT: () => $.CONSUME2(RelativeCell).image },
-        ]);
-      });
-      if (end) return $.yy.rangeValue(start, end);
-      return $.yy.cellValue(start);
-    });
-
-    $.RULE("functionCall", () => {
-      const name = $.CONSUME(FunctionName).image;
-      $.CONSUME(LParen);
-      const args = $.OPTION(() => $.SUBRULE($.expseq));
-      $.CONSUME(RParen);
-      return args ? $.yy.callFunction(name, args) : $.yy.callFunction(name);
-    });
-
-    $.RULE("expseq", () =>
+    $.RULE("reference", () =>
       $.OR([
         {
           ALT: () => {
-            const tok = $.CONSUME(ArrayLiteral);
-            return $.yy.trimEdges(tok.image).split(",");
+            const start = $.CONSUME(CellReference);
+            const end = $.OPTION(() => {
+              $.CONSUME(Colon);
+
+              return $.CONSUME2(CellReference);
+            });
+
+            return $.ACTION(() =>
+              end ? ast.range(start.image, end.image) : ast.cell(start.image)
+            );
           },
         },
         {
           ALT: () => {
-            const args = [$.SUBRULE($.expression)];
-            $.MANY(() => {
-              $.OR2([
-                { ALT: () => $.CONSUME(Comma) },
-                { ALT: () => $.CONSUME(Semicolon) },
-              ]);
-              args.push($.SUBRULE2($.expression));
-            });
-            return args;
+            const tok = $.CONSUME(ColumnRange);
+
+            return $.ACTION(() => ast.wholeRange("columns", tok.image));
+          },
+        },
+        {
+          ALT: () => {
+            const tok = $.CONSUME(RowRange);
+
+            return $.ACTION(() => ast.wholeRange("rows", tok.image));
           },
         },
       ])
     );
 
-    $.RULE("variableSequence", () => {
-      const parts = [$.CONSUME(Variable).image];
-      $.MANY(() => {
-        $.CONSUME(Dot);
-        parts.push($.CONSUME2(Variable).image);
-      });
-      return $.yy.callVariable(parts[0]);
+    $.RULE("functionCall", () => {
+      const tok = $.CONSUME(FunctionName);
+
+      $.CONSUME(LParen);
+      const args = $.SUBRULE($.args);
+
+      $.CONSUME(RParen);
+
+      return $.ACTION(() => ast.call(tok.image, args));
     });
+
+    // Comma or semicolon separated, possibly empty arguments: f(), f(1,,3).
+    $.RULE("args", () => {
+      const args = [];
+      let current = $.OPTION(() => $.SUBRULE($.expression));
+
+      $.MANY(() => {
+        $.OR([
+          { ALT: () => $.CONSUME(Comma) },
+          { ALT: () => $.CONSUME(Semicolon) },
+        ]);
+        args.push(current);
+        current = $.OPTION2(() => $.SUBRULE2($.expression));
+      });
+
+      return $.ACTION(() => {
+        args.push(current);
+
+        if (args.length === 1 && args[0] === void 0) {
+          return [];
+        }
+
+        return args.map((arg) => (arg === void 0 ? ast.MISSING : arg));
+      });
+    });
+
+    // {1,2;3,4}: commas separate columns, semicolons separate rows.
+    $.RULE("arrayConstant", () => {
+      $.CONSUME(LCurly);
+      const rows = [[]];
+
+      rows[0].push($.SUBRULE($.arrayElement));
+      $.MANY(() => {
+        $.OR([
+          { ALT: () => $.CONSUME(Comma) },
+          {
+            ALT: () => {
+              $.CONSUME(Semicolon);
+              rows.push([]);
+            },
+          },
+        ]);
+        rows[rows.length - 1].push($.SUBRULE2($.arrayElement));
+      });
+      $.CONSUME(RCurly);
+
+      return $.ACTION(() => ast.arrayConstant(rows));
+    });
+
+    $.RULE("arrayElement", () =>
+      $.OR([
+        {
+          ALT: () => {
+            const sign = $.OPTION(() => $.CONSUME(AdditiveOperator));
+            const tok = $.CONSUME(NumberLiteral);
+            const pct = $.OPTION2(() => $.CONSUME(OpPercent));
+
+            return $.ACTION(() =>
+              ast.arrayNumber(sign ? sign.image : "", tok.image, !!pct)
+            );
+          },
+        },
+        {
+          ALT: () => {
+            const tok = $.CONSUME(StringLiteral);
+
+            return $.ACTION(() => ast.stringValue(tok.image));
+          },
+        },
+        {
+          ALT: () => {
+            const tok = $.CONSUME(ErrorLiteral);
+
+            return $.ACTION(() => ast.arrayError(tok.image));
+          },
+        },
+        {
+          ALT: () => {
+            const tok = $.CONSUME(Variable);
+
+            return $.ACTION(() => ast.arrayLogical(tok.image));
+          },
+        },
+      ])
+    );
 
     $.RULE("error", () => {
       const tok = $.CONSUME(ErrorLiteral);
-      $.OPTION(() => $.CONSUME2(ErrorLiteral));
-      return $.yy.throwError(tok.image);
-    });
 
-    // Stubs so embedded actions are safe during grammar recording.
-    this.yy = {
-      evaluateByOperator: () => null,
-      toNumber: (v) => v,
-      invertNumber: (v) => v,
-      trimEdges: (v) => v,
-      throwError: () => null,
-      callVariable: () => null,
-      callFunction: () => null,
-      cellValue: () => null,
-      rangeValue: () => null,
-    };
+      $.OPTION(() => $.CONSUME2(ErrorLiteral));
+
+      return $.ACTION(() => ast.error(tok.image));
+    });
 
     this.performSelfAnalysis();
   }
+}
+
+let sharedParser = null;
+
+function getSharedParser() {
+  if (!sharedParser) {
+    sharedParser = new FormulaParser();
+  }
+
+  return sharedParser;
+}
+
+const AST_CACHE_SIZE = 2000;
+const astCache = new LruCache(AST_CACHE_SIZE);
+
+/**
+ * Parse a formula into an AST (cached). Throws on syntax errors.
+ *
+ * @param {String} input Formula without the leading "=".
+ * @returns {Object} AST root node.
+ */
+export function parseToAst(input) {
+  const cached = astCache.get(input);
+
+  if (cached !== void 0) {
+    if (cached instanceof Error) {
+      throw cached;
+    }
+
+    return cached;
+  }
+  let result;
+
+  try {
+    const parser = getSharedParser();
+
+    parser.input = tokenize(input);
+    result = parser.expression();
+
+    if (parser.errors.length > 0) {
+      throw new Error(parser.errors[0].message || "Parser error");
+    }
+  } catch (ex) {
+    result = ex instanceof Error ? ex : new Error(String(ex));
+  }
+  astCache.set(input, result);
+
+  if (result instanceof Error) {
+    throw result;
+  }
+
+  return result;
+}
+
+/**
+ * Clear the shared AST cache.
+ */
+export function clearAstCache() {
+  astCache.clear();
 }
 
 /**
@@ -393,7 +430,7 @@ class FormulaParser extends EmbeddedActionsParser {
  */
 export function Parser() {
   this.yy = {};
-  this._parser = new FormulaParser();
+  this.evaluator = new Evaluator(this);
 }
 
 Parser.prototype.parse = function parse(input) {
@@ -401,21 +438,15 @@ Parser.prototype.parse = function parse(input) {
     throw new Error("Parser error");
   }
 
-  const lexResult = FormulaLexer.tokenize(input);
-  if (lexResult.errors.length > 0) {
-    throw new Error(lexResult.errors[0].message || "Lexer error");
+  return this.evaluator.evaluateRoot(parseToAst(input));
+};
+
+Parser.prototype.parseToAst = function parseAst(input) {
+  if (typeof input !== "string") {
+    throw new Error("Parser error");
   }
 
-  this._parser.yy = this.yy;
-  this._parser.input = lexResult.tokens;
-  const result = this._parser.expression();
-
-  if (this._parser.errors.length > 0) {
-    const err = this._parser.errors[0];
-    throw new Error(err.message || "Parser error");
-  }
-
-  return result;
+  return parseToAst(input);
 };
 
 Parser.prototype.Parser = Parser;

@@ -16,6 +16,8 @@ import text from "./text";
 import mathStats from "./math-stats";
 import dateFinancial from "./date-financial";
 import lambda from "./lambda";
+import LEGACY_FUNCTION_NAMES from "./legacy";
+import formulajs from "../formulajs";
 
 const CUSTOM_FUNCTIONS = Object.assign(
   Object.create(null),
@@ -26,4 +28,20 @@ const CUSTOM_FUNCTIONS = Object.assign(
   lambda
 );
 
+function resolveFunction(name) {
+  if (CUSTOM_FUNCTIONS[name]) {
+    return CUSTOM_FUNCTIONS[name];
+  }
+  return name
+    .split(".")
+    .reduce((scope, part) => (scope ? scope[part] : undefined), formulajs);
+}
+
+// Resolved on call so aliases follow whichever implementation wins.
+Object.keys(LEGACY_FUNCTION_NAMES).forEach((legacyName) => {
+  const target = LEGACY_FUNCTION_NAMES[legacyName];
+  CUSTOM_FUNCTIONS[legacyName] = (...args) => resolveFunction(target)(...args);
+});
+
+export { LEGACY_FUNCTION_NAMES };
 export default CUSTOM_FUNCTIONS;
