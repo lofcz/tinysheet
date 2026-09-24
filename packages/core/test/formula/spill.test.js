@@ -162,7 +162,8 @@ describe("dynamic-array spill", () => {
       [undefined],
     ]);
     expect(cell(ctx, "D2").spillFrom).toBeUndefined();
-    expect(value(ctx, "F1")).toBe(0);
+    // Like Excel, SUM propagates the #SPILL! error from the blocked anchor.
+    expect(value(ctx, "F1")).toBe("#SPILL!");
     // clear it again in the editor
     input(ctx, "D2", "");
     expect(values(ctx, "D1", "D3")).toEqual([[1], [2], [3]]);
@@ -202,7 +203,7 @@ describe("dynamic-array spill", () => {
     expect(value(ctx, "F1")).toBe(66);
     input(ctx, "D1", "5");
     expect(values(ctx, "D1", "E3")).toEqual([
-      ["5", undefined],
+      [5, undefined],
       [undefined, undefined],
       [undefined, undefined],
     ]);
@@ -303,6 +304,6 @@ describe("dynamic-array spill", () => {
     input(ctx, "D1", "=A1:A3");
     input(ctx, "D1", "9");
     expect(ctx.luckysheetfile[0].dynamicArray).toEqual([]);
-    expect(values(ctx, "D1", "D3")).toEqual([["9"], [undefined], [undefined]]);
+    expect(values(ctx, "D1", "D3")).toEqual([[9], [undefined], [undefined]]);
   });
 });
