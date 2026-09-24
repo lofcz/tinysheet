@@ -86,3 +86,13 @@
   background-color: var(--fortune-bg-active);
   border-radius: 2px;
 }
+
+/* formula tokens are drawn in the theme text colour, not the cell's font
+   colour (which may be unreadable on the editor background in dark mode) */
+.luckysheet-formula-text-func,
+.luckysheet-formula-text-lpar,
+.luckysheet-formula-text-rpar,
+.luckysheet-formula-text-comma,
+.luckysheet-formula-text-calc {
+  color: var(--fortune-text);
+}
