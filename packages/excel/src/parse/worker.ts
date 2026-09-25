@@ -47,7 +47,7 @@ export type ParseExcelWorkerResponse =
 
 type MessageScope = {
   addEventListener(type: "message", listener: (event: any) => void): void;
-  postMessage(message: any, transfer?: Transferable[]): void;
+  postMessage(message: any, transfer?: ArrayBuffer[]): void;
 };
 
 /** An import result as one UTF-8 JSON buffer (for transferring). */
@@ -72,7 +72,7 @@ export function decodeExcelImportResult(
 /** Answer one parse request (what the worker runs for each message). */
 export async function handleParseExcelRequest(
   request: ParseExcelWorkerRequest
-): Promise<{ response: ParseExcelWorkerResponse; transfer: Transferable[] }> {
+): Promise<{ response: ParseExcelWorkerResponse; transfer: ArrayBuffer[] }> {
   try {
     const result = await parseExcel(
       request.input,
@@ -145,7 +145,7 @@ export function parseExcelInWorker(
   const id = nextRequestId++;
   const { transfer = "json", ...parseOptions } = options;
   let payload: Blob | ArrayBuffer;
-  const transferList: Transferable[] = [];
+  const transferList: ArrayBuffer[] = [];
   if (input instanceof ArrayBuffer) {
     payload = input.slice(0);
     transferList.push(payload);
