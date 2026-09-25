@@ -9,20 +9,38 @@
 import type { Context } from "../context";
 import type { Cell, CellMatrix, Sheet } from "../types";
 import { getSheetIndex, indexToColumnChar } from "../utils";
+import { chartLocales } from "../locale/chart";
 import { locateRangeForChange, ReferenceChange } from "./refAdjust";
-import { columnLeftPx, insertedSizePx, rowTopPx } from "./sheetGeometry";
 import {
-  chartPaletteColor,
+  adjustChartPlacements,
+  ChartAnchor,
+  ChartBox,
+  ChartPlacement,
+  getChartBox,
+  setChartBox,
+} from "./chartAnchor";
+import {
+  getChartStyle,
   getChartTheme,
+  paletteColor,
   renderChartSvg,
+  ChartDataLabelOptions,
+  ChartErrorBars,
   ChartGrouping,
+  ChartHistogramBinning,
   ChartLegendPosition,
+  ChartRadarStyle,
   ChartRenderModel,
   ChartRenderSeries,
+  ChartSeriesType,
+  ChartStockVariant,
   ChartTheme,
+  ChartTrendline,
   ChartType,
   ChartValueAxisOptions,
 } from "./chartRender";
+
+export * from "./chartAnchor";
 
 /** A rectangular cell range on one sheet (0-based, inclusive). */
 export type ChartRange = {
@@ -44,6 +62,18 @@ export type ChartSeries = {
   color?: string;
   /** Explicit per-point colours (pie slices, varied columns). */
   pointColors?: string[];
+  /** Combo charts: column, line or area (default column). */
+  type?: ChartSeriesType;
+  /** Plot on the secondary value axis (combo, column, line, area). */
+  secondary?: boolean;
+  /** Bubble charts: bubble sizes. */
+  sizes?: ChartRange | null;
+  trendlines?: ChartTrendline[];
+  errorBars?: ChartErrorBars & {
+    /** Custom error amounts. */
+    plus?: ChartRange | null;
+    minus?: ChartRange | null;
+  };
   /**
    * Values cached from an imported file, used when a reference cannot be
    * resolved (external workbooks, unsupported reference syntax).
@@ -52,6 +82,7 @@ export type ChartSeries = {
     name?: string;
     values?: (number | null)[];
     categories?: string[];
+    sizes?: (number | null)[];
   };
 };
 
@@ -59,6 +90,29 @@ export type Chart = {
   id: string;
   type: ChartType;
   grouping?: ChartGrouping;
+  /** Secondary value axis (series with `secondary`). */
+  secondaryValueAxis?: ChartValueAxisOptions;
+  secondaryValueAxisTitle?: string;
+  /** What data labels show, where, and their number format. */
+  dataLabelOptions?: ChartDataLabelOptions;
+  /** Histogram / Pareto bins. */
+  binning?: ChartHistogramBinning;
+  radarStyle?: ChartRadarStyle;
+  stockVariant?: ChartStockVariant;
+  /** Waterfall: points shown as totals ("Set as total"). */
+  waterfallTotals?: number[];
+  /** Waterfall connector lines (default true). */
+  waterfallConnectors?: boolean;
+  /** Bubble size scale in % (default 100). */
+  bubbleScale?: number;
+  /** Chart style from the style gallery (1–8, default 1). */
+  style?: number;
+  /** Colour palette id (`colorful1`, `monochrome2`, ...). */
+  palette?: string;
+  /** Move and size with cells (default), move only, or neither. */
+  placement?: ChartPlacement;
+  /** Cell anchor of the chart's corners (see chartAnchor.ts). */
+  anchor?: ChartAnchor;
   /** Range the chart was created from (used by "Switch row/column"). */
   source?: ChartRange | null;
   /** Series were read from rows of `source` instead of columns. */
@@ -95,7 +149,56 @@ export const CHART_TYPES: ChartType[] = [
   "pie",
   "doughnut",
   "scatter",
+  "combo",
+  "radar",
+  "bubble",
+  "waterfall",
+  "histogram",
+  "pareto",
+  "funnel",
+  "stock",
 ];
+
+/** Types whose series can be clustered / stacked. */
+export function chartHasGrouping(type: ChartType) {
+  return (
+    type === "column" ||
+    type === "bar" ||
+    type === "line" ||
+    type === "area" ||
+    type === "combo"
+  );
+}
+
+/** Types drawn with a category or value axis (not pie-like). */
+export function chartHasAxes(type: ChartType) {
+  return type !== "pie" && type !== "doughnut" && type !== "funnel";
+}
+
+/** Types whose series may carry trendlines and error bars. */
+export function chartSupportsTrendlines(type: ChartType) {
+  return (
+    type === "column" ||
+    type === "bar" ||
+    type === "line" ||
+    type === "area" ||
+    type === "combo" ||
+    type === "scatter" ||
+    type === "bubble"
+  );
+}
+
+/** Types where series can be moved to a secondary axis. */
+export function chartSupportsSecondaryAxis(type: ChartType) {
+  return (
+    type === "combo" || type === "column" || type === "line" || type === "area"
+  );
+}
+
+/** Types that read X values from the first column (scatter, bubble). */
+function isXYType(type: ChartType | undefined) {
+  return type === "scatter" || type === "bubble";
+}
 
 let chartIdSeed = 0;
 export function generateChartId() {
@@ -436,11 +539,14 @@ export function detectChartSeries(
   const dataRows = Math.max(0, r2 - dr1 + 1);
   const dataCols = Math.max(0, c2 - dc1 + 1);
   const seriesInRows =
-    options.seriesInRows ?? (dataRows < dataCols && dataRows > 0);
+    options.seriesInRows ??
+    (options.type !== "bubble" && dataRows < dataCols && dataRows > 0);
 
   const { sheetId } = source;
   const series: ChartSeries[] = [];
-  const scatter = options.type === "scatter";
+  const scatter = isXYType(options.type);
+  // bubble charts take (Y, size) column pairs after the X column
+  const step = options.type === "bubble" ? 2 : 1;
 
   if (!seriesInRows) {
     let categories: ChartRange | null = headerColumn
@@ -451,13 +557,18 @@ export function detectChartSeries(
       categories = { sheetId, row: [dr1, r2], column: [dc1, dc1] };
       first = dc1 + 1;
     }
-    for (let c = first; c <= c2; c += 1) {
+    for (let c = first; c <= c2; c += step) {
+      const sizes: ChartRange | null =
+        step === 2 && c + 1 <= c2
+          ? { sheetId, row: [dr1, r2], column: [c + 1, c + 1] }
+          : null;
       series.push({
         values: { sheetId, row: [dr1, r2], column: [c, c] },
         ...(headerRow
           ? { nameRef: { sheetId, row: [r1, r1], column: [c, c] } }
           : { name: `Series${series.length + 1}` }),
         ...(categories ? { categories } : {}),
+        ...(sizes ? { sizes } : {}),
       });
     }
   } else {
@@ -469,13 +580,18 @@ export function detectChartSeries(
       categories = { sheetId, row: [dr1, dr1], column: [dc1, c2] };
       first = dr1 + 1;
     }
-    for (let r = first; r <= r2; r += 1) {
+    for (let r = first; r <= r2; r += step) {
+      const sizes: ChartRange | null =
+        step === 2 && r + 1 <= r2
+          ? { sheetId, row: [r + 1, r + 1], column: [dc1, c2] }
+          : null;
       series.push({
         values: { sheetId, row: [r, r], column: [dc1, c2] },
         ...(headerColumn
           ? { nameRef: { sheetId, row: [r, r], column: [c1, c1] } }
           : { name: `Series${series.length + 1}` }),
         ...(categories ? { categories } : {}),
+        ...(sizes ? { sizes } : {}),
       });
     }
   }
@@ -533,6 +649,45 @@ export function getChartCellPosition(
   return { left: colLeft(ctx, column), top: rowTop(ctx, row) };
 }
 
+/**
+ * Type-specific defaults: combo series types, radar style, stock variant,
+ * waterfall labels... `fresh` also sets the defaults Excel uses for a new
+ * chart of that type (legend, data labels).
+ */
+export function applyChartTypeDefaults(
+  chart: Chart,
+  fresh = false,
+  comboSecondary = false
+) {
+  const { type } = chart;
+  if (chartHasGrouping(type)) chart.grouping = chart.grouping ?? "clustered";
+  else delete chart.grouping;
+  if (type === "combo") {
+    chart.series.forEach((s, i) => {
+      if (s.type == null) s.type = i === 0 ? "column" : "line";
+    });
+    if (comboSecondary && chart.series.length > 1) {
+      chart.series[chart.series.length - 1].secondary = true;
+    }
+    if (chart.markers == null) chart.markers = true;
+  }
+  if (type === "radar" && !chart.radarStyle) chart.radarStyle = "marker";
+  if (type === "stock" && !chart.stockVariant)
+    chart.stockVariant = chart.series.length >= 4 ? "ohlc" : "hlc";
+  if (!fresh) return;
+  if (type === "waterfall") {
+    chart.dataLabels = true;
+    chart.legend = "top";
+  }
+  if (type === "histogram") chart.legend = "none";
+  if (type === "pareto") chart.legend = "top";
+  if (type === "funnel") {
+    chart.dataLabels = true;
+    chart.legend = "none";
+  }
+  if (type === "stock") chart.legend = "bottom";
+}
+
 export type InsertChartOptions = {
   type?: ChartType;
   grouping?: ChartGrouping;
@@ -546,6 +701,8 @@ export type InsertChartOptions = {
   title?: string;
   markers?: boolean;
   select?: boolean;
+  /** Combo charts: put the last series on the secondary axis. */
+  comboSecondary?: boolean;
 };
 
 /** The range to chart for the current selection. */
@@ -618,18 +775,15 @@ export function insertChart(
   const chart: Chart = {
     id: generateChartId(),
     type,
-    ...(type === "column" ||
-    type === "bar" ||
-    type === "line" ||
-    type === "area"
+    ...(chartHasGrouping(type)
       ? { grouping: options.grouping ?? "clustered" }
       : {}),
     source: source ?? null,
     seriesInRows: detected.seriesInRows,
     series: detected.series,
     legend: "right",
-    gridlines: type !== "pie" && type !== "doughnut",
-    ...(type === "line" || type === "scatter"
+    gridlines: chartHasAxes(type),
+    ...(type === "line" || isXYType(type) || type === "combo"
       ? { markers: options.markers ?? true }
       : {}),
     ...(options.title ? { title: options.title } : {}),
@@ -638,13 +792,20 @@ export function insertChart(
     width,
     height,
   };
+  applyChartTypeDefaults(chart, true, options.comboSecondary);
   const sheet = ctx.luckysheetfile[sheetIndex];
+  setChartBox(ctx, sheet.id!, chart, {
+    left: chart.left,
+    top: chart.top,
+    width,
+    height,
+  });
   sheet.charts = [...(sheet.charts ?? []), chart];
   if (options.select !== false) ctx.activeChart = chart.id;
   return chart;
 }
 
-/** Shallow-merge `patch` into a chart. */
+/** Shallow-merge `patch` into a chart (re-anchoring it when moved). */
 export function updateChart(
   ctx: Context,
   id: string,
@@ -652,7 +813,42 @@ export function updateChart(
 ) {
   const found = findChart(ctx, id);
   if (!found) return;
-  Object.assign(found.chart, patch);
+  const { chart, sheet } = found;
+  const moved =
+    patch.left != null ||
+    patch.top != null ||
+    patch.width != null ||
+    patch.height != null;
+  const box = moved ? getChartBox(ctx, sheet.id!, chart) : null;
+  Object.assign(chart, patch);
+  if (box && !patch.anchor) {
+    setChartBox(ctx, sheet.id!, chart, {
+      left: patch.left ?? box.left,
+      top: patch.top ?? box.top,
+      width: patch.width ?? box.width,
+      height: patch.height ?? box.height,
+    });
+  }
+}
+
+/** A chart's current box (following its anchor cells). */
+export function getChartDisplayBox(ctx: Context, id: string): ChartBox | null {
+  const found = findChart(ctx, id);
+  if (!found) return null;
+  return getChartBox(ctx, found.sheet.id!, found.chart);
+}
+
+/** Change how a chart follows its cells, keeping its current box. */
+export function setChartPlacement(
+  ctx: Context,
+  id: string,
+  placement: ChartPlacement
+) {
+  const found = findChart(ctx, id);
+  if (!found) return;
+  const box = getChartBox(ctx, found.sheet.id!, found.chart);
+  found.chart.placement = placement;
+  setChartBox(ctx, found.sheet.id!, found.chart, box);
 }
 
 export function deleteChart(ctx: Context, id?: string) {
@@ -681,6 +877,14 @@ export function pasteChart(
     copy.top = position.top;
   }
   const sheet = ctx.luckysheetfile[sheetIndex];
+  if (sheet.id != null) {
+    setChartBox(ctx, sheet.id, copy, {
+      left: copy.left,
+      top: copy.top,
+      width: copy.width,
+      height: copy.height,
+    });
+  }
   sheet.charts = [...(sheet.charts ?? []), copy];
   ctx.activeChart = copy.id;
   return copy;
@@ -700,14 +904,20 @@ export function setChartSource(
     type: chart.type,
     seriesInRows,
   });
-  // Keep explicit colours by position.
+  // Keep explicit colours and per-series options by position.
   detected.series.forEach((s, i) => {
-    const color = chart.series[i]?.color;
-    if (color) s.color = color;
+    const old = chart.series[i];
+    if (!old) return;
+    if (old.color) s.color = old.color;
+    if (old.type) s.type = old.type;
+    if (old.secondary) s.secondary = true;
+    if (old.trendlines) s.trendlines = old.trendlines;
+    if (old.errorBars) s.errorBars = old.errorBars;
   });
   chart.source = source;
   chart.seriesInRows = detected.seriesInRows;
   chart.series = detected.series;
+  applyChartTypeDefaults(chart);
 }
 
 function unionRange(a: ChartRange | null, b: ChartRange | null | undefined) {
@@ -736,6 +946,7 @@ export function inferChartSource(chart: Chart): ChartRange | null {
     out = unionRange(out, s.values);
     out = unionRange(out, s.nameRef);
     out = unionRange(out, s.categories);
+    out = unionRange(out, s.sizes);
   });
   return out;
 }
@@ -759,29 +970,46 @@ export function setChartType(
   const found = findChart(ctx, id);
   if (!found) return;
   const { chart } = found;
-  const wasScatter = chart.type === "scatter";
+  const prev = chart.type;
   chart.type = type;
-  if (
-    type === "column" ||
-    type === "bar" ||
-    type === "line" ||
-    type === "area"
-  ) {
+  if (chartHasGrouping(type)) {
     chart.grouping = grouping ?? chart.grouping ?? "clustered";
   } else {
     delete chart.grouping;
   }
-  if ((type === "line" || type === "scatter") && chart.markers == null) {
+  if (
+    (type === "line" || isXYType(type) || type === "combo") &&
+    chart.markers == null
+  ) {
     chart.markers = true;
   }
-  if (type === "pie" || type === "doughnut") chart.gridlines = false;
-  else if (chart.gridlines === false && (wasScatter || chart.gridlines == null))
+  if (!chartHasAxes(type)) chart.gridlines = false;
+  else if (
+    chart.gridlines === false &&
+    (isXYType(prev) || !chartHasAxes(prev) || chart.gridlines == null)
+  )
     chart.gridlines = true;
-  // Scatter reads X values from the first column; re-detect when crossing.
+  if (type !== "combo") {
+    chart.series.forEach((s) => {
+      delete s.type;
+    });
+  }
+  if (!chartSupportsSecondaryAxis(type)) {
+    chart.series.forEach((s) => {
+      delete s.secondary;
+    });
+  }
+  // Scatter and bubble read X values from the first column (and bubble
+  // sizes from every second one); re-detect when crossing.
   const { source } = chart;
-  if (source && wasScatter !== (type === "scatter")) {
+  const layout = (t: ChartType) => {
+    if (t === "bubble") return 2;
+    return isXYType(t) ? 1 : 0;
+  };
+  if (source && layout(prev) !== layout(type)) {
     setChartSource(ctx, id, source, chart.seriesInRows);
   }
+  applyChartTypeDefaults(chart, prev !== type);
 }
 
 // ---------------------------------------------------------------------------
@@ -806,9 +1034,24 @@ function resolveSeriesName(
   return `Series${index + 1}`;
 }
 
+function readNumbers(
+  ctx: Pick<Context, "luckysheetfile">,
+  range: ChartRange | null | undefined
+) {
+  return readChartRange(ctx, range).map((c) => c.numeric);
+}
+
+/** Colour of palette entry `index` for a chart. */
+export function chartColor(chart: Pick<Chart, "palette">, index: number) {
+  return paletteColor(chart.palette, index);
+}
+
 /** Resolve a chart's references into the renderer's model. */
 export function resolveChartModel(
-  ctx: Pick<Context, "luckysheetfile">,
+  ctx: Pick<Context, "luckysheetfile"> & {
+    theme?: string;
+    lang?: string | null;
+  },
   chart: Chart
 ): ChartRenderModel {
   let categories: string[] = [];
@@ -822,6 +1065,7 @@ export function resolveChartModel(
   }
   const pie = chart.type === "pie" || chart.type === "doughnut";
   const vary = pie || !!chart.varyColors;
+  const pick = (i: number) => chartColor(chart, i);
   const series: ChartRenderSeries[] = chart.series.map((s, i) => {
     let values: (number | null)[] = [];
     let labels: string[] | undefined;
@@ -833,7 +1077,7 @@ export function resolveChartModel(
       values = s.cache.values.slice();
     }
     let xValues: (number | null)[] | undefined;
-    if (chart.type === "scatter") {
+    if (isXYType(chart.type)) {
       if (s.categories) {
         const xs = readChartRange(ctx, s.categories);
         xValues = xs.some((c) => c.numeric != null)
@@ -847,14 +1091,27 @@ export function resolveChartModel(
         xValues = parsed.some((v) => v != null) ? parsed : undefined;
       }
     }
-    const color = s.color || chartPaletteColor(i);
+    const color = s.color || pick(i);
     let pointColors: string[] | undefined;
     if (vary && (pie || chart.series.length === 1)) {
-      pointColors = values.map(
-        (_, p) => s.pointColors?.[p] || chartPaletteColor(p)
-      );
+      pointColors = values.map((_, p) => s.pointColors?.[p] || pick(p));
     } else if (s.pointColors?.length) {
       pointColors = values.map((_, p) => s.pointColors?.[p] || color);
+    }
+    let sizes: (number | null)[] | undefined;
+    if (chart.type === "bubble") {
+      if (s.sizes) sizes = readNumbers(ctx, s.sizes);
+      else if (s.cache?.sizes) sizes = s.cache.sizes.slice();
+      else sizes = values.map(() => 1);
+    }
+    let errorBars: ChartRenderSeries["errorBars"];
+    if (s.errorBars) {
+      const { plus, minus, ...rest } = s.errorBars;
+      errorBars = {
+        ...rest,
+        ...(plus ? { plusValues: readNumbers(ctx, plus) } : {}),
+        ...(minus ? { minusValues: readNumbers(ctx, minus) } : {}),
+      };
     }
     return {
       name: resolveSeriesName(ctx, s, i),
@@ -863,11 +1120,27 @@ export function resolveChartModel(
       ...(labels ? { labels } : {}),
       ...(xValues ? { xValues } : {}),
       ...(pointColors ? { pointColors } : {}),
+      ...(s.type && chart.type === "combo" ? { type: s.type } : {}),
+      ...(s.secondary && chartSupportsSecondaryAxis(chart.type)
+        ? { secondary: true }
+        : {}),
+      ...(sizes ? { sizes } : {}),
+      ...(s.trendlines?.length && chartSupportsTrendlines(chart.type)
+        ? { trendlines: s.trendlines }
+        : {}),
+      ...(errorBars && chartSupportsTrendlines(chart.type)
+        ? { errorBars }
+        : {}),
     };
   });
+  const themeName = ctx.theme === "dark" ? "dark" : "light";
+  const style = chart.style ? getChartStyle(chart.style).spec(themeName) : {};
+  const lang = ctx.lang || "en";
+  const loc =
+    chartLocales[lang] ?? chartLocales[lang.split("-")[0]] ?? chartLocales.en;
   return {
     type: chart.type,
-    grouping: chart.grouping,
+    grouping: chartHasGrouping(chart.type) ? chart.grouping : undefined,
     title: chart.title,
     categoryAxisTitle: chart.categoryAxisTitle,
     valueAxisTitle: chart.valueAxisTitle,
@@ -878,36 +1151,80 @@ export function resolveChartModel(
     scatterLines: chart.scatterLines,
     varyColors: vary,
     valueAxis: chart.valueAxis,
+    secondaryValueAxis: chart.secondaryValueAxis,
+    secondaryValueAxisTitle: chart.secondaryValueAxisTitle,
+    dataLabelOptions: chart.dataLabelOptions,
+    binning: chart.binning,
+    radarStyle: chart.radarStyle,
+    stockVariant: chart.stockVariant,
+    waterfallTotals: chart.waterfallTotals,
+    waterfallConnectors: chart.waterfallConnectors,
+    waterfallColors: [pick(0), pick(1), pick(2)],
+    bubbleScale: chart.bubbleScale,
+    style,
+    labels: {
+      increase: loc.increase ?? chartLocales.en.increase,
+      decrease: loc.decrease ?? chartLocales.en.decrease,
+      total: loc.total ?? chartLocales.en.total,
+      cumulative: loc.cumulative ?? chartLocales.en.cumulative,
+    },
     categories,
     series,
   };
 }
 
+/** Chart chrome colours for a chart's style on a theme. */
+export function chartThemeFor(
+  chart: Pick<Chart, "style">,
+  themeName: string | null | undefined
+): ChartTheme {
+  const name = themeName === "dark" ? "dark" : "light";
+  const preset = chart.style ? getChartStyle(chart.style) : null;
+  return getChartTheme(name, preset?.theme?.(name));
+}
+
 /** Render a chart to an SVG string at its own size. */
 export function renderChartToSvg(
-  ctx: Pick<Context, "luckysheetfile"> & { theme?: string },
+  ctx: Pick<Context, "luckysheetfile"> & {
+    theme?: string;
+    lang?: string | null;
+  },
   chart: Chart,
   theme?: ChartTheme | string,
   size?: { width: number; height: number }
 ) {
+  const themeName = typeof theme === "string" ? theme : ctx.theme;
   const resolvedTheme =
-    typeof theme === "object" ? theme : getChartTheme(theme ?? ctx.theme);
+    typeof theme === "object" ? theme : chartThemeFor(chart, themeName);
   return renderChartSvg(
-    resolveChartModel(ctx, chart),
+    resolveChartModel({ ...ctx, theme: themeName }, chart),
     size?.width ?? chart.width,
     size?.height ?? chart.height,
     resolvedTheme
   );
 }
 
+/** Every range a chart reads. */
+export function getChartRanges(chart: Chart): ChartRange[] {
+  const out: ChartRange[] = [];
+  const add = (r: ChartRange | null | undefined) => {
+    if (r) out.push(r);
+  };
+  chart.series.forEach((s) => {
+    add(s.values);
+    add(s.nameRef);
+    add(s.categories);
+    add(s.sizes);
+    add(s.errorBars?.plus);
+    add(s.errorBars?.minus);
+  });
+  return out;
+}
+
 /** Ranges a chart depends on (for cheap change detection). */
 export function getChartReferencedSheetIds(chart: Chart): string[] {
   const ids = new Set<string>();
-  chart.series.forEach((s) => {
-    if (s.values) ids.add(s.values.sheetId);
-    if (s.nameRef) ids.add(s.nameRef.sheetId);
-    if (s.categories) ids.add(s.categories.sheetId);
-  });
+  getChartRanges(chart).forEach((r) => ids.add(r.sheetId));
   return Array.from(ids);
 }
 
@@ -928,6 +1245,9 @@ function forEachChartRange(
         if (s.values) s.values = fn(s.values);
         if (s.nameRef) s.nameRef = fn(s.nameRef);
         if (s.categories) s.categories = fn(s.categories);
+        if (s.sizes) s.sizes = fn(s.sizes);
+        if (s.errorBars?.plus) s.errorBars.plus = fn(s.errorBars.plus);
+        if (s.errorBars?.minus) s.errorBars.minus = fn(s.errorBars.minus);
       });
     });
   });
@@ -964,13 +1284,16 @@ export function shiftSpanForDelete(
  * Keep charts in sync with a structural change (registered with refAdjust,
  * see modelSync.ts): series, category, name and source ranges follow their
  * cells (a range moved to another sheet by cut/paste follows it there; a
- * deleted one becomes null, i.e. #REF!), and charts sitting below/right of
- * inserted or deleted rows/columns move with the cells, as Excel's "move and
- * size with cells" objects do. Called before the cells move.
+ * deleted one becomes null, i.e. #REF!), and the charts themselves follow
+ * their anchor cells (chartAnchor.ts): they move with inserted / deleted
+ * rows and columns (and "move and size" charts grow or shrink), and charts
+ * whose cells are shifted or cut/pasted go with them. Called before the
+ * cells move.
  */
 export function adjustChartsForChange(ctx: Context, change: ReferenceChange) {
   const hasCharts = ctx.luckysheetfile.some((s) => s.charts?.length);
   if (!hasCharts || change.type === "renameSheet") return;
+  adjustChartPlacements(ctx, change);
   forEachChartRange(ctx, (range) => {
     const next = locateRangeForChange(range, change, range.sheetId);
     if (!next) return null;
@@ -984,32 +1307,6 @@ export function adjustChartsForChange(ctx: Context, change: ReferenceChange) {
       return range;
     }
     return { sheetId: next.sheetId, ...next.range };
-  });
-  if (change.type !== "insert" && change.type !== "delete") return;
-  const sheet = sheetById(ctx, change.sheetId);
-  if (!sheet?.charts?.length) return;
-  const { sheetId, axis } = change;
-  const edgeOf = (i: number) =>
-    axis === "row" ? rowTopPx(ctx, sheetId, i) : columnLeftPx(ctx, sheetId, i);
-  if (change.type === "insert") {
-    const edge = edgeOf(change.index);
-    const size = insertedSizePx(ctx, axis, change.count);
-    sheet.charts.forEach((chart) => {
-      if (axis === "row" && chart.top >= edge - 0.5) chart.top += size;
-      if (axis === "column" && chart.left >= edge - 0.5) chart.left += size;
-    });
-    return;
-  }
-  const from = edgeOf(change.start);
-  const to = edgeOf(change.end + 1);
-  const removed = to - from;
-  sheet.charts.forEach((chart) => {
-    const pos = axis === "row" ? chart.top : chart.left;
-    let next = pos;
-    if (pos >= to) next = pos - removed;
-    else if (pos > from) next = from;
-    if (axis === "row") chart.top = next;
-    else chart.left = next;
   });
 }
 
@@ -1076,6 +1373,16 @@ export function remapDuplicatedCharts(
       values: remap(s.values),
       nameRef: remap(s.nameRef),
       categories: remap(s.categories),
+      ...(s.sizes ? { sizes: remap(s.sizes) } : {}),
+      ...(s.errorBars
+        ? {
+            errorBars: {
+              ...s.errorBars,
+              plus: remap(s.errorBars.plus),
+              minus: remap(s.errorBars.minus),
+            },
+          }
+        : {}),
     })),
   }));
 }
