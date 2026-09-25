@@ -130,14 +130,21 @@ export function useFormulaBarSize() {
     [setContext]
   );
 
-  /** Pointer down on the bottom edge: drag the height. */
+  /** Pointer down on the bottom edge: drag the height (pointer capture). */
   const onResizeStart = useCallback(
     (e: React.PointerEvent<HTMLElement>) => {
       if (e.button !== 0) return;
       e.preventDefault();
+      const handle = e.currentTarget;
       const startY = e.clientY;
       const start = expanded ? height : FORMULA_BAR_COLLAPSED_HEIGHT;
       let current = start;
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch (err) {
+        // synthetic events without an active pointer
+      }
+      handle.classList.add("fortune-fx-resize-handle-active");
       const move = (ev: PointerEvent) => {
         current = Math.min(
           maxHeight(),
@@ -146,13 +153,18 @@ export function useFormulaBarSize() {
         setDragHeight(current);
       };
       const up = () => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        handle.removeEventListener("pointercancel", up);
+        handle.removeEventListener("lostpointercapture", up);
+        handle.classList.remove("fortune-fx-resize-handle-active");
         if (current !== start) commit(current);
         else setDragHeight(null);
       };
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+      handle.addEventListener("pointercancel", up);
+      handle.addEventListener("lostpointercapture", up);
     },
     [commit, expanded, height]
   );

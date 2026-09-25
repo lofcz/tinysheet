@@ -130,13 +130,15 @@ test.describe("drag auto-scroll", () => {
         .poll(() => sheet.selection())
         .toEqual({ row: [2, 6], column: [0, 25] });
     }
-    await page.mouse.move(x, box.y + 20 * 30 + 10);
+    // a row header near the bottom of the grid (whatever the window fits)
+    const from = Math.min(30, (await rowsThatFit(page)) - 2);
+    await page.mouse.move(x, box.y + 20 * from + 10);
     await page.mouse.down();
     await page.mouse.move(x, box.y + box.height + 40, { steps: 4 });
     await expect.poll(async () => (await sheet.selection()).row[1]).toBe(99);
     await page.mouse.up();
     const sel = await sheet.selection();
-    expect(sel).toEqual({ row: [30, 99], column: [0, 25] });
+    expect(sel).toEqual({ row: [from, 99], column: [0, 25] });
     expect((await sheet.scrollPosition()).x).toBe(0);
   });
 
@@ -356,11 +358,12 @@ test.describe("keyboard", () => {
     const { y } = await sheet.scrollPosition();
     await expect.poll(async () => (await contextScroll(page)).y).toBe(y);
     await sheet.click(0, 0, { wait: false });
-    await sheet.waitForSelection(Math.floor(y / 20), 0);
+    // (the click is 10px below the top edge: the row drawn there)
+    const hit = Math.floor((y + 10) / 20);
+    await sheet.waitForSelection(hit, 0);
     await page.keyboard.press("PageUp");
-    const top = Math.floor(y / 20);
     await expect.poll(async () => (await contextScroll(page)).y % 20).toBe(0);
-    await sheet.waitForSelection(top - fit, 0);
+    await sheet.waitForSelection(hit - fit, 0);
   });
 
   test("moving up past the top row scrolls it to the top edge", async ({

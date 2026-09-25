@@ -13,10 +13,16 @@ import {
   escapeHTMLTag,
   isAllowEdit,
   getSpilledCellFormula,
+  getFunctionListMap,
   setEditMode,
   isCellContentHidden,
   FORMULA_BAR_COLLAPSED_HEIGHT,
   returnToEditSheet,
+  clearEditMode,
+  finishFormulaEdit,
+  updateCell,
+  setCaretOffset,
+  getCaretOffset,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -29,7 +35,9 @@ import React, {
 import "./index.css";
 import _ from "lodash";
 import WorkbookContext from "../../context";
-import SVGIcon from "../SVGIcon";
+import { Check, ChevronDown, X } from "lucide-react";
+import { ModalContext } from "../../context/modal";
+import { Icon, Tooltip } from "../ui";
 import ContentEditable from "../SheetOverlay/ContentEditable";
 import FormulaSearch from "../SheetOverlay/FormulaSearch";
 import FormulaHint from "../SheetOverlay/FormulaHint";
@@ -41,6 +49,26 @@ import {
   useFormulaEditorKeys,
 } from "../SheetOverlay/FormulaSearch/useFormulaEditorKeys";
 import { useFormulaBarSize } from "./useFormulaBarSize";
+import { getInsertFunction } from "./insertFunction";
+
+/**
+ * The functions the fx button lists when no Insert Function dialog is
+ * registered: Excel's "Most Recently Used" category of a new workbook.
+ */
+const COMMON_FUNCTIONS = [
+  "SUM",
+  "AVERAGE",
+  "IF",
+  "COUNT",
+  "MAX",
+  "MIN",
+  "SUMIF",
+  "COUNTIF",
+  "XLOOKUP",
+  "VLOOKUP",
+  "HYPERLINK",
+  "PMT",
+];
 
 const FxEditor: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -111,6 +139,8 @@ const FxEditor: React.FC = () => {
     context.luckysheetfile,
     context.currentSheetId,
     context.luckysheet_select_save,
+    // a cancelled edit (Esc, ✕) shows the cell's content again
+    context.luckysheetCellUpdate.length > 0,
   ]);
 
   const onFocus = useCallback(() => {
@@ -186,12 +216,15 @@ const FxEditor: React.FC = () => {
         });
         e.preventDefault();
         e.stopPropagation();
+        // the grid takes the keys again, like Excel
+        refs.cellInput.current?.focus({ preventScroll: true });
       }
     },
     [
       context.allowEdit,
       context.luckysheetCellUpdate.length,
       formulaKeys,
+      refs.cellInput,
       refs.fxInput,
       setContext,
     ]
@@ -257,20 +290,225 @@ const FxEditor: React.FC = () => {
     isHidenRC,
   ]);
 
+  const { showModal, hideModal } = useContext(ModalContext);
+  const editing = context.luckysheetCellUpdate.length > 0;
+
+  /** The editor holding the text being edited: the bar or the cell. */
+  const activeEditor = useCallback((): HTMLDivElement | null => {
+    const fx = refs.fxInput.current;
+    const cell = refs.cellInput.current;
+    const active = document.activeElement;
+    if (fx && active && fx.contains(active)) return fx;
+    if (cell && active === cell) return cell;
+    return (focused ? fx : cell) ?? null;
+  }, [focused, refs.cellInput, refs.fxInput]);
+
+  const backToGrid = useCallback(() => {
+    refs.cellInput.current?.focus({ preventScroll: true });
+  }, [refs.cellInput]);
+
+  /** ✕: cancels the edit, like Esc. */
+  const cancelEdit = useCallback(() => {
+    const editor = activeEditor();
+    setContext((ctx) => {
+      if (ctx.luckysheetCellUpdate.length === 0) return;
+      // Point mode across sheets: back to the edited cell's sheet
+      returnToEditSheet(ctx, editor);
+      cancelNormalSelected(ctx);
+      clearEditMode(ctx);
+      moveHighlightCell(ctx, "down", 0, "rangeOfSelect");
+    });
+    backToGrid();
+  }, [activeEditor, backToGrid, setContext]);
+
+  /** ✓: commits the edit like Enter, but the active cell stays (Excel). */
+  const commitEdit = useCallback(() => {
+    const editor = activeEditor();
+    if (!editor) return;
+    const canvas = refs.canvas.current?.getContext("2d") ?? undefined;
+    setContext((ctx) => {
+      if (ctx.luckysheetCellUpdate.length < 2 || !isAllowEdit(ctx)) return;
+      returnToEditSheet(ctx, editor);
+      const [r, c] = ctx.luckysheetCellUpdate as [number, number];
+      finishFormulaEdit(ctx, editor);
+      updateCell(ctx, r, c, editor, undefined, canvas);
+      clearEditMode(ctx);
+    });
+    backToGrid();
+  }, [activeEditor, backToGrid, refs.canvas, setContext]);
+
+  /**
+   * The built-in function picker: starts a formula ("=") in `el` if it
+   * holds none and opens the autocomplete with the common functions; a
+   * picked one is inserted at the caret.
+   */
+  const openFunctionList = useCallback(
+    (el: HTMLDivElement) => {
+      const text = el.textContent ?? "";
+      if (!text.startsWith("=")) {
+        el.textContent = "=";
+        setCaretOffset(el, 1);
+      } else if (getCaretOffset(el) == null) {
+        setCaretOffset(el, text.length);
+      }
+      const other =
+        el === refs.fxInput.current
+          ? refs.cellInput.current
+          : refs.fxInput.current;
+      setContext((ctx) => {
+        handleFormulaInput(ctx, other, el, 0);
+        const map = getFunctionListMap(ctx);
+        const list = COMMON_FUNCTIONS.map((n) => map[n]).filter(Boolean);
+        if (list.length === 0) return;
+        ctx.functionCandidates = list.map((f: any) => ({
+          n: f.n,
+          d: f.d,
+          a: f.a,
+        }));
+        ctx.functionCandidateIndex = 0;
+        ctx.functionHint = null;
+      });
+    },
+    [refs.cellInput, refs.fxInput, setContext]
+  );
+
+  /** fx (Shift+F3): the Insert Function dialog, or the function list. */
+  const insertFunction = useCallback(() => {
+    if (!allowEdit) return;
+    const handler = getInsertFunction();
+    if (
+      handler &&
+      handler({
+        context,
+        setContext,
+        refs,
+        showModal,
+        hideModal,
+        editor: editing ? activeEditor() : null,
+      }) !== false
+    ) {
+      return;
+    }
+    if (editing) {
+      const el = activeEditor();
+      if (el) openFunctionList(el);
+      return;
+    }
+    // start editing in the formula bar (its focus starts the edit), then
+    // open the list once the edit session is set up
+    const fx = refs.fxInput.current;
+    if (!fx) return;
+    fx.focus();
+    setTimeout(() => {
+      if (document.activeElement === fx) openFunctionList(fx);
+    });
+  }, [
+    activeEditor,
+    allowEdit,
+    context,
+    editing,
+    hideModal,
+    openFunctionList,
+    refs,
+    setContext,
+    showModal,
+  ]);
+
+  // Shift+F3 anywhere in the workbook opens Insert Function, like Excel
+  useEffect(() => {
+    const container = refs.workbookContainer.current;
+    if (!container) return undefined;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === "F3" &&
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey
+      ) {
+        // not from the Name Box or a dialog's fields
+        const target = e.target as HTMLElement | null;
+        if (
+          target?.closest?.(
+            "input, textarea, select, [role=dialog], .fortune-modal-container"
+          )
+        ) {
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        insertFunction();
+      }
+    };
+    container.addEventListener("keydown", onKeyDown, true);
+    return () => container.removeEventListener("keydown", onKeyDown, true);
+  }, [insertFunction, refs.workbookContainer]);
+
+  // the buttons keep the caret in the formula being edited
+  const keepFocus = (e: React.MouseEvent) => e.preventDefault();
+  const toggleLabel = bar.expanded
+    ? formulaMore.collapseFormulaBar
+    : formulaMore.expandFormulaBar;
+
   return (
     // View > Formula Bar unchecked: hidden but mounted (keys use it)
     <aside className="fortune-fx-editor-wrap" hidden={!!context.hideFormulaBar}>
       <div
         className={`fortune-fx-editor${
           bar.expanded ? " fortune-fx-editor-expanded" : ""
-        }`}
+        }${editing ? " fortune-fx-editor-editing" : ""}`}
         style={bar.height != null ? { height: bar.height } : undefined}
       >
         <NameBox />
-        <div className="fortune-fx-icon">
-          <SVGIcon name="fx" width={18} height={18} />
+        <div className="fortune-fx-buttons">
+          <Tooltip label={formulaMore.formulaBarCancel} shortcut="Esc">
+            <button
+              type="button"
+              className="fortune-fx-button fortune-fx-cancel"
+              aria-label={formulaMore.formulaBarCancel}
+              disabled={!editing}
+              onMouseDown={keepFocus}
+              onClick={cancelEdit}
+            >
+              <Icon icon={X} size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip label={formulaMore.formulaBarEnter} shortcut="Enter">
+            <button
+              type="button"
+              className="fortune-fx-button fortune-fx-enter"
+              aria-label={formulaMore.formulaBarEnter}
+              disabled={!editing || !allowEdit}
+              onMouseDown={keepFocus}
+              onClick={commitEdit}
+            >
+              <Icon icon={Check} size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip
+            label={formulaMore.formulaBarInsertFunction}
+            shortcut="Shift+F3"
+          >
+            <button
+              type="button"
+              className="fortune-fx-button fortune-fx-insert"
+              aria-label={formulaMore.formulaBarInsertFunction}
+              disabled={!allowEdit}
+              onMouseDown={keepFocus}
+              onClick={insertFunction}
+            >
+              <span className="fortune-fx-glyph" aria-hidden="true">
+                fx
+              </span>
+            </button>
+          </Tooltip>
         </div>
-        <div ref={inputContainerRef} className="fortune-fx-input-container">
+        <div
+          ref={inputContainerRef}
+          className={`fortune-fx-input-container${
+            focused ? " fortune-fx-input-container-focused" : ""
+          }`}
+        >
           <ContentEditable
             innerRef={(e) => {
               refs.fxInput.current = e;
@@ -283,6 +521,8 @@ const FxEditor: React.FC = () => {
             role="textbox"
             id="luckysheet-functionbox-cell"
             aria-label={info.currentCellInput}
+            aria-multiline="true"
+            spellCheck={false}
             onFocus={onFocus}
             onKeyDown={onKeyDown}
             onKeyUp={formulaKeys.onKeyUp}
@@ -299,39 +539,31 @@ const FxEditor: React.FC = () => {
             <>
               <FormulaSearch
                 style={{
-                  top: inputContainerRef.current!.clientHeight,
+                  top: inputContainerRef.current!.offsetHeight + 4,
                 }}
                 onSelectCandidate={formulaKeys.acceptCandidate}
               />
               <FormulaHint
                 style={{
-                  top: inputContainerRef.current!.clientHeight,
+                  top: inputContainerRef.current!.offsetHeight + 4,
                 }}
                 onSelectArgument={formulaKeys.selectArgument}
               />
             </>
           )}
+          <Tooltip label={toggleLabel}>
+            <button
+              type="button"
+              className="fortune-fx-toggle"
+              aria-expanded={bar.expanded}
+              aria-label={toggleLabel}
+              onMouseDown={keepFocus}
+              onClick={bar.toggle}
+            >
+              <Icon icon={ChevronDown} size={16} />
+            </button>
+          </Tooltip>
         </div>
-        <button
-          type="button"
-          className="fortune-fx-toggle"
-          aria-expanded={bar.expanded}
-          aria-label={
-            bar.expanded
-              ? formulaMore.collapseFormulaBar
-              : formulaMore.expandFormulaBar
-          }
-          title={
-            bar.expanded
-              ? formulaMore.collapseFormulaBar
-              : formulaMore.expandFormulaBar
-          }
-          // keep the caret in the formula being edited
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={bar.toggle}
-        >
-          <SVGIcon name="downArrow" width={12} height={12} />
-        </button>
       </div>
       {/* a focusable separator is a window splitter (interactive) */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}

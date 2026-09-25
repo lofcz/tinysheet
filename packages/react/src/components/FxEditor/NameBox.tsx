@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import _ from "lodash";
+import { ChevronDown, EllipsisVertical, Table2, Tag } from "lucide-react";
 import {
   defineNameForSelection,
   getDefinedNames,
@@ -21,25 +22,27 @@ import {
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import { useOutsideClick } from "../../hooks/useOutsideClick";
-import SVGIcon from "../SVGIcon";
+import { DropdownMenu, Icon, MenuItem } from "../ui";
+import { useNameBoxWidth } from "./useNameBoxWidth";
 
 /**
  * The Name Box left of the formula bar: shows the active cell / selection
  * (or the name that refers to exactly the selection); typing a reference,
  * a name or a table jumps to it, typing a new name defines it for the
- * selection. The dropdown lists the defined names and tables.
+ * selection. The drop-down lists the defined names and tables; the grip on
+ * its right edge drags its width (like Excel).
  */
 const NameBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const { showDialog } = useDialog();
-  const { definedNames: t } = locale(context);
+  const { definedNames: t, formulaMore } = locale(context);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
+  const [byKeyboard, setByKeyboard] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  useOutsideClick(containerRef, () => setOpen(false));
+  const boxRef = useRef<HTMLDivElement>(null);
+  const size = useNameBoxWidth(boxRef);
 
   const rangeText = useMemo(() => {
     const lastSelection = _.last(context.luckysheet_select_save);
@@ -77,21 +80,6 @@ const NameBox: React.FC = () => {
     if (!editing) setText(rangeText);
   }, [rangeText, editing]);
 
-  const items = useMemo(() => {
-    if (!open) return [];
-    const names = getDefinedNames(context)
-      .filter(
-        (d) =>
-          !d.hidden && (d.scope == null || d.scope === context.currentSheetId)
-      )
-      .filter((d) => resolveNameRange(context, d.name, context.currentSheetId))
-      .map((d) => d.name);
-    const tables = getTables(context).map((x) => x.table.name);
-    return _.uniqBy([...names, ...tables], (n) => n.toUpperCase()).sort(
-      (a, b) => a.localeCompare(b)
-    );
-  }, [open, context]);
-
   const goTo = useCallback(
     (value: string) => {
       const res = resolveNameBoxInput(context, value);
@@ -125,87 +113,136 @@ const NameBox: React.FC = () => {
     setEditing(false);
     inputRef.current?.blur();
     // back to the grid, like Excel
-    setTimeout(() => refs.cellInput.current?.focus());
+    setTimeout(() => refs.cellInput.current?.focus({ preventScroll: true }));
   }, [refs.cellInput]);
 
+  const items = useMemo((): MenuItem[] => {
+    if (!open) return [];
+    const names = getDefinedNames(context)
+      .filter(
+        (d) =>
+          !d.hidden && (d.scope == null || d.scope === context.currentSheetId)
+      )
+      .filter((d) => resolveNameRange(context, d.name, context.currentSheetId))
+      .map((d) => ({ name: d.name, table: false }));
+    const tables = getTables(context).map((x) => ({
+      name: x.table.name,
+      table: true,
+    }));
+    const all = _.uniqBy([...names, ...tables], (n) =>
+      n.name.toUpperCase()
+    ).sort((a, b) => a.name.localeCompare(b.name));
+    if (all.length === 0) {
+      return [
+        {
+          type: "custom",
+          id: "empty",
+          render: () => <div className="fortune-name-box-empty">{t.empty}</div>,
+        },
+      ];
+    }
+    return all.map(({ name, table }) => ({
+      id: name,
+      label: name,
+      icon: table ? Table2 : Tag,
+      checked: name === rangeText ? true : undefined,
+      onSelect: () => {
+        goTo(name);
+        finish();
+      },
+    }));
+  }, [open, context, t.empty, rangeText, goTo, finish]);
+
+  const toggleList = (keyboard: boolean) => {
+    setByKeyboard(keyboard);
+    setOpen((o) => !o);
+  };
+
   return (
-    <div className="fortune-name-box-container" ref={containerRef}>
-      <input
-        ref={inputRef}
-        className="fortune-name-box"
-        dir="ltr"
-        spellCheck={false}
-        aria-label={t.nameBox}
-        value={editing ? text : rangeText}
-        onFocus={(e) => {
-          setEditing(true);
-          setText(rangeText);
-          e.currentTarget.select();
-        }}
-        onBlur={() => setEditing(false)}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          e.stopPropagation();
-          if (e.key === "Enter") {
-            e.preventDefault();
-            const value = text;
-            finish();
-            if (value.trim() && value.trim() !== rangeText) goTo(value);
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            setText(rangeText);
-            finish();
-          }
-        }}
-      />
+    <div className="fortune-name-box-container">
       <div
-        className="fortune-name-box-arrow"
-        role="button"
-        tabIndex={0}
-        aria-label={t.nameBoxList}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setOpen((o) => !o);
-          }
-        }}
+        ref={boxRef}
+        className={`fortune-name-box-field${
+          open ? " fortune-name-box-field-open" : ""
+        }`}
+        style={{ width: size.width }}
       >
-        <SVGIcon name="combo-arrow" width={10} />
+        <input
+          ref={inputRef}
+          className="fortune-name-box"
+          dir="ltr"
+          spellCheck={false}
+          autoComplete="off"
+          aria-label={t.nameBox}
+          value={editing ? text : rangeText}
+          onFocus={(e) => {
+            setEditing(true);
+            setText(rangeText);
+            e.currentTarget.select();
+          }}
+          onBlur={() => setEditing(false)}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const value = text;
+              finish();
+              if (value.trim() && value.trim() !== rangeText) goTo(value);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              setText(rangeText);
+              finish();
+            } else if (e.key === "ArrowDown" && e.altKey) {
+              // Alt+Down opens the list, like a combo box
+              e.preventDefault();
+              toggleList(true);
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="fortune-name-box-arrow"
+          tabIndex={-1}
+          aria-label={t.nameBoxList}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          title={t.nameBoxList}
+          // the input keeps its text (and the grid its focus) until a pick
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => toggleList(e.detail === 0)}
+        >
+          <Icon icon={ChevronDown} size={14} />
+        </button>
       </div>
-      {open && (
-        <div className="fortune-name-box-list" role="listbox">
-          {items.length === 0 ? (
-            <div className="fortune-name-box-list-empty">{t.empty}</div>
-          ) : (
-            items.map((name) => (
-              <div
-                key={name}
-                role="option"
-                aria-selected={name === rangeText}
-                tabIndex={0}
-                className="fortune-name-box-list-item"
-                onClick={() => {
-                  setOpen(false);
-                  goTo(name);
-                  finish();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    setOpen(false);
-                    goTo(name);
-                    finish();
-                  }
-                }}
-              >
-                {name}
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      <DropdownMenu
+        open={open}
+        onOpenChange={setOpen}
+        anchorRef={boxRef}
+        items={items}
+        autoFocus={byKeyboard}
+        minWidth={Math.max(160, size.width)}
+        aria-label={t.nameBoxList}
+        className="fortune-name-box-menu"
+      />
+      {/* a focusable separator is a window splitter (interactive) */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <div
+        className="fortune-name-box-grip"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={formulaMore.nameBoxResize}
+        aria-valuemin={size.min}
+        aria-valuemax={size.max}
+        aria-valuenow={size.width}
+        title={formulaMore.nameBoxResize}
+        tabIndex={0}
+        onPointerDown={size.onResizeStart}
+        onKeyDown={size.onResizeKey}
+        onDoubleClick={size.reset}
+      >
+        <Icon icon={EllipsisVertical} size={14} />
+      </div>
     </div>
   );
 };

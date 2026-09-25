@@ -12,7 +12,6 @@
 import type { Context } from "../context";
 import type { Cell, CellMatrix } from "../types";
 import { locale } from "../locale";
-import { colors } from "./color";
 import { getNameCandidates } from "./names";
 import { escapeColumnName, findTable, tableAt } from "./tables";
 
@@ -979,8 +978,25 @@ export function referenceKey(ref: string) {
   return (prefix + body.replace(/\$/g, "")).toUpperCase();
 }
 
+/**
+ * Colours of the references of a formula being edited (the text in the
+ * editors and the boxes on the grid), in Excel's order: blue, red, purple,
+ * green, magenta, orange, teal, brown. Mid tones that read on the light and
+ * the dark editor background alike.
+ */
+export const REFERENCE_COLORS = [
+  "#2f6fdf",
+  "#d63a3a",
+  "#8b50d4",
+  "#1f9950",
+  "#c43a93",
+  "#c9741c",
+  "#1a91a8",
+  "#8f6b2f",
+];
+
 export function referenceColor(colorIndex: number) {
-  return colors[colorIndex % colors.length];
+  return REFERENCE_COLORS[colorIndex % REFERENCE_COLORS.length];
 }
 
 /**
@@ -1586,10 +1602,10 @@ export function getActiveFunctionCandidate(ctx: Context): string | null {
 /* -------------------------------------------------------------------------- */
 
 /** Height (px) of the one-line formula bar. */
-export const FORMULA_BAR_COLLAPSED_HEIGHT = 28;
+export const FORMULA_BAR_COLLAPSED_HEIGHT = 36;
 /** Smallest and default height (px) of the expanded formula bar. */
-export const FORMULA_BAR_MIN_HEIGHT = 48;
-export const FORMULA_BAR_DEFAULT_HEIGHT = 88;
+export const FORMULA_BAR_MIN_HEIGHT = 56;
+export const FORMULA_BAR_DEFAULT_HEIGHT = 96;
 
 /** The expanded formula bar height, kept between the minimum and `max`. */
 export function clampFormulaBarHeight(height: number, max = 600) {

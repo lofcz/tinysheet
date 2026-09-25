@@ -1504,6 +1504,10 @@ export default {
     expandFormulaBar: "Expand Formula Bar (Ctrl+Shift+U)",
     collapseFormulaBar: "Collapse Formula Bar (Ctrl+Shift+U)",
     resizeFormulaBar: "Drag to resize the formula bar",
+    formulaBarCancel: "Discard Edit",
+    formulaBarEnter: "Confirm Edit",
+    formulaBarInsertFunction: "Insert Function",
+    nameBoxResize: "Drag to resize the Name Box",
   },
   definedNames: {
     nameManager: "Name Manager",

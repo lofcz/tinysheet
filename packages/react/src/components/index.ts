@@ -7,6 +7,11 @@ export {
   ThreadedCommentsLayer,
   CommentsPane,
 } from "./ThreadedComments";
+export { registerInsertFunction } from "./FxEditor/insertFunction";
+export type {
+  InsertFunctionHandler,
+  InsertFunctionHelpers,
+} from "./FxEditor/insertFunction";
 export {
   registerContextMenuItem,
   registerContextMenuAction,

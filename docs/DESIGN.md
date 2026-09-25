@@ -148,3 +148,11 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
   `registerFileMenuItem`; `settings.ribbon` for a custom layout. Scaling:
   `useRibbonScaling.ts`. Tests: `packages/react/test/ribbonHelpers.ts`
   (`showRibbonItem`), e2e `toolbarButton` / `ribbonItem` / `ribbonTab`.
+- **Formula bar**: `packages/react/src/components/FxEditor` — Name Box
+  (`NameBox.tsx`, width drag `useNameBoxWidth.ts`), ✕ / ✓ / fx, the formula
+  field, expand (Ctrl+Shift+U) and height drag (`useFormulaBarSize.ts`).
+  An Insert Function dialog plugs into fx / Shift+F3 with
+  `registerInsertFunction(({ context, setContext, refs, showModal, hideModal,
+  editor }) => …)` (return false to fall back to the function list);
+  `editor` is the element being edited (insert at its caret) or null.
+  Reference colours: `REFERENCE_COLORS` in core `formulaEditor.ts`.

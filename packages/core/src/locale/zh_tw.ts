@@ -1517,6 +1517,10 @@ export default {
     expandFormulaBar: "展開資料編輯列 (Ctrl+Shift+U)",
     collapseFormulaBar: "摺疊資料編輯列 (Ctrl+Shift+U)",
     resizeFormulaBar: "拖曳以調整資料編輯列大小",
+    formulaBarCancel: "放棄編輯",
+    formulaBarEnter: "確認編輯",
+    formulaBarInsertFunction: "插入函數",
+    nameBoxResize: "拖曳以調整名稱方塊寬度",
   },
   definedNames: {
     nameManager: "名稱管理員",

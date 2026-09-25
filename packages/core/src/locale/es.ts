@@ -1517,6 +1517,10 @@ export default {
     expandFormulaBar: "Expandir la barra de fórmulas (Ctrl+Mayús+U)",
     collapseFormulaBar: "Contraer la barra de fórmulas (Ctrl+Mayús+U)",
     resizeFormulaBar: "Arrastre para cambiar el tamaño de la barra de fórmulas",
+    formulaBarCancel: "Descartar edición",
+    formulaBarEnter: "Confirmar edición",
+    formulaBarInsertFunction: "Insertar función",
+    nameBoxResize: "Arrastre para cambiar el ancho del cuadro de nombres",
   },
   definedNames: {
     nameManager: "Administrador de nombres",

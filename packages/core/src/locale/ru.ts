@@ -2180,6 +2180,10 @@ export default {
     expandFormulaBar: "Развернуть строку формул (Ctrl+Shift+U)",
     collapseFormulaBar: "Свернуть строку формул (Ctrl+Shift+U)",
     resizeFormulaBar: "Перетащите, чтобы изменить высоту строки формул",
+    formulaBarCancel: "Отменить изменения",
+    formulaBarEnter: "Подтвердить изменения",
+    formulaBarInsertFunction: "Вставить функцию",
+    nameBoxResize: "Перетащите, чтобы изменить ширину поля имени",
   },
   definedNames: {
     nameManager: "Диспетчер имён",
