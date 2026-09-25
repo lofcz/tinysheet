@@ -9,21 +9,21 @@
  * images), the relationships and the content-type overrides.
  */
 import JSZip from "jszip";
-import {
-  Chart,
-  chartPaletteColor,
-  chartRangeToText,
-  ChartRange,
-  readChartRange,
-  resolveChartModel,
-  Sheet,
-} from "@lofcz/tinysheet-core";
+import { Chart, ChartAnchorPoint, Sheet } from "@lofcz/tinysheet-core";
 import { escapeXmlText as esc } from "./xml";
+import { chartToXml, NS_A, NS_C, NS_R, SheetsCtx } from "./chartXml";
+import {
+  chartExRequires,
+  chartExToXml,
+  CT_CHARTEX,
+  isChartExType,
+  NS_CX,
+  REL_CHARTEX,
+} from "./chartEx";
 
-const NS_C = "http://schemas.openxmlformats.org/drawingml/2006/chart";
-const NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
-const NS_R =
-  "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+export { chartToXml } from "./chartXml";
+export { chartExToXml } from "./chartEx";
+
 const NS_XDR =
   "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
 const REL_CHART =
@@ -34,268 +34,7 @@ const CT_CHART =
   "application/vnd.openxmlformats-officedocument.drawingml.chart+xml";
 const CT_DRAWING = "application/vnd.openxmlformats-officedocument.drawing+xml";
 const EMU_PER_PX = 9525;
-
-type SheetsCtx = { luckysheetfile: Sheet[] };
-
-function hex(color: string | undefined, fallback: string) {
-  const c = color && /^#?[0-9a-f]{6}$/i.test(color) ? color : fallback;
-  return c.replace("#", "").toUpperCase();
-}
-
-function solidFill(color: string) {
-  return `<a:solidFill><a:srgbClr val="${color}"/></a:solidFill>`;
-}
-
-function richTitle(text: string, size = 1400) {
-  return (
-    `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="${size}" b="0"/></a:pPr>` +
-    `<a:r><a:rPr lang="en-US" sz="${size}" b="0"/><a:t>${esc(
-      text
-    )}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`
-  );
-}
-
-function numCache(values: (number | null)[]) {
-  let pts = "";
-  values.forEach((v, i) => {
-    if (v != null && Number.isFinite(v))
-      pts += `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`;
-  });
-  return `<c:formatCode>General</c:formatCode><c:ptCount val="${values.length}"/>${pts}`;
-}
-
-function strCache(values: string[]) {
-  let pts = "";
-  values.forEach((v, i) => {
-    pts += `<c:pt idx="${i}"><c:v>${esc(v ?? "")}</c:v></c:pt>`;
-  });
-  return `<c:ptCount val="${values.length}"/>${pts}`;
-}
-
-function numSource(
-  ctx: SheetsCtx,
-  range: ChartRange | null | undefined,
-  values: (number | null)[]
-) {
-  if (range) {
-    return `<c:numRef><c:f>${esc(
-      chartRangeToText(ctx, range)
-    )}</c:f><c:numCache>${numCache(values)}</c:numCache></c:numRef>`;
-  }
-  return `<c:numLit>${numCache(values)}</c:numLit>`;
-}
-
-function strSource(
-  ctx: SheetsCtx,
-  range: ChartRange | null | undefined,
-  values: string[]
-) {
-  if (range) {
-    return `<c:strRef><c:f>${esc(
-      chartRangeToText(ctx, range)
-    )}</c:f><c:strCache>${strCache(values)}</c:strCache></c:strRef>`;
-  }
-  return `<c:strLit>${strCache(values)}</c:strLit>`;
-}
-
-const DLBLS_OFF =
-  '<c:showLegendKey val="0"/><c:showVal val="0"/><c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/>';
-const DLBLS_ON =
-  '<c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/>';
-
-/** DrawingML chart part for one chart. */
-export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
-  const model = resolveChartModel(ctx, chart);
-  const { type } = chart;
-  const grouping = chart.grouping ?? "clustered";
-  const pie = type === "pie" || type === "doughnut";
-  const scatter = type === "scatter";
-  const vary = pie || !!chart.varyColors;
-  const catRange = chart.series.find((s) => s.categories)?.categories;
-  const catNumeric =
-    !!catRange && readChartRange(ctx, catRange).every((c) => !c.text);
-
-  let series = "";
-  chart.series.forEach((s, i) => {
-    const m = model.series[i];
-    const color = hex(s.color, chartPaletteColor(i));
-    let x = `<c:ser><c:idx val="${i}"/><c:order val="${i}"/>`;
-    if (s.nameRef && !s.name) {
-      x += `<c:tx>${strSource(ctx, s.nameRef, [m.name])}</c:tx>`;
-    } else {
-      x += `<c:tx><c:v>${esc(m.name)}</c:v></c:tx>`;
-    }
-    if (type === "line" || (scatter && chart.scatterLines)) {
-      x += `<c:spPr><a:ln w="28575" cap="rnd">${solidFill(
-        color
-      )}<a:round/></a:ln></c:spPr>`;
-    } else if (scatter) {
-      x += `<c:spPr><a:ln w="25400"><a:noFill/></a:ln></c:spPr>`;
-    } else {
-      x += `<c:spPr>${solidFill(color)}${
-        pie
-          ? '<a:ln w="12700"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:ln>'
-          : ""
-      }</c:spPr>`;
-    }
-    if (type === "column" || type === "bar")
-      x += '<c:invertIfNegative val="0"/>';
-    if (type === "line" || scatter) {
-      x +=
-        chart.markers === false
-          ? '<c:marker><c:symbol val="none"/></c:marker>'
-          : `<c:marker><c:symbol val="circle"/><c:size val="5"/><c:spPr>${solidFill(
-              color
-            )}</c:spPr></c:marker>`;
-    }
-    if (vary && m.pointColors) {
-      m.pointColors.forEach((pc, p) => {
-        x += `<c:dPt><c:idx val="${p}"/>${
-          pie
-            ? '<c:bubble3D val="0"/>'
-            : '<c:invertIfNegative val="0"/><c:bubble3D val="0"/>'
-        }<c:spPr>${solidFill(hex(pc, chartPaletteColor(p)))}</c:spPr></c:dPt>`;
-      });
-    }
-    const { categories } = model;
-    if (scatter) {
-      const xs = m.xValues ?? m.values.map((_, p) => p + 1);
-      x += `<c:xVal>${
-        catNumeric || !s.categories
-          ? numSource(ctx, s.categories, xs)
-          : strSource(ctx, s.categories, categories)
-      }</c:xVal>`;
-      x += `<c:yVal>${numSource(ctx, s.values, m.values)}</c:yVal>`;
-      x += '<c:smooth val="0"/>';
-    } else {
-      if (s.categories || categories.length) {
-        x += `<c:cat>${
-          catNumeric
-            ? numSource(
-                ctx,
-                s.categories,
-                categories.map((c) => (c === "" ? null : Number(c)))
-              )
-            : strSource(ctx, s.categories, categories)
-        }</c:cat>`;
-      }
-      x += `<c:val>${numSource(ctx, s.values, m.values)}</c:val>`;
-      if (type === "line") x += '<c:smooth val="0"/>';
-    }
-    x += "</c:ser>";
-    series += x;
-  });
-
-  const dLbls = `<c:dLbls>${chart.dataLabels ? DLBLS_ON : DLBLS_OFF}</c:dLbls>`;
-  const xmlGrouping =
-    (type === "line" || type === "area") && grouping === "clustered"
-      ? "standard"
-      : grouping;
-  let group = "";
-  const axIds = '<c:axId val="500000001"/><c:axId val="500000002"/>';
-  switch (type) {
-    case "column":
-    case "bar":
-      group =
-        `<c:barChart><c:barDir val="${type === "bar" ? "bar" : "col"}"/>` +
-        `<c:grouping val="${grouping}"/><c:varyColors val="${
-          vary ? 1 : 0
-        }"/>${series}${dLbls}<c:gapWidth val="150"/>${
-          grouping === "clustered" ? "" : '<c:overlap val="100"/>'
-        }${axIds}</c:barChart>`;
-      break;
-    case "line":
-      group = `<c:lineChart><c:grouping val="${xmlGrouping}"/><c:varyColors val="0"/>${series}${dLbls}<c:marker val="${
-        chart.markers === false ? 0 : 1
-      }"/>${axIds}</c:lineChart>`;
-      break;
-    case "area":
-      group = `<c:areaChart><c:grouping val="${xmlGrouping}"/><c:varyColors val="0"/>${series}${dLbls}${axIds}</c:areaChart>`;
-      break;
-    case "pie":
-      group = `<c:pieChart><c:varyColors val="1"/>${series}${dLbls}<c:firstSliceAng val="0"/></c:pieChart>`;
-      break;
-    case "doughnut":
-      group = `<c:doughnutChart><c:varyColors val="1"/>${series}${dLbls}<c:firstSliceAng val="0"/><c:holeSize val="50"/></c:doughnutChart>`;
-      break;
-    default:
-      group = `<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>${series}${dLbls}${axIds}</c:scatterChart>`;
-  }
-
-  const gridlines = chart.gridlines !== false ? "<c:majorGridlines/>" : "";
-  const axisTitle = (t?: string) =>
-    t && t.trim() ? richTitle(t.trim(), 1000) : "";
-  const scaling = (withBounds: boolean) => {
-    let out = '<c:scaling><c:orientation val="minMax"/>';
-    if (withBounds && chart.valueAxis?.max != null)
-      out += `<c:max val="${chart.valueAxis.max}"/>`;
-    if (withBounds && chart.valueAxis?.min != null)
-      out += `<c:min val="${chart.valueAxis.min}"/>`;
-    return `${out}</c:scaling>`;
-  };
-  const common =
-    '<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>';
-  const majorUnit =
-    chart.valueAxis?.majorUnit != null
-      ? `<c:majorUnit val="${chart.valueAxis.majorUnit}"/>`
-      : "";
-  const catPos = type === "bar" ? "l" : "b";
-  const valPos = type === "bar" ? "b" : "l";
-  const valueFormat =
-    grouping === "percentStacked" && !scatter ? "0%" : "General";
-  let axes = "";
-  if (scatter) {
-    axes =
-      `<c:valAx><c:axId val="500000001"/>${scaling(
-        false
-      )}<c:delete val="0"/><c:axPos val="b"/>${axisTitle(
-        chart.categoryAxisTitle
-      )}<c:numFmt formatCode="General" sourceLinked="1"/>${common}<c:crossAx val="500000002"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/></c:valAx>` +
-      `<c:valAx><c:axId val="500000002"/>${scaling(
-        true
-      )}<c:delete val="0"/><c:axPos val="l"/>${gridlines}${axisTitle(
-        chart.valueAxisTitle
-      )}<c:numFmt formatCode="General" sourceLinked="1"/>${common}<c:crossAx val="500000001"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/>${majorUnit}</c:valAx>`;
-  } else if (!pie) {
-    axes =
-      `<c:catAx><c:axId val="500000001"/>${scaling(
-        false
-      )}<c:delete val="0"/><c:axPos val="${catPos}"/>${axisTitle(
-        chart.categoryAxisTitle
-      )}<c:numFmt formatCode="General" sourceLinked="1"/>${common}<c:crossAx val="500000002"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>` +
-      `<c:valAx><c:axId val="500000002"/>${scaling(
-        true
-      )}<c:delete val="0"/><c:axPos val="${valPos}"/>${gridlines}${axisTitle(
-        chart.valueAxisTitle
-      )}<c:numFmt formatCode="${valueFormat}" sourceLinked="${
-        valueFormat === "General" ? 1 : 0
-      }"/>${common}<c:crossAx val="500000001"/><c:crosses val="autoZero"/><c:crossBetween val="${
-        type === "area" ? "midCat" : "between"
-      }"/>${majorUnit}</c:valAx>`;
-  }
-
-  const legendPos = { right: "r", left: "l", top: "t", bottom: "b" } as const;
-  const legend =
-    chart.legend === "none"
-      ? ""
-      : `<c:legend><c:legendPos val="${
-          legendPos[chart.legend ?? "right"]
-        }"/><c:overlay val="0"/></c:legend>`;
-  const title = chart.title?.trim();
-
-  return (
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
-    `<c:chartSpace xmlns:c="${NS_C}" xmlns:a="${NS_A}" xmlns:r="${NS_R}">` +
-    `<c:roundedCorners val="0"/><c:chart>${
-      title ? richTitle(title) : ""
-    }<c:autoTitleDeleted val="${
-      title ? 0 : 1
-    }"/><c:plotArea><c:layout/>${group}${axes}</c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>` +
-    `<c:spPr>${solidFill("FFFFFF")}<a:ln w="9525">${solidFill(
-      "D9D9D9"
-    )}</a:ln></c:spPr></c:chartSpace>`
-  );
-}
+const NS_MC = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 
 // ---------------------------------------------------------------------------
 // Anchors
@@ -326,7 +65,7 @@ export function pixelToCell(
   return { index: max, offsetPx: 0 };
 }
 
-function anchorFor(sheet: Sheet, chart: Chart) {
+function sheetGeometry(sheet: Sheet) {
   const cfg = sheet.config || {};
   const colW = (c: number) =>
     Number(cfg.columnlen?.[c] ?? sheet.defaultColWidth ?? 73);
@@ -334,17 +73,74 @@ function anchorFor(sheet: Sheet, chart: Chart) {
     Number(cfg.rowlen?.[r] ?? sheet.defaultRowHeight ?? 19);
   const colHidden = (c: number) => cfg.colhidden?.[c] != null;
   const rowHidden = (r: number) => cfg.rowhidden?.[r] != null;
+  const start = (
+    i: number,
+    size: (k: number) => number,
+    hidden: (k: number) => boolean
+  ) => {
+    let px = 0;
+    for (let k = 0; k < i; k += 1) if (!hidden(k)) px += size(k) + 1;
+    return px;
+  };
   return {
-    from: {
-      col: pixelToCell(chart.left, colW, colHidden),
-      row: pixelToCell(chart.top, rowH, rowHidden),
-    },
-    to: {
-      col: pixelToCell(chart.left + chart.width, colW, colHidden),
-      row: pixelToCell(chart.top + chart.height, rowH, rowHidden),
-    },
+    colW,
+    rowH,
+    colHidden,
+    rowHidden,
+    colLeft: (c: number) => start(c, colW, colHidden),
+    rowTop: (r: number) => start(r, rowH, rowHidden),
   };
 }
+
+type CellAnchor = {
+  from: { col: CellOffset; row: CellOffset };
+  to: { col: CellOffset; row: CellOffset };
+};
+
+/**
+ * Cell anchor of a chart: its own anchor cells when it has them (move and
+ * size with cells / move only), else the cells under its pixel box.
+ */
+export function anchorFor(sheet: Sheet, chart: Chart): CellAnchor {
+  const g = sheetGeometry(sheet);
+  const fromPixels = (left: number, top: number, w: number, h: number) => ({
+    from: {
+      col: pixelToCell(left, g.colW, g.colHidden),
+      row: pixelToCell(top, g.rowH, g.rowHidden),
+    },
+    to: {
+      col: pixelToCell(left + w, g.colW, g.colHidden),
+      row: pixelToCell(top + h, g.rowH, g.rowHidden),
+    },
+  });
+  const placement = chart.placement ?? "twoCell";
+  const a = chart.anchor;
+  if (!a || placement === "absolute")
+    return fromPixels(chart.left, chart.top, chart.width, chart.height);
+  const point = (p: ChartAnchorPoint) => ({
+    col: {
+      index: p.col,
+      offsetPx: Math.max(0, Math.min(g.colW(p.col), p.colOff)),
+    },
+    row: {
+      index: p.row,
+      offsetPx: Math.max(0, Math.min(g.rowH(p.row), p.rowOff)),
+    },
+  });
+  const from = point(a.from);
+  if (placement === "twoCell") return { from, to: point(a.to) };
+  // move but don't size: the end follows the stored size
+  const left = g.colLeft(a.from.col) + from.col.offsetPx;
+  const top = g.rowTop(a.from.row) + from.row.offsetPx;
+  const box = fromPixels(left, top, chart.width, chart.height);
+  return { from, to: box.to };
+}
+
+const EDIT_AS = {
+  twoCell: "twoCell",
+  oneCell: "oneCell",
+  absolute: "absolute",
+};
 
 function anchorXml(sheet: Sheet, chart: Chart, rid: string, shapeId: number) {
   const a = anchorFor(sheet, chart);
@@ -355,19 +151,32 @@ function anchorXml(sheet: Sheet, chart: Chart, rid: string, shapeId: number) {
       r.offsetPx * EMU_PER_PX
     )}</xdr:rowOff></xdr:${tag}>`;
   const name = esc(chart.title?.trim() || `Chart ${shapeId}`);
-  return (
-    `<xdr:twoCellAnchor editAs="oneCell">${cell(
-      "from",
-      a.from.col,
-      a.from.row
-    )}${cell("to", a.to.col, a.to.row)}` +
-    `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${shapeId}" name="${name}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +
-    `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>` +
-    `<a:graphic><a:graphicData uri="${NS_C}"><c:chart xmlns:c="${NS_C}" xmlns:r="${NS_R}" r:id="${rid}"/></a:graphicData></a:graphic>` +
-    `</xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>`
-  );
+  const ex = isChartExType(chart.type);
+  const nv = `<xdr:nvGraphicFramePr><xdr:cNvPr id="${shapeId}" name="${name}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>`;
+  let frame: string;
+  if (ex) {
+    // chartex parts need Excel 2016+; older readers get a text box
+    const req = chartExRequires(chart.type);
+    frame =
+      `<mc:AlternateContent xmlns:mc="${NS_MC}"><mc:Choice xmlns:${req.prefix}="${req.ns}" Requires="${req.prefix}">` +
+      `<xdr:graphicFrame macro="">${nv}<a:graphic><a:graphicData uri="${NS_CX}"><cx:chart xmlns:cx="${NS_CX}" xmlns:r="${NS_R}" r:id="${rid}"/></a:graphicData></a:graphic></xdr:graphicFrame>` +
+      `</mc:Choice><mc:Fallback><xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="${shapeId}" name="${name}"/><xdr:cNvSpPr><a:spLocks noTextEdit="1"/></xdr:cNvSpPr></xdr:nvSpPr>` +
+      `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="4572000" cy="2743200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:prstClr val="white"/></a:solidFill><a:ln w="1"><a:solidFill><a:prstClr val="green"/></a:solidFill></a:ln></xdr:spPr>` +
+      `<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" sz="1100"/><a:t>This chart isn't available in your version of Excel.</a:t></a:r></a:p></xdr:txBody></xdr:sp></mc:Fallback></mc:AlternateContent>`;
+  } else {
+    frame =
+      `<xdr:graphicFrame macro="">${nv}` +
+      `<a:graphic><a:graphicData uri="${NS_C}"><c:chart xmlns:c="${NS_C}" xmlns:r="${NS_R}" r:id="${rid}"/></a:graphicData></a:graphic>` +
+      `</xdr:graphicFrame>`;
+  }
+  return `<xdr:twoCellAnchor editAs="${
+    EDIT_AS[chart.placement ?? "twoCell"]
+  }">${cell("from", a.from.col, a.from.row)}${cell(
+    "to",
+    a.to.col,
+    a.to.row
+  )}${frame}<xdr:clientData/></xdr:twoCellAnchor>`;
 }
-
 // ---------------------------------------------------------------------------
 // Package plumbing
 // ---------------------------------------------------------------------------
@@ -493,6 +302,9 @@ export async function addChartsToXlsx(
   let chartNo = existing.filter((f) =>
     /^xl\/charts\/chart\d+\.xml$/.test(f)
   ).length;
+  let chartExNo = existing.filter((f) =>
+    /^xl\/charts\/chartEx\d+\.xml$/.test(f)
+  ).length;
   let drawingNo = existing.filter((f) =>
     /^xl\/drawings\/drawing\d+\.xml$/.test(f)
   ).length;
@@ -546,16 +358,25 @@ export async function addChartsToXlsx(
     let anchors = "";
     for (let i = 0; i < sheet.charts.length; i += 1) {
       const chart = sheet.charts[i];
-      chartNo += 1;
-      const chartPath = `xl/charts/chart${chartNo}.xml`;
-      zip.file(chartPath, chartToXml(ctx, chart));
-      types = addOverride(types, chartPath, CT_CHART);
+      const ex = isChartExType(chart.type);
+      let file: string;
+      if (ex) {
+        chartExNo += 1;
+        file = `chartEx${chartExNo}.xml`;
+        zip.file(`xl/charts/${file}`, chartExToXml(ctx, chart));
+        types = addOverride(types, `xl/charts/${file}`, CT_CHARTEX);
+      } else {
+        chartNo += 1;
+        file = `chart${chartNo}.xml`;
+        zip.file(`xl/charts/${file}`, chartToXml(ctx, chart));
+        types = addOverride(types, `xl/charts/${file}`, CT_CHART);
+      }
       const chartRid = nextRid(drawingRels ?? "");
       drawingRels = addRel(
         drawingRels,
         chartRid,
-        REL_CHART,
-        `../charts/chart${chartNo}.xml`
+        ex ? REL_CHARTEX : REL_CHART,
+        `../charts/${file}`
       );
       anchors += anchorXml(sheet, chart, chartRid, 1000 + i);
     }

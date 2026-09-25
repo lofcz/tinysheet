@@ -74,6 +74,7 @@ import {
   roundSvgNumber as chartRoundSvgNumber,
 } from "../chart";
 import { importChartXml, ImportedChart } from "../chart/importXlsx";
+import { importChartExXml } from "../chart/chartEx";
 import { parseChartRange } from "@lofcz/tinysheet-core";
 
 interface DrawingAnchorRect {
@@ -478,9 +479,52 @@ export class FortuneSheet extends FortuneSheetBase {
 
     for (let i = 0; i < anchors.length; i++) {
       this.addPictureImages(anchors[i], drawingRelsFile);
-      this.addShapeImage(anchors[i]);
+      // chartex charts carry a text-box fallback for old Excel versions
+      if (!this.addChartExObject(anchors[i], drawingRelsFile)) {
+        this.addShapeImage(anchors[i]);
+      }
       this.addChartImage(anchors[i], drawingRelsFile);
     }
+  }
+
+  /**
+   * Office 2016 charts (waterfall, histogram, Pareto, funnel): a cx:chart
+   * in the anchor's mc:Choice. Returns true when the anchor held one.
+   */
+  private addChartExObject(anchor: Element, drawingRelsFile: string) {
+    let charts = anchor.getInnerElements("cx:chart");
+    if (charts == null || charts.length == 0) {
+      return false;
+    }
+    let rid = getXmlAttibute(charts[0].attributeList, "r:id", null);
+    let relationship = this.getRelationshipByRid(rid, drawingRelsFile);
+    let chartFile =
+      relationship && relationship.target
+        ? this.normalizeRelationshipTarget(relationship.target)
+        : null;
+    if (chartFile == null) {
+      return true;
+    }
+    let spaces = this.readXml.getElementsByTagName("cx:chartSpace", chartFile);
+    if (spaces == null || spaces.length == 0) {
+      return true;
+    }
+    let sheets = Object.keys(this.sheetList).map((name) => ({
+      name: this.decodeXml(name),
+      id: String(this.sheetList[name]),
+    }));
+    try {
+      let chart = importChartExXml(spaces[0].elementString, {
+        resolveRange: (ref) =>
+          parseChartRange({ luckysheetfile: sheets as any }, ref, this.id),
+      });
+      if (chart != null) {
+        this.addChartObject(anchor, chart);
+      }
+    } catch (e) {
+      // unreadable chartex part: skip it
+    }
+    return true;
   }
 
   private addPictureImages(anchor: Element, drawingRelsFile: string) {
@@ -600,8 +644,28 @@ export class FortuneSheet extends FortuneSheetBase {
     if (rect == null) {
       return;
     }
+    // editAs: move and size with cells / move only / neither
+    let placement =
+      rect.type == "3" ? "absolute" : rect.type == "2" ? "oneCell" : "twoCell";
     this.chartObjects.push({
-      chart: chart,
+      chart: {
+        ...chart,
+        placement: placement,
+        anchor: {
+          from: {
+            row: rect.fromRow,
+            col: rect.fromCol,
+            rowOff: rect.fromRowOff,
+            colOff: rect.fromColOff,
+          },
+          to: {
+            row: rect.toRow,
+            col: rect.toCol,
+            rowOff: rect.toRowOff,
+            colOff: rect.toColOff,
+          },
+        },
+      },
       fromCol: rect.fromCol,
       fromColOff: rect.fromColOff,
       fromRow: rect.fromRow,
