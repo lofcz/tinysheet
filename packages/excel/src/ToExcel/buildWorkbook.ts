@@ -29,6 +29,7 @@ import {
 import { colorToArgb } from "../common/units";
 import { setDefinedNames } from "../common/definedNames";
 import { addChartsToXlsx } from "../chart/exportXlsx";
+import { addShapesToXlsx } from "../shapes/exportXlsx";
 import {
   finalizeConditionalFormatting,
   setConditionalFormatting,
@@ -138,6 +139,27 @@ export function registerSheetExportFeature(
 
 export function registerWorkbookExportFeature(feature: WorkbookExportFeature) {
   workbookExportFeatures.push(feature);
+}
+
+/**
+ * Writers that add parts exceljs cannot create to the finished package
+ * (after charts): they get the zip bytes and return new bytes.
+ */
+export type XlsxPackageFeature = {
+  name: string;
+  apply: (
+    buffer: ArrayBuffer | Uint8Array,
+    sheets: any[]
+  ) => Promise<ArrayBuffer | Uint8Array>;
+};
+
+export const xlsxPackageFeatures: XlsxPackageFeature[] = [
+  // shapes and text boxes join the drawing part of pictures and charts
+  { name: "shapes", apply: addShapesToXlsx },
+];
+
+export function registerXlsxPackageFeature(feature: XlsxPackageFeature) {
+  xlsxPackageFeatures.push(feature);
 }
 
 /** The sheet's cells as a matrix, whether it is loaded (data) or not (celldata). */
@@ -277,8 +299,12 @@ export async function exportToXlsx(
   );
   const processed = await postProcessXlsx(buffer as ArrayBuffer, post);
   // exceljs cannot create charts: add native chart parts to its output
-  const withCharts = await addChartsToXlsx(processed, sheets);
-  return withCharts instanceof Uint8Array
-    ? withCharts
-    : new Uint8Array(withCharts);
+  let out = await addChartsToXlsx(processed, sheets);
+  // sequential on purpose: each feature rewrites the package
+  /* eslint-disable no-await-in-loop */
+  for (const feature of xlsxPackageFeatures) {
+    out = await feature.apply(out, sheets);
+  }
+  /* eslint-enable no-await-in-loop */
+  return out instanceof Uint8Array ? out : new Uint8Array(out);
 }

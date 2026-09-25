@@ -16,6 +16,7 @@ import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
+import { readShapes } from "../shapes/importXlsx";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -326,6 +327,8 @@ export function readTables(ctx: SheetImportContext) {
 export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "notes", read: readNotes },
   { name: "tables", read: readTables },
+  // shapes, text boxes, connectors and groups of the drawing part
+  { name: "shapes", read: readShapes },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 

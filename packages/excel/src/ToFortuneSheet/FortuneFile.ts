@@ -718,6 +718,10 @@ export class FortuneFile {
         sheetout.tables = (sheet as any).tables;
       }
 
+      if ((sheet as any).shapes != null) {
+        sheetout.shapes = (sheet as any).shapes;
+      }
+
       if (sheet.hyperlink != null) {
         sheetout.hyperlink = sheet.hyperlink;
       }

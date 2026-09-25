@@ -16,6 +16,8 @@ export {
   workbookExportFeatures,
   registerSheetExportFeature,
   registerWorkbookExportFeature,
+  xlsxPackageFeatures,
+  registerXlsxPackageFeature,
 } from "./ToExcel/buildWorkbook";
 export type {
   XlsxExportOptions,
@@ -23,8 +25,11 @@ export type {
   WorkbookExportContext,
   SheetExportFeature,
   WorkbookExportFeature,
+  XlsxPackageFeature,
 } from "./ToExcel/buildWorkbook";
 export { postProcessXlsx } from "./ToExcel/postProcess";
+export { addShapesToXlsx, shapesToAnchorsXml } from "./shapes/exportXlsx";
+export { readDrawingShapes, readShapes } from "./shapes/importXlsx";
 export type { SheetExportOptions } from "./ToExcel/ExcelFile";
 
 // xlsx import extension points.

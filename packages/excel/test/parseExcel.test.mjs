@@ -86,15 +86,12 @@ test("parseExcel keeps one-cell anchored drawing objects visible", async () => {
   const [sheet] = result.sheets;
   const images = sheet.images || [];
   const charts = sheet.charts || [];
-  // The picture and the shape stay images; the column chart is live.
-  assert.ok(images.length + charts.length >= 3);
+  // The picture stays an image; the column chart and the grouped shapes
+  // are live objects.
+  assert.equal(images.length, 1);
   assert.equal(charts.length, 1);
   assert.equal(charts[0].type, "column");
-
-  const svgImages = images.filter((image) =>
-    String(image.src).startsWith("data:image/svg+xml")
-  );
-  assert.ok(svgImages.length >= 1);
+  assert.equal((sheet.shapes || []).length, 3);
 });
 
 test("parseExcel imports openpyxl default-namespace bar charts as live charts", async () => {
