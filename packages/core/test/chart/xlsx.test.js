@@ -116,7 +116,7 @@ describe("chart XML import", () => {
   test("unsupported families return null; caches back unresolved refs", () => {
     expect(
       importChartXml(
-        "<c:chartSpace><c:chart><c:plotArea><c:radarChart/></c:plotArea></c:chart></c:chartSpace>",
+        "<c:chartSpace><c:chart><c:plotArea><c:surfaceChart/></c:plotArea></c:chart></c:chartSpace>",
         { resolveRange: () => null }
       )
     ).toBeNull();

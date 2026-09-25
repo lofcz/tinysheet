@@ -12,7 +12,128 @@ export type ChartType =
   | "area"
   | "pie"
   | "doughnut"
-  | "scatter";
+  | "scatter"
+  /** Per-series column / line / area, optionally on a secondary axis. */
+  | "combo"
+  | "radar"
+  | "bubble"
+  | "waterfall"
+  | "histogram"
+  | "pareto"
+  | "funnel"
+  | "stock";
+
+/** How one series of a combo chart is drawn. */
+export type ChartSeriesType = "column" | "line" | "area";
+
+export type ChartTrendlineType =
+  | "linear"
+  | "exponential"
+  | "logarithmic"
+  | "polynomial"
+  | "power"
+  | "movingAverage";
+
+export type ChartTrendline = {
+  type: ChartTrendlineType;
+  /** Polynomial order (2–6). */
+  order?: number;
+  /** Moving-average period (>= 2). */
+  period?: number;
+  /** Forecast forward / backward, in x units (categories for category charts). */
+  forward?: number;
+  backward?: number;
+  /** Force the intercept (linear, polynomial, exponential). */
+  intercept?: number;
+  displayEquation?: boolean;
+  displayRSquared?: boolean;
+  /** Custom legend name. */
+  name?: string;
+  color?: string;
+};
+
+export type ChartErrorBarType =
+  | "fixed"
+  | "percentage"
+  | "stdDev"
+  | "stdErr"
+  | "custom";
+
+export type ChartErrorBars = {
+  type: ChartErrorBarType;
+  /** Fixed amount, percentage, or number of standard deviations. */
+  value?: number;
+  include?: "both" | "plus" | "minus";
+  /** Draw end caps (default true). */
+  endCap?: boolean;
+  color?: string;
+};
+
+export type ChartDataLabelPosition =
+  | "auto"
+  | "center"
+  | "insideEnd"
+  | "insideBase"
+  | "outsideEnd"
+  | "above"
+  | "below"
+  | "left"
+  | "right"
+  | "bestFit";
+
+export type ChartDataLabelOptions = {
+  /** Default true (unless another part is chosen). */
+  showValue?: boolean;
+  showCategory?: boolean;
+  showSeriesName?: boolean;
+  /** Pie and doughnut: percentage of the total. */
+  showPercent?: boolean;
+  position?: ChartDataLabelPosition;
+  /** Excel number format for values (`0.0`, `#,##0`, `0%`...). */
+  numberFormat?: string;
+  /** Between the parts (default ", "). */
+  separator?: string;
+};
+
+export type ChartHistogramBinning = {
+  /** auto (Scott's rule), a bin width, or a number of bins. */
+  mode?: "auto" | "width" | "count";
+  width?: number;
+  count?: number;
+  /** Values above go into one `> overflow` bin. */
+  overflow?: number;
+  /** Values at or below go into one `≤ underflow` bin. */
+  underflow?: number;
+};
+
+export type ChartRadarStyle = "marker" | "line" | "filled";
+
+/** High-low-close or open-high-low-close. */
+export type ChartStockVariant = "hlc" | "ohlc";
+
+/**
+ * Visual preset applied on top of the theme (a chart style from the style
+ * gallery).
+ */
+export type ChartStyleSpec = {
+  /** Plot area fill (behind the gridlines). */
+  plotFill?: string;
+  /** Outline drawn around bars, slices, areas and bubbles. */
+  seriesOutline?: string;
+  seriesOutlineWidth?: number;
+  /** Opacity of area / bar fills. */
+  fillOpacity?: number;
+  /** Dashed gridlines. */
+  gridDash?: boolean;
+  titleBold?: boolean;
+  /** Line series width. */
+  lineWidth?: number;
+  markerSize?: number;
+  /** Gap between bars as a fraction of a bar (Excel's gap width / 100). */
+  gapWidth?: number;
+  /** Rounded bar ends. */
+  barRadius?: number;
+};
 
 /** Series grouping for column, bar, line and area charts. */
 export type ChartGrouping = "clustered" | "stacked" | "percentStacked";
@@ -38,6 +159,26 @@ export type ChartRenderSeries = {
   xValues?: (number | null)[];
   /** Per-point colours (pie slices, varied column colours). */
   pointColors?: string[];
+  /** Combo charts: how this series is drawn (default: the chart type). */
+  type?: ChartSeriesType;
+  /** Plot on the secondary value axis. */
+  secondary?: boolean;
+  /** Bubble sizes. */
+  sizes?: (number | null)[];
+  trendlines?: ChartTrendline[];
+  errorBars?: ChartErrorBars & {
+    /** Custom amounts, resolved from their ranges. */
+    plusValues?: (number | null)[];
+    minusValues?: (number | null)[];
+  };
+};
+
+/** Localised legend texts of the renderer. */
+export type ChartRenderLabels = {
+  increase: string;
+  decrease: string;
+  total: string;
+  cumulative: string;
 };
 
 /** Everything the renderer needs to draw one chart. */
@@ -58,6 +199,24 @@ export type ChartRenderModel = {
   /** Each point of a single-series chart gets its own colour. */
   varyColors?: boolean;
   valueAxis?: ChartValueAxisOptions;
+  /** Secondary value axis bounds (combo charts). */
+  secondaryValueAxis?: ChartValueAxisOptions;
+  secondaryValueAxisTitle?: string;
+  dataLabelOptions?: ChartDataLabelOptions;
+  /** Histogram and Pareto bins. */
+  binning?: ChartHistogramBinning;
+  radarStyle?: ChartRadarStyle;
+  stockVariant?: ChartStockVariant;
+  /** Waterfall: indices of the points shown as totals. */
+  waterfallTotals?: number[];
+  /** Waterfall: connector lines between bars (default true). */
+  waterfallConnectors?: boolean;
+  /** Waterfall colours: increase, decrease, total. */
+  waterfallColors?: [string, string, string];
+  /** Size of the largest bubble in % of the default (default 100). */
+  bubbleScale?: number;
+  style?: ChartStyleSpec;
+  labels?: Partial<ChartRenderLabels>;
   categories: string[];
   series: ChartRenderSeries[];
 };

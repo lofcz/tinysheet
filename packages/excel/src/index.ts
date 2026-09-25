@@ -137,6 +137,8 @@ export {
   importChartXml,
   addChartsToXlsx,
   chartToXml,
+  chartExToXml,
+  importChartExXml,
 } from "./chart";
 export type {
   ImportedChart,

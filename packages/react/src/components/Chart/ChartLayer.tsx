@@ -11,10 +11,11 @@ import {
   Chart,
   Context,
   deleteChart,
+  ensureChartAnchor,
   Freezen,
+  getChartBox,
   getChartCellPosition,
   getChartReferencedSheetIds,
-  getChartTheme,
   getSheetIndex,
   locale,
   MIN_CHART_HEIGHT,
@@ -28,6 +29,7 @@ import {
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { getChartClipboard, setChartClipboard } from "./chartClipboard";
+import ChartContextMenu, { ChartMenuState } from "./ChartContextMenu";
 import "./index.css";
 
 type Box = { left: number; top: number; width: number; height: number };
@@ -74,6 +76,7 @@ type SvgCacheEntry = {
   chart: Chart;
   data: unknown[];
   theme: string;
+  lang: string;
   width: number;
   height: number;
   svg: string;
@@ -198,9 +201,14 @@ const ChartLayer: React.FC = () => {
   const drag = useRef<Drag | null>(null);
   const cache = useRef(new Map<string, SvgCacheEntry>());
   const boxRefs = useRef(new Map<string, HTMLDivElement>());
+  const [menu, setMenu] = useState<ChartMenuState | null>(null);
   const zoom = context.zoomRatio || 1;
   const themeName = context.theme || "light";
+  const lang = context.lang || "";
   const readonly = context.allowEdit === false;
+  const sheetId = sheet?.id;
+  // Read so row/column resizes and hides re-render the charts.
+  const { config, visibledatarow, visibledatacolumn } = context;
 
   const svgFor = useCallback(
     (chart: Chart, width: number, height: number) => {
@@ -211,6 +219,7 @@ const ChartLayer: React.FC = () => {
         hit &&
         hit.chart === chart &&
         hit.theme === themeName &&
+        hit.lang === lang &&
         hit.width === width &&
         hit.height === height &&
         hit.data.length === data.length &&
@@ -219,23 +228,54 @@ const ChartLayer: React.FC = () => {
         return hit.svg;
       }
       const svg = renderChartToSvg(
-        { luckysheetfile: files, theme: themeName },
+        { luckysheetfile: files, theme: themeName, lang },
         chart,
-        getChartTheme(themeName),
+        themeName,
         { width, height }
       );
       cache.current.set(chart.id, {
         chart,
         data,
         theme: themeName,
+        lang,
         width,
         height,
         svg,
       });
       return svg;
     },
-    [files, themeName]
+    [files, themeName, lang]
   );
+
+  /** Where a chart is shown now (it follows its anchor cells). */
+  const boxOf = useCallback(
+    (chart: Chart): Box => {
+      if (!sheetId)
+        return {
+          left: chart.left,
+          top: chart.top,
+          width: chart.width,
+          height: chart.height,
+        };
+      return getChartBox(context, sheetId, chart);
+    },
+    // geometry fields are listed so the boxes follow resizes and hides
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [context, sheetId, config, visibledatarow, visibledatacolumn]
+  );
+
+  // Charts from older files have no cell anchor yet: anchor them to the
+  // cells under them (not an undo step).
+  useEffect(() => {
+    if (!sheetId || !charts?.some((c) => !c.anchor)) return;
+    setContext(
+      (ctx) => {
+        const target = ctx.luckysheetfile.find((s) => s.id === sheetId);
+        target?.charts?.forEach((c) => ensureChartAnchor(ctx, sheetId, c));
+      },
+      { noHistory: true }
+    );
+  }, [charts, sheetId, setContext]);
 
   // Drop cache entries of deleted charts.
   useEffect(() => {
@@ -278,7 +318,7 @@ const ChartLayer: React.FC = () => {
       if (!target || !container?.contains(target)) return;
       if (
         target.closest?.(
-          ".fortune-chart-box, .fortune-chart-editor, .fortune-toolbar, .fortune-toolbar-combo-popup"
+          ".fortune-chart-box, .fortune-chart-editor, .fortune-chart-menu, .fortune-toolbar, .fortune-toolbar-combo-popup"
         )
       )
         return;
@@ -378,12 +418,7 @@ const ChartLayer: React.FC = () => {
         });
       }
       if (readonly) return;
-      const orig = {
-        left: chart.left,
-        top: chart.top,
-        width: chart.width,
-        height: chart.height,
-      };
+      const orig = boxOf(chart);
       drag.current = {
         id: chart.id,
         mode,
@@ -397,7 +432,15 @@ const ChartLayer: React.FC = () => {
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
     },
-    [context.activeChart, onMouseMove, onMouseUp, readonly, setContext, zoom]
+    [
+      boxOf,
+      context.activeChart,
+      onMouseMove,
+      onMouseUp,
+      readonly,
+      setContext,
+      zoom,
+    ]
   );
 
   const onKeyDown = useCallback(
@@ -445,15 +488,16 @@ const ChartLayer: React.FC = () => {
       const delta = nudge[e.key];
       if (delta) {
         e.preventDefault();
+        const box = boxOf(chart);
         setContext((ctx) =>
           updateChart(ctx, chart.id, {
-            left: Math.max(0, chart.left + delta[0]),
-            top: Math.max(0, chart.top + delta[1]),
+            left: Math.max(0, box.left + delta[0]),
+            top: Math.max(0, box.top + delta[1]),
           })
         );
       }
     },
-    [readonly, refs.cellInput, setContext]
+    [boxOf, readonly, refs.cellInput, setContext]
   );
 
   const onCopy = useCallback(
@@ -462,23 +506,34 @@ const ChartLayer: React.FC = () => {
       e.stopPropagation();
       const marker = setChartClipboard(chart);
       e.clipboardData.setData("text/plain", marker);
+      const box = boxOf(chart);
+      const width = Math.max(1, Math.round(box.width));
+      const height = Math.max(1, Math.round(box.height));
       const svg = renderChartToSvg(
-        { luckysheetfile: context.luckysheetfile },
+        { luckysheetfile: context.luckysheetfile, lang: context.lang },
         chart,
-        "light"
+        "light",
+        { width, height }
       );
       e.clipboardData.setData(
         "text/html",
-        `<img src="${svgToDataUri(svg)}" width="${chart.width}" height="${
-          chart.height
-        }" alt="">`
+        `<img src="${svgToDataUri(
+          svg
+        )}" width="${width}" height="${height}" alt="">`
       );
       if (cut && !readonly) {
         setContext((ctx) => deleteChart(ctx, chart.id));
         refs.cellInput.current?.focus();
       }
     },
-    [context.luckysheetfile, readonly, refs.cellInput, setContext]
+    [
+      boxOf,
+      context.lang,
+      context.luckysheetfile,
+      readonly,
+      refs.cellInput,
+      setContext,
+    ]
   );
 
   const freeze = refs.globalCache.freezen?.[context.currentSheetId];
@@ -486,23 +541,16 @@ const ChartLayer: React.FC = () => {
   const boxes = useMemo(() => {
     if (!charts) return [];
     return charts.map((chart) => {
-      const box =
-        preview?.id === chart.id
-          ? preview
-          : {
-              left: chart.left,
-              top: chart.top,
-              width: chart.width,
-              height: chart.height,
-            };
+      const box = preview?.id === chart.id ? preview : boxOf(chart);
       return { chart, box };
     });
-  }, [charts, preview]);
+  }, [boxOf, charts, preview]);
 
   if (!hasCharts) return null;
 
   return (
     <div className="fortune-chart-layer">
+      {menu && <ChartContextMenu menu={menu} onClose={() => setMenu(null)} />}
       {boxes.map(({ chart, box }) => {
         const active = chart.id === activeChart;
         const zoomed = {
@@ -512,7 +560,8 @@ const ChartLayer: React.FC = () => {
           height: box.height * zoom,
         };
         const panes = placeInPanes(context, freeze, zoomed);
-        if (panes.length === 0) return null;
+        // a "move and size" chart whose rows or columns are all hidden
+        if (panes.length === 0 || box.width < 1 || box.height < 1) return null;
         const svg = svgFor(
           chart,
           Math.round(box.width),
@@ -557,7 +606,16 @@ const ChartLayer: React.FC = () => {
                   ctx.chartEditorOpen = true;
                 });
               }}
-              onContextMenu={(e) => e.stopPropagation()}
+              onContextMenu={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (context.activeChart !== chart.id) {
+                  setContext((ctx) => {
+                    ctx.activeChart = chart.id;
+                  });
+                }
+                setMenu({ chartId: chart.id, x: e.clientX, y: e.clientY });
+              }}
               onKeyDown={(e) => onKeyDown(e, chart)}
               onCopy={(e) => onCopy(e, chart, false)}
               onCut={(e) => onCopy(e, chart, true)}

@@ -178,3 +178,190 @@ InsertFromSelection.args = {
   data: [{ ...chartSheet, charts: [] }],
   theme: "light",
 };
+
+// ---------------------------------------------------------------------------
+// Round 2: combo, radar, bubble, waterfall, histogram, Pareto, funnel, stock,
+// trendlines and error bars.
+// ---------------------------------------------------------------------------
+
+const SHEET2 = "charts2";
+
+const table2: (string | number | null)[][] = [
+  ["Day", "Open", "High", "Low", "Close", "Volume", "Score", "Step", "Flow"],
+  ["Mon", 44, 55, 11, 25, 120, 55, "Visits", 1000],
+  ["Tue", 25, 57, 12, 38, 90, 61, "Leads", 420],
+  ["Wed", 38, 57, 13, 50, 150, 64, "Trials", 180],
+  ["Thu", 50, 58, 11, 34, 80, 68, "Deals", 60],
+  ["Fri", 34, 58, 25, 43, 110, 71, null, null],
+  [null, null, null, null, null, null, 73, null, null],
+  [null, null, null, null, null, null, 75, null, null],
+  [null, null, null, null, null, null, 78, null, null],
+  [null, null, null, null, null, null, 81, null, null],
+  [null, null, null, null, null, null, 88, null, null],
+  [null, null, null, null, null, null, 92, null, null],
+];
+
+function celldata2() {
+  const out: Sheet["celldata"] = [];
+  table2.forEach((cells, r) =>
+    cells.forEach((v, c) => {
+      if (v == null) return;
+      out!.push({
+        r,
+        c,
+        v:
+          typeof v === "number"
+            ? { v, m: String(v), ct: { fa: "General", t: "n" } }
+            : { v, m: v, ct: { fa: "General", t: "g" } },
+      });
+    })
+  );
+  return out;
+}
+
+const r2 = (r1: number, rr: number, c1: number, c2: number) => ({
+  sheetId: SHEET2,
+  row: [r1, rr] as [number, number],
+  column: [c1, c2] as [number, number],
+});
+
+const days = r2(1, 5, 0, 0);
+const s2 = (c: number, extra: Partial<Chart["series"][number]> = {}) => ({
+  nameRef: r2(0, 0, c, c),
+  values: r2(1, 5, c, c),
+  categories: days,
+  ...extra,
+});
+
+const base2 = (i: number, chart: Partial<Chart>): Chart => ({
+  id: `story2-chart-${i}`,
+  type: "column",
+  series: [],
+  legend: "bottom",
+  left: 700 + (i % 3) * (W + 16),
+  top: 10 + Math.floor(i / 3) * (H + 16),
+  width: W,
+  height: H,
+  ...chart,
+});
+
+const charts2: Chart[] = [
+  base2(0, {
+    title: "Combo: close + volume",
+    type: "combo",
+    series: [
+      s2(5, { type: "column" }),
+      s2(4, { type: "line", secondary: true }),
+    ],
+    markers: true,
+  }),
+  base2(1, {
+    title: "Radar",
+    type: "radar",
+    radarStyle: "marker",
+    series: [s2(1), s2(4)],
+  }),
+  base2(2, {
+    title: "Bubble",
+    type: "bubble",
+    series: [
+      {
+        nameRef: r2(0, 0, 4, 4),
+        values: r2(1, 5, 4, 4),
+        categories: r2(1, 5, 1, 1),
+        sizes: r2(1, 5, 5, 5),
+      },
+    ],
+    legend: "none",
+  }),
+  base2(3, {
+    title: "Waterfall",
+    type: "waterfall",
+    series: [
+      {
+        name: "Cash",
+        values: r2(1, 5, 1, 1),
+        categories: days,
+      },
+    ],
+    waterfallTotals: [0],
+    dataLabels: true,
+    legend: "top",
+  }),
+  base2(4, {
+    title: "Histogram",
+    type: "histogram",
+    series: [{ nameRef: r2(0, 0, 6, 6), values: r2(1, 11, 6, 6) }],
+    binning: { mode: "width", width: 10 },
+    legend: "none",
+  }),
+  base2(5, {
+    title: "Funnel",
+    type: "funnel",
+    series: [
+      {
+        nameRef: r2(0, 0, 8, 8),
+        values: r2(1, 4, 8, 8),
+        categories: r2(1, 4, 7, 7),
+      },
+    ],
+    legend: "none",
+  }),
+  base2(6, {
+    title: "Stock (OHLC)",
+    type: "stock",
+    stockVariant: "ohlc",
+    series: [s2(1), s2(2), s2(3), s2(4)],
+  }),
+  base2(7, {
+    title: "Trendline and error bars",
+    type: "scatter",
+    markers: true,
+    series: [
+      {
+        nameRef: r2(0, 0, 4, 4),
+        values: r2(1, 5, 4, 4),
+        categories: r2(1, 5, 1, 1),
+        trendlines: [
+          {
+            type: "linear",
+            displayEquation: true,
+            displayRSquared: true,
+            forward: 5,
+          },
+        ],
+        errorBars: { type: "percentage", value: 10 },
+      },
+    ],
+    legend: "bottom",
+  }),
+  base2(8, {
+    title: "Pareto",
+    type: "pareto",
+    series: [
+      { nameRef: r2(0, 0, 5, 5), values: r2(1, 5, 5, 5), categories: days },
+    ],
+    style: 5,
+    legend: "top",
+  }),
+];
+
+const chartSheet2: Sheet = {
+  name: "Charts 2",
+  id: SHEET2,
+  status: 1,
+  order: 0,
+  row: 40,
+  column: 30,
+  celldata: celldata2(),
+  charts: charts2,
+};
+
+/** Round 2 chart types, trendlines and error bars. */
+export const MoreTypes = Template.bind({});
+// @ts-ignore
+MoreTypes.args = { data: [chartSheet2], theme: "light" };
+
+export const MoreTypesDark = Template.bind({});
+// @ts-ignore
+MoreTypesDark.args = { data: [chartSheet2], theme: "dark" };
