@@ -16,7 +16,11 @@ import {
 import { handleGlobalEnter } from "../../src/events/keyboard";
 import { handlePaste } from "../../src/events/paste";
 import { selectionCache } from "../../src/modules/selection";
-import { fillSelectionFromEdge } from "../../src/modules/dropCell";
+import {
+  fillSelectionFromEdge,
+  dropCellCache,
+  updateDropCell,
+} from "../../src/modules/dropCell";
 import {
   insertRowCol,
   deleteRowCol,
@@ -147,6 +151,38 @@ describe("undo/redo matrix", () => {
     expectUndoRedo(host, (h) =>
       h.act((d) => fillSelectionFromEdge(d, "right"))
     );
+  });
+
+  test("fill handle (series and formulas)", () => {
+    const host = makeHost();
+    type(host, "A1", "1");
+    type(host, "A2", "2");
+    type(host, "B1", "=A1*10");
+    expectUndoRedo(host, (h) =>
+      h.act((d) => {
+        dropCellCache.copyRange = { row: [0, 1], column: [0, 0] };
+        dropCellCache.applyRange = { row: [2, 5], column: [0, 0] };
+        dropCellCache.direction = "down";
+        dropCellCache.applyType = "1";
+        updateDropCell(d);
+      })
+    );
+    expect(val(host.ctx, "A6")).toBe(6);
+    expectUndoRedo(host, (h) =>
+      h.act((d) => {
+        dropCellCache.copyRange = { row: [0, 0], column: [1, 1] };
+        dropCellCache.applyRange = { row: [1, 5], column: [1, 1] };
+        dropCellCache.direction = "down";
+        dropCellCache.applyType = "1";
+        updateDropCell(d);
+      })
+    );
+    expect(val(host.ctx, "B6")).toBe(60);
+    host.undo();
+    expect(cellAt(host.ctx, "B6")).toBeNull();
+    // the undone formulas no longer depend on column A
+    type(host, "A6", "100");
+    expect(cellAt(host.ctx, "B6")).toBeNull();
   });
 
   test("paste (plain text into many cells)", () => {
@@ -386,11 +422,41 @@ describe("undo/redo matrix", () => {
     expect(val(host.ctx, "B3")).toBe("a dog");
   });
 
+  test("undo and redo show the sheet the change was made on", () => {
+    const host = makeHost();
+    host.act((d) => {
+      d.currentSheetId = "id_2";
+      d.config = {};
+    });
+    host.select("A1", "A2");
+    host.act((d) => hideSelected(d, "row"));
+    host.act((d) => {
+      d.currentSheetId = "id_1";
+      d.config = d.luckysheetfile[0].config;
+    });
+    expect(host.ctx.config.rowhidden).toBeUndefined();
+    host.undo();
+    expect(host.ctx.currentSheetId).toBe("id_2");
+    expect(host.ctx.config.rowhidden ?? {}).toEqual({});
+    host.act((d) => {
+      d.currentSheetId = "id_1";
+      d.config = d.luckysheetfile[0].config;
+    });
+    host.redo();
+    expect(host.ctx.currentSheetId).toBe("id_2");
+    expect(Object.keys(host.ctx.config.rowhidden)).toEqual(["0", "1"]);
+  });
+
   test("view-only changes are not undo steps", () => {
     const host = makeHost();
     host.act((d) => {
       d.luckysheet_select_save = [{ row: [3, 3], column: [3, 3] }];
       d.scrollTop = 100;
+    });
+    // switching sheets re-points ctx.config at the other sheet's config
+    host.act((d) => {
+      d.currentSheetId = "id_2";
+      d.config = d.luckysheetfile[1].config;
     });
     expect(host.cache.undoList).toHaveLength(0);
   });

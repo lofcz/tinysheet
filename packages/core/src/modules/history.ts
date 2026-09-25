@@ -163,33 +163,34 @@ export function pruneHistoryForRemovedSheets(
  * to the sheet so the change is undoable.
  */
 function recoverSharedConfigPatches(
+  before: Context,
   result: Context,
-  patches: Patch[],
-  inversePatches: Patch[],
   filteredPatches: Patch[],
   filteredInversePatches: Patch[]
 ) {
   const idx = getSheetIndex(result, result.currentSheetId);
   if (idx == null) return;
-  if (
-    result.config == null ||
-    result.config !== result.luckysheetfile[idx]?.config
-  )
-    return;
+  const sheetId = result.luckysheetfile[idx]?.id;
+  const beforeIdx = getSheetIndex(before, sheetId as string);
+  if (beforeIdx == null) return;
+  const oldConfig = before.luckysheetfile[beforeIdx]?.config;
+  const newConfig = result.luckysheetfile[idx]?.config;
+  // unchanged, or not shared with ctx.config (then immer saw it directly)
+  if (oldConfig === newConfig || result.config !== newConfig) return;
   const isSheetConfig = (p: Patch) =>
     p.path[0] === "luckysheetfile" &&
     p.path[1] === idx &&
     p.path[2] === "config";
   if (filteredPatches.some(isSheetConfig)) return;
-  const retarget = (p: Patch): Patch => ({
-    ...p,
-    path: ["luckysheetfile", idx, ...p.path],
+  filteredPatches.push({
+    op: "replace",
+    path: ["luckysheetfile", idx, "config"],
+    value: newConfig,
   });
-  patches.forEach((p) => {
-    if (p.path[0] === "config") filteredPatches.push(retarget(p));
-  });
-  inversePatches.forEach((p) => {
-    if (p.path[0] === "config") filteredInversePatches.push(retarget(p));
+  filteredInversePatches.push({
+    op: "replace",
+    path: ["luckysheetfile", idx, "config"],
+    value: oldConfig,
   });
 }
 
@@ -230,9 +231,8 @@ export function produceWithHistory(
   const filteredPatches = filterPatch(patches);
   let filteredInversePatches = filterPatch(inversePatches);
   recoverSharedConfigPatches(
+    ctx,
     result,
-    patches,
-    inversePatches,
     filteredPatches,
     filteredInversePatches
   );
@@ -289,7 +289,11 @@ function touchedSheetFields(patches: Patch[]) {
  * copy of (config, filter, images) from the current sheet, and makes sure
  * the current sheet still exists.
  */
-export function syncContextAfterHistory(ctx: Context, patches: Patch[]) {
+export function syncContextAfterHistory(
+  ctx: Context,
+  patches: Patch[],
+  full = false
+) {
   if (
     getSheetIndex(ctx, ctx.currentSheetId) == null &&
     ctx.luckysheetfile.length > 0
@@ -305,8 +309,8 @@ export function syncContextAfterHistory(ctx: Context, patches: Patch[]) {
   const sheet = ctx.luckysheetfile[index];
   const { touched, structural } = touchedSheetFields(patches);
   const fields = touched.get(index);
-  if (!structural && !fields) return;
-  const has = (f: string) => structural || !!fields?.has(f);
+  if (!full && !structural && !fields) return;
+  const has = (f: string) => full || structural || !!fields?.has(f);
   if (has("config")) ctx.config = sheet.config ?? {};
   if (has("images")) ctx.insertedImgs = sheet.images;
   if (has("filter") || has("filter_select")) {
@@ -319,6 +323,33 @@ export function syncContextAfterHistory(ctx: Context, patches: Patch[]) {
       ctx.filterOptions = undefined;
     }
   }
+}
+
+/**
+ * Like Excel, undo and redo show the sheet the change was made on. Returns
+ * true when the current sheet changed.
+ */
+function showHistorySheet(ctx: Context, history: History, patches: Patch[]) {
+  const o = history.options;
+  const id = o?.id;
+  if (!id || id === ctx.currentSheetId || o?.addSheetOp || o?.deleteSheetOp)
+    return false;
+  const index = getSheetIndex(ctx, id);
+  if (index == null || ctx.luckysheetfile[index].hide === 1) return false;
+  if (!touchedSheetFields(patches).touched.has(index)) return false;
+  if (ctx.sheetScrollRecord) {
+    ctx.sheetScrollRecord[ctx.currentSheetId] = {
+      scrollLeft: ctx.scrollLeft,
+      scrollTop: ctx.scrollTop,
+      luckysheet_select_status: ctx.luckysheet_select_status,
+      luckysheet_select_save: ctx.luckysheet_select_save,
+      luckysheet_selection_range: ctx.luckysheet_selection_range,
+    };
+  }
+  ctx.dataVerificationDropDownList = false;
+  ctx.currentSheetId = id;
+  ctx.zoomRatio = ctx.luckysheetfile[index].zoomRatio || 1;
+  return true;
 }
 
 function refreshFormulaCache(
@@ -423,7 +454,8 @@ export function applyUndoSteps(
       }
     }
     context = produceNoPatches(context, (draft) => {
-      syncContextAfterHistory(draft, inverse);
+      const switched = showHistorySheet(draft, history, inverse);
+      syncContextAfterHistory(draft, inverse, switched);
     });
     refreshFormulaCache(
       context,
@@ -467,7 +499,8 @@ export function applyRedoSteps(
   steps.forEach((history) => {
     context = applyPatches(context, history.patches);
     context = produceNoPatches(context, (draft) => {
-      syncContextAfterHistory(draft, history.patches);
+      const switched = showHistorySheet(draft, history, history.patches);
+      syncContextAfterHistory(draft, history.patches, switched);
     });
     refreshFormulaCache(context, history, "redo", history.options);
     applied.push({
