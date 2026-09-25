@@ -258,6 +258,15 @@ export type Context = {
   groupedSheetIds?: string[];
   /** Go To dialog (Ctrl+G / F5) visibility. */
   showGoTo?: boolean;
+  /** Page layout view state (modules/pageSetup.ts). */
+  pageLayout?: {
+    /** Page Break Preview view of these sheets (by id). */
+    breakPreviewSheets?: string[];
+    /** Sheets whose automatic page breaks show in Normal view (after printing). */
+    shownBreakSheets?: string[];
+    /** Open the Print Preview (set by Ctrl+P, read by the React UI). */
+    printPreviewRequest?: number;
+  };
   // 只读模式公式被引用单元格强制高光
   forceFormulaRef?: Boolean;
 
