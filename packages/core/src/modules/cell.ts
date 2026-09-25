@@ -31,6 +31,11 @@ import { isRealNull, isRealNum, valueIsError } from "./validation";
 import { autoGrowRowAfterEdit } from "./autofit";
 import { setFormulaCellInfo } from "./formulaHelper";
 import { onTableCellEdited } from "./tables";
+import {
+  FORMULA_RESULT_FORMATS,
+  inferFormulaFormat,
+  FormatLookup,
+} from "./formatInference";
 
 // TODO put these in context ref
 // let rangestart = false;
@@ -147,31 +152,40 @@ export function getCellValue(
   return retv;
 }
 
-// Like Excel, a General cell whose formula starts with a date/time function
-// takes that function's format, so =TODAY() shows a date, not a serial.
-const FORMULA_RESULT_FORMATS: Record<string, string> = {
-  DATE: "m/d/yyyy",
-  DATEVALUE: "m/d/yyyy",
-  TODAY: "m/d/yyyy",
-  EDATE: "m/d/yyyy",
-  EOMONTH: "m/d/yyyy",
-  WORKDAY: "m/d/yyyy",
-  "WORKDAY.INTL": "m/d/yyyy",
-  NOW: "m/d/yyyy h:mm",
-  TIME: "h:mm AM/PM",
-  TIMEVALUE: "h:mm AM/PM",
-};
-
+/**
+ * Format of the date/time function a formula starts with (=TODAY() → a date
+ * format), or undefined. See inferFormulaFormat for the full rule set.
+ */
 export function formulaResultFormat(formula: string | undefined) {
   const name = /^=\s*([A-Za-z][A-Za-z0-9_.]*)\s*\(/.exec(formula || "")?.[1];
   return name ? FORMULA_RESULT_FORMATS[name.toUpperCase()] : undefined;
 }
 
-/** Store a formula's computed value and its display text on the cell. */
-function setFormulaResult(cell: Cell, value: any) {
+/** Cell reader for format inference: the formula's sheet or a named one. */
+function formatLookup(
+  ctx: Context | null | undefined,
+  d: CellMatrix
+): FormatLookup {
+  return (sheet, r, c) => {
+    if (sheet == null) return d[r]?.[c];
+    const file = ctx?.luckysheetfile?.find((s) => s.name === sheet);
+    return file?.data?.[r]?.[c];
+  };
+}
+
+/**
+ * Store a formula's computed value and its display text on the cell. A
+ * General cell takes the format Excel infers from the formula: =A1+7 over
+ * a date is a date, =SUM(B1:B9) over currency is currency (see
+ * formatInference.ts for the rule table).
+ */
+function setFormulaResult(cell: Cell, value: any, lookup?: FormatLookup) {
   let fa = cell.ct?.fa || "General";
   if (fa === "General" && isRealNum(value)) {
-    fa = formulaResultFormat(cell.f) || fa;
+    fa =
+      (lookup
+        ? inferFormulaFormat(cell.f, lookup)
+        : formulaResultFormat(cell.f)) || fa;
   }
   if (_.isBoolean(value) || /^(true|false)$/i.test(`${value}`)) {
     cell.v = _.isBoolean(value) ? value : `${value}`.toUpperCase() === "TRUE";
@@ -269,7 +283,7 @@ export function setCellValue(
 
   if (!_.isNil(cell.f)) {
     // Formula result: not re-interpreted as typed input (="1/2" stays text).
-    setFormulaResult(cell, vupdate);
+    setFormulaResult(cell, vupdate, formatLookup(ctx, d));
   } else if (vupdateStr.substr(0, 1) === "'") {
     cell.m = vupdateStr.substr(1);
     cell.ct = { fa: "@", t: "s" };

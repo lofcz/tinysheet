@@ -24,7 +24,7 @@ import {
   replaceHtml,
 } from "../utils";
 import { hasPartMC } from "./validation";
-import { update } from "./format";
+import { is_date, update } from "./format";
 // @ts-ignore
 import SSF from "./ssf";
 import { CFSplitRange } from "./ConditionFormat";
@@ -495,6 +495,13 @@ export function pasteHandlerOfPaintModel(
                 // 修改被格式刷的值
                 const mask = update(value.ct.fa, x[c].v);
                 x[c].m = mask;
+                // the painted cell keeps its own value type
+                if (typeof x[c].v === "number" && value.ct.fa !== "@") {
+                  x[c].ct = {
+                    ...x[c].ct,
+                    t: is_date(value.ct.fa) ? "d" : "n",
+                  };
+                }
               }
             }
           }
@@ -511,16 +518,17 @@ export function pasteHandlerOfPaintModel(
   // 复制范围 是否有 条件格式
   let cdformat: any = null;
   const copyIndex = getSheetIndex(ctx, copySheetIndex);
-  if (!copyIndex) return;
+  if (copyIndex == null) return;
   const ruleArr = _.cloneDeep(
     ctx.luckysheetfile[copyIndex].luckysheet_conditionformat_save
   );
 
   if (!_.isNil(ruleArr) && ruleArr.length > 0) {
     const currentIndex = getSheetIndex(ctx, ctx.currentSheetId) as number;
-    cdformat = _.cloneDeep(
-      ctx.luckysheetfile[currentIndex].luckysheet_conditionformat_save
-    );
+    cdformat =
+      _.cloneDeep(
+        ctx.luckysheetfile[currentIndex].luckysheet_conditionformat_save
+      ) || [];
 
     for (let i = 0; i < ruleArr.length; i += 1) {
       const cdformat_cellrange = ruleArr[i].cellrange;
@@ -544,6 +552,8 @@ export function pasteHandlerOfPaintModel(
         cdformat.push(ruleArr[i]);
       }
     }
+    // the painted range gets the source's conditional formats
+    ctx.luckysheetfile[currentIndex].luckysheet_conditionformat_save = cdformat;
   }
 }
 

@@ -12,7 +12,11 @@ import { getSheetIndex, indexToColumnChar } from "./utils";
 import { getBorderInfoComputeRange } from "./modules/border";
 import { checkCF, getComputeMap, validateCellData } from "./modules";
 import { getCanvasTheme, resolveCellTextColor } from "./theme";
-import { getCellFormatColor } from "./modules/format";
+import {
+  fitCellToWidth,
+  getCellFormatColor,
+  shrinkCellToWidth,
+} from "./modules/format";
 
 export const defaultStyle = {
   fillStyle: "#000000",
@@ -68,6 +72,40 @@ function textFitsCell(
     word.top - asc >= 0 &&
     word.top + desc <= cellHeight
   );
+}
+
+/** Left/right indent (Format Cells > Alignment > Indent) in px. */
+function cellIndent(cell: any, zoomRatio: number) {
+  const ind = cell?.ind;
+  if (!ind || cell.ht == null || `${cell.ht}` === "0") return 0;
+  return ind * 9 * zoomRatio;
+}
+
+/**
+ * The cell as it is laid out in a column `width` px wide: shrink-to-fit
+ * text gets a smaller font, and numbers and dates that don't fit show fewer
+ * decimals (General) or `####` (see fitCellToWidth). Everything else is
+ * returned as is.
+ */
+function fitNumberCell(
+  cell: any,
+  width: number,
+  renderCtx: CanvasRenderingContext2D,
+  sheetCtx: any
+) {
+  if (!cell || (typeof cell.v !== "number" && !cell.sk)) return cell;
+  const font = getFontSet(cell, sheetCtx.defaultFontSize, sheetCtx);
+  const measure = (s: string) =>
+    getMeasureText(s, renderCtx, sheetCtx, font).width;
+  const avail = width - cellIndent(cell, sheetCtx.zoomRatio);
+  const shrunk = shrinkCellToWidth(
+    cell,
+    avail,
+    measure,
+    sheetCtx.defaultFontSize
+  );
+  if (shrunk !== cell) return shrunk;
+  return fitCellToWidth(cell, avail, measure);
 }
 
 function setLineDash(
@@ -2295,13 +2333,19 @@ export class Canvas {
 
       const textInfo = cell
         ? getCellTextInfo(
-            cell,
+            fitNumberCell(
+              cell,
+              cellWidth - 2 * space_width,
+              renderCtx,
+              this.sheetCtx
+            ),
             renderCtx,
             this.sheetCtx,
             {
               cellWidth,
               cellHeight,
-              space_width,
+              space_width:
+                space_width + cellIndent(cell, this.sheetCtx.zoomRatio),
               space_height,
               r,
               c,

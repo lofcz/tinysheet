@@ -202,6 +202,7 @@ export const defaultSettings: Required<Settings> = {
     "number-decrease",
     "number-increase",
     "format",
+    "cell-styles",
     "|",
     "font",
     "|",

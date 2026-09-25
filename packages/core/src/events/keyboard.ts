@@ -33,6 +33,7 @@ import {
   showSelected,
 } from "../modules/rowcol";
 import * as nav from "../modules/navigation";
+import { openFormatCells } from "../modules/formatCells";
 
 const ARROW_DIRECTIONS: Record<string, nav.NavDirection> = {
   ArrowUp: "up",
@@ -416,6 +417,8 @@ export function handleWithCtrlOrMetaKey(
     handleUnderline(ctx, cellInput);
   } else if (e.code === "Digit5") {
     handleStrikeThrough(ctx, cellInput);
+  } else if (e.code === "Digit1" || e.code === "Numpad1") {
+    openFormatCells(ctx); // Ctrl+1: Format Cells
   } else if (e.code === "KeyC") {
     // Ctrl + C  复制
     handleCopy(ctx);
@@ -666,6 +669,7 @@ export function handleGlobalKeyDown(
   if (kstr === "Escape" && !!ctx.luckysheet_selection_range) {
     ctx.luckysheet_selection_range = [];
   }
+  if (kstr === "Escape" && ctx.luckysheetPaintModelOn) cancelPaintModel(ctx);
 
   const allowEdit = isAllowEdit(ctx);
 

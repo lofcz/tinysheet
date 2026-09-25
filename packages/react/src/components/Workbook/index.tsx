@@ -52,6 +52,7 @@ import MoreItemsContaier from "../Toolbar/MoreItemsContainer";
 import { generateAPIs } from "./api";
 import { ModalProvider } from "../../context/modal";
 import FilterMenu from "../ContextMenu/FilterMenu";
+import FormatCells from "../FormatCells";
 import SheetList from "../SheetList";
 import StatusBar from "../StatusBar";
 import { useResolvedTheme } from "../../hooks/useResolvedTheme";
@@ -820,6 +821,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             <ContextMenu />
             <FilterMenu />
             <SheetTabContextMenu />
+            {context.formatCellsDialog && <FormatCells />}
             {context.showSheetList && <SheetList />}
             {moreToolbarItems && (
               <MoreItemsContaier onClose={onMoreToolbarItemsClose}>

@@ -5,6 +5,7 @@ type Props = {
   tooltip: string;
   iconId: string;
   onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
+  onDoubleClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   disabled?: boolean;
   selected?: boolean;
   children?: React.ReactNode;
@@ -23,6 +24,7 @@ export const activateOnKey = (e: React.KeyboardEvent<HTMLElement>) => {
 const Button: React.FC<Props> = ({
   tooltip,
   onClick,
+  onDoubleClick,
   iconId,
   disabled,
   selected,
@@ -39,6 +41,7 @@ const Button: React.FC<Props> = ({
     <div
       className={className}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onKeyDown={activateOnKey}
       tabIndex={0}
       data-tips={tooltip}

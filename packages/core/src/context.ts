@@ -60,6 +60,8 @@ export type Context = {
   rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
   // 提醒弹窗
   warnDialog?: string;
+  /** Open Format Cells dialog and its tab (see openFormatCells). */
+  formatCellsDialog?: { tab: string };
   currency?: string;
   /** Resolved colour theme (from `settings.theme`); read by the canvas. */
   theme?: ThemeName;

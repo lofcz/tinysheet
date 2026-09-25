@@ -1,0 +1,54 @@
+/* Cell Styles gallery (toolbar dropdown). */
+.fortune-cell-styles {
+  width: 452px;
+  max-width: calc(100vw - 32px);
+  max-height: 420px;
+  overflow: auto;
+  padding: var(--fortune-space-2) var(--fortune-space-3) var(--fortune-space-3);
+  box-sizing: border-box;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  background: var(--fortune-bg-elevated);
+  box-shadow: var(--fortune-shadow);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+  white-space: normal;
+}
+
+.fortune-cell-styles-heading {
+  margin: var(--fortune-space-2) 0 var(--fortune-space-1);
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+  font-weight: 500;
+}
+
+.fortune-cell-styles-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--fortune-space-1);
+}
+
+.fortune-cell-style {
+  height: 30px;
+  padding: 0 var(--fortune-space-2);
+  overflow: hidden;
+  border: 1px solid var(--fortune-border);
+  border-radius: 2px;
+  background: var(--fortune-bg);
+  color: var(--fortune-text);
+  font-family: inherit;
+  font-size: var(--fortune-font-size-sm);
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.fortune-cell-style:hover {
+  outline: 2px solid var(--fortune-accent);
+  outline-offset: -1px;
+}
+
+.fortune-cell-style:focus-visible {
+  box-shadow: var(--fortune-focus-ring);
+}
