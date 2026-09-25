@@ -296,18 +296,8 @@ export function insertRowCol(
     newFilterObj.filter_select = { row: [f_r1, f_r2], column: [f_c1, f_c2] };
   }
 
-  if (newFilterObj != null && newFilterObj.filter != null) {
-    if (cfg.rowhidden == null) {
-      cfg.rowhidden = {};
-    }
-
-    _.forEach(newFilterObj.filter, (v, k) => {
-      const f_rowhidden = newFilterObj.filter[k].rowhidden;
-      _.forEach(f_rowhidden, (v1, n) => {
-        cfg.rowhidden![n] = 0;
-      });
-    });
-  }
+  // rows hidden by the filter are in cfg.rowhidden, which is shifted below
+  // (adding their new positions here would shift them twice)
 
   // 条件格式配置变动
   const CFarr = file.luckysheet_conditionformat_save;
@@ -1379,18 +1369,8 @@ export function deleteRowCol(
     }
   }
 
-  if (newFilterObj != null && newFilterObj.filter != null) {
-    if (cfg.rowhidden == null) {
-      cfg.rowhidden = {};
-    }
-
-    _.forEach(newFilterObj.filter, (v, k) => {
-      const f_rowhidden = newFilterObj.filter[k].rowhidden;
-      _.forEach(f_rowhidden, (v1, n) => {
-        cfg.rowhidden![n] = 0;
-      });
-    });
-  }
+  // rows hidden by the filter are in cfg.rowhidden, which is shifted below
+  // (adding their new positions here would shift them twice)
 
   // 条件格式配置变动
   const CFarr = file.luckysheet_conditionformat_save;
