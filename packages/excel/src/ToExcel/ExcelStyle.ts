@@ -11,6 +11,14 @@ import {
 } from "./ExcelConvert";
 import { cellAddress, toExcelFormula } from "../common/formulaText";
 import type { SheetExportContext } from "./buildWorkbook";
+import type { XlsxPostProcessContext } from "./postProcessors";
+import {
+  REL_NS,
+  ensureNamespace,
+  escapeXmlAttr,
+  findElement,
+  insertWorksheetElement,
+} from "./xlsxParts";
 
 const ERROR_VALUES = new Set([
   "#NULL!",
@@ -29,6 +37,25 @@ const ERROR_VALUES = new Set([
   "#BUSY!",
   "#UNKNOWN!",
 ]);
+
+/** Excel's limit for the text of one cell. */
+export const MAX_CELL_TEXT = 32767;
+
+const clampText = (s: string) =>
+  s.length > MAX_CELL_TEXT ? s.slice(0, MAX_CELL_TEXT) : s;
+
+/** Rich-text runs cut to MAX_CELL_TEXT characters in total. */
+function clampRuns(runs: ExcelJS.RichText[]) {
+  let left = MAX_CELL_TEXT;
+  const out: ExcelJS.RichText[] = [];
+  runs.forEach((run) => {
+    if (left <= 0) return;
+    const text = run.text.length > left ? run.text.slice(0, left) : run.text;
+    left -= text.length;
+    out.push(text === run.text ? run : { ...run, text });
+  });
+  return out;
+}
 
 const isGeneral = (fa: any) =>
   fa == null || fa === "" || String(fa).toLowerCase() === "general";
@@ -148,6 +175,7 @@ function formulaValue(
 ): ExcelJS.CellFormulaValue {
   const { formula, dynamic } = toExcelFormula(String(cell.f));
   let result: any = plainCellValue(cell);
+  if (typeof result === "string") result = clampText(result);
   if (result && typeof result === "object" && !("error" in result)) {
     result = undefined;
   }
@@ -191,7 +219,7 @@ function writeCell(ctx: SheetExportContext, cell: any, r: number, c: number) {
   if (target_) {
     const text = plainCellValue(cell);
     target.value = {
-      text: text == null ? String(link.linkAddress) : String(text),
+      text: clampText(text == null ? String(link.linkAddress) : String(text)),
       hyperlink: target_,
       ...(link.linkTooltip ? { tooltip: String(link.linkTooltip) } : {}),
     } as ExcelJS.CellHyperlinkValue;
@@ -201,13 +229,15 @@ function writeCell(ctx: SheetExportContext, cell: any, r: number, c: number) {
   if (isInlineString(cell)) {
     const rich = richText(cell);
     target.value = rich
-      ? ({ richText: rich } as ExcelJS.CellRichTextValue)
-      : inlineText(cell).replace(/\r\n/g, "\n");
+      ? ({ richText: clampRuns(rich) } as ExcelJS.CellRichTextValue)
+      : clampText(inlineText(cell).replace(/\r\n/g, "\n"));
     return;
   }
 
+  // longer text makes Excel "repair" the file
   const value = plainCellValue(cell);
-  if (value != null) target.value = value;
+  if (value != null)
+    target.value = typeof value === "string" ? clampText(value) : value;
 }
 
 /** Values, formulas, styles and hyperlinks of every cell. */
@@ -222,6 +252,104 @@ export function writeCells(ctx: SheetExportContext) {
       writeCell(ctx, cell, r, c);
     }
   }
+  collectLinksWithoutValue(ctx);
+}
+
+const LINKS_FEATURE = "cell-hyperlinks";
+
+type PendingLink = {
+  ref: string;
+  target: string;
+  tooltip?: string;
+};
+
+/**
+ * ExcelJS writes a hyperlink only as a cell value, so links on formula
+ * cells and on empty cells are dropped; they are recorded here and added
+ * by the "cell-hyperlinks" zip post-processor.
+ */
+function collectLinksWithoutValue(ctx: SheetExportContext) {
+  const { sheet, data, worksheet, post } = ctx;
+  const links = sheet?.hyperlink;
+  if (!links) return;
+  const pending: PendingLink[] = [];
+  Object.keys(links).forEach((key) => {
+    const [r, c] = key.split("_").map(Number);
+    if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || c < 0) return;
+    const cell: any = data[r]?.[c];
+    if (cell && typeof cell === "object") {
+      const { mc } = cell;
+      if (mc && (mc.r !== r || mc.c !== c)) return;
+      if (cell.f == null || String(cell.f).trim() === "") return;
+    }
+    const target = hyperlinkTarget(links[key], worksheet.name);
+    if (!target) return;
+    const tooltip = links[key]?.linkTooltip;
+    pending.push({
+      ref: cellAddress(r, c),
+      target,
+      ...(tooltip ? { tooltip: String(tooltip) } : {}),
+    });
+  });
+  if (pending.length === 0) return;
+  const features = (post.features ||= {});
+  const bySheet = (features[LINKS_FEATURE] ||= {}) as Record<
+    number,
+    PendingLink[]
+  >;
+  bySheet[worksheet.id] = pending;
+}
+
+const HYPERLINK_REL =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+
+/** Zip post-processor: the links collectLinksWithoutValue recorded. */
+export async function addCellHyperlinks(ctx: XlsxPostProcessContext) {
+  const bySheet: Record<number, PendingLink[]> | undefined =
+    ctx.post.features?.[LINKS_FEATURE];
+  if (!bySheet) return;
+  // one sheet at a time: each adds to its own .rels part
+  /* eslint-disable no-await-in-loop */
+  for (const [id, links] of Object.entries(bySheet)) {
+    const path = `xl/worksheets/sheet${id}.xml`;
+    let xml = await ctx.readText(path);
+    if (xml == null) continue;
+    let items = "";
+    for (const link of links) {
+      const tip = link.tooltip
+        ? ` tooltip="${escapeXmlAttr(link.tooltip)}"`
+        : "";
+      if (link.target.startsWith("#")) {
+        items += `<hyperlink ref="${link.ref}" location="${escapeXmlAttr(
+          link.target.slice(1)
+        )}"${tip}/>`;
+      } else {
+        const rid = await ctx.addRelationship(
+          path,
+          HYPERLINK_REL,
+          link.target,
+          true
+        );
+        items += `<hyperlink ref="${link.ref}" r:id="${rid}"${tip}/>`;
+      }
+    }
+    xml = ensureNamespace(xml, "r", REL_NS);
+    const existing = findElement(xml, "hyperlinks");
+    if (existing) {
+      const inner = existing.text.endsWith("/>")
+        ? `<hyperlinks>${items}</hyperlinks>`
+        : existing.text.replace(/<\/hyperlinks>$/, `${items}</hyperlinks>`);
+      xml = xml.slice(0, existing.start) + inner + xml.slice(existing.end);
+    } else {
+      xml = insertWorksheetElement(
+        xml,
+        "hyperlinks",
+        `<hyperlinks>${items}</hyperlinks>`
+      );
+    }
+    ctx.writeText(path, xml);
+  }
+  /* eslint-enable no-await-in-loop */
 }
 
 /**

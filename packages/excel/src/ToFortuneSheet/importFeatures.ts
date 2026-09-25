@@ -234,14 +234,20 @@ export function parseTablePart(xml: string) {
   );
   const styleTag = /<(?:\w+:)?tableStyleInfo\b[^>]*>/.exec(xml)?.[0];
   const style = styleTag ? xmlAttrs(styleTag) : {};
+  const headerRow = attrs.headerRowCount !== "0";
+  const totalRow = Number(attrs.totalsRowCount ?? 0) > 0;
+  let lastRow = range.row[1];
+  // Excel's empty "insert row" of a table without data rows is not data
+  if (isOn(attrs.insertRow) && headerRow && !totalRow && lastRow > range.row[0])
+    lastRow -= 1;
   return {
     name,
     range: {
-      row: [range.row[0], range.row[1]] as [number, number],
+      row: [range.row[0], lastRow] as [number, number],
       column: [range.column[0], range.column[1]] as [number, number],
     },
-    headerRow: attrs.headerRowCount !== "0",
-    totalRow: Number(attrs.totalsRowCount ?? 0) > 0,
+    headerRow,
+    totalRow,
     bandedRows: isOn(style.showRowStripes),
     bandedColumns: isOn(style.showColumnStripes),
     firstColumn: isOn(style.showFirstColumn),

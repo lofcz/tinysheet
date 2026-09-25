@@ -365,6 +365,8 @@ export interface IfortunesheetDataVerificationValue {
   ignoreBlank?: boolean;
   /** Top-left cell of the rule's range: relative references are relative to it. */
   anchor?: { r: number; c: number };
+  /** Dropdown rules: false hides the in-cell arrow (xlsx showDropDown="1"). */
+  showDropdown?: boolean;
 }
 
 export type IfortunesheetDataVerificationType =

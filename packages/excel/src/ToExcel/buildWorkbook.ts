@@ -3,8 +3,9 @@
  *
  * `buildExcelWorkbook` turns TinySheet sheets (with `data` or `celldata`)
  * into an ExcelJS workbook by running a list of feature writers per sheet,
- * then per workbook. `exportToXlsx` serialises it and applies the zip-level
- * fixups ExcelJS cannot express (see postProcess.ts).
+ * then per workbook. `exportToXlsx` serialises it and runs the registered
+ * zip post-processors on the package for what ExcelJS cannot express (see
+ * postProcessors.ts, `registerXlsxPostProcessor`).
  *
  * Extending: other feature owners (defined names, conditional formatting,
  * charts, ...) add a writer to `sheetExportFeatures` /
@@ -16,7 +17,8 @@
  */
 import ExcelJS from "@protobi/exceljs";
 import type { XlsxPostProcessInfo } from "./postProcess";
-import { postProcessXlsx } from "./postProcess";
+import type { XlsxWorksheetPart } from "./postProcessors";
+import { runXlsxPostProcessors } from "./postProcessors";
 import { writeCells, writeNotes } from "./ExcelStyle";
 import { setBorder } from "./ExcelBorder";
 import { setImages } from "./ExcelImage";
@@ -32,12 +34,8 @@ import {
 import { colorToArgb } from "../common/units";
 import { setDefinedNames } from "../common/definedNames";
 import { exportCalcProperties } from "../common/calcProperties";
-import { addChartsToXlsx } from "../chart/exportXlsx";
 import { writePageSetup, writePrintNames } from "../common/pageSetup";
-import {
-  finalizeConditionalFormatting,
-  setConditionalFormatting,
-} from "./ExcelConditionFormat";
+import { setConditionalFormatting } from "./ExcelConditionFormat";
 
 export type XlsxExportOptions = {
   /** Skip sheets with hide=1 instead of exporting them as hidden. */
@@ -116,7 +114,7 @@ export const sheetExportFeatures: SheetExportFeature[] = [
   },
   {
     name: "data-validation",
-    write: (ctx) => setDataValidations(ctx.sheet, ctx.worksheet),
+    write: (ctx) => setDataValidations(ctx.sheet, ctx.worksheet, ctx.post),
   },
   {
     name: "conditional-formatting",
@@ -124,7 +122,7 @@ export const sheetExportFeatures: SheetExportFeature[] = [
   },
   { name: "views", write: writeSheetViews },
   { name: "page-setup", write: writePageSetup },
-  // Charts are added to the written zip (addChartsToXlsx).
+  // Charts are added to the written zip (the "charts" post-processor).
 ];
 
 /** Workbook-level writers (run after every sheet was written). */
@@ -205,6 +203,10 @@ function excelSheetName(name: string, used: Set<string>) {
 export type BuiltWorkbook = {
   workbook: ExcelJS.Workbook;
   post: XlsxPostProcessInfo;
+  /** Exported sheets in workbook order. */
+  sheets: any[];
+  /** Worksheet part per exported sheet (for the zip post-processors). */
+  worksheets: XlsxWorksheetPart[];
 };
 
 /**
@@ -222,7 +224,9 @@ export function buildExcelWorkbookWithInfo(
     dynamicArrayCells: {},
     worksheetIds: [],
     visibleNotes: {},
+    features: {},
   };
+  const parts: XlsxWorksheetPart[] = [];
   const ordered = sortedSheets(sheets || []);
   const used = new Set<string>();
   const worksheets: (ExcelJS.Worksheet | null)[] = [];
@@ -239,6 +243,12 @@ export function buildExcelWorkbookWithInfo(
     });
     worksheets.push(worksheet);
     post.worksheetIds.push(worksheet.id);
+    parts.push({
+      id: worksheet.id,
+      name: worksheet.name,
+      path: `xl/worksheets/sheet${worksheet.id}.xml`,
+      sheet,
+    });
     const ctx: SheetExportContext = {
       workbook,
       worksheet,
@@ -266,7 +276,7 @@ export function buildExcelWorkbookWithInfo(
     post,
   };
   workbookExportFeatures.forEach((feature) => feature.write(wbCtx));
-  return { workbook, post };
+  return { workbook, post, sheets: ordered, worksheets: parts };
 }
 
 export function buildExcelWorkbook(
@@ -281,16 +291,16 @@ export async function exportToXlsx(
   sheets: any[],
   options: XlsxExportOptions = {}
 ): Promise<Uint8Array> {
-  const { workbook, post } = buildExcelWorkbookWithInfo(sheets, options);
-  // restore the conditional-format settings exceljs drops (data bars, ...)
-  const buffer = await finalizeConditionalFormatting(
-    workbook,
-    await workbook.xlsx.writeBuffer()
-  );
-  const processed = await postProcessXlsx(buffer as ArrayBuffer, post);
-  // exceljs cannot create charts: add native chart parts to its output
-  const withCharts = await addChartsToXlsx(processed, sheets);
-  return withCharts instanceof Uint8Array
-    ? withCharts
-    : new Uint8Array(withCharts);
+  const built = buildExcelWorkbookWithInfo(sheets, options);
+  const buffer = await built.workbook.xlsx.writeBuffer();
+  // what ExcelJS cannot write: CF details, dynamic arrays, internal links,
+  // shown notes, hidden dropdowns, empty tables, charts, and every
+  // post-processor other features registered
+  return runXlsxPostProcessors(buffer as ArrayBuffer, {
+    sheets: built.sheets,
+    worksheets: built.worksheets,
+    workbook: built.workbook,
+    post: built.post,
+    options,
+  });
 }

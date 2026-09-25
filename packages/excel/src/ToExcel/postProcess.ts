@@ -38,6 +38,11 @@ export type XlsxPostProcessInfo = {
   cellImages?: CellImagePostInfo;
   /** Further zip edits registered by export features (run last). */
   fixups?: ((zip: JSZip) => Promise<void> | void)[];
+  /**
+   * Free-form data sheet writers hand to their zip post-processor, keyed by
+   * feature name (see postProcessors.ts).
+   */
+  features?: Record<string, any>;
 };
 
 const METADATA_XML =
@@ -85,7 +90,7 @@ function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-async function markDynamicArrays(zip: JSZip, info: XlsxPostProcessInfo) {
+export async function markDynamicArrays(zip: JSZip, info: XlsxPostProcessInfo) {
   const entries = Object.entries(info.dynamicArrayCells).filter(
     ([, cells]) => cells.length > 0
   );
@@ -162,7 +167,7 @@ async function fixSheetLinks(zip: JSZip, relFile: JSZip.JSZipObject) {
   zip.file(relFile.name, rels);
 }
 
-async function fixInternalHyperlinks(zip: JSZip) {
+export async function fixInternalHyperlinks(zip: JSZip) {
   const relFiles = zip.file(/^xl\/worksheets\/_rels\/sheet\d+\.xml\.rels$/);
   await Promise.all(relFiles.map((relFile) => fixSheetLinks(zip, relFile)));
 }
@@ -187,7 +192,7 @@ export function showVmlNotes(vml: string, cells: { r: number; c: number }[]) {
   });
 }
 
-async function showNotes(zip: JSZip, info: XlsxPostProcessInfo) {
+export async function showNotes(zip: JSZip, info: XlsxPostProcessInfo) {
   const entries = Object.entries(info.visibleNotes ?? {}).filter(
     ([, cells]) => cells.length > 0
   );
@@ -211,7 +216,7 @@ async function showNotes(zip: JSZip, info: XlsxPostProcessInfo) {
   );
 }
 
-async function applySheetXmlFixups(zip: JSZip, info: XlsxPostProcessInfo) {
+export async function applySheetXmlFixups(zip: JSZip, info: XlsxPostProcessInfo) {
   await Promise.all(
     Object.entries(info.sheetXmlFixups ?? {}).map(async ([id, fixups]) => {
       const path = `xl/worksheets/sheet${id}.xml`;
@@ -226,6 +231,12 @@ async function applySheetXmlFixups(zip: JSZip, info: XlsxPostProcessInfo) {
   );
 }
 
+/**
+ * Apply the dynamic-array, internal-hyperlink and shown-note fixups to an
+ * xlsx buffer. `exportToXlsx` runs these (and every other registered step)
+ * through the post-processor registry (postProcessors.ts); this stays for
+ * callers that only want these three.
+ */
 export async function postProcessXlsx(
   buffer: ArrayBuffer | Uint8Array,
   info: XlsxPostProcessInfo

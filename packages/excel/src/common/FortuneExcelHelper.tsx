@@ -11,7 +11,9 @@ const formatConfig = (config = {}) => {
 };
 
 export const FortuneExcelHelper = (props: any) => {
-  const { setKey, setSheets, sheetRef, config } = props;
+  // lang: UI language of the import/export strings (English fallback);
+  // onError(error, message): import/export failures (default: alert)
+  const { setKey, setSheets, sheetRef, config, lang, onError } = props;
   const sanitizedConfig = formatConfig(config);
   return (
     <>
@@ -20,8 +22,15 @@ export const FortuneExcelHelper = (props: any) => {
         setSheets={setSheets}
         sheetRef={sheetRef}
         config={sanitizedConfig.import}
+        lang={lang}
+        onError={onError}
       />
-      <ExportHelper sheetRef={sheetRef} config={sanitizedConfig.export} />
+      <ExportHelper
+        sheetRef={sheetRef}
+        config={sanitizedConfig.export}
+        lang={lang}
+        onError={onError}
+      />
     </>
   );
 };

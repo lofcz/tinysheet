@@ -59,6 +59,7 @@ import {
   FortuneSheetCelldataValue,
 } from "./FortuneBase";
 import { ImageList } from "./FortuneImage";
+import { scanElements, scanRows } from "./xmlScan";
 import { readSheetConditionalFormats } from "./FortuneConditionFormat";
 import dayjs from "dayjs";
 import {
@@ -335,28 +336,25 @@ export class FortuneSheet extends FortuneSheetBase {
       this.calcChain = [];
     }
 
-    let formulaListExist: IformulaList = {};
+    let formulaListExist = new Set<number>();
+    // `i` (the sheet id) may be omitted: it repeats the previous entry's
+    let chainSheet: string = undefined;
     for (let c = 0; c < this.calcChainEles.length; c++) {
       let calcChainEle = this.calcChainEles[c],
         attrList = calcChainEle.attributeList;
-      if (attrList.i != sheetId) {
+      if (attrList.i != null) chainSheet = attrList.i;
+      if (chainSheet != sheetId || attrList.r == null) {
         continue;
       }
 
-      let r = attrList.r,
-        i = attrList.i,
-        l = attrList.l,
-        s = attrList.s,
-        a = attrList.a,
-        t = attrList.t;
-
-      let range = getcellrange(r);
+      let range = getcellrange(attrList.r);
+      if (range == null) continue;
       let chain = new FortunesheetCalcChain();
       chain.r = range.row[0];
       chain.c = range.column[0];
       chain.id = this.id;
       this.calcChain.push(chain);
-      formulaListExist["r" + r + "c" + c] = null;
+      formulaListExist.add(chain.r * 16384 + chain.c);
     }
 
     if (this.formulaRefList != null) {
@@ -404,9 +402,9 @@ export class FortuneSheet extends FortuneSheetBase {
     }
 
     //There may be formulas that do not appear in calcChain
-    for (let key in cellOtherInfo.formulaList) {
-      if (!(key in formulaListExist)) {
-        let formulaListItem = cellOtherInfo.formulaList[key];
+    for (const formulaListItem of (cellOtherInfo as any)
+      .formulaCells as IformulaListItem[]) {
+      if (!formulaListExist.has(formulaListItem.r * 16384 + formulaListItem.c)) {
         let chain = new FortunesheetCalcChain();
         chain.r = formulaListItem.r;
         chain.c = formulaListItem.c;
@@ -2006,35 +2004,35 @@ export class FortuneSheet extends FortuneSheetBase {
    * @desc This will convert cols/col to fortunesheet config of column'width
    */
   private generateConfigRowLenAndHiddenAddCell(): IcellOtherInfo {
-    let rows = this.readXml.getElementsByTagName(
-      "sheetData/row",
-      this.sheetFile
-    );
     let cellOtherInfo: IcellOtherInfo = {};
-    let formulaList: IformulaList = {};
-    cellOtherInfo.formulaList = formulaList;
-    for (let i = 0; i < rows.length; i++) {
-      let row = rows[i],
-        attrList = row.attributeList;
+    // formula cells (not an object keyed by address: 100k+ keys are slow)
+    let formulaCells: IformulaListItem[] = [];
+    (cellOtherInfo as any).formulaCells = formulaCells;
+    // Rows and cells are read with the fast scanner (xmlScan.ts): this is
+    // the hot path of the import. `r` attributes are optional in the file
+    // format; missing ones continue from the previous row / cell.
+    let previousRow = -1;
+    scanRows(this.readXml.getFileText(this.sheetFile), (row) => {
+      let attrList = row.attrs;
       let rowNo = getXmlAttibute(attrList, "r", null);
       let height = getXmlAttibute(attrList, "ht", null);
       let hidden = getXmlAttibute(attrList, "hidden", null);
       let customHeight = getXmlAttibute(attrList, "customHeight", null);
 
-      if (rowNo == null) {
-        continue;
-      }
-
-      let rowNoNum = parseInt(rowNo) - 1;
+      let rowNoNum = rowNo == null ? NaN : parseInt(rowNo) - 1;
+      if (!(rowNoNum >= 0)) rowNoNum = previousRow + 1;
+      previousRow = rowNoNum;
       if (height != null) {
         let heightNum = parseFloat(height);
         if (this.config.rowlen == null) {
           this.config.rowlen = {};
         }
-        this.config.rowlen[rowNoNum] = getRowHeightPixel(heightNum);
+        if (isFinite(heightNum)) {
+          this.config.rowlen[rowNoNum] = getRowHeightPixel(heightNum);
+        }
       }
 
-      if (hidden == "1") {
+      if (hidden == "1" || hidden == "true") {
         if (this.config.rowhidden == null) {
           this.config.rowhidden = {};
         }
@@ -2053,137 +2051,74 @@ export class FortuneSheet extends FortuneSheetBase {
         this.config.customHeight[rowNoNum] = 1;
       }
 
-      if (this.isInitialCell) {
-        let cells = row.getInnerElements("c");
-        for (let key in cells) {
-          let cell = cells[key];
-          let cellValue = new FortuneSheetCelldata(
-            cell,
-            this.styles,
-            this.sharedStrings,
-            this.mergeCells,
-            this.sheetFile,
-            this.readXml,
-            this.workbookInfo
-          );
-          if (cellValue._borderObject != null) {
-            if (this.config.borderInfo == null) {
-              this.config.borderInfo = [];
-            }
-            this.config.borderInfo.push(cellValue._borderObject);
-            delete cellValue._borderObject;
+      if (!this.isInitialCell || row.inner == null) return;
+      let previousCol = -1;
+      scanElements(row.inner, "c", (cell) => {
+        let cellValue = new FortuneSheetCelldata(
+          cell,
+          this.styles,
+          this.sharedStrings,
+          this.mergeCells,
+          this.sheetFile,
+          this.readXml,
+          this.workbookInfo,
+          { r: rowNoNum, c: previousCol + 1 }
+        );
+        previousCol = cellValue.c;
+        if (cellValue._borderObject != null) {
+          if (this.config.borderInfo == null) {
+            this.config.borderInfo = [];
           }
-
-          // let borderId = cellValue._borderId;
-          // if(borderId!=null){
-          //     let borders = this.styles["borders"] as Element[];
-          //     if(this.config._borderInfo==null){
-          //         this.config._borderInfo = {};
-          //     }
-          //     if( borderId in this.config._borderInfo){
-          //         this.config._borderInfo[borderId].cells.push(cellValue.r + "_" + cellValue.c);
-          //     }
-          //     else{
-          //         let border = borders[borderId];
-          //         let borderObject = new FortuneSheetborderInfoCellForImp();
-          //         borderObject.rangeType = "cellGroup";
-          //         borderObject.cells = [];
-          //         let borderCellValue = new FortuneSheetborderInfoCellValue();
-
-          //         let lefts = border.getInnerElements("left");
-          //         let rights = border.getInnerElements("right");
-          //         let tops = border.getInnerElements("top");
-          //         let bottoms = border.getInnerElements("bottom");
-          //         let diagonals = border.getInnerElements("diagonal");
-
-          //         let left = this.getBorderInfo(lefts);
-          //         let right = this.getBorderInfo(rights);
-          //         let top = this.getBorderInfo(tops);
-          //         let bottom = this.getBorderInfo(bottoms);
-          //         let diagonal = this.getBorderInfo(diagonals);
-
-          //         let isAdd = false;
-          //         if(left!=null && left.color!=null){
-          //             borderCellValue.l = left;
-          //             isAdd = true;
-          //         }
-
-          //         if(right!=null && right.color!=null){
-          //             borderCellValue.r = right;
-          //             isAdd = true;
-          //         }
-
-          //         if(top!=null && top.color!=null){
-          //             borderCellValue.t = top;
-          //             isAdd = true;
-          //         }
-
-          //         if(bottom!=null && bottom.color!=null){
-          //             borderCellValue.b = bottom;
-          //             isAdd = true;
-          //         }
-
-          //         if(isAdd){
-          //             borderObject.value = borderCellValue;
-          //             this.config._borderInfo[borderId] = borderObject;
-          //         }
-
-          //     }
-          // }
-          if (cellValue._arrayRef != null) {
-            this.arrayFormulaCells.push(cellValue);
-          }
-
-          if (cellValue._formulaType == "shared") {
-            if (this.formulaRefList == null) {
-              this.formulaRefList = {};
-            }
-
-            if (this.formulaRefList[cellValue._formulaSi] == null) {
-              this.formulaRefList[cellValue._formulaSi] = {};
-            }
-
-            let fv;
-            if (cellValue.v != null) {
-              fv = (cellValue.v as IfortuneSheetCelldataValue).f;
-            }
-
-            let refValue = {
-              t: cellValue._formulaType,
-              ref: cellValue._fomulaRef,
-              si: cellValue._formulaSi,
-              fv: fv,
-              cellValue: cellValue,
-            };
-
-            if (cellValue._fomulaRef != null) {
-              this.formulaRefList[cellValue._formulaSi]["mainRef"] = refValue;
-            } else {
-              this.formulaRefList[cellValue._formulaSi][
-                cellValue.r + "_" + cellValue.c
-              ] = refValue;
-            }
-
-            // console.log(refValue, this.formulaRefList);
-          }
-
-          //There may be formulas that do not appear in calcChain
-          if (
-            cellValue.v != null &&
-            (cellValue.v as IfortuneSheetCelldataValue).f != null
-          ) {
-            let formulaCell: IformulaListItem = {
-              r: cellValue.r,
-              c: cellValue.c,
-            };
-            cellOtherInfo.formulaList["r" + cellValue.r + "c" + cellValue.c] =
-              formulaCell;
-          }
-
-          this.celldata.push(cellValue);
+          this.config.borderInfo.push(cellValue._borderObject);
+          delete cellValue._borderObject;
         }
-      }
-    }
+
+        if (cellValue._arrayRef != null) {
+          this.arrayFormulaCells.push(cellValue);
+        }
+
+        if (cellValue._formulaType == "shared") {
+          if (this.formulaRefList == null) {
+            this.formulaRefList = {};
+          }
+
+          if (this.formulaRefList[cellValue._formulaSi] == null) {
+            this.formulaRefList[cellValue._formulaSi] = {};
+          }
+
+          let fv;
+          if (cellValue.v != null) {
+            fv = (cellValue.v as IfortuneSheetCelldataValue).f;
+          }
+
+          let refValue = {
+            t: cellValue._formulaType,
+            ref: cellValue._fomulaRef,
+            si: cellValue._formulaSi,
+            fv: fv,
+            cellValue: cellValue,
+          };
+
+          if (cellValue._fomulaRef != null) {
+            this.formulaRefList[cellValue._formulaSi]["mainRef"] = refValue;
+          } else {
+            this.formulaRefList[cellValue._formulaSi][
+              cellValue.r + "_" + cellValue.c
+            ] = refValue;
+          }
+        }
+
+        //There may be formulas that do not appear in calcChain
+        if (
+          cellValue.v != null &&
+          (cellValue.v as IfortuneSheetCelldataValue).f != null
+        ) {
+          formulaCells.push({ r: cellValue.r, c: cellValue.c });
+        }
+
+        this.celldata.push(cellValue);
+      });
+    });
 
     return cellOtherInfo;
   }
@@ -2193,6 +2128,25 @@ export class FortuneSheet extends FortuneSheetBase {
    *
    * @returns {IfortunesheetDataVerification} - dataValidations config
    */
+  private bounds?: { lastRow: number; lastCol: number };
+
+  /**
+   * Where per-cell settings (validation, links) given for huge ranges
+   * (whole columns) are clipped: the used area, at least A1:Z1000.
+   */
+  private rangeBounds() {
+    if (this.bounds == null) {
+      let lastRow = 999;
+      let lastCol = 25;
+      for (const cell of this.celldata) {
+        if (cell.r > lastRow) lastRow = cell.r;
+        if (cell.c > lastCol) lastCol = cell.c;
+      }
+      this.bounds = { lastRow, lastCol };
+    }
+    return this.bounds;
+  }
+
   private generateConfigDataValidations(): IfortunesheetDataVerification {
     let rows = this.readXml.getElementsByTagName(
       "dataValidations/dataValidation",
@@ -2232,7 +2186,7 @@ export class FortuneSheet extends FortuneSheetBase {
         sqref = getXmlAttibute(attrList, "sqref", null);
         valueArr = getMultiFormulaValue(formulaValue);
       }
-      sqrefIndexArr = getMultiSequenceToNum(sqref);
+      sqrefIndexArr = getMultiSequenceToNum(sqref, this.rangeBounds());
 
       let _type: string = DATA_VERIFICATION_MAP[type];
       if (_type == null) {
@@ -2252,6 +2206,9 @@ export class FortuneSheet extends FortuneSheetBase {
         errorStyle = "stop";
       }
       let allowBlank = getXmlAttibute(attrList, "allowBlank", "0");
+      // Excel's inverted flag: showDropDown="1" hides the in-cell arrow
+      let showDropDown = getXmlAttibute(attrList, "showDropDown", "0");
+      let hideArrow = showDropDown == "1" || showDropDown == "true";
       let _hintShow =
         !!(_hint || _hintTitle) && (showInput == "1" || showInput == "true");
       // an error alert of any style (Stop blocks the input, Warning and
@@ -2347,6 +2304,7 @@ export class FortuneSheet extends FortuneSheetBase {
         if (_errorTitle) item.errorTitle = _errorTitle;
         if (_errorMessage) item.errorMessage = _errorMessage;
         if (_anchor) item.anchor = { ..._anchor };
+        if (hideArrow && _type === "dropdown") item.showDropdown = false;
         dataVerification[ref] = item;
       }
     }
@@ -2369,7 +2327,7 @@ export class FortuneSheet extends FortuneSheetBase {
       let row = rows[i];
       let attrList = row.attributeList;
       let ref = getXmlAttibute(attrList, "ref", null),
-        refArr = getMultiSequenceToNum(ref),
+        refArr = getMultiSequenceToNum(ref, this.rangeBounds()),
         _display = escapeCharacter(getXmlAttibute(attrList, "display", null)),
         _address = escapeCharacter(getXmlAttibute(attrList, "location", null)),
         _tooltip = escapeCharacter(getXmlAttibute(attrList, "tooltip", null));

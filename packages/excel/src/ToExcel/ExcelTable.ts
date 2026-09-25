@@ -12,6 +12,48 @@ import type ExcelJS from "@protobi/exceljs";
 import { cellAddress } from "../common/formulaText";
 import { qualifyStructuredReferences } from "../common/structuredRefs";
 import type { SheetExportContext } from "./buildWorkbook";
+import type { XlsxPostProcessContext } from "./postProcessors";
+import { setTagAttr, tagAttr } from "./xlsxParts";
+
+const FEATURE = "tables";
+
+function rowIsEmpty(
+  ctx: SheetExportContext,
+  r: number,
+  c1: number,
+  c2: number
+) {
+  const row = ctx.data[r];
+  if (!row) return true;
+  for (let c = c1; c <= c2; c += 1) {
+    const cell: any = row[c];
+    if (cell && (cell.v != null || cell.f != null || cell.ct?.s != null))
+      return false;
+  }
+  return true;
+}
+
+/**
+ * Zip post-processor: header-only tables get `insertRow="1"` (their one
+ * data row is Excel's empty insert row).
+ */
+export async function markEmptyTables(ctx: XlsxPostProcessContext) {
+  const names: string[] | undefined = ctx.post.features?.[FEATURE]?.insertRow;
+  if (!names?.length) return;
+  const wanted = new Set(names);
+  const parts = ctx.zip.file(/^xl\/tables\/[^/]+\.xml$/);
+  await Promise.all(
+    parts.map(async (part) => {
+      const xml = await part.async("string");
+      const out = xml.replace(/<table\b[^>]*>/, (tag) =>
+        wanted.has(tagAttr(tag, "name") ?? "")
+          ? setTagAttr(tag, "insertRow", "1")
+          : tag
+      );
+      if (out !== xml) ctx.writeText(part.name, out);
+    })
+  );
+}
 
 const TOTAL_FUNCTIONS = new Set([
   "sum",
@@ -51,11 +93,19 @@ export function writeTables(ctx: SheetExportContext) {
     const headerRow = table.headerRow !== false;
     const totalsRow = !!table.totalRow;
     const dataStart = r1 + (headerRow ? 1 : 0);
-    const dataEnd = r2 - (totalsRow ? 1 : 0);
-    // an Excel table has at least one data row
-    if (dataEnd < dataStart) return;
+    let dataEnd = r2 - (totalsRow ? 1 : 0);
+    // An Excel table has at least one data row. A header-only table is
+    // written the way Excel stores one: with the empty row below it as its
+    // "insert row" (insertRow="1", set by the "tables" post-processor).
+    let insertRow = false;
+    if (dataEnd < dataStart) {
+      if (!headerRow || totalsRow || !rowIsEmpty(ctx, r1 + 1, c1, c2)) return;
+      insertRow = true;
+      dataEnd = dataStart;
+    }
 
     const saved = snapshot(worksheet, table);
+    if (insertRow) saved.push(columns.map(() => null));
     const fn = (col: any) =>
       TOTAL_FUNCTIONS.has(col?.totalFunction) ? col.totalFunction : "none";
     const added: any = worksheet.addTable({
@@ -93,10 +143,16 @@ export function writeTables(ctx: SheetExportContext) {
       }
     }
 
+    if (insertRow) {
+      const features = (ctx.post.features ||= {});
+      const tablesInfo = (features[FEATURE] ||= { insertRow: [] });
+      tablesInfo.insertRow.push(String(table.name));
+    }
+
     // put the cells back (the header keeps the column names ExcelJS wrote),
     // with the structured references Excel expects
     saved.forEach((row, i) => {
-      if (headerRow && i === 0) return;
+      if ((headerRow && i === 0) || (insertRow && i > 0)) return;
       row.forEach((value, j) => {
         const cell = worksheet.getCell(r1 + i + 1, c1 + j + 1);
         let v: any = value;

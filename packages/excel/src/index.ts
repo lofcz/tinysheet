@@ -1,5 +1,18 @@
-export { parseExcel } from "./parse/parseExcel";
+export { parseExcel, ExcelImportError } from "./parse/parseExcel";
 export type { ParseExcelOptions } from "./parse/parseExcel";
+// Off-main-thread import (Web Worker), see parse/worker.ts.
+export {
+  exposeParseExcelWorker,
+  parseExcelInWorker,
+  handleParseExcelRequest,
+  encodeExcelImportResult,
+  decodeExcelImportResult,
+} from "./parse/worker";
+export type {
+  ParseExcelWorkerRequest,
+  ParseExcelWorkerResponse,
+  ParseExcelInWorkerOptions,
+} from "./parse/worker";
 export type { ExcelImportResult, ExcelImportSizing } from "./parse/types";
 
 export { applyExcelImport } from "./hydrate/applyExcelImport";
@@ -25,6 +38,38 @@ export type {
   WorkbookExportFeature,
 } from "./ToExcel/buildWorkbook";
 export { postProcessXlsx } from "./ToExcel/postProcess";
+export type { XlsxPostProcessInfo } from "./ToExcel/postProcess";
+// Zip post-processors: the extension hook for parts ExcelJS cannot write.
+export {
+  xlsxPostProcessors,
+  registerXlsxPostProcessor,
+  runXlsxPostProcessors,
+  createPostProcessContext,
+} from "./ToExcel/postProcessors";
+export type {
+  XlsxPostProcessor,
+  XlsxPostProcessorFn,
+  XlsxPostProcessContext,
+  XlsxWorksheetPart,
+  RegisterXlsxPostProcessorOptions,
+  RunXlsxPostProcessorsInput,
+} from "./ToExcel/postProcessors";
+export {
+  WORKSHEET_CHILD_ORDER,
+  addContentTypeDefault,
+  addContentTypeOverride,
+  addExtension,
+  addRelationship,
+  ensureNamespace,
+  findElement,
+  insertWorksheetElement,
+  parseRelationships,
+  relativeTarget,
+  relsPathFor,
+  resolveTarget,
+  setTagAttr,
+  tagAttr,
+} from "./ToExcel/xlsxParts";
 export type { SheetExportOptions } from "./ToExcel/ExcelFile";
 
 // xlsx import extension points.
@@ -106,3 +151,5 @@ export { IFileType } from "./common/ICommon";
 // Optional React toolbar helpers (peer: react)
 export * from "./common/ToolbarItem";
 export * from "./common/FortuneExcelHelper";
+export { importErrorMessage } from "./ToFortuneSheet/ImportHelper";
+export type { ImportErrorHandler } from "./ToFortuneSheet/ImportHelper";
