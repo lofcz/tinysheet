@@ -228,6 +228,7 @@ export const defaultSettings: Required<Settings> = {
     "formatAsTable",
     "link",
     "image",
+    "chart",
     "comment",
     "quick-formula",
     "nameManager",

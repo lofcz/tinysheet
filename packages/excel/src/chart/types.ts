@@ -1,8 +1,8 @@
-export type ChartSeriesPoint = {
-  label: string;
-  value: number;
-  color: string;
-};
+export type {
+  ChartSeriesPoint,
+  ChartRenderOptions,
+} from "@lofcz/tinysheet-core";
+export { DEFAULT_CHART_COLORS } from "@lofcz/tinysheet-core";
 
 export type FortuneChartSeriesSpec = {
   color: string;
@@ -41,26 +41,9 @@ export type FortuneChartSpec = {
   series: FortuneChartSeriesSpec[];
 };
 
-export type ChartRenderOptions = {
-  title?: string;
-  categoryAxisTitle?: string;
-  valueAxisTitle?: string;
-  valueAxis?: FortuneChartValueAxis;
-};
-
 export type ChartCellValue = {
   display: string;
   numeric: number | null;
 };
 
 export type ChartCellResolver = (reference: string) => ChartCellValue[];
-
-/** Office accent palette used for Excel chart defaults / varyColors. */
-export const DEFAULT_CHART_COLORS = [
-  "#4472C4",
-  "#ED7D31",
-  "#A5A5A5",
-  "#FFC000",
-  "#5B9BD5",
-  "#70AD47",
-];

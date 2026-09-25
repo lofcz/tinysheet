@@ -27,6 +27,7 @@ import {
 } from "./ExcelConfig";
 import { colorToArgb } from "../common/units";
 import { setDefinedNames } from "../common/definedNames";
+import { addChartsToXlsx } from "../chart/exportXlsx";
 
 export type XlsxExportOptions = {
   /** Skip sheets with hide=1 instead of exporting them as hidden. */
@@ -259,5 +260,10 @@ export async function exportToXlsx(
 ): Promise<Uint8Array> {
   const { workbook, post } = buildExcelWorkbookWithInfo(sheets, options);
   const buffer = await workbook.xlsx.writeBuffer();
-  return postProcessXlsx(buffer as ArrayBuffer, post);
+  const processed = await postProcessXlsx(buffer as ArrayBuffer, post);
+  // exceljs cannot create charts: add native chart parts to its output
+  const withCharts = await addChartsToXlsx(processed, sheets);
+  return withCharts instanceof Uint8Array
+    ? withCharts
+    : new Uint8Array(withCharts);
 }

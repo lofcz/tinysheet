@@ -12,8 +12,10 @@ import zhTwFunctions from "./functions/zh_tw";
 import { mergeFunctionList } from "./functions/merge";
 import type { FunctionListTranslation } from "./functions/types";
 import { Context } from "..";
+import { chartLocales, ChartLocale } from "./chart";
 
-type Locale = typeof zh & Pick<typeof en, "functionlist">;
+type Locale = typeof zh &
+  Pick<typeof en, "functionlist"> & { chart: ChartLocale };
 
 // Every locale lists every function of the English catalog; translated
 // texts are merged in by function name.
@@ -27,7 +29,7 @@ function withFunctionList<T extends object>(
   };
 }
 
-const localeObj: Record<string, Locale> = {
+const baseLocaleObj: Record<string, Omit<Locale, "chart">> = {
   // @ts-ignore
   en,
   zh: withFunctionList(zh, zhFunctions),
@@ -41,6 +43,15 @@ const localeObj: Record<string, Locale> = {
   ru: withFunctionList(ru, ruFunctions),
 };
 
+// Chart strings live in ./chart.ts; attach them to every locale.
+const localeObj: Record<string, Locale> = {};
+Object.keys(baseLocaleObj).forEach((lang) => {
+  localeObj[lang] = {
+    ...baseLocaleObj[lang],
+    chart: chartLocales[lang] || chartLocales.en,
+  };
+});
+
 function locale(ctx: Context) {
   const langsToTry = [ctx.lang || "", ctx.lang?.split("-")[0] || ""];
   for (let i = 0; i < langsToTry.length; i += 1) {
@@ -53,6 +64,7 @@ function locale(ctx: Context) {
 
 export { locale };
 export { FUNCTION_CATEGORIES } from "./functions/types";
+export type { ChartLocale } from "./chart";
 export type {
   FunctionListEntry,
   FunctionListParam,

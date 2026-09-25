@@ -36,6 +36,7 @@ import {
   importDefinedNames,
   readDefinedNamesXml,
 } from "../common/definedNames";
+import { generateChartId } from "@lofcz/tinysheet-core";
 
 export class FortuneFile {
   private files: IuploadfileList;
@@ -272,6 +273,7 @@ export class FortuneFile {
         this.rowHeightSet = [];
 
         this.imagePositionCaculation(sheet);
+        this.chartPositionCalculation(sheet);
 
         this.sheets.push(sheet);
         order++;
@@ -285,6 +287,17 @@ export class FortuneFile {
         workbook: this.workbookInfo,
       });
     }
+  }
+
+  /** Charts use the same two-cell anchors as images. */
+  private chartPositionCalculation(sheet: FortuneSheet) {
+    if (sheet.chartObjects.length == 0) {
+      return;
+    }
+    let images = sheet.images;
+    sheet.images = sheet.chartObjects as any;
+    this.imagePositionCaculation(sheet);
+    sheet.images = images;
   }
 
   private columnWidthSet: number[] = [];
@@ -682,6 +695,18 @@ export class FortuneFile {
           top: image.default?.top ?? 0,
           width: image.default?.width ?? image.originWidth ?? 0,
           height: image.default?.height ?? image.originHeight ?? 0,
+        }));
+      }
+
+      let chartObjects = (sheet as any).chartObjects as any[] | undefined;
+      if (chartObjects != null && chartObjects.length > 0) {
+        sheetout.charts = chartObjects.map((item) => ({
+          ...item.chart,
+          id: generateChartId(),
+          left: item.default?.left ?? 0,
+          top: item.default?.top ?? 0,
+          width: item.default?.width || item.originWidth || 480,
+          height: item.default?.height || item.originHeight || 288,
         }));
       }
 

@@ -40,3 +40,5 @@ export * from "./pasteSpecial";
 export * from "./shiftCells";
 export * from "./names";
 export * from "./tables";
+export * from "./chart";
+export * from "./chartRender";

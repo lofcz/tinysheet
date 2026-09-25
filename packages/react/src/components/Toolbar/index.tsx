@@ -55,6 +55,7 @@ import CustomBorder from "./CustomBorder";
 import { FormatSearch } from "../FormatSearch";
 import { NameManagerButton } from "../NameManager";
 import { FormatAsTableButton } from "../Tables";
+import ChartToolbarItem from "../Chart/ChartToolbarItem";
 
 const toolbarTooltipAliases: Record<string, string> = {
   link: "insertLink",
@@ -905,6 +906,9 @@ const Toolbar: React.FC<{
             />
           </Button>
         );
+      }
+      if (name === "chart") {
+        return <ChartToolbarItem key={name} />;
       }
       if (name === "comment") {
         const last =

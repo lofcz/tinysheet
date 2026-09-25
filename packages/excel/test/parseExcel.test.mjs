@@ -85,29 +85,36 @@ test("parseExcel keeps one-cell anchored drawing objects visible", async () => {
   );
   const [sheet] = result.sheets;
   const images = sheet.images || [];
-  assert.ok(images.length >= 3);
+  const charts = sheet.charts || [];
+  // The picture and the shape stay images; the column chart is live.
+  assert.ok(images.length + charts.length >= 3);
+  assert.equal(charts.length, 1);
+  assert.equal(charts[0].type, "column");
 
   const svgImages = images.filter((image) =>
     String(image.src).startsWith("data:image/svg+xml")
   );
-  assert.ok(svgImages.length >= 2);
+  assert.ok(svgImages.length >= 1);
 });
 
-test("parseExcel imports openpyxl default-namespace bar charts with chartSpec", async () => {
+test("parseExcel imports openpyxl default-namespace bar charts as live charts", async () => {
   const result = await parseExcel(
     await toFile(openpyxlBarChartFixturePath, "openpyxl_bar_chart.xlsx")
   );
   const [sheet] = result.sheets;
-  const images = sheet.images || [];
-  assert.ok(images.length >= 1);
-
-  const chartImage = images.find((image) => image.chartSpec);
-  assert.ok(chartImage, "expected chartSpec on chart image");
-  assert.equal(chartImage.chartSpec.type, "bar");
-  assert.equal(chartImage.fromCol, 6);
-  assert.equal(chartImage.fromRow, 2);
-  assert.ok(chartImage.chartSpec.series.length >= 1);
-  assert.equal(chartImage.chartSpec.series[0].mode, "category");
+  // Supported chart types become chart objects, not images.
+  assert.equal((sheet.images || []).filter((image) => image.chartSpec).length, 0);
+  const charts = sheet.charts || [];
+  assert.equal(charts.length, 1);
+  const [chart] = charts;
+  assert.equal(chart.type, "column");
+  assert.equal(chart.grouping, "clustered");
+  assert.equal(chart.legend, "right");
+  assert.ok(chart.left > 0 && chart.top > 0 && chart.width > 0);
+  assert.equal(chart.series.length, 1);
+  assert.equal(chart.series[0].values.sheetId, sheet.id);
+  assert.deepEqual(chart.series[0].values.column, [4, 4]);
+  assert.deepEqual(chart.series[0].categories.column, [0, 0]);
 });
 
 test("parseExcel keeps formula text without empty cached values", async () => {
@@ -129,7 +136,7 @@ test("parseExcel keeps formula text without empty cached values", async () => {
   assert.equal(a3.v.v, undefined);
 });
 
-test("applyExcelImportHydration calculates formulas and refreshes chart SVGs", async () => {
+test("applyExcelImportHydration calculates formulas feeding live charts", async () => {
   const result = await parseExcel(
     await toFile(openpyxlBarChartFixturePath, "openpyxl_bar_chart.xlsx")
   );
@@ -168,31 +175,19 @@ test("applyExcelImportHydration calculates formulas and refreshes chart SVGs", a
   assert.ok(e4);
   assert.ok(typeof e4.v === "number" || e4.v != null);
 
-  const chartImage = (live.images || []).find((image) => image.chartSpec);
-  assert.ok(chartImage);
-  const chartSvg = decodeURIComponent(String(chartImage.src).split(",")[1]);
+  const [chart] = live.charts;
+  assert.ok(chart.title);
+  assert.ok(chart.categoryAxisTitle);
+  assert.ok(chart.valueAxisTitle);
+  const model = core.resolveChartModel(ctx, chart);
+  assert.ok(model.categories.some((c) => c.startsWith("Anna Nov")));
+  // Live values: one point per category (error cells plot as gaps).
+  assert.equal(model.series[0].values.length, model.categories.length);
+  const chartSvg = core.renderChartToSvg(ctx, chart);
   assert.match(chartSvg, /<svg /);
   assert.match(chartSvg, /Anna Nov/);
-  // Single-series category charts vary point colors (Office palette).
   assert.match(chartSvg, /#4472C4/);
-  assert.match(chartSvg, /#ED7D31/);
-  assert.equal(ctx.insertedImgs, live.images);
-  assert.equal(chartImage.chartSpec.varyColors, true);
-  assert.ok(chartImage.chartSpec.title);
-  assert.ok(chartImage.chartSpec.categoryAxisTitle);
-  assert.ok(chartImage.chartSpec.valueAxisTitle);
-  assert.match(
-    chartSvg,
-    new RegExp(
-      chartImage.chartSpec.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    )
-  );
-  assert.match(
-    chartSvg,
-    new RegExp(
-      chartImage.chartSpec.valueAxisTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    )
-  );
+  assert.match(chartSvg, new RegExp(chart.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
 test("chart axis uses Excel-like 1-2-5 step ticks", () => {
@@ -293,17 +288,18 @@ test("parseExcel imports value-axis scaling overrides from chart XML", async () 
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     })
   );
-  const chartImage = (result.sheets[0].images || []).find(
-    (image) => image.chartSpec
-  );
-  assert.ok(chartImage);
-  assert.deepEqual(chartImage.chartSpec.valueAxis, {
+  const [chart] = result.sheets[0].charts;
+  assert.ok(chart);
+  assert.deepEqual(chart.valueAxis, {
     min: 0,
     max: 5,
     majorUnit: 1,
   });
 
-  const chartSvg = decodeURIComponent(String(chartImage.src).split(",")[1]);
+  const chartSvg = core.renderChartToSvg(
+    { luckysheetfile: result.sheets },
+    { ...chart, series: chart.series.map((s) => ({ ...s, values: null, cache: { values: [1, 2, 3] } })) }
+  );
   assert.match(chartSvg, />5<\/text>/);
   assert.match(chartSvg, />1<\/text>/);
 });

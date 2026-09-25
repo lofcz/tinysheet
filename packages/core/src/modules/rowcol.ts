@@ -7,6 +7,7 @@ import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
 import { onSpillStructureChange } from "./spill";
 import { adjustNamesForRowCol } from "./names";
 import { adjustTablesForRowCol } from "./tables";
+import { adjustChartsForDelete, adjustChartsForInsert } from "./chart";
 
 const refreshLocalMergeData = (merge_new: Record<string, any>, file: Sheet) => {
   Object.entries(merge_new).forEach(([, v]) => {
@@ -1090,6 +1091,13 @@ export function insertRowCol(
   refreshLocalMergeData(merge_new, file);
   recalcAfterStructuralChange(ctx);
   onSpillStructureChange(ctx, id);
+  adjustChartsForInsert(
+    ctx,
+    id,
+    type,
+    direction === "lefttop" ? index : index + 1,
+    count
+  );
 
   // if (type === "row") {
   //   const scrollLeft = $("#luckysheet-cell-main").scrollLeft();
@@ -1937,6 +1945,7 @@ export function deleteRowCol(
 
   refreshLocalMergeData(merge_new, file);
   recalcAfterStructuralChange(ctx);
+  adjustChartsForDelete(ctx, id, type, start, end);
 
   if (file.id === ctx.currentSheetId) {
     ctx.config = cfg;
