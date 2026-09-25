@@ -475,8 +475,10 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         const { nativeEvent } = e;
         // handling undo and redo ahead because handleUndo and handleRedo
         // themselves are calling setContext, and should not be nested
-        // in setContextWithProduce.
-        if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") {
+        // in setContextWithProduce. While a cell is being edited the editor
+        // undoes its own typing, like Excel.
+        const editing = context.luckysheetCellUpdate.length > 0;
+        if (!editing && (e.ctrlKey || e.metaKey) && e.code === "KeyZ") {
           if (e.shiftKey) {
             handleRedo();
           } else {
@@ -485,7 +487,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           e.stopPropagation();
           return;
         }
-        if ((e.ctrlKey || e.metaKey) && e.code === "KeyY") {
+        if (!editing && (e.ctrlKey || e.metaKey) && e.code === "KeyY") {
           handleRedo();
           e.stopPropagation();
           e.preventDefault();
