@@ -12,7 +12,7 @@ import { getSheetIndex, indexToColumnChar } from "./utils";
 import { getBorderInfoComputeRange } from "./modules/border";
 import { checkCF, getComputeMap, validateCellData } from "./modules";
 import { getCanvasTheme, resolveCellTextColor } from "./theme";
-import { getCellFormatColor } from "./modules/format";
+import { fitCellToWidth, getCellFormatColor } from "./modules/format";
 
 export const defaultStyle = {
   fillStyle: "#000000",
@@ -67,6 +67,26 @@ function textFitsCell(
     word.left + word.width <= cellWidth - 1 &&
     word.top - asc >= 0 &&
     word.top + desc <= cellHeight
+  );
+}
+
+/**
+ * The cell as it is laid out in a column `width` px wide: numbers and dates
+ * that don't fit show fewer decimals (General) or `####` (see
+ * fitCellToWidth). Everything else is returned as is.
+ */
+function fitNumberCell(
+  cell: any,
+  width: number,
+  renderCtx: CanvasRenderingContext2D,
+  sheetCtx: any
+) {
+  if (!cell || typeof cell.v !== "number") return cell;
+  const font = getFontSet(cell, sheetCtx.defaultFontSize, sheetCtx);
+  return fitCellToWidth(
+    cell,
+    width,
+    (s) => getMeasureText(s, renderCtx, sheetCtx, font).width
   );
 }
 
@@ -2295,7 +2315,12 @@ export class Canvas {
 
       const textInfo = cell
         ? getCellTextInfo(
-            cell,
+            fitNumberCell(
+              cell,
+              cellWidth - 2 * space_width,
+              renderCtx,
+              this.sheetCtx
+            ),
             renderCtx,
             this.sheetCtx,
             {
