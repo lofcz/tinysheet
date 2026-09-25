@@ -522,6 +522,15 @@ function colLeft(ctx: Context, c: number) {
   return c * ((ctx.defaultcollen || 73) + 1);
 }
 
+/** Top-left corner of a cell in sheet pixels at 100% zoom. */
+export function getChartCellPosition(
+  ctx: Context,
+  row: number,
+  column: number
+) {
+  return { left: colLeft(ctx, column), top: rowTop(ctx, row) };
+}
+
 export type InsertChartOptions = {
   type?: ChartType;
   grouping?: ChartGrouping;
