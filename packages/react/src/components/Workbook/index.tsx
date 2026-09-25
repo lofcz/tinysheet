@@ -272,18 +272,29 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       [emitOp]
     );
     useEffect(() => {
-      const request =
-        typeof window !== "undefined" && window.requestAnimationFrame
-          ? (cb: () => void) => window.requestAnimationFrame(cb)
-          : (cb: () => void) => setTimeout(cb, 16) as unknown as number;
+      // A macrotask per slice: input events and paints get in between
+      // slices (a slice is ~8 ms), without waiting a frame for each.
+      let channel: MessageChannel | null = null;
+      let cancelled = false;
+      const run = () => {
+        sliceFrame.current = null;
+        if (!cancelled) runRecalcSliceUpdate();
+      };
+      if (typeof MessageChannel !== "undefined") {
+        channel = new MessageChannel();
+        channel.port1.onmessage = run;
+      }
       setRecalcScheduler(context, () => {
         if (sliceFrame.current != null) return;
-        sliceFrame.current = request(() => {
-          sliceFrame.current = null;
-          runRecalcSliceUpdate();
-        });
+        sliceFrame.current = 1;
+        if (channel) channel.port2.postMessage(null);
+        else setTimeout(run, 0);
       });
-      return () => setRecalcScheduler(context, null);
+      return () => {
+        cancelled = true;
+        setRecalcScheduler(context, null);
+        if (channel) channel.port1.onmessage = null;
+      };
       // the formula cache lives as long as the workbook
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [context.formulaCache, runRecalcSliceUpdate]);

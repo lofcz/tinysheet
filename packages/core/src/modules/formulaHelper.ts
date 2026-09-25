@@ -20,8 +20,9 @@ import {
   hasPendingRecalc,
   recalcNow,
   recalcDeadline,
-  returnRecalcKeys,
-  takeRecalcKeys,
+  advanceRecalc,
+  recalcQueue,
+  setRecalcQueueToken,
   withoutRecalcSlicing,
 } from "./recalcScheduler";
 import {
@@ -647,17 +648,18 @@ function currentFormula(
 export function executeAffectedFormulas(
   ctx: Context,
   graph: DependencyGraph,
-  order: string[],
+  order: readonly string[],
   data?: CellMatrix | null,
-  deadline?: number | null
+  deadline?: number | null,
+  from = 0
 ): number {
   const fc = ctx.formulaCache;
-  for (let i = 0; i < order.length; i += 1) {
+  for (let i = from; i < order.length; i += 1) {
     // checked every 16 formulas: reading the clock costs too
     if (
       deadline != null &&
-      i > 0 &&
-      (i & 15) === 0 &&
+      i > from &&
+      ((i - from) & 15) === 0 &&
       recalcNow() >= deadline
     ) {
       return i;
@@ -828,27 +830,37 @@ export function runRecalcSlice(ctx: Context, unlimited = false) {
     return;
   }
   const fc = ctx.formulaCache;
-  const keys = takeRecalcKeys(ctx);
+  const queue = recalcQueue(ctx)!;
   const graph = getDependencyGraph(ctx);
-  // the graph may have been rebuilt since the keys were queued
-  const ids = new Set<string>();
-  keys.forEach((k) => {
-    const m = KEY_RE.exec(k);
-    if (m) ids.add(m[1]);
-  });
-  ids.forEach((id) => ensureSheetIndexed(ctx, graph, id, SHEET_FULL));
+  if (graph.token !== queue.token) {
+    // the graph was rebuilt since the keys were queued: index their sheets
+    const ids = new Set<string>();
+    for (let i = queue.from; i < queue.keys.length; i += 1) {
+      const m = KEY_RE.exec(queue.keys[i]);
+      if (m) ids.add(m[1]);
+    }
+    ids.forEach((id) => ensureSheetIndexed(ctx, graph, id, SHEET_FULL));
+    setRecalcQueueToken(ctx, graph.token);
+  }
   if (!ctx.groupValuesRefreshData) ctx.groupValuesRefreshData = [];
   fc.execFunctionGlobalData = null;
   const deadline = unlimited ? null : recalcNow() + getRecalcBudget();
   if (fc.recalcDepth === 0) fc.usedExtentCache.clear();
   fc.recalcDepth += 1;
-  let done = keys.length;
+  let reached = queue.keys.length;
   try {
-    done = executeAffectedFormulas(ctx, graph, keys, undefined, deadline);
+    reached = executeAffectedFormulas(
+      ctx,
+      graph,
+      queue.keys,
+      undefined,
+      deadline,
+      queue.from
+    );
   } finally {
     fc.recalcDepth -= 1;
   }
-  returnRecalcKeys(ctx, done, keys.slice(done));
+  advanceRecalc(ctx, reached - queue.from);
   // cells whose spilled value changed, spills past the sheet edge
   const spillChanges = takeSpillChanges(ctx);
   if (spillChanges) {

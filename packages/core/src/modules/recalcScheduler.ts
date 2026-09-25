@@ -47,6 +47,8 @@ type RecalcJob = {
   done: number;
   /** a slice has been requested from the host and has not run yet */
   requested: boolean;
+  /** the dependency graph (formulaCellInfoMap) the keys were queued with */
+  token: unknown;
 };
 
 const jobs = new WeakMap<object, RecalcJob>();
@@ -130,7 +132,13 @@ export function deferRecalc(ctx: Context, keys: string[]) {
   epoch += 1;
   let job = jobs.get(fc);
   if (!job || job.pos >= job.queue.length) {
-    job = { queue: keys.slice(), pos: 0, done: 0, requested: false };
+    job = {
+      queue: keys.slice(),
+      pos: 0,
+      done: 0,
+      requested: false,
+      token: ctx.formulaCache?.formulaCellInfoMap,
+    };
     jobs.set(fc, job);
   } else {
     // a key queued again moves to its new place: after its new precedents
@@ -173,40 +181,38 @@ export function recalcEpoch() {
 }
 
 /**
- * Takes the next keys to evaluate (the whole queue: the caller stops at its
- * deadline and gives the rest back with `returnRecalcKeys`).
+ * The queue of the pending recalculation: evaluate `keys` from `from` on,
+ * then report how far with `advanceRecalc`. `token` is the dependency graph
+ * the keys were queued with (a rebuilt graph must index their sheets).
+ * Not a copy: do not modify.
  */
-export function takeRecalcKeys(ctx: Context): string[] {
+export function recalcQueue(
+  ctx: Context
+): { keys: readonly string[]; from: number; token: unknown } | null {
   const fc = cacheOf(ctx);
   const job = fc ? jobs.get(fc) : undefined;
-  if (!job) return [];
+  if (!job || job.pos >= job.queue.length) return null;
   job.requested = false;
-  const keys = job.queue.slice(job.pos);
-  job.queue = [];
-  job.pos = 0;
-  return keys;
+  return { keys: job.queue, from: job.pos, token: job.token };
+}
+
+/** The queue's keys now belong to the dependency graph `token`. */
+export function setRecalcQueueToken(ctx: Context, token: unknown) {
+  const job = jobs.get(cacheOf(ctx)!);
+  if (job) job.token = token;
 }
 
 /**
- * After a slice: `evaluated` keys were done, `rest` (in order) still has to
- * be evaluated; it goes before anything queued meanwhile.
+ * After a slice evaluated `count` keys of the queue: moves on, updates
+ * `ctx.recalcProgress` and asks for the next slice (or ends the job).
  */
-export function returnRecalcKeys(
-  ctx: Context,
-  evaluated: number,
-  rest: string[]
-) {
+export function advanceRecalc(ctx: Context, count: number) {
   const fc = cacheOf(ctx);
   if (!fc) return;
   const job = jobs.get(fc);
   if (!job) return;
-  job.done += evaluated;
-  if (rest.length > 0) {
-    const queued = job.queue.slice(job.pos);
-    const later = new Set(queued);
-    job.queue = rest.filter((k) => !later.has(k)).concat(queued);
-    job.pos = 0;
-  }
+  job.pos += count;
+  job.done += count;
   if (job.pos >= job.queue.length) {
     jobs.delete(fc);
     setProgress(ctx, undefined);
