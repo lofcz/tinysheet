@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkWorkbookStructure } from "../modules/protection";
 import { Context, Sheet } from "..";
 import {
   addSheet as addSheetInternal,
@@ -47,6 +48,7 @@ export function setSheetName(
   name: string,
   options: CommonOptions = {}
 ) {
+  if (!checkWorkbookStructure(ctx)) return;
   const sheet = getSheet(ctx, options);
   if (sheet.name && sheet.name !== name && sheet.id != null) {
     // sheet-qualified references follow the new name (Excel)
@@ -61,6 +63,7 @@ export function setSheetName(
 }
 
 export function setSheetOrder(ctx: Context, orderList: Record<string, number>) {
+  if (!checkWorkbookStructure(ctx)) return;
   ctx.luckysheetfile?.forEach((sheet) => {
     if (sheet.id! in orderList) {
       sheet.order = orderList[sheet.id!];

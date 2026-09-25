@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 
 import { Context, getFlowdata } from "../context";
 import { Cell, CellMatrix, Rect } from "../types";
@@ -259,6 +260,7 @@ export function updateDropCell(ctx: Context) {
   if (allowEdit === false || d == null) {
     return;
   }
+  if (!checkProtection(ctx, "editCells", [dropCellCache.applyRange])) return;
 
   const index = getSheetIndex(ctx, ctx.currentSheetId);
   if (index == null) return;
@@ -586,6 +588,7 @@ export function autoFillToDataEnd(ctx: Context): boolean {
   const d = getFlowdata(ctx);
   const sels = ctx.luckysheet_select_save;
   if (!d || !sels || sels.length !== 1) return false;
+  if (!checkProtection(ctx, "editCells")) return false;
   if (!isAllowEdit(ctx)) return false;
   const sel = sels[0];
   const [r1, r2] = sel.row;
@@ -651,6 +654,7 @@ export function fillSelectionFromEdge(
   const d = getFlowdata(ctx);
   const sels = ctx.luckysheet_select_save;
   if (!d || !sels || sels.length === 0) return false;
+  if (!checkProtection(ctx, "editCells")) return false;
   if (!isAllowEdit(ctx)) return false;
   let done = false;
   const ranges = _.cloneDeep(sels);

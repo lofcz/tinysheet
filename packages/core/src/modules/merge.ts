@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { Context } from "../context";
 import { Range } from "../types";
 import { getSheetIndex } from "../utils";
@@ -10,6 +11,7 @@ export function mergeCells(
   ranges: Range,
   type: string
 ) {
+  if (!checkProtection(ctx, "protected", null, sheetId)) return;
   // if (!checkIsAllowEdit()) {
   //   tooltip.info("", locale().pivotTable.errorNotAllowEdit);
   //   return;

@@ -23,7 +23,7 @@
  * - Order is registration order unless `before` / `after` names another
  *   processor. Built-ins run as: conditional-formatting, dynamic-arrays,
  *   cell-images, internal-hyperlinks, visible-notes, threaded-comments,
- *   sheet-xml-fixups, worksheet-exts, cell-hyperlinks, data-validation,
+ *   sheet-xml-fixups, worksheet-exts, protection, cell-hyperlinks, data-validation,
  *   tables, table-extras, charts, shapes, pivot-tables, feature-fixups.
  * - Share data from a sheet writer (SheetExportFeature) with its
  *   post-processor through `ctx.post.features[<your name>]`.
@@ -56,6 +56,7 @@ import {
 import { markHiddenDropdowns } from "./ExcelValidation";
 import { markEmptyTables } from "./ExcelTable";
 import { writeTableExtras } from "./ExcelTableZip";
+import { applyProtectionToZip } from "./ExcelProtection";
 import { addCellHyperlinks } from "./ExcelStyle";
 
 /** A worksheet part of the written package. */
@@ -143,6 +144,11 @@ export const xlsxPostProcessors: XlsxPostProcessor[] = [
   {
     name: "worksheet-exts",
     process: (ctx) => addWorksheetExts(ctx.zip, ctx.post),
+  },
+  // sheetProtection / protectedRanges / workbookProtection
+  {
+    name: "protection",
+    process: (ctx) => applyProtectionToZip(ctx.zip, ctx.post),
   },
   // links on formula cells and empty cells (ExcelJS only writes link values)
   { name: "cell-hyperlinks", process: addCellHyperlinks },

@@ -11,6 +11,8 @@ import { installOutlineUI } from "./components/Outline";
 import { registerShapesFeature } from "./components/Shapes";
 import { registerPivotTableFeatures } from "./components/PivotTable";
 import { installTablesUI } from "./components/Tables";
+import { registerProtectionFeatures } from "./components/Protection";
+import { registerPageLayoutFeature } from "./components/PageLayout";
 
 let loaded = false;
 
@@ -23,4 +25,6 @@ export function loadBuiltinFeatures() {
   registerShapesFeature();
   registerPivotTableFeatures();
   installTablesUI();
+  registerProtectionFeatures();
+  registerPageLayoutFeature();
 }

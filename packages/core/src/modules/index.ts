@@ -14,6 +14,7 @@ export * from "./history";
 export * from "./inline-string";
 export * from "./location";
 export * from "./protection";
+export * from "./viewOptions";
 export * from "./rowcol";
 export * from "./selection";
 export * from "./sheet";

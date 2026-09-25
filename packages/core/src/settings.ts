@@ -336,6 +336,10 @@ export const defaultSettings: Required<Settings> = {
     "evaluate-formula",
     "watch-window",
     "calculation-options",
+    "|",
+    // View options / Review › Protection (react/src/components/Protection)
+    "view-options",
+    "protection",
   ], // 自定义工具栏
   // Excel's cell menu. Entries backed by other modules ("paste-special",
   // "cell-format", "define-name", "chart") appear once registered; see

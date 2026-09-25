@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { Context, getFlowdata } from "../context";
 import { Cell } from "../types";
 import { getCellValue, setCellValue } from "./cell";
@@ -371,6 +372,7 @@ export function applyTextToColumns(
   range: { row: number[]; column: number[] },
   options: TextToColumnsOptions & { destination?: { r: number; c: number } }
 ) {
+  if (!checkProtection(ctx, "editCells", [range])) return;
   if (ctx.allowEdit === false) return;
   const data = getFlowdata(ctx);
   if (!data) return;

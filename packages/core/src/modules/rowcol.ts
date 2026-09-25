@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkDeleteRowCol, checkProtection } from "./protection";
 import { Context } from "../context";
 import { Sheet } from "../types";
 import { getSheetIndex } from "../utils";
@@ -56,17 +57,8 @@ export function insertRowCol(
   const { type, index, direction } = op;
   id = id || ctx.currentSheetId;
 
-  // if (
-  //   type === "row" &&
-  //   !checkProtectionAuthorityNormal(sheetId, "insertRows")
-  // ) {
-  //   return;
-  // } else if (
-  //   type === "column" &&
-  //   !checkProtectionAuthorityNormal(sheetId, "insertColumns")
-  // ) {
-  //   return;
-  // }
+  const insertAction = type === "row" ? "insertRows" : "insertColumns";
+  if (!checkProtection(ctx, insertAction, null, id)) return;
 
   const curOrder = getSheetIndex(ctx, id);
   if (curOrder == null) return;
@@ -1118,18 +1110,7 @@ export function deleteRowCol(
   let { start, end, id } = op;
   id = id || ctx.currentSheetId;
 
-  // if (
-  //   type == "row" &&
-  //   !checkProtectionAuthorityNormal(sheetId, "deleteRows")
-  // ) {
-  //   return;
-  // }
-  // if (
-  //   type == "column" &&
-  //   !checkProtectionAuthorityNormal(sheetId, "deleteColumns")
-  // ) {
-  //   return;
-  // }
+  if (!checkDeleteRowCol(ctx, type, start, end, id)) return;
 
   const curOrder = getSheetIndex(ctx, id);
   if (curOrder == null) return;
@@ -1976,6 +1957,9 @@ export function computeRowlenArr(ctx: Context, rowHeight: number, cfg: any) {
 export function hideSelected(ctx: Context, type: string) {
   if (!ctx.luckysheet_select_save || ctx.luckysheet_select_save.length > 1)
     return "noMulti";
+  if (!checkProtection(ctx, type === "row" ? "formatRows" : "formatColumns")) {
+    return "protected";
+  }
   const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
   // 隐藏行
   if (type === "row") {
@@ -2055,6 +2039,9 @@ export function hideSelected(ctx: Context, type: string) {
 export function showSelected(ctx: Context, type: string) {
   if (!ctx.luckysheet_select_save || ctx.luckysheet_select_save.length > 1)
     return "noMulti";
+  if (!checkProtection(ctx, type === "row" ? "formatRows" : "formatColumns")) {
+    return "protected";
+  }
   const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
   // 取消隐藏行
   if (type === "row") {

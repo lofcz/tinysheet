@@ -58,6 +58,7 @@ describe("default toolbar", () => {
       "nameManager dataVerification splitColumn outline locationCondition screenshot",
       "pageLayout print",
       "trace-precedents trace-dependents remove-arrows show-formulas error-checking evaluate-formula watch-window calculation-options",
+      "view-options protection",
     ]);
   });
 

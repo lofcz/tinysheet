@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection, checkProtectionAllSelected } from "./protection";
 import type { Sheet as SheetType, Freezen, Range } from "../types";
 import { Context, getFlowdata } from "../context";
 import {
@@ -244,9 +245,7 @@ export function pasteHandlerOfPaintModel(
   ctx: Context,
   copyRange: Context["luckysheet_copy_save"]
 ) {
-  // if (!checkProtectionLockedRangeList(ctx.luckysheet_select_save, ctx.currentSheetId)) {
-  //   return;
-  // }
+  if (!checkProtection(ctx, "formatCells")) return;
   const cfg = ctx.config;
   if (cfg.merge == null) {
     cfg.merge = {};
@@ -2075,6 +2074,7 @@ export function copy(ctx: Context) {
 }
 
 export function deleteSelectedCellText(ctx: Context): string {
+  if (!checkProtection(ctx, "editCells")) return "protected";
   const allowEdit = isAllowEdit(ctx);
   if (allowEdit === false) {
     return "allowEdit";
@@ -2179,9 +2179,7 @@ export function selectIsOverlap(ctx: Context, range?: any) {
 
 export function selectAll(ctx: Context) {
   // 全选表格
-  // if (!checkProtectionAllSelected(ctx.currentSheetId)) {
-  //   return;
-  // }
+  if (!checkProtectionAllSelected(ctx, ctx.currentSheetId)) return;
 
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;

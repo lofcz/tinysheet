@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkWorkbookStructure } from "../modules/protection";
 import { getSheet } from "./common";
 import { Context } from "../context";
 import { CellMatrix, CellWithRowAndCol, Sheet, SingleRange } from "../types";
@@ -54,6 +55,7 @@ export function hideSheet(ctx: Context, sheetId: string) {
 }
 
 export function showSheet(ctx: Context, sheetId: string) {
+  if (!checkWorkbookStructure(ctx)) return;
   const index = getSheetIndex(ctx, sheetId) as number;
   ctx.luckysheetfile[index].hide = undefined;
 }

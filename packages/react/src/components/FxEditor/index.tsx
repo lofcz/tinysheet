@@ -14,6 +14,7 @@ import {
   isAllowEdit,
   getSpilledCellFormula,
   setEditMode,
+  isCellContentHidden,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -77,6 +78,9 @@ const FxEditor: React.FC = () => {
       setSpilledFormula(spilled);
       if (spilled) {
         value = spilled;
+      } else if (cell && isCellContentHidden(context, r, c)) {
+        // Format Cells > Protection > Hidden on a protected sheet
+        value = "";
       } else if (cell) {
         if (isInlineStringCell(cell)) {
           value = getInlineStringNoStyle(r, c, d);
@@ -236,7 +240,8 @@ const FxEditor: React.FC = () => {
   ]);
 
   return (
-    <aside>
+    // View > Formula Bar unchecked: hidden but mounted (keys use it)
+    <aside hidden={!!context.hideFormulaBar}>
       <div className="fortune-fx-editor">
         <NameBox />
         <div className="fortune-fx-icon">

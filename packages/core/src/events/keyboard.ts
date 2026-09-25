@@ -46,6 +46,7 @@ import {
 } from "../modules/editMode";
 import { closeFormulaParens } from "../modules/formulaEditor";
 import { clearGroupedSheetsContents } from "../modules/sheet";
+import { checkProtection } from "../modules/protection";
 
 const MODIFIER_KEYS = new Set([
   "Shift",
@@ -1003,7 +1004,10 @@ export function handleGlobalKeyDown(
     nav.moveAfterEnter(ctx, e.shiftKey ? "left" : "right");
     e.preventDefault();
   } else if (kstr === "F2") {
-    if (!allowEdit) return;
+    if (!allowEdit) {
+      checkProtection(ctx, "editCells");
+      return;
+    }
     if (ctx.luckysheetCellUpdate.length > 0) {
       return;
     }
@@ -1066,7 +1070,10 @@ export function handleGlobalKeyDown(
       // selectHightlightShow();
     } else if (kstr === "Delete") {
       // Delete: clear the contents of the selection (formats are kept)
-      if (!allowEdit) return;
+      if (!allowEdit) {
+        checkProtection(ctx, "editCells");
+        return;
+      }
       if (ctx.activeImg != null) {
         removeActiveImage(ctx);
       } else if (deleteSelectedCellText(ctx) === "success") {
@@ -1078,7 +1085,10 @@ export function handleGlobalKeyDown(
       e.preventDefault();
     } else if (kstr === "Backspace") {
       // Backspace: clear the active cell and start editing it (Esc restores)
-      if (!allowEdit) return;
+      if (!allowEdit) {
+        checkProtection(ctx, "editCells");
+        return;
+      }
       if (ctx.activeImg != null) {
         removeActiveImage(ctx);
         jfrefreshgrid(ctx, null, undefined);
@@ -1123,7 +1133,10 @@ export function handleGlobalKeyDown(
       kcode === 0 ||
       (e.ctrlKey && kcode === 86)
     ) {
-      if (!allowEdit) return;
+      if (!allowEdit) {
+        checkProtection(ctx, "editCells");
+        return;
+      }
       if (
         String.fromCharCode(kcode) != null &&
         !_.isEmpty(ctx.luckysheet_select_save) && // $("#luckysheet-cell-selected").is(":visible") &&

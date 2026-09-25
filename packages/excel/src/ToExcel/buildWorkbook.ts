@@ -32,6 +32,10 @@ import {
   writeSheetViews,
 } from "./ExcelConfig";
 import { colorToArgb } from "../common/units";
+import {
+  writeSheetProtection,
+  writeWorkbookProtection,
+} from "./ExcelProtection";
 import { setDefinedNames } from "../common/definedNames";
 import { exportCalcProperties } from "../common/calcProperties";
 import { writePageSetup, writePrintNames } from "../common/pageSetup";
@@ -127,6 +131,8 @@ export const sheetExportFeatures: SheetExportFeature[] = [
   { name: "page-setup", write: writePageSetup },
   // queued for the zip pass (the "worksheet-exts" post-processor)
   { name: "sparklines", write: writeSparklines },
+  // sheetProtection / protectedRanges (the "protection" post-processor)
+  { name: "protection", write: writeSheetProtection },
   // Charts are added to the written zip (the "charts" post-processor).
 ];
 
@@ -138,6 +144,7 @@ export const workbookExportFeatures: WorkbookExportFeature[] = [
   },
   { name: "print-names", write: writePrintNames },
   { name: "calc-properties", write: exportCalcProperties },
+  { name: "workbook-protection", write: writeWorkbookProtection },
 ];
 
 export function registerSheetExportFeature(

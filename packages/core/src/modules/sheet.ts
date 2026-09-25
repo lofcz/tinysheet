@@ -1,6 +1,7 @@
 import _ from "lodash";
 import { current, isDraft } from "immer";
 import { v4 as uuidv4 } from "uuid";
+import { checkWorkbookStructure } from "./protection";
 import { initSheetData } from "../api/sheet";
 import { Context } from "../context";
 import { locale } from "../locale";
@@ -96,6 +97,7 @@ export function addSheet(
   sheetName: string | undefined = undefined,
   sheetData: Sheet | undefined = undefined
 ) {
+  if (!checkWorkbookStructure(ctx)) return;
   if (/* isEditMode() || */ ctx.allowEdit === false) {
     // alert("非编辑模式下不允许该操作！");
     return;
@@ -150,6 +152,7 @@ export function addSheet(
 }
 
 export function deleteSheet(ctx: Context, id: string) {
+  if (!checkWorkbookStructure(ctx)) return;
   if (ctx.allowEdit === false) {
     return;
   }
@@ -455,6 +458,7 @@ export function renameSheet(
   sheetId: string,
   name: string
 ): SheetNameError | null {
+  if (!checkWorkbookStructure(ctx)) return null;
   const index = getSheetIndex(ctx, sheetId);
   if (index == null || ctx.allowEdit === false) return null;
   const oldName = ctx.luckysheetfile[index].name;
@@ -502,6 +506,7 @@ export function moveSheet(
   sheetId: string,
   beforeSheetId: string | null
 ) {
+  if (!checkWorkbookStructure(ctx)) return;
   if (ctx.allowEdit === false || sheetId === beforeSheetId) return;
   const list = sortedSheets(ctx).filter((s) => s.id !== sheetId);
   const moving = ctx.luckysheetfile.find((s) => s.id === sheetId);
@@ -537,6 +542,7 @@ export function duplicateSheet(
     newSheetId?: string;
   } = {}
 ): string | null {
+  if (!checkWorkbookStructure(ctx)) return null;
   if (ctx.allowEdit === false) return null;
   const index = getSheetIndex(ctx, sheetId);
   if (index == null) return null;
@@ -589,6 +595,7 @@ export function setSheetTabColor(
   sheetIds: string[],
   color: string | undefined
 ) {
+  if (!checkWorkbookStructure(ctx)) return;
   if (ctx.allowEdit === false) return;
   sheetIds.forEach((id) => {
     const i = getSheetIndex(ctx, id);
@@ -619,6 +626,7 @@ function rememberSheetView(ctx: Context) {
  * visible sheet becomes active.
  */
 export function hideSheets(ctx: Context, sheetIds: string[]): boolean {
+  if (!checkWorkbookStructure(ctx)) return false;
   if (ctx.allowEdit === false) return false;
   const ids = new Set(sheetIds);
   const remaining = sortedSheets(ctx).filter(
@@ -649,6 +657,7 @@ export function hideSheets(ctx: Context, sheetIds: string[]): boolean {
 
 /** Unhides sheets; the last one unhidden becomes active (as in Excel). */
 export function unhideSheets(ctx: Context, sheetIds: string[]) {
+  if (!checkWorkbookStructure(ctx)) return;
   if (ctx.allowEdit === false) return;
   let last: Sheet | undefined;
   sheetIds.forEach((id) => {
@@ -914,7 +923,7 @@ export function mirrorGroupedSheetEdits(base: Context, draft: Context) {
 
 export function editSheetName(ctx: Context, editable: HTMLSpanElement) {
   const index = getSheetIndex(ctx, ctx.currentSheetId);
-  if (ctx.allowEdit === false) {
+  if (ctx.allowEdit === false || !checkWorkbookStructure(ctx)) {
     if (index == null) return;
     editable.innerText = ctx.luckysheetfile[index].name;
     return;

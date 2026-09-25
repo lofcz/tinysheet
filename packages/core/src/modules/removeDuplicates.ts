@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { Context, getFlowdata } from "../context";
 import { locale } from "../locale";
 import { Cell, CellMatrix } from "../types";
@@ -83,6 +84,8 @@ export function removeDuplicates(
   ctx: Context,
   options: RemoveDuplicatesOptions
 ): RemoveDuplicatesResult {
+  if (!checkProtection(ctx, "editCells", [options.range]))
+    return { removed: 0, unique: 0 };
   const data = getFlowdata(ctx);
   if (data == null || ctx.allowEdit === false) return { removed: 0, unique: 0 };
   const [r1, r2] = options.range.row;

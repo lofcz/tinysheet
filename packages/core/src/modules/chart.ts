@@ -7,6 +7,7 @@
  * Rendering is delegated to the pure SVG renderer in `./chartRender`.
  */
 import type { Context } from "../context";
+import { checkProtection } from "./protection";
 import type { Cell, CellMatrix, Sheet } from "../types";
 import { getSheetIndex, indexToColumnChar } from "../utils";
 import { locateRangeForChange, ReferenceChange } from "./refAdjust";
@@ -591,6 +592,7 @@ export function insertChart(
   ctx: Context,
   options: InsertChartOptions = {}
 ): Chart | null {
+  if (!checkProtection(ctx, "editObjects")) return null;
   if (ctx.allowEdit === false) return null;
   const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
   if (sheetIndex == null) return null;
@@ -650,12 +652,14 @@ export function updateChart(
   id: string,
   patch: Partial<Omit<Chart, "id">>
 ) {
+  if (!checkProtection(ctx, "editObjects")) return;
   const found = findChart(ctx, id);
   if (!found) return;
   Object.assign(found.chart, patch);
 }
 
 export function deleteChart(ctx: Context, id?: string) {
+  if (!checkProtection(ctx, "editObjects")) return;
   const target = id ?? ctx.activeChart;
   const found = findChart(ctx, target);
   if (!found) return;
@@ -672,6 +676,7 @@ export function pasteChart(
   chart: Chart,
   position?: { left: number; top: number }
 ): Chart | null {
+  if (!checkProtection(ctx, "editObjects")) return null;
   const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
   if (sheetIndex == null) return null;
   const copy: Chart = JSON.parse(JSON.stringify(chart));
@@ -693,6 +698,7 @@ export function setChartSource(
   source: ChartRange,
   seriesInRows?: boolean
 ) {
+  if (!checkProtection(ctx, "editObjects")) return;
   const found = findChart(ctx, id);
   if (!found) return;
   const { chart } = found;
@@ -756,6 +762,7 @@ export function setChartType(
   type: ChartType,
   grouping?: ChartGrouping
 ) {
+  if (!checkProtection(ctx, "editObjects")) return;
   const found = findChart(ctx, id);
   if (!found) return;
   const { chart } = found;

@@ -7,6 +7,7 @@
  * inside one `setContext` call and the whole change is one undo step.
  */
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { Context, getFlowdata } from "../context";
 import { Cell, CellMatrix } from "../types";
 import { getSheetIndex, isAllowEdit } from "../utils";
@@ -26,6 +27,7 @@ export type FormatCellsTab =
 /** Open the Format Cells dialog (Ctrl+1, context menu, "More formats"). */
 export function openFormatCells(ctx: Context, tab: FormatCellsTab = "number") {
   if (!ctx.luckysheet_select_save?.length) return;
+  if (!checkProtection(ctx, "formatCells")) return;
   ctx.formatCellsDialog = { tab };
 }
 
@@ -402,7 +404,8 @@ export function applyFormatCells(
   changes: FormatCellsChanges,
   canvas?: CanvasRenderingContext2D
 ) {
-  if (!isAllowEdit(ctx)) return;
+  if (!checkProtection(ctx, "formatCells")) return;
+  if (!isAllowEdit(ctx, undefined, true)) return;
   const d = getFlowdata(ctx);
   const ranges = (ctx.luckysheet_select_save ?? []) as Rect[];
   if (!d || ranges.length === 0) return;

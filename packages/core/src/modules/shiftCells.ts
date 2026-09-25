@@ -11,6 +11,7 @@
  * adjusters (modelSync.ts).
  */
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import type { Context } from "../context";
 import type { Cell, Sheet } from "../types";
 import { getSheetIndex } from "../utils";
@@ -389,6 +390,7 @@ export function insertCells(
   shift: "down" | "right",
   sheetId: string = ctx.currentSheetId
 ) {
+  if (!checkProtection(ctx, "protected", null, sheetId)) return false;
   return shiftCells(ctx, sheetId, {
     insert: true,
     vertical: shift === "down",
@@ -410,6 +412,7 @@ export function deleteCells(
   shift: "up" | "left",
   sheetId: string = ctx.currentSheetId
 ) {
+  if (!checkProtection(ctx, "protected", null, sheetId)) return false;
   return shiftCells(ctx, sheetId, {
     insert: false,
     vertical: shift === "up",

@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { mergeBorder } from "./cell";
 import { peekCell } from "./dependencyGraph";
 
@@ -276,10 +277,12 @@ export function newComment(
   r: number,
   c: number
 ) {
+  if (!checkProtection(ctx, "editObjects")) return;
   // if(!checkProtectionAuthorityNormal(Store.currentSheetId, "editObjects")){
   //     return;
   // }
-  const allowEdit = isAllowEdit(ctx);
+  // notes are objects: Edit Objects decides, not the cell's lock
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   if (ctx.hooks.beforeInsertComment?.(r, c) === false) {
     return;
@@ -319,10 +322,12 @@ export function editComment(
   r: number,
   c: number
 ) {
+  if (!checkProtection(ctx, "editObjects")) return;
   // if(!checkProtectionAuthorityNormal(Store.currentSheetId, "editObjects")){
   //     return;
   // }
-  const allowEdit = isAllowEdit(ctx);
+  // notes are objects: Edit Objects decides, not the cell's lock
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   const flowdata = getFlowdata(ctx);
   removeEditingComment(ctx, globalCache);
@@ -348,10 +353,12 @@ export function deleteComment(
   r: number,
   c: number
 ) {
+  if (!checkProtection(ctx, "editObjects")) return;
   // if(!checkProtectionAuthorityNormal(Store.currentSheetId, "editObjects")){
   //     return;
   // }
-  const allowEdit = isAllowEdit(ctx);
+  // notes are objects: Edit Objects decides, not the cell's lock
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   if (ctx.hooks.beforeDeleteComment?.(r, c) === false) {
     return;

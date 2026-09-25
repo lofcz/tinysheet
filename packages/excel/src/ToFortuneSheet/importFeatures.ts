@@ -34,6 +34,10 @@ import {
   tableFiltersFromXlsx,
   TablePartExtras,
 } from "./tableExtras";
+import {
+  readSheetProtection,
+  readWorkbookProtection,
+} from "./importProtection";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -440,6 +444,8 @@ export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "outline", read: readOutline },
   // shapes, text boxes, connectors and groups of the drawing part
   { name: "shapes", read: readShapes },
+  // sheetProtection, protectedRanges, sheetView flags
+  { name: "protection", read: readSheetProtection },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 
@@ -450,6 +456,7 @@ export const workbookImportFeatures: WorkbookImportFeature[] = [
   { name: "calc-properties", read: importCalcProperties },
   // PivotTables (they need every sheet, for their source sheet's id)
   { name: "pivot-tables", read: (ctx) => readPivotTables(ctx) },
+  { name: "workbook-protection", read: readWorkbookProtection },
 ];
 
 export function registerSheetImportFeature(feature: SheetImportFeature) {

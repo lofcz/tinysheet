@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { locale } from "../locale";
 import { dataToolsLocale } from "../locale/dataTools";
 import { Context, getFlowdata } from "../context";
@@ -225,6 +226,7 @@ export function createFilterOptions(
 
 /** Removes the sheet autofilter (its buttons and the rows it hides). */
 export function clearSheetAutoFilter(ctx: Context) {
+  if (!checkProtection(ctx, "protected")) return;
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) return;
   const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
@@ -266,6 +268,7 @@ export function clearFilter(ctx: Context) {
 }
 
 export function createFilter(ctx: Context) {
+  if (!checkProtection(ctx, "protected")) return;
   // if (!checkProtectionAuthorityNormal(ctx.currentSheetIndex, "filter")) {
   //   return;
   // }
@@ -691,6 +694,7 @@ export function saveFilter(
   st_c: number,
   ed_c: number
 ) {
+  if (!checkProtection(ctx, "filter")) return;
   const scope = tableFilterScope(ctx);
   if (scope) {
     saveTableFilter(ctx, scope, optionState, hiddenRows, caljs, cindex);
@@ -1154,6 +1158,7 @@ export function clearColumnFilter(ctx: Context, col: number) {
  * a table: the table's filters).
  */
 export function clearAllFilterConditions(ctx: Context) {
+  if (!checkProtection(ctx, "filter")) return;
   const inTable = activeCellTable(ctx);
   if (inTable) {
     clearTableFilters(ctx, inTable.table.name);
