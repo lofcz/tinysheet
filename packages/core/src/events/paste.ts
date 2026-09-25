@@ -827,8 +827,14 @@ function pasteHandlerOfCutPaste(
     // }
   }
 
-  let source;
-  let target;
+  // Moved-block descriptors: sheet data snapshots plus the moved range.
+  type MoveEnd = {
+    sheetId: string;
+    range: { row: number[]; column: number[] };
+    [key: string]: any;
+  };
+  let source: MoveEnd;
+  let target: MoveEnd;
   if (ctx.currentSheetId !== copySheetId) {
     // 跨表操作
     const sourceData = _.cloneDeep(
