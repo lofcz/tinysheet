@@ -73,8 +73,8 @@ export function drawArrow(
 ) {
   const canvas = document.getElementById(
     `arrowCanvas-${rc}`
-  ) as HTMLCanvasElement;
-  const ctx = canvas.getContext("2d");
+  ) as HTMLCanvasElement | null;
+  const ctx = canvas?.getContext("2d");
   if (!canvas || !ctx) return;
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
@@ -89,7 +89,13 @@ export function drawArrow(
   headlen = headlen || 6;
   // width = width || 1;
   const arrowWidth = 1;
-  color = color || "#000";
+  // follow the theme: --fortune-note-arrow is set on the workbook container
+  color =
+    color ||
+    (typeof getComputedStyle === "function"
+      ? getComputedStyle(canvas).getPropertyValue("--fortune-note-arrow").trim()
+      : "") ||
+    "#000";
 
   // 计算各角度和对应的P2,P3坐标
   const angle = (Math.atan2(fromY - toY, fromX - toX) * 180) / Math.PI;
