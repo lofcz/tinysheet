@@ -54,7 +54,7 @@ describe("default toolbar", () => {
       "conditionFormat formatAsTable cell-styles",
       "quick-formula clear-format filter search",
       "freeze image chart link comment",
-      "nameManager dataVerification splitColumn locationCondition screenshot",
+      "nameManager dataVerification splitColumn outline locationCondition screenshot",
     ]);
   });
 

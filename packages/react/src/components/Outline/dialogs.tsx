@@ -16,6 +16,7 @@ import {
 } from "@lofcz/tinysheet-core";
 import React, { useCallback, useContext, useMemo, useState } from "react";
 import WorkbookContext from "../../context";
+import { outlineStep } from "./history";
 import { useDialog } from "../../hooks/useDialog";
 import DtCheck from "../DataVerification/DtCheck";
 import "../DataVerification/dataTools.css";
@@ -72,7 +73,7 @@ export const GroupDialog: React.FC<{ ungroup?: boolean }> = ({ ungroup }) => {
     hideDialog();
     setContext((ctx) => {
       groupSelection(ctx, !!ungroup, axis);
-    });
+    }, outlineStep());
   };
   return (
     <div
@@ -137,11 +138,13 @@ export const OutlineSettingsDialog: React.FC = () => {
         cancel={t.cancel}
         onOk={() => {
           hideDialog();
-          setContext((ctx) =>
-            setOutlineSettings(ctx, {
-              summaryBelow: below,
-              summaryRight: right,
-            })
+          setContext(
+            (ctx) =>
+              setOutlineSettings(ctx, {
+                summaryBelow: below,
+                summaryRight: right,
+              }),
+            outlineStep()
           );
         }}
         onCancel={hideDialog}
@@ -217,14 +220,14 @@ export const SubtotalDialog: React.FC = () => {
       });
       // shown by the sheet overlay once this dialog is gone
       if ("error" in res) ctx.warnDialog = t[res.error];
-    });
+    }, outlineStep());
   };
 
   const onRemoveAll = () => {
     hideDialog();
     setContext((ctx) => {
       removeSubtotals(ctx, range);
-    });
+    }, outlineStep());
   };
 
   return (

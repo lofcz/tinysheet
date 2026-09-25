@@ -11,6 +11,10 @@ import {
   OutlineToolbarItem,
   SubtotalDialog,
 } from "../src/components/Outline";
+import {
+  dedupeOutlineSteps,
+  outlineStep,
+} from "../src/components/Outline/history";
 
 const text = (v: string) => ({ v, m: v, ct: { fa: "General", t: "g" } });
 const num = (v: number) => ({ v, m: `${v}`, ct: { fa: "General", t: "n" } });
@@ -205,5 +209,17 @@ describe("outline UI", () => {
     expect(current.outlinePrompt).toBeUndefined();
     fireEvent.click(getByText("OK"));
     expect(current.config.rowOutlineLevel).toBeUndefined();
+  });
+
+  it("drops an outline step React recorded twice", () => {
+    const a = outlineStep();
+    const other = {};
+    const list = [{ options: other }, { options: a }, { options: a }];
+    dedupeOutlineSteps(list);
+    expect(list).toHaveLength(2);
+    // other commands are left alone
+    const twice = [{ options: other }, { options: other }];
+    dedupeOutlineSteps(twice);
+    expect(twice).toHaveLength(2);
   });
 });

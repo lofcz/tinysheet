@@ -13,8 +13,9 @@ import {
   selectionOutlineAxis,
   showHideDetail,
 } from "@lofcz/tinysheet-core";
-import React, { useContext, useEffect } from "react";
+import React, { useContext, useEffect, useLayoutEffect } from "react";
 import WorkbookContext from "../../context";
+import { dedupeOutlineSteps, outlineStep } from "./history";
 import { useDialog } from "../../hooks/useDialog";
 import { registerSheetOverlay, registerToolbarItem } from "../../extensions";
 import Combo from "../Toolbar/Combo";
@@ -70,7 +71,7 @@ export const OutlineToolbarItem: React.FC<{ tooltip?: string }> = ({
     if (selectionOutlineAxis(context)) {
       setContext((ctx) => {
         groupSelection(ctx, ungroup);
-      });
+      }, outlineStep());
     } else showDialog(<GroupDialog ungroup={ungroup} />);
   };
 
@@ -94,7 +95,7 @@ export const OutlineToolbarItem: React.FC<{ tooltip?: string }> = ({
       onClick: () =>
         setContext((ctx) => {
           showHideDetail(ctx, true);
-        }),
+        }, outlineStep()),
     },
     {
       value: "hide-detail",
@@ -102,7 +103,7 @@ export const OutlineToolbarItem: React.FC<{ tooltip?: string }> = ({
       onClick: () =>
         setContext((ctx) => {
           showHideDetail(ctx, false);
-        }),
+        }, outlineStep()),
     },
     { value: "divider" },
     {
@@ -112,7 +113,7 @@ export const OutlineToolbarItem: React.FC<{ tooltip?: string }> = ({
       onClick: () =>
         setContext((ctx) => {
           autoOutline(ctx);
-        }),
+        }, outlineStep()),
     },
     {
       value: "clear-outline",
@@ -128,7 +129,7 @@ export const OutlineToolbarItem: React.FC<{ tooltip?: string }> = ({
             ctx,
             single ? undefined : { row: sel!.row, column: sel!.column }
           );
-        }),
+        }, outlineStep()),
     },
     { value: "divider" },
     {
@@ -193,9 +194,16 @@ export const OutlineToolbarItem: React.FC<{ tooltip?: string }> = ({
  * a range that is neither whole rows nor whole columns.
  */
 export const OutlinePrompt: React.FC = () => {
-  const { context, setContext } = useContext(WorkbookContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
   const { showDialog } = useDialog();
   const prompt = context.outlinePrompt;
+  // an outline command replayed by React is recorded twice: keep one step
+  // (synchronously in the commit, before the next Ctrl+Z can pop it)
+  const sheets = context.luckysheetfile;
+  useLayoutEffect(() => {
+    const list = refs.globalCache?.undoList;
+    if (list) dedupeOutlineSteps(list);
+  }, [sheets, refs.globalCache]);
   useEffect(() => {
     if (!prompt) return;
     setContext(

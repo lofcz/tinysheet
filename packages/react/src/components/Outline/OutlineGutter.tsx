@@ -12,6 +12,7 @@ import {
 } from "@lofcz/tinysheet-core";
 import React, { useCallback, useContext, useMemo } from "react";
 import WorkbookContext from "../../context";
+import { outlineStep } from "./history";
 import "./index.css";
 
 const S = OUTLINE_LEVEL_SIZE;
@@ -201,7 +202,7 @@ const OutlineGutter: React.FC = () => {
     (g: OutlineGroup) => {
       setContext((ctx) => {
         setOutlineGroupCollapsed(ctx, g.axis, g, !g.collapsed);
-      });
+      }, outlineStep());
       focusGrid();
     },
     [setContext, focusGrid]
@@ -210,7 +211,7 @@ const OutlineGutter: React.FC = () => {
     (axis: OutlineAxis, level: number) => {
       setContext((ctx) => {
         showOutlineLevel(ctx, axis, level);
-      });
+      }, outlineStep());
       focusGrid();
     },
     [setContext, focusGrid]
