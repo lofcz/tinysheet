@@ -7,6 +7,7 @@ import {
   updateContextWithSheetData,
   handleGlobalWheel,
   initFreeze,
+  getSheetIndex,
   Sheet as SheetType,
 } from "@lofcz/tinysheet-core";
 import "./index.css";
@@ -424,6 +425,23 @@ function mergeCrossesFreeze(
 }
 
 /**
+ * Whether the sheet has conditional-format data bars or icon sets. They are
+ * anti-aliased paths whose edge pixels depend on the clip they are drawn
+ * under, so a strip redraw would not match a full redraw exactly.
+ */
+function hasPathDecorations(context: Context) {
+  const i = getSheetIndex(context, context.currentSheetId);
+  const rules =
+    i == null
+      ? undefined
+      : context.luckysheetfile[i]?.luckysheet_conditionformat_save;
+  return (
+    Array.isArray(rules) &&
+    rules.some((r: any) => r?.type === "dataBar" || r?.type === "icons")
+  );
+}
+
+/**
  * Scroll by moving the pixels already on the canvas and drawing only the
  * newly exposed strip. Along the scrolled axis everything past the frozen
  * panes moves: for a vertical scroll, the band below the frozen rows (row
@@ -466,6 +484,7 @@ function blitScroll(
     return false;
   }
   if (mergeCrossesFreeze(next, freeze, axis)) return false;
+  if (hasPathDecorations(next)) return false;
   const ctx2d = canvasElement.getContext("2d");
   if (!ctx2d || typeof ctx2d.setTransform !== "function") return false;
 
