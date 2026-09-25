@@ -10,6 +10,8 @@ import {
   toggleSheetInGroup,
   checkWorkbookStructure,
   isWorkbookStructureProtected,
+  isEditingFormula,
+  switchSheetWhileEditing,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
@@ -39,9 +41,21 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   const { info } = locale(context);
   const isGrouped =
     !isDropPlaceholder && getGroupedSheetIds(context).includes(sheet.id!);
+  /** The editor with the formula being edited (cell editor or formula bar). */
+  const formulaEditor = useCallback(
+    () =>
+      document.activeElement === refs.fxInput.current
+        ? refs.fxInput.current
+        : refs.cellInput.current,
+    [refs.cellInput, refs.fxInput]
+  );
 
   useEffect(() => {
     setContext((draftCtx) => {
+      // leaving Point mode across sheets already restored the edited cell's
+      // sheet (and a commit may have moved its selection since)
+      if (draftCtx.sheetScrollRestoredFor === draftCtx.currentSheetId) return;
+      draftCtx.sheetScrollRestoredFor = undefined;
       const r = context.sheetScrollRecord[draftCtx?.currentSheetId];
       if (r) {
         draftCtx.scrollLeft = r.scrollLeft ?? 0;
@@ -183,8 +197,22 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
                 : ""
             }${isGrouped ? " luckysheet-sheets-item-grouped" : ""}`
       }
+      onMouseDown={(e) => {
+        // Point mode across sheets: the formula keeps the focus
+        if (!isDropPlaceholder && isEditingFormula(context, formulaEditor())) {
+          e.preventDefault();
+        }
+      }}
       onClick={(e) => {
         if (isDropPlaceholder) return;
+        // editing a formula: show the sheet to pick references on it
+        const editor = formulaEditor();
+        if (isEditingFormula(context, editor)) {
+          setContext((draftCtx) => {
+            switchSheetWhileEditing(draftCtx, sheet.id!, editor);
+          });
+          return;
+        }
         // Ctrl/Cmd+click and Shift+click group sheets (Excel)
         if (e.ctrlKey || e.metaKey || e.shiftKey) {
           setContext((draftCtx) => {

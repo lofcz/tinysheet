@@ -108,3 +108,13 @@
   font-weight: normal;
   color: var(--fortune-text-subtle);
 }
+
+/* argument names select that argument in the formula */
+.luckysheet-arguments-help-parameter-link {
+  cursor: pointer;
+}
+
+.luckysheet-arguments-help-parameter-link:hover {
+  color: var(--fortune-accent);
+  text-decoration: underline;
+}

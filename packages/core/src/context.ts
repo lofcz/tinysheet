@@ -255,6 +255,16 @@ export type Context = {
   functionCandidateIndex?: number;
   /** argument of `functionHint` the caret is in */
   functionHintArgIndex?: number;
+  /** the formula bar shows several lines (Ctrl+Shift+U), and its height */
+  formulaBarExpanded?: boolean;
+  formulaBarHeight?: number;
+  /**
+   * Point mode across sheets: while a formula is edited, another sheet is
+   * shown to pick references on; this is the sheet of the edited cell.
+   */
+  formulaEditOrigin?: { sheetId: string };
+  /** the sheet whose selection and scroll were already restored on switch */
+  sheetScrollRestoredFor?: string;
 
   luckysheet_copy_save?: {
     dataSheetId: string;

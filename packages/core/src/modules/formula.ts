@@ -1757,7 +1757,10 @@ export function createRangeHightlight(
     if (ref == null) return;
     const key = referenceKey(text);
     if (drawn.has(key)) return;
-    let sheetId: string | undefined | null = ctx.currentSheetId;
+    // a reference without a sheet name is on the edited cell's sheet (another
+    // sheet may be shown in Point mode across sheets)
+    let sheetId: string | undefined | null =
+      ctx.formulaEditOrigin?.sheetId ?? ctx.currentSheetId;
     if (ref.sheetName != null) {
       sheetId = ctx.luckysheetfile.find((f) => f.name === ref.sheetName)?.id;
     }

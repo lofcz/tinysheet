@@ -1520,6 +1520,17 @@ export default {
     allowOptionText: "可选",
 
     selectCategory: "或选择类别",
+
+    sheetCandidate: "工作表",
+    tableAll: "整个表",
+    tableData: "表的数据行",
+    tableHeaders: "表的标题行",
+    tableTotals: "表的汇总行",
+    tableThisRow: "此行",
+    helpSelectArgument: "在公式中选择此参数",
+    expandFormulaBar: "展开编辑栏 (Ctrl+Shift+U)",
+    collapseFormulaBar: "折叠编辑栏 (Ctrl+Shift+U)",
+    resizeFormulaBar: "拖动以调整编辑栏大小",
   },
   definedNames: {
     nameManager: "名称管理器",

@@ -444,6 +444,9 @@ describe("formula autocomplete", () => {
       "name",
       "lambda",
       "table",
+      // and the sheets (Sheet2!)
+      "sheet",
+      "sheet",
     ]);
     expect(insertFunctionName("=Tab", 4, "Table1", "[")).toEqual({
       text: "=Table1[",

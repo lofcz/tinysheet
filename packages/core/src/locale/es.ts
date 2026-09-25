@@ -1499,6 +1499,17 @@ export default {
     allowOptionText: "Opción",
 
     selectCategory: "O selecciona una categoría",
+
+    sheetCandidate: "Hoja",
+    tableAll: "Toda la tabla",
+    tableData: "Las filas de datos de la tabla",
+    tableHeaders: "La fila de encabezado de la tabla",
+    tableTotals: "La fila de totales de la tabla",
+    tableThisRow: "Esta fila",
+    helpSelectArgument: "Seleccionar este argumento en la fórmula",
+    expandFormulaBar: "Expandir la barra de fórmulas (Ctrl+Mayús+U)",
+    collapseFormulaBar: "Contraer la barra de fórmulas (Ctrl+Mayús+U)",
+    resizeFormulaBar: "Arrastre para cambiar el tamaño de la barra de fórmulas",
   },
   definedNames: {
     nameManager: "Administrador de nombres",

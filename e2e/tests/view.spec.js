@@ -66,11 +66,13 @@ test.describe("freeze", () => {
     await page
       .locator('.fortune-toolbar-combo-button[data-tips="Freeze"]')
       .click();
-    // Only the pane kind is asserted: which row/column the split lands on is
-    // being aligned with Excel (freeze above/left of the selection) in T37.
+    // rows 1-3 and columns A-B: above and left of the active cell C4
     await expect
-      .poll(async () => (await sheet.sheetInfo()).frozen?.type)
-      .toMatch(/both/i);
+      .poll(async () => (await sheet.sheetInfo()).frozen)
+      .toEqual({
+        type: "rangeBoth",
+        range: { row_focus: 2, column_focus: 1 },
+      });
 
     // Scroll far down and right: the frozen rows and columns stay in place,
     // so clicking the top-left cell's position still selects A1.
@@ -85,5 +87,91 @@ test.describe("freeze", () => {
         return row[0] > 8 && column[0] > 8;
       })
       .toBe(true);
+  });
+
+  test("Freeze Panes freezes from the scrolled position (Excel)", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.scroll(0, 200);
+    await sheet.scroll(148, 0);
+    // the top-left visible cell, and the active cell three rows / two
+    // columns further
+    await sheet.click(0, 0, { wait: false });
+    await expect.poll(() => sheet.selection()).not.toBeNull();
+    const topLeft = await sheet.selection();
+    const top = topLeft.row[0];
+    const left = topLeft.column[0];
+    expect(top).toBeGreaterThan(0);
+    expect(left).toBeGreaterThan(0);
+    await sheet.click(3, 2, { wait: false });
+    await sheet.waitForSelection(top + 3, left + 2);
+
+    await page
+      .locator('.fortune-toolbar-combo-button[data-tips="Freeze"]')
+      .click();
+    // the rows/columns from the top-left visible cell up to the active cell
+    await expect
+      .poll(async () => (await sheet.sheetInfo()).frozen)
+      .toEqual({
+        type: "rangeBoth",
+        range: { row_focus: top + 2, column_focus: left + 1 },
+        top,
+        left,
+      });
+    // the frozen pane starts at the old top-left cell, the scrolling pane
+    // continues at the active cell
+    await sheet.click(0, 0, { wait: false });
+    await sheet.waitForSelection(top, left);
+    await sheet.click(3, 2, { wait: false });
+    await sheet.waitForSelection(top + 3, left + 2);
+    // scrolling moves only the scrolling pane
+    await sheet.scroll(0, 400);
+    await sheet.click(1, 1, { wait: false });
+    await sheet.waitForSelection(top + 1, left + 1);
+
+    // zooming keeps the frozen rows/columns
+    const frozenBefore = (await sheet.sheetInfo()).frozen;
+    await page.getByRole("button", { name: /zoom in/i }).click();
+    await expect
+      .poll(async () => (await sheet.sheetInfo()).zoomRatio)
+      .toBe(1.1);
+    expect((await sheet.sheetInfo()).frozen).toEqual(frozenBefore);
+    await page.getByRole("button", { name: /zoom out/i }).click();
+    await expect.poll(async () => (await sheet.sheetInfo()).zoomRatio).toBe(1);
+
+    // Unfreeze: the old top-left cell is at the top-left of the window again
+    await page
+      .locator('.fortune-toolbar-combo-button[data-tips="Freeze"]')
+      .click();
+    await expect
+      .poll(async () => (await sheet.sheetInfo()).frozen ?? null)
+      .toBeNull();
+    await sheet.click(0, 0, { wait: false });
+    await sheet.waitForSelection(top, left);
+  });
+
+  test("Freeze Top Row freezes the top visible row", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.scroll(0, 200);
+    await sheet.click(0, 0, { wait: false });
+    await expect.poll(() => sheet.selection()).not.toBeNull();
+    const top = (await sheet.selection()).row[0];
+    await page
+      .locator('.fortune-toolbar-combo-arrow[data-tips="Freeze"]')
+      .click();
+    await page.getByText("Freeze Top Row", { exact: true }).click();
+    await expect
+      .poll(async () => (await sheet.sheetInfo()).frozen)
+      .toEqual({
+        type: "rangeRow",
+        range: { row_focus: top, column_focus: 0 },
+        top,
+      });
+    await sheet.scroll(0, 400);
+    await sheet.click(0, 0, { wait: false });
+    await sheet.waitForSelection(top, 0);
   });
 });

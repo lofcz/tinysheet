@@ -3,11 +3,34 @@ import {
   applyFunctionCandidate,
   applyReferenceCycle,
   closeFormulaParens,
+  getCaretOffset,
   handleFormulaInput,
+  lineIndentAt,
   moveFunctionCandidate,
   rangeHightlightselected,
+  refreshFormulaEditorState,
+  selectCallArgument,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../../context";
+
+/**
+ * Alt+Enter in the cell editor or the formula bar: a line break. In a
+ * formula the new line starts with the indentation of the current one.
+ */
+export function insertEditorLineBreak(el: HTMLElement | null | undefined) {
+  const text = el?.textContent ?? "";
+  const caret = el ? getCaretOffset(el) ?? text.length : text.length;
+  const indent = text.startsWith("=") ? lineIndentAt(text, caret) : "";
+  if (indent) {
+    // (insertText would start a new block element instead)
+    document.execCommand("insertHTML", false, `\n${indent}`);
+    return;
+  }
+  // the space forces the browser to show the new (last) line; the delete
+  // removes it again
+  document.execCommand("insertHTML", false, "\n ");
+  document.execCommand("delete", false);
+}
 
 const CARET_KEYS = new Set([
   "ArrowLeft",
@@ -54,6 +77,20 @@ export function useFormulaEditorKeys(
       rerender(el);
     },
     [getEditor, rerender]
+  );
+
+  /** Argument hint: selects argument `index` of the call at the caret. */
+  const selectArgument = useCallback(
+    (index: number) => {
+      const el = getEditor();
+      if (!el) return;
+      el.focus();
+      if (!selectCallArgument(el, index)) return;
+      setContext((ctx) => {
+        refreshFormulaEditorState(ctx, el);
+      });
+    },
+    [getEditor, setContext]
   );
 
   /** Returns true when the key was consumed by the formula editor. */
@@ -131,5 +168,11 @@ export function useFormulaEditorKeys(
     [candidates.length, onCaretMove]
   );
 
-  return { onKeyDown, onKeyUp, onMouseUp: onCaretMove, acceptCandidate };
+  return {
+    onKeyDown,
+    onKeyUp,
+    onMouseUp: onCaretMove,
+    acceptCandidate,
+    selectArgument,
+  };
 }

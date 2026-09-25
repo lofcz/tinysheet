@@ -1488,6 +1488,17 @@ export default {
     allowOptionText: "Optional",
 
     selectCategory: "Or select a category",
+
+    sheetCandidate: "Sheet",
+    tableAll: "The entire table",
+    tableData: "The table's data rows",
+    tableHeaders: "The table's header row",
+    tableTotals: "The table's total row",
+    tableThisRow: "This row",
+    helpSelectArgument: "Select this argument in the formula",
+    expandFormulaBar: "Expand Formula Bar (Ctrl+Shift+U)",
+    collapseFormulaBar: "Collapse Formula Bar (Ctrl+Shift+U)",
+    resizeFormulaBar: "Drag to resize the formula bar",
   },
   definedNames: {
     nameManager: "Name Manager",

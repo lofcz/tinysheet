@@ -41,6 +41,7 @@ import {
   endPointMode,
   getEditorArrowAction,
   movePointReference,
+  returnToEditSheet,
   setEditMode,
   toggleEditMode,
 } from "../modules/editMode";
@@ -867,6 +868,14 @@ export function handleEditingKeyDown(
 
   // anything typed after a picked reference ends Point mode
   endPointMode(ctx);
+  // Point mode across sheets: commit or cancel on the edited cell's sheet
+  if (
+    (key === "Enter" && !e.altKey && !e.metaKey) ||
+    key === "Tab" ||
+    key === "Escape"
+  ) {
+    returnToEditSheet(ctx, editor);
+  }
 
   if (key === "Enter") {
     if (!allowEdit) return;

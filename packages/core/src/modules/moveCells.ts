@@ -14,7 +14,7 @@ import { locale } from "../locale";
 import { getBorderInfoCompute } from "./border";
 import { normalizeSelection } from "./selection";
 import { getSheetIndex, isAllowEdit } from "../utils";
-import { Cell, GlobalCache } from "../types";
+import { Cell, GlobalCache, Sheet } from "../types";
 import { reconcileSpillsAfterMove } from "./spill";
 import { CFSplitRange } from "./ConditionFormat";
 import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
@@ -145,6 +145,124 @@ export function borderEntriesForCell(bd: any, r: number, c: number) {
     });
   }
   return out;
+}
+
+/** Rows hidden by a sheet's AutoFilter columns. */
+function filterHiddenRows(filter: Record<string, any> | undefined) {
+  const rows = new Set<number>();
+  _.forEach(filter, (item) => {
+    _.forEach(item?.rowhidden, (__, r) => rows.add(Number(r)));
+  });
+  return rows;
+}
+
+/** ctx keeps a live copy of the current sheet's AutoFilter. */
+function syncLiveFilter(ctx: Context, file: Sheet) {
+  if (file.id !== ctx.currentSheetId) return;
+  ctx.luckysheet_filter_save = file.filter_select;
+  ctx.filter = file.filter ?? {};
+}
+
+/** Removes a sheet's AutoFilter, showing the rows it hid. */
+function dropAutoFilter(file: Sheet, cfg: Record<string, any>) {
+  const hidden = filterHiddenRows(file.filter);
+  if (hidden.size > 0 && cfg.rowhidden) {
+    cfg.rowhidden = _.omit(cfg.rowhidden, [...hidden].map(String));
+  }
+  file.filter_select = undefined;
+  file.filter = undefined;
+}
+
+/**
+ * Excel moves the AutoFilter with its data: when the moved block contains
+ * the source sheet's whole filter range, the range, every column's criteria
+ * and the rows they hide go to the destination (a destination sheet keeps
+ * its own AutoFilter unless the block overwrites it: one per sheet).
+ */
+function moveAutoFilter(
+  ctx: Context,
+  srcFile: Sheet,
+  dstFile: Sheet,
+  srcCfg: Record<string, any>,
+  dstCfg: Record<string, any>,
+  range: Rect,
+  dest: Rect,
+  dr: number,
+  dc: number
+) {
+  const sel = srcFile.filter_select;
+  if (!sel?.row || !sel?.column) return;
+  const rect: Rect = {
+    row: [sel.row[0], sel.row[1]],
+    column: [sel.column[0], sel.column[1]],
+  };
+  if (
+    !rectContains(range, rect.row[0], rect.column[0]) ||
+    !rectContains(range, rect.row[1], rect.column[1])
+  ) {
+    return;
+  }
+  const sameSheet = srcFile === dstFile;
+  if (
+    !sameSheet &&
+    dstFile.filter_select?.row &&
+    dstFile.filter_select.column
+  ) {
+    const other: Rect = {
+      row: [dstFile.filter_select.row[0], dstFile.filter_select.row[1]],
+      column: [
+        dstFile.filter_select.column[0],
+        dstFile.filter_select.column[1],
+      ],
+    };
+    if (!rectsIntersect(other, dest)) {
+      // the destination keeps its AutoFilter; this one goes away
+      dropAutoFilter(srcFile, srcCfg);
+      syncLiveFilter(ctx, srcFile);
+      return;
+    }
+    dropAutoFilter(dstFile, dstCfg);
+  }
+  const hidden = filterHiddenRows(srcFile.filter);
+  const next: Rect = {
+    row: [rect.row[0] + dr, rect.row[1] + dr],
+    column: [rect.column[0] + dc, rect.column[1] + dc],
+  };
+  let filter: Record<string, any> | undefined;
+  if (srcFile.filter) {
+    filter = {};
+    _.forEach(srcFile.filter, (item, key) => {
+      if (!item) return;
+      const rowhidden: Record<string, number> = {};
+      _.forEach(item.rowhidden, (v, r) => {
+        rowhidden[Number(r) + dr] = v as number;
+      });
+      filter![key] = {
+        ...item,
+        rowhidden,
+        cindex: item.cindex + dc,
+        str: next.row[0],
+        edr: next.row[1],
+        stc: next.column[0],
+        edc: next.column[1],
+      };
+    });
+  }
+  if (hidden.size > 0 && (dr !== 0 || !sameSheet)) {
+    // the rows hidden by the filter move with it
+    srcCfg.rowhidden = _.omit(srcCfg.rowhidden || {}, [...hidden].map(String));
+    const moved: Record<string, number> = {};
+    hidden.forEach((r) => {
+      moved[r + dr] = 0;
+    });
+    dstCfg.rowhidden = { ...(dstCfg.rowhidden || {}), ...moved };
+  }
+  srcFile.filter_select = undefined;
+  srcFile.filter = undefined;
+  dstFile.filter_select = { row: next.row, column: next.column };
+  dstFile.filter = filter;
+  syncLiveFilter(ctx, srcFile);
+  syncLiveFilter(ctx, dstFile);
 }
 
 export type MoveSource = { sheetId: string; range: Rect };
@@ -347,6 +465,9 @@ export function moveCellRange(
       ];
     }
   }
+
+  // the AutoFilter moves with its data (Excel)
+  moveAutoFilter(ctx, srcFile, dstFile, srcCfg, dstCfg, range, dest, dr, dc);
 
   // keep the workbook copies of the live configs in sync
   srcFile.config = srcCfg;

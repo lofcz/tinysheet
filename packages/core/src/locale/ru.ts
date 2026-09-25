@@ -2164,6 +2164,17 @@ export default {
     allowRepeatText: "Повторяемый",
     allowOptionText: "Необязательный",
     selectCategory: "Или выберите категорию",
+
+    sheetCandidate: "Лист",
+    tableAll: "Вся таблица",
+    tableData: "Строки данных таблицы",
+    tableHeaders: "Строка заголовков таблицы",
+    tableTotals: "Строка итогов таблицы",
+    tableThisRow: "Эта строка",
+    helpSelectArgument: "Выделить этот аргумент в формуле",
+    expandFormulaBar: "Развернуть строку формул (Ctrl+Shift+U)",
+    collapseFormulaBar: "Свернуть строку формул (Ctrl+Shift+U)",
+    resizeFormulaBar: "Перетащите, чтобы изменить высоту строки формул",
   },
   definedNames: {
     nameManager: "Диспетчер имён",

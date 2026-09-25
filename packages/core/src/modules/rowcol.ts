@@ -4,6 +4,7 @@ import { Context } from "../context";
 import { Sheet } from "../types";
 import { getSheetIndex } from "../utils";
 import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
+import { adjustFrozenForDelete, adjustFrozenForInsert } from "./freeze";
 // eslint-disable-next-line import/no-cycle
 import { onSpillStructureChange, spillAnchorsOf } from "./spill";
 // names, tables, charts and notes follow structural changes through the
@@ -289,18 +290,8 @@ export function insertRowCol(
     newFilterObj.filter_select = { row: [f_r1, f_r2], column: [f_c1, f_c2] };
   }
 
-  if (newFilterObj != null && newFilterObj.filter != null) {
-    if (cfg.rowhidden == null) {
-      cfg.rowhidden = {};
-    }
-
-    _.forEach(newFilterObj.filter, (v, k) => {
-      const f_rowhidden = newFilterObj.filter[k].rowhidden;
-      _.forEach(f_rowhidden, (v1, n) => {
-        cfg.rowhidden![n] = 0;
-      });
-    });
-  }
+  // rows hidden by the filter are in cfg.rowhidden, which is shifted below
+  // (adding their new positions here would shift them twice)
 
   // 条件格式配置变动
   const CFarr = file.luckysheet_conditionformat_save;
@@ -420,27 +411,13 @@ export function insertRowCol(
     }
   }
 
-  // 冻结配置变动
-  const { frozen } = file;
-  if (frozen) {
-    const normalizedIndex = direction === "lefttop" ? index - 1 : index;
-    if (
-      type === "row" &&
-      (frozen.type === "rangeRow" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.row_focus ?? -1) > normalizedIndex) {
-        frozen.range!.row_focus += count;
-      }
-    }
-    if (
-      type === "column" &&
-      (frozen.type === "rangeColumn" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.column_focus ?? -1) > normalizedIndex) {
-        frozen.range!.column_focus += count;
-      }
-    }
-  }
+  // frozen panes stay on the same rows/columns
+  adjustFrozenForInsert(
+    file,
+    type,
+    direction === "lefttop" ? index : index + 1,
+    count
+  );
 
   // 数据验证配置变动
   const { dataVerification } = file;
@@ -1387,18 +1364,8 @@ export function deleteRowCol(
     }
   }
 
-  if (newFilterObj != null && newFilterObj.filter != null) {
-    if (cfg.rowhidden == null) {
-      cfg.rowhidden = {};
-    }
-
-    _.forEach(newFilterObj.filter, (v, k) => {
-      const f_rowhidden = newFilterObj.filter[k].rowhidden;
-      _.forEach(f_rowhidden, (v1, n) => {
-        cfg.rowhidden![n] = 0;
-      });
-    });
-  }
+  // rows hidden by the filter are in cfg.rowhidden, which is shifted below
+  // (adding their new positions here would shift them twice)
 
   // 条件格式配置变动
   const CFarr = file.luckysheet_conditionformat_save;
@@ -1532,28 +1499,8 @@ export function deleteRowCol(
     }
   }
 
-  // 冻结配置变动
-  const { frozen } = file;
-  if (frozen) {
-    if (
-      type === "row" &&
-      (frozen.type === "rangeRow" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.row_focus ?? -1) >= start) {
-        frozen.range!.row_focus -=
-          Math.min(end, frozen.range!.row_focus) - start + 1;
-      }
-    }
-    if (
-      type === "column" &&
-      (frozen.type === "rangeColumn" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.column_focus ?? -1) >= start) {
-        frozen.range!.column_focus -=
-          Math.min(end, frozen.range!.column_focus) - start + 1;
-      }
-    }
-  }
+  // frozen panes stay on the same rows/columns
+  adjustFrozenForDelete(file, type, start, end);
 
   // 数据验证配置变动
   const { dataVerification } = file;
