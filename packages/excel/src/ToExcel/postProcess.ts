@@ -19,7 +19,20 @@ export type XlsxPostProcessInfo = {
   worksheetIds: number[];
   /** Worksheet id -> cells (0-based) whose note is always shown. */
   visibleNotes?: Record<number, { r: number; c: number }[]>;
+  /** Data collected by feature writers for their post-processors. */
+  features?: Record<string, any>;
 };
+
+export type XlsxPostProcessor = (
+  zip: JSZip,
+  info: XlsxPostProcessInfo
+) => Promise<void>;
+
+/**
+ * Extra zip fixups of feature writers (tables and slicers, ...), run in
+ * order after the built-in ones. Features push theirs when loaded.
+ */
+export const xlsxPostProcessors: XlsxPostProcessor[] = [];
 
 const METADATA_XML =
   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
@@ -200,6 +213,10 @@ export async function postProcessXlsx(
   await markDynamicArrays(zip, info);
   await fixInternalHyperlinks(zip);
   await showNotes(zip, info);
+  for (let i = 0; i < xlsxPostProcessors.length; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await xlsxPostProcessors[i](zip, info);
+  }
   return zip.generateAsync({
     type: "uint8array",
     compression: "DEFLATE",

@@ -16,6 +16,14 @@ import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
+import {
+  parseTablePartExtras,
+  readSlicerAnchors,
+  readSlicerCaches,
+  readSlicerPart,
+  tableFiltersFromXlsx,
+  TablePartExtras,
+} from "./tableExtras";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -292,20 +300,108 @@ function applyTableLook(sheet: FortuneSheet, table: any) {
   }
 }
 
+/** Filter buttons and state, calculated columns and custom totals. */
+function applyTableExtras(
+  sheet: FortuneSheet,
+  table: any,
+  extras: TablePartExtras
+) {
+  if (table.headerRow && !extras.hasAutoFilter) table.filterButton = false;
+  Object.entries(extras.calculated).forEach(([i, f]) => {
+    const col = table.columns[Number(i)];
+    if (col) col.calculatedFormula = f;
+  });
+  Object.entries(extras.totals).forEach(([i, f]) => {
+    const col = table.columns[Number(i)];
+    if (col && col.totalFunction === "custom") col.totalFormula = f;
+  });
+  const filters = tableFiltersFromXlsx(sheet as any, table, extras.filters);
+  if (filters) table.filters = filters;
+}
+
+const SLICER_REL = /\/slicer$/;
+const DRAWING_REL = /\/drawing$/;
+
+/** Table slicers of the sheet (x14 slicers part + x15 table caches). */
+function readTableSlicers(
+  ctx: SheetImportContext,
+  rels: PartRelationship[],
+  parsed: { table: any; extras: TablePartExtras }[]
+) {
+  const slicerRels = rels.filter(
+    (x) => SLICER_REL.test(x.type) && ctx.files[x.target]
+  );
+  if (slicerRels.length === 0) return;
+  const caches = readSlicerCaches(ctx.files);
+  const drawing = rels.find(
+    (x) => DRAWING_REL.test(x.type) && ctx.files[x.target]
+  );
+  const anchors = drawing
+    ? readSlicerAnchors(ctx.files[drawing.target])
+    : new Map();
+  slicerRels.forEach((rel) => {
+    readSlicerPart(ctx.files[rel.target]).forEach((a) => {
+      const cache = caches.get(a.cache.toUpperCase());
+      const entry = cache && parsed.find((p) => p.extras.id === cache.tableId);
+      if (!cache || !entry) return;
+      const k = entry.extras.columnIds.indexOf(cache.columnId);
+      const column = entry.table.columns[k];
+      if (!column) return;
+      const anchor = anchors.get(a.name.toUpperCase());
+      const slicer: Record<string, any> = {
+        name: cache.name,
+        column: column.name,
+        caption: a.caption ?? column.name,
+        showCaption: a.showCaption !== "0",
+        r: anchor?.r ?? entry.table.range.row[0],
+        c: anchor?.c ?? entry.table.range.column[1] + 2,
+        offsetX: anchor?.offsetX ?? 0,
+        offsetY: anchor?.offsetY ?? 0,
+        width:
+          anchor?.width ??
+          (anchor?.toC != null ? (anchor.toC - anchor.c) * 74 : 180),
+        height:
+          anchor?.height ??
+          (anchor?.toR != null ? (anchor.toR - anchor.r) * 20 : 240),
+        columnCount: Math.max(1, Number(a.columnCount) || 1),
+        buttonHeight: a.rowHeight
+          ? Math.max(12, Math.round(Number(a.rowHeight) / 9525))
+          : 26,
+        style: a.style || "SlicerStyleLight1",
+      };
+      if (cache.sortOrder === "descending") slicer.sortOrder = "descending";
+      if (cache.crossFilter === "showItemsWithNoData") {
+        slicer.noDataLast = false;
+      }
+      entry.table.slicers = [...(entry.table.slicers ?? []), slicer];
+    });
+  });
+}
+
 /**
  * Table parts -> `sheet.tables`, with their look written into the cells.
  * Formulas inside a table refer to it unqualified, as in Excel's formula
- * bar (`[@Price]`, `[Sales]`).
+ * bar (`[@Price]`, `[Sales]`). Filter state, calculated columns, custom
+ * totals and table slicers are read too (tableExtras.ts).
  */
 export function readTables(ctx: SheetImportContext) {
-  const tables = partRelationships(ctx.files, ctx.sheetFile)
+  const rels = partRelationships(ctx.files, ctx.sheetFile);
+  const parsed = rels
     .filter((x) => TABLE_REL.test(x.type) && ctx.files[x.target])
-    .map((rel) => parseTablePart(ctx.files[rel.target]))
+    .map((rel) => {
+      const xml = ctx.files[rel.target];
+      const table = parseTablePart(xml);
+      return table
+        ? { table, extras: parseTablePartExtras(xml, table.name) }
+        : null;
+    })
     .filter((t): t is NonNullable<typeof t> => t != null)
     .filter(
-      (t) => t.columns.length === t.range.column[1] - t.range.column[0] + 1
+      ({ table: t }) =>
+        t.columns.length === t.range.column[1] - t.range.column[0] + 1
     );
-  if (tables.length === 0) return;
+  if (parsed.length === 0) return;
+  const tables = parsed.map((p) => p.table);
   (ctx.sheet as any).tables = tables;
   tables.forEach((table) => applyTableLook(ctx.sheet, table));
   ctx.sheet.celldata.forEach((cell) => {
@@ -320,6 +416,10 @@ export function readTables(ctx: SheetImportContext) {
     );
     if (table) v.f = unqualifyStructuredReferences(v.f, table.name);
   });
+  parsed.forEach(({ table, extras }) =>
+    applyTableExtras(ctx.sheet, table, extras)
+  );
+  readTableSlicers(ctx, rels, parsed);
 }
 
 /** Per-sheet readers, in order. */

@@ -7,11 +7,27 @@
  * total functions, style options). Structured references are written the
  * way Excel stores them: qualified with the table name, `[@Col]` as
  * `Table1[[#This Row],[Col]]`.
+ *
+ * What ExcelJS cannot write (filter state, calculated column formulas,
+ * custom total formulas, slicers) is collected here and added to the zip
+ * afterwards (ExcelTableZip.ts).
  */
 import type ExcelJS from "@protobi/exceljs";
 import { cellAddress } from "../common/formulaText";
 import { qualifyStructuredReferences } from "../common/structuredRefs";
 import type { SheetExportContext } from "./buildWorkbook";
+import { xlsxPostProcessors } from "./postProcess";
+import {
+  filterColumnXml,
+  slicerExport,
+  tableFormulaText,
+  TableZipExport,
+  writeTableExtras,
+} from "./ExcelTableZip";
+
+if (!xlsxPostProcessors.includes(writeTableExtras)) {
+  xlsxPostProcessors.push(writeTableExtras);
+}
 
 const TOTAL_FUNCTIONS = new Set([
   "sum",
@@ -22,7 +38,18 @@ const TOTAL_FUNCTIONS = new Set([
   "min",
   "stdDev",
   "var",
+  "custom",
 ]);
+
+/** Display text of a TinySheet cell (value filters compare it). */
+function cellText(cell: any) {
+  if (cell == null) return "";
+  if (cell.ct?.t === "inlineStr") {
+    return (cell.ct.s || []).map((x: any) => x?.v ?? "").join("");
+  }
+  const v = cell.m ?? cell.v;
+  return v == null ? "" : String(v);
+}
 
 function snapshot(worksheet: ExcelJS.Worksheet, table: any) {
   const [r1, r2] = table.range.row;
@@ -56,8 +83,13 @@ export function writeTables(ctx: SheetExportContext) {
     if (dataEnd < dataStart) return;
 
     const saved = snapshot(worksheet, table);
-    const fn = (col: any) =>
-      TOTAL_FUNCTIONS.has(col?.totalFunction) ? col.totalFunction : "none";
+    const fn = (col: any) => {
+      const f = TOTAL_FUNCTIONS.has(col?.totalFunction)
+        ? col.totalFunction
+        : "none";
+      return f === "custom" && !col?.totalFormula ? "none" : f;
+    };
+    const buttons = headerRow && table.filterButton !== false;
     const added: any = worksheet.addTable({
       name: table.name,
       displayName: table.name,
@@ -73,7 +105,7 @@ export function writeTables(ctx: SheetExportContext) {
       },
       columns: columns.map((col, j) => ({
         name: String(col?.name ?? `Column${j + 1}`),
-        filterButton: headerRow,
+        filterButton: buttons,
         totalsRowFunction: j === 0 ? undefined : fn(col),
         totalsRowLabel: col?.totalLabel || undefined,
       })) as any,
@@ -109,5 +141,45 @@ export function writeTables(ctx: SheetExportContext) {
         cell.value = v;
       });
     });
+
+    // filter state, calculated columns, custom totals and slicers
+    const extras: TableZipExport = {
+      worksheetId: worksheet.id,
+      name: table.name,
+      filterRef: buttons
+        ? `${cellAddress(r1, c1)}:${cellAddress(dataEnd, c2)}`
+        : null,
+      filterColumns: [],
+      calculated: {},
+      totals: {},
+      slicers: [],
+    };
+    columns.forEach((col, j) => {
+      const filter = table.filters?.[j];
+      if (buttons && filter?.condition) {
+        const texts: string[] = [];
+        for (let r = dataStart; r <= dataEnd; r += 1) {
+          texts.push(cellText(ctx.data[r]?.[c1 + j]));
+        }
+        const xml = filterColumnXml(j, filter.condition, texts);
+        if (xml) extras.filterColumns.push(xml);
+      }
+      if (typeof col?.calculatedFormula === "string") {
+        extras.calculated[j] = tableFormulaText(
+          col.calculatedFormula,
+          table.name
+        );
+      }
+      if (fn(col) === "custom") {
+        extras.totals[j] = tableFormulaText(col.totalFormula, table.name);
+      }
+    });
+    (table.slicers ?? []).forEach((slicer: any) => {
+      const s = slicerExport(ctx.sheet, table, slicer);
+      if (s) extras.slicers.push(s);
+    });
+    const features = ctx.post.features ?? {};
+    ctx.post.features = features;
+    features.tables = [...(features.tables ?? []), extras];
   });
 }
