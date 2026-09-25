@@ -1,13 +1,35 @@
 import _ from "lodash";
-import { onImageMoveStart, onImageResizeStart } from "@lofcz/tinysheet-core";
+import {
+  locale,
+  onImageMoveStart,
+  onImageResizeStart,
+} from "@lofcz/tinysheet-core";
 import React, { useContext, useMemo } from "react";
 import WorkbookContext from "../../context";
 
 const ImgBoxs: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
+  const { info, button } = locale(context);
   const activeImg = useMemo(() => {
     return _.find(context.insertedImgs, { id: context.activeImg });
   }, [context.activeImg, context.insertedImgs]);
+  // right-click: select the picture and open its menu (Place in Cell, ...)
+  const openImageMenu = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const wb = refs.workbookContainer.current?.getBoundingClientRect();
+    if (!wb) return;
+    setContext((ctx) => {
+      ctx.activeImg = id;
+      ctx.contextMenu = {
+        x: e.pageX - wb.left,
+        y: e.pageY - wb.top,
+        pageX: e.pageX,
+        pageY: e.pageY,
+        imageMenu: true,
+      };
+    });
+  };
 
   return (
     <div id="luckysheet-image-showBoxs">
@@ -43,10 +65,12 @@ const ImgBoxs: React.FC = () => {
               // context.activeImg.height * context.zoomRatio,
             }}
             onMouseDown={(e) => {
+              e.stopPropagation();
+              if (e.button === 2) return;
               const { nativeEvent } = e;
               onImageMoveStart(context, refs.globalCache, nativeEvent);
-              e.stopPropagation();
             }}
+            onContextMenu={(e) => openImageMenu(e, activeImg.id)}
           />
           <div className="luckysheet-modal-dialog-resize">
             {["lt", "mt", "lm", "rm", "rt", "lb", "mb", "rb"].map((v) => (
@@ -67,8 +91,8 @@ const ImgBoxs: React.FC = () => {
               className="luckysheet-modal-controll-btn luckysheet-modal-controll-crop"
               role="button"
               tabIndex={0}
-              aria-label="裁剪"
-              title="裁剪"
+              aria-label={info.imageCrop}
+              title={info.imageCrop}
             >
               <i className="fa fa-pencil" aria-hidden="true" />
             </span>
@@ -76,8 +100,8 @@ const ImgBoxs: React.FC = () => {
               className="luckysheet-modal-controll-btn luckysheet-modal-controll-restore"
               role="button"
               tabIndex={0}
-              aria-label="恢复原图"
-              title="恢复原图"
+              aria-label={info.imageRestore}
+              title={info.imageRestore}
             >
               <i className="fa fa-window-maximize" aria-hidden="true" />
             </span>
@@ -85,8 +109,8 @@ const ImgBoxs: React.FC = () => {
               className="luckysheet-modal-controll-btn luckysheet-modal-controll-del"
               role="button"
               tabIndex={0}
-              aria-label="删除"
-              title="删除"
+              aria-label={button.delete}
+              title={button.delete}
             >
               <i className="fa fa-trash" aria-hidden="true" />
             </span>
@@ -112,6 +136,7 @@ const ImgBoxs: React.FC = () => {
                 zIndex: 200,
               }}
               onMouseDown={(e) => e.stopPropagation()}
+              onContextMenu={(e) => openImageMenu(e, id)}
               onClick={(e) => {
                 setContext((ctx) => {
                   ctx.activeImg = id;
@@ -174,8 +199,8 @@ const ImgBoxs: React.FC = () => {
             className="luckysheet-modal-controll-btn luckysheet-modal-controll-crop"
             role="button"
             tabIndex={0}
-            aria-label="裁剪"
-            title="裁剪"
+            aria-label={info.imageCrop}
+            title={info.imageCrop}
           >
             <i className="fa fa-pencil" aria-hidden="true" />
           </span>
@@ -183,8 +208,8 @@ const ImgBoxs: React.FC = () => {
             className="luckysheet-modal-controll-btn luckysheet-modal-controll-restore"
             role="button"
             tabIndex={0}
-            aria-label="恢复原图"
-            title="恢复原图"
+            aria-label={info.imageRestore}
+            title={info.imageRestore}
           >
             <i className="fa fa-window-maximize" aria-hidden="true" />
           </span>
@@ -192,8 +217,8 @@ const ImgBoxs: React.FC = () => {
             className="luckysheet-modal-controll-btn luckysheet-modal-controll-del"
             role="button"
             tabIndex={0}
-            aria-label="删除"
-            title="删除"
+            aria-label={button.delete}
+            title={button.delete}
           >
             <i className="fa fa-trash" aria-hidden="true" />
           </span>

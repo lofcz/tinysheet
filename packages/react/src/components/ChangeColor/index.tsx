@@ -1,45 +1,55 @@
-import { Context, getSheetIndex, locale } from "@lofcz/tinysheet-core";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import {
+  Context,
+  getSheetIndex,
+  locale,
+  setSheetTabColor,
+} from "@lofcz/tinysheet-core";
+import React, { useCallback, useContext, useState } from "react";
 import WorkbookContext from "../../context";
 import ColorPicker from "../Toolbar/ColorPicker";
 import "./index.css";
 
 type Props = {
   triggerParentUpdate: (state: boolean) => void;
+  /** Sheets to colour (grouped sheets); defaults to the active sheet. */
+  sheetIds?: string[];
 };
 
-export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
+/** Tab colour picker of the sheet tab context menu. */
+export const ChangeColor: React.FC<Props> = ({
+  triggerParentUpdate,
+  sheetIds,
+}) => {
   const { context, setContext } = useContext(WorkbookContext);
   const { toolbar, sheetconfig, button } = locale(context);
-  const [inputColor, setInputColor] = useState<string>("#000000");
-  const [selectColor, setSelectColor] = useState<undefined | string>(
+  const current =
     context.luckysheetfile[
       getSheetIndex(context, context.currentSheetId) as number
-    ].color
+    ]?.color;
+  const [inputColor, setInputColor] = useState<string>(current ?? "#000000");
+
+  // colours are applied only when picked (opening the menu changes nothing)
+  const apply = useCallback(
+    (color: string | undefined) => {
+      setContext((ctx: Context) => {
+        setSheetTabColor(
+          ctx,
+          sheetIds?.filter(Boolean).length ? sheetIds : [ctx.currentSheetId],
+          color
+        );
+      });
+    },
+    [setContext, sheetIds]
   );
-
-  // 确定按钮
-  const certainBtn = useCallback(() => {
-    setSelectColor(inputColor);
-  }, [inputColor]);
-
-  // 把用户选择的颜色记录在ctx中
-  useEffect(() => {
-    setContext((ctx: Context) => {
-      if (ctx.allowEdit === false) return;
-      const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-      ctx.luckysheetfile[index].color = selectColor;
-    });
-  }, [selectColor, setContext]);
 
   return (
     <div id="fortune-change-color">
       <div
         className="color-reset"
-        onClick={() => setSelectColor(undefined)}
+        onClick={() => apply(undefined)}
         tabIndex={0}
       >
-        {sheetconfig.resetColor}
+        {sheetconfig.noColor}
       </div>
       <div className="custom-color">
         <div>{toolbar.customColor}:</div>
@@ -56,9 +66,7 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
         />
         <div
           className="button-basic button-primary"
-          onClick={() => {
-            certainBtn();
-          }}
+          onClick={() => apply(inputColor)}
           tabIndex={0}
         >
           {button.confirm}
@@ -67,7 +75,7 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
       <ColorPicker
         onPick={(color) => {
           setInputColor(color);
-          setSelectColor(color);
+          apply(color);
         }}
       />
     </div>

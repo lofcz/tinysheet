@@ -1,0 +1,277 @@
+.fortune-sparkline-dialog {
+  width: 420px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-3, 12px);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-sparkline-settings {
+  width: 520px;
+}
+
+.fortune-sparkline-dialog-title {
+  font-size: var(--fortune-font-size-lg);
+  font-weight: 500;
+}
+
+.fortune-sparkline-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-3, 12px);
+  max-height: 62vh;
+  overflow-y: auto;
+  padding-right: var(--fortune-space-1, 4px);
+}
+
+.fortune-sparkline-hint,
+.fortune-sparkline-subtitle {
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-sparkline-subtitle {
+  margin-top: var(--fortune-space-2, 8px);
+}
+
+.fortune-sparkline-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1, 4px);
+}
+
+.fortune-sparkline-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--fortune-space-3, 12px);
+}
+
+.fortune-sparkline-range {
+  display: flex;
+  align-items: stretch;
+  gap: var(--fortune-space-1, 4px);
+}
+
+.fortune-sparkline-input,
+.fortune-sparkline-select {
+  box-sizing: border-box;
+  height: var(--fortune-control-height, 28px);
+  padding: 0 var(--fortune-space-2, 8px);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+  outline: none;
+}
+
+.fortune-sparkline-range .fortune-sparkline-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.fortune-sparkline-number {
+  width: 110px;
+}
+
+.fortune-sparkline-input:focus,
+.fortune-sparkline-select:focus {
+  border-color: var(--fortune-accent);
+  box-shadow: var(--fortune-focus-ring);
+}
+
+.fortune-sparkline-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--fortune-control-height, 28px);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg);
+  color: var(--fortune-icon, var(--fortune-text-muted));
+  cursor: pointer;
+  transition: background-color var(--fortune-transition);
+}
+
+.fortune-sparkline-pick:hover {
+  background: var(--fortune-bg-hover);
+  color: var(--fortune-accent);
+}
+
+.fortune-sparkline-types {
+  display: flex;
+  gap: var(--fortune-space-2, 8px);
+}
+
+.fortune-sparkline-type {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 64px;
+  padding: var(--fortune-space-1, 4px) var(--fortune-space-2, 8px);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--fortune-transition),
+    background-color var(--fortune-transition);
+}
+
+.fortune-sparkline-type:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-sparkline-type-selected {
+  border-color: var(--fortune-accent);
+  background: var(--fortune-accent-soft);
+  color: var(--fortune-accent-text, var(--fortune-text));
+}
+
+.fortune-sparkline-preview {
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg);
+}
+
+.fortune-sparkline-section {
+  margin: 0;
+  padding: var(--fortune-space-2, 8px) var(--fortune-space-3, 12px)
+    var(--fortune-space-3, 12px);
+  border: 1px solid var(--fortune-divider, var(--fortune-border));
+  border-radius: var(--fortune-radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2, 8px);
+}
+
+.fortune-sparkline-section legend {
+  padding: 0 var(--fortune-space-1, 4px);
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-sparkline-grid2,
+.fortune-sparkline-grid3 {
+  display: grid;
+  gap: var(--fortune-space-1, 4px) var(--fortune-space-3, 12px);
+}
+
+.fortune-sparkline-grid2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fortune-sparkline-grid3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.fortune-sparkline-check,
+.fortune-sparkline-color {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-1, 4px);
+  white-space: nowrap;
+}
+
+.fortune-sparkline-check input {
+  accent-color: var(--fortune-accent);
+}
+
+.fortune-sparkline-check input:disabled + label {
+  color: var(--fortune-text-disabled);
+}
+
+.fortune-sparkline-color input[type="color"] {
+  width: 26px;
+  height: 22px;
+  padding: 0 2px;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg);
+  cursor: pointer;
+}
+
+.fortune-sparkline-radios {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fortune-space-1, 4px) var(--fortune-space-3, 12px);
+}
+
+.fortune-sparkline-styles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 52px);
+  gap: var(--fortune-space-1, 4px);
+}
+
+.fortune-sparkline-style {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  box-sizing: border-box;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg);
+  cursor: pointer;
+  transition: border-color var(--fortune-transition);
+}
+
+.fortune-sparkline-style:hover {
+  border-color: var(--fortune-accent);
+}
+
+.fortune-sparkline-style-selected {
+  border-color: var(--fortune-accent);
+  box-shadow: 0 0 0 1px var(--fortune-accent);
+}
+
+.fortune-sparkline-error {
+  color: var(--fortune-danger);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-sparkline-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--fortune-space-2, 8px);
+}
+
+.fortune-sparkline-menu-option {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2, 8px);
+  white-space: nowrap;
+}
+
+/* The collapsed dialog while a range is selected on the sheet. */
+.fortune-sparkline-picker {
+  position: absolute;
+  right: var(--fortune-space-5, 24px);
+  z-index: 1003;
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2, 8px);
+  padding: var(--fortune-space-2, 8px) var(--fortune-space-3, 12px);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  background: var(--fortune-bg-elevated, var(--fortune-bg));
+  box-shadow: var(--fortune-shadow-lg, var(--fortune-shadow));
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-sparkline-picker-title {
+  color: var(--fortune-text-muted);
+  white-space: nowrap;
+}
+
+.fortune-sparkline-picker .fortune-sparkline-input {
+  width: 180px;
+}

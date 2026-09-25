@@ -1,74 +1,56 @@
-label {
-  cursor: default;
-}
+/* Go To Special dialog */
 #fortune-location-condition {
-  min-width: 500px;
+  min-width: 460px;
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
 }
+
 #fortune-location-condition .title {
-  background-color: #fff;
-  color: #000;
-  cursor: default;
-  font-size: 16px;
-  font-weight: normal;
-  line-height: 48px;
+  margin-bottom: var(--fortune-space-3);
 }
+
 #fortune-location-condition .listbox {
-  border: 1px solid #dfdfdf;
-  padding: 10px;
-  font-size: 14px;
-  color: #000;
+  display: flex;
+  gap: var(--fortune-space-5);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  padding: var(--fortune-space-3) var(--fortune-space-4);
 }
-#fortune-location-condition .listbox .listItem {
-  padding: 5px 0;
+
+#fortune-location-condition .column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1);
 }
-#fortune-location-condition .listbox .listItem input[type="radio"] {
-  float: left;
-  margin-top: 5px;
-}
-#fortune-location-condition .listItem {
-  padding: 5px 0;
-}
-#fortune-location-condition .listItem .subItem {
-  height: 30px;
-  padding: 0 10px;
-  display: block;
-}
-#fortune-location-condition input[type="radio"] {
-  float: left;
-  margin-top: 3px;
-}
-#fortune-location-condition .listbox .listItem .subbox {
-  height: 30px;
-  padding: 0 10px;
-}
-#fortune-location-condition .listbox .listItem .subbox .subItem {
-  float: left;
-  margin-right: 5px;
-}
-#fortune-location-condition .button-basic {
-  display: inline-block;
-  margin-bottom: 0;
-  font-weight: 400;
-  text-align: center;
-  vertical-align: middle;
-  touch-action: manipulation;
+
+#fortune-location-condition label {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  line-height: 24px;
   cursor: pointer;
-  white-space: nowrap;
-  padding: 4px 8px;
-  font-size: 14px;
-  line-height: 1.42857143;
-  border-radius: 2px;
-  user-select: none;
-  margin-top: 10px;
 }
-#fortune-location-condition .button-primary {
-  background: #0188fb;
-  border: 1px solid #0188fb;
-  color: #fff;
-  margin-right: 10px;
+
+#fortune-location-condition input {
+  margin: 0;
+  accent-color: var(--fortune-accent);
 }
-#fortune-location-condition .button-close {
-  color: #333;
-  background-color: #fff;
-  border: 1px solid #ccc;
+
+#fortune-location-condition .subbox {
+  display: flex;
+  flex-direction: column;
+  padding-left: var(--fortune-space-5);
+}
+
+#fortune-location-condition label[aria-disabled="true"] {
+  color: var(--fortune-text-disabled);
+  cursor: default;
+}
+
+#fortune-location-condition .buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--fortune-space-2);
+  margin-top: var(--fortune-space-4);
 }

@@ -13,6 +13,12 @@ import SVGIcon from "../SVGIcon";
 import "./index.css";
 import SheetItem from "./SheetItem";
 import ZoomControl from "../ZoomControl";
+import { activateOnKey } from "../Toolbar/Button";
+import { registerProtectionFeatures } from "../Protection";
+
+// protection and View options plug into the toolbar and cell area through
+// the registries (an explicit call: the package is side-effect free)
+registerProtectionFeatures();
 
 const SheetTab: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -82,8 +88,10 @@ const SheetTab: React.FC = () => {
           <div
             className="fortune-sheettab-button"
             onClick={onAddSheetClick}
+            onKeyDown={activateOnKey}
             tabIndex={0}
             aria-label={info.newSheet}
+            title={info.newSheet}
             role="button"
           >
             <SVGIcon name="plus" width={16} height={16} />
@@ -104,6 +112,21 @@ const SheetTab: React.FC = () => {
                   ctx.sheetTabContextMenu = {};
                 });
               }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                e.stopPropagation();
+                setContext((ctx) => {
+                  ctx.showSheetList = !ctx.showSheetList;
+                  ctx.sheetTabContextMenu = {};
+                });
+              }}
+              tabIndex={0}
+              role="button"
+              aria-label={info.allSheets}
+              title={info.allSheets}
+              aria-haspopup="menu"
+              aria-expanded={!!context.showSheetList}
             >
               <SVGIcon name="all-sheets" width={16} height={16} />
             </div>
@@ -124,6 +147,8 @@ const SheetTab: React.FC = () => {
             className="fortune-sheettab-container-c"
             id="fortune-sheettab-container-c"
             ref={tabContainerRef}
+            role="tablist"
+            aria-label={info.sheetTabs}
           >
             {_.sortBy(context.luckysheetfile, (s) => Number(s.order)).map(
               (sheet) => {
@@ -147,7 +172,11 @@ const SheetTab: React.FC = () => {
             onClick={() => {
               scrollBy(-scrollDelta);
             }}
+            onKeyDown={activateOnKey}
             tabIndex={0}
+            role="button"
+            aria-label={info.scrollTabsLeft}
+            title={info.scrollTabsLeft}
           >
             <SVGIcon name="arrow-doubleleft" width={12} height={12} />
           </div>
@@ -160,7 +189,11 @@ const SheetTab: React.FC = () => {
             onClick={() => {
               scrollBy(scrollDelta);
             }}
+            onKeyDown={activateOnKey}
             tabIndex={0}
+            role="button"
+            aria-label={info.scrollTabsRight}
+            title={info.scrollTabsRight}
           >
             <SVGIcon name="arrow-doubleright" width={12} height={12} />
           </div>

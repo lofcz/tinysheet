@@ -9,6 +9,7 @@ const hasExtension = (moduleName) =>
   VALID_EXTENSIONS.some((ext) => moduleName.endsWith(`.${ext}`));
 const isCoreJSPolyfill = (moduleName) => moduleName.startsWith("core-js");
 const isLocalModule = (moduleName) => moduleName.startsWith(".");
+// oxlint-disable-next-line no-unused-vars -- kept for reference
 const isNodeModule = (moduleName) => {
   try {
     require.resolve(moduleName);

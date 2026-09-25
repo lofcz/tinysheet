@@ -1,6 +1,64 @@
-import { IuploadfileList, IattributeList, stringToNum } from "../common/ICommon";
+import {
+  IuploadfileList,
+  IattributeList,
+  stringToNum,
+} from "../common/ICommon";
 import { indexedColors } from "../common/constant";
 import { LightenDarkenColor } from "../common/method";
+
+/** Compiled tag patterns, shared by every reader (they are stateless). */
+const tagPatternCache = new Map<string, RegExp>();
+
+/**
+ * OOXML writers disagree on prefixes: Excel uses `xdr:`/`c:`, openpyxl often
+ * puts the same local names in a default xmlns. Match either form.
+ */
+function tagMatchNames(tag: string): string[] {
+  const names = [tag];
+  const colon = tag.indexOf(":");
+  if (colon > -1) {
+    const localName = tag.substr(colon + 1);
+    if (localName.length > 0 && names.indexOf(localName) == -1) {
+      names.push(localName);
+    }
+  }
+  return names;
+}
+
+function tagPattern(tag: string): string {
+  return tagMatchNames(tag)
+    .map(
+      (t) =>
+        "<" +
+        t +
+        "\\s[^>]*?[^/]>[\\s\\S]*?</" +
+        t +
+        ">|<" +
+        t +
+        "\\s[^>]*?/>|<" +
+        t +
+        ">[\\s\\S]*?</" +
+        t +
+        ">|<" +
+        t +
+        "/>"
+    )
+    .join("|");
+}
+
+/** The global regular expression matching `tag` ("a|b" for alternatives). */
+function tagRegExp(tag: string): RegExp {
+  let re = tagPatternCache.get(tag);
+  if (!re) {
+    const source =
+      tag.indexOf("|") > -1
+        ? tag.split("|").map(tagPattern).join("|")
+        : tagPattern(tag);
+    re = new RegExp(source, "g");
+    tagPatternCache.set(tag, re);
+  }
+  return re;
+}
 
 class xmloperation {
   /**
@@ -8,67 +66,23 @@ class xmloperation {
    * @param file Xml string
    * @return Xml element string
    */
-  /**
-   * OOXML writers disagree on prefixes: Excel uses `xdr:`/`c:`, openpyxl often
-   * puts the same local names in a default xmlns. Match either form.
-   */
-  private tagMatchNames(tag: string): string[] {
-    let names = [tag];
-    let colon = tag.indexOf(":");
-    if (colon > -1) {
-      let localName = tag.substr(colon + 1);
-      if (localName.length > 0 && names.indexOf(localName) == -1) {
-        names.push(localName);
-      }
-    }
-    return names;
-  }
-
-  private tagPattern(tag: string): string {
-    let names = this.tagMatchNames(tag);
-    let parts: string[] = [];
-    for (let i = 0; i < names.length; i++) {
-      let t = names[i];
-      parts.push(
-        "<" +
-          t +
-          " [^>]+?[^/]>[\\s\\S]*?</" +
-          t +
-          ">|<" +
-          t +
-          " [^>]+?/>|<" +
-          t +
-          ">[\\s\\S]*?</" +
-          t +
-          ">|<" +
-          t +
-          "/>"
-      );
-    }
-    return parts.join("|");
-  }
-
   protected getElementsByOneTag(tag: string, file: string): string[] {
-    //<a:[^/>: ]+?>.*?</a:[^/>: ]+?>
-    let readTagReg;
-    if (tag.indexOf("|") > -1) {
-      let tags = tag.split("|"),
-        tagsRegTxt = "";
-      for (let i = 0; i < tags.length; i++) {
-        tagsRegTxt += "|" + this.tagPattern(tags[i]);
+    if (!file) return [];
+    // cheap pre-check: none of the names occurs at all
+    const names = tag.split("|");
+    let present = false;
+    for (let i = 0; i < names.length && !present; i++) {
+      const candidates = tagMatchNames(names[i]);
+      for (let j = 0; j < candidates.length; j++) {
+        if (file.indexOf("<" + candidates[j]) > -1) {
+          present = true;
+          break;
+        }
       }
-      tagsRegTxt = tagsRegTxt.substr(1, tagsRegTxt.length);
-      readTagReg = new RegExp(tagsRegTxt, "g");
-    } else {
-      readTagReg = new RegExp(this.tagPattern(tag), "g");
     }
-
-    let ret = file.match(readTagReg);
-    if (ret == null) {
-      return [];
-    } else {
-      return ret;
-    }
+    if (!present) return [];
+    const ret = file.match(tagRegExp(tag));
+    return ret == null ? [] : ret;
   }
 }
 
@@ -115,19 +129,30 @@ export class ReadXml extends xmloperation {
     return elements;
   }
 
+  /** Text of a part (exact path, or the first path containing `name`). */
+  getFileText(name: string): string {
+    return this.getFileByName(name);
+  }
+
   /**
    * @param name One of uploadfileList's name, search for file by this parameter
    * @retrun Select a file from uploadfileList
    */
   private getFileByName(name: string): string {
+    if (name == null) return "";
+    const exact = this.originFile[name];
+    if (typeof exact === "string") return exact;
     for (let fileKey in this.originFile) {
       if (fileKey.indexOf(name) > -1) {
-        return this.originFile[fileKey];
+        const file = this.originFile[fileKey];
+        return typeof file === "string" ? file : "";
       }
     }
     return "";
   }
 }
+
+const ATTRIBUTE_RE = /([^\s=/<>"']+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 
 export class Element extends xmloperation {
   elementString: string;
@@ -138,28 +163,16 @@ export class Element extends xmloperation {
     super();
     this.elementString = str;
     this.setValue();
-    const readAttrReg = new RegExp('[a-zA-Z0-9_:]*?=".*?"', "g");
-    let attrList = this.container.match(readAttrReg);
     this.attributeList = {};
-    if (attrList != null) {
-      for (let key in attrList) {
-        let attrFull = attrList[key];
-        // let al= attrFull.split("=");
-        if (attrFull.length == 0) {
-          continue;
-        }
-        let attrKey = attrFull.substr(0, attrFull.indexOf("="));
-        let attrValue = attrFull.substr(attrFull.indexOf("=") + 1);
-        if (
-          attrKey == null ||
-          attrValue == null ||
-          attrKey.length == 0 ||
-          attrValue.length == 0
-        ) {
-          continue;
-        }
-        this.attributeList[attrKey] = attrValue.substr(1, attrValue.length - 2);
-      }
+    const container = this.container ?? "";
+    // attributes of the start tag (not of its name)
+    const nameEnd = container.search(/[\s/>]/);
+    ATTRIBUTE_RE.lastIndex = nameEnd > 0 ? nameEnd : 0;
+    let m = ATTRIBUTE_RE.exec(container);
+    while (m) {
+      const value = m[2] !== undefined ? m[2] : m[3];
+      if (m[1].length > 0) this.attributeList[m[1]] = value;
+      m = ATTRIBUTE_RE.exec(container);
     }
   }
 
@@ -194,48 +207,34 @@ export class Element extends xmloperation {
    * @desc get xml dom value and container, <container>value</container>
    */
   private setValue() {
-    let str = this.elementString;
+    const str = this.elementString;
     if (str.substr(str.length - 2, 2) == "/>") {
       this.value = "";
       this.container = str;
-    } else {
-      let firstTag = this.getFirstTag();
-      const firstTagReg = new RegExp(
-        "(<" +
-          firstTag +
-          " [^>]+?[^/]>)([\\s\\S]*?)</" +
-          firstTag +
-          ">|(<" +
-          firstTag +
-          ">)([\\s\\S]*?)</" +
-          firstTag +
-          ">",
-        "g"
-      );
-      let result = firstTagReg.exec(str);
-      if (result != null) {
-        if (result[1] != null) {
-          this.container = result[1];
-          this.value = result[2];
-        } else {
-          this.container = result[3];
-          this.value = result[4];
-        }
+      return;
+    }
+    // the start tag ends at the first ">" outside quotes
+    let quote = 0;
+    let end = -1;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      if (quote) {
+        if (ch === quote) quote = 0;
+      } else if (ch === 34 || ch === 39) {
+        quote = ch;
+      } else if (ch === 62) {
+        end = i + 1;
+        break;
       }
     }
-  }
-
-  /**
-   * @desc get xml dom first tag, <a><b></b></a>, get a
-   */
-  private getFirstTag() {
-    let str = this.elementString;
-    let firstTag = str.substr(0, str.indexOf(" "));
-    if (firstTag == "" || firstTag.indexOf(">") > -1) {
-      firstTag = str.substr(0, str.indexOf(">"));
+    if (end < 0) {
+      this.container = str;
+      this.value = "";
+      return;
     }
-    firstTag = firstTag.substr(1, firstTag.length);
-    return firstTag;
+    this.container = str.slice(0, end);
+    const close = str.lastIndexOf("</");
+    this.value = close >= end ? str.slice(end, close) : "";
   }
 }
 

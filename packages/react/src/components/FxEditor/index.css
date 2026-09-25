@@ -1,38 +1,107 @@
 .fortune-fx-editor {
+  background-color: var(--fortune-bg);
+  color: var(--fortune-text);
   display: flex;
   flex-direction: row;
   height: 28px;
-  border-bottom: 1px solid #d4d4d4;
+  border-bottom: 1px solid var(--fortune-border);
 }
 
 .fortune-fx-icon {
   display: flex;
   align-items: center;
   margin: 0 12px;
+  align-self: flex-start;
+  height: 28px;
 }
 
 .fortune-name-box-container {
-  width: 99px;
-  border-right: 1px solid #d4d4d4;
+  position: relative;
+  width: 120px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--fortune-border);
   font-size: 14px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 
-.fortune-name-box {
-  width: 100%;
-  text-align: center;
+.fortune-fx-editor .fortune-name-box {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 2px 0 6px;
   margin: 0;
+  border: none;
+  border-radius: 0;
   outline: none;
+  box-shadow: none;
   cursor: text;
-  /* -webkit-user-modify: read-write-plaintext-only; */
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  overflow: hidden;
-  -webkit-transform: translateZ(0);
-  background-color: white;
-  word-wrap: break-word;
-  -webkit-nbsp-mode: space;
-  -webkit-line-break: after-white-space;
+  color: var(--fortune-text);
+  background-color: var(--fortune-bg);
+}
+
+.fortune-fx-editor .fortune-name-box:focus {
+  box-shadow: inset 0 0 0 1px var(--fortune-accent);
+}
+
+.fortune-name-box-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 28px;
+  cursor: pointer;
+  color: var(--fortune-icon);
+}
+
+.fortune-name-box-arrow:hover {
+  background-color: var(--fortune-bg-hover);
+}
+
+.fortune-name-box-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1004;
+  min-width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--fortune-space-1, 4px) 0;
+  font-size: var(--fortune-font-size);
+  color: var(--fortune-text);
+  background: var(--fortune-bg-elevated);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  box-shadow: var(--fortune-shadow);
+}
+
+.fortune-name-box-list-item,
+.fortune-name-box-list-empty {
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.fortune-name-box-list-item {
+  cursor: pointer;
+}
+
+.fortune-name-box-list-item:hover,
+.fortune-name-box-list-item:focus-visible {
+  outline: none;
+  background-color: var(--fortune-bg-hover);
+}
+
+.fortune-name-box-list-item[aria-selected="true"] {
+  background-color: var(--fortune-accent-soft);
+}
+
+.fortune-name-box-list-empty {
+  color: var(--fortune-text-muted);
 }
 
 .fortune-fx-input-container {
@@ -43,16 +112,16 @@
   display: flex;
   align-items: center;
   position: relative;
-  border-left: 1px solid #e5e5e5;
+  border-left: 1px solid var(--fortune-border);
 }
 
 .fortune-fx-input {
   flex: 1;
   height: 100%;
-  overflow-y: scroll;
+  overflow-y: auto;
   padding-left: 2px;
   font-size: 14px;
-  line-height: 14px;
+  line-height: 20px;
   margin: 0;
   outline: none;
   cursor: text;
@@ -61,12 +130,79 @@
   -webkit-transform: translateZ(0);
   -webkit-nbsp-mode: space;
   -webkit-line-break: after-white-space;
-  background-color: white;
-  padding-top: 7px;
+  background-color: var(--fortune-bg);
+  padding-top: 4px;
+  padding-bottom: 4px;
   box-sizing: border-box;
-  color: black;
+  color: var(--fortune-text);
   text-align: left;
 }
 .fortune-fx-input[contenteditable="true"] {
   -webkit-user-modify: read-write-plaintext-only;
+}
+
+/* a spilled cell: the anchor's formula, greyed out */
+.fortune-fx-input-spilled {
+  color: var(--fortune-text-subtle);
+}
+
+/* expand / collapse (Ctrl+Shift+U) and resize of the formula bar */
+.fortune-fx-editor-wrap {
+  position: relative;
+}
+
+.fortune-fx-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  flex-shrink: 0;
+  width: 24px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-left: 1px solid var(--fortune-border);
+  background: var(--fortune-bg);
+  color: var(--fortune-icon);
+  cursor: pointer;
+}
+
+.fortune-fx-toggle:hover {
+  background-color: var(--fortune-bg-hover);
+}
+
+.fortune-fx-toggle:focus-visible {
+  outline: 2px solid var(--fortune-accent);
+  outline-offset: -2px;
+}
+
+.fortune-fx-toggle svg {
+  transition: transform 0.15s ease;
+}
+
+.fortune-fx-editor-expanded .fortune-fx-toggle svg {
+  transform: rotate(180deg);
+}
+
+.fortune-fx-resize-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 6px;
+  z-index: 3;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.fortune-fx-resize-handle:hover,
+.fortune-fx-resize-handle:active {
+  background: linear-gradient(
+    to bottom,
+    transparent 2px,
+    var(--fortune-accent) 2px,
+    var(--fortune-accent) 4px,
+    transparent 4px
+  );
 }

@@ -107,6 +107,10 @@ export class FortuneSheetCelldataValue implements IfortuneSheetCelldataValue {
   f: string | undefined; //formula, f
   rt: number | undefined; //text rotation angle 0-180 alignment
   qp: number | undefined; //quotePrefix, show number as string
+  sk?: number; //shrink to fit, alignment
+  ind?: number; //indent level, alignment
+  lo?: number; //locked (0: unlocked; unset: locked), protection
+  hi?: number; //formula hidden, protection
 }
 
 export class FortuneSheetCellFormat implements IFortuneSheetCellFormat {
@@ -140,17 +144,13 @@ export class FortuneConfig implements IfortuneSheetConfig {
   customWidth: IfortuneSheetRowAndColumnHidden;
 }
 
-export class FortuneSheetborderInfoCellForImp
-  implements IfortuneSheetborderInfoCellForImp
-{
+export class FortuneSheetborderInfoCellForImp implements IfortuneSheetborderInfoCellForImp {
   rangeType: string;
   // cells:string[]
   value: IfortuneSheetborderInfoCellValue;
 }
 
-export class FortuneSheetborderInfoCellValue
-  implements IfortuneSheetborderInfoCellValue
-{
+export class FortuneSheetborderInfoCellValue implements IfortuneSheetborderInfoCellValue {
   row_index: number;
   col_index: number;
   l: IfortuneSheetborderInfoCellValueStyle;
@@ -159,9 +159,7 @@ export class FortuneSheetborderInfoCellValue
   b: IfortuneSheetborderInfoCellValueStyle;
 }
 
-export class FortuneSheetborderInfoCellValueStyle
-  implements IfortuneSheetborderInfoCellValueStyle
-{
+export class FortuneSheetborderInfoCellValueStyle implements IfortuneSheetborderInfoCellValueStyle {
   "style": number;
   "color": string;
 }

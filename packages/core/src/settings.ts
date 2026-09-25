@@ -1,6 +1,17 @@
 import { v4 as uuidv4 } from "uuid";
 import React from "react";
-import { Sheet, Selection, CellMatrix, Cell } from "./types";
+import {
+  Sheet,
+  Selection,
+  CellMatrix,
+  Cell,
+  CommentUser,
+  ThreadedComment,
+  ThreadedCommentPost,
+  CalcSettings,
+} from "./types";
+import type { ErrorCheckingOptions } from "./modules/errorChecking";
+import type { ThemeSetting } from "./theme";
 
 export type Hooks = {
   beforeUpdateCell?: (r: number, c: number, value: any) => boolean;
@@ -120,6 +131,39 @@ export type Hooks = {
     newName: string
   ) => boolean;
   afterUpdateSheetName?: (id: string, oldName: string, newName: string) => void;
+  /**
+   * A threaded comment was added, replied to, edited, deleted, resolved or
+   * reopened from the UI (for back-end persistence / collaboration).
+   */
+  // eslint-disable-next-line no-use-before-define
+  onCommentChange?: (change: ThreadedCommentChange) => void;
+  /** A posted comment @mentions `users` (e.g. to notify them). */
+  onMention?: (
+    // eslint-disable-next-line no-use-before-define
+    comment: ThreadedCommentEvent,
+    users: CommentUser[]
+  ) => void;
+};
+
+/** A post of a threaded comment together with where it lives. */
+export type ThreadedCommentEvent = {
+  sheetId: string;
+  /** The thread after the change (null once deleted). */
+  thread: ThreadedComment | null;
+  threadId: string;
+  /** The post concerned (the thread's first post for thread events). */
+  post?: ThreadedCommentPost;
+};
+
+export type ThreadedCommentChange = ThreadedCommentEvent & {
+  type:
+    | "add"
+    | "reply"
+    | "edit"
+    | "delete"
+    | "deleteThread"
+    | "resolve"
+    | "reopen";
 };
 
 export type Settings = {
@@ -131,9 +175,9 @@ export type Settings = {
   showFormulaBar?: boolean;
   showSheetTabs?: boolean;
   /**
-   * Bottom status-bar selection aggregates (count / sum / avg / …).
-   * When false, skips `calcSelectionInfo` on every selection change —
-   * important for drag performance in read-only / embedded previews.
+   * Bottom status bar with the selection aggregates (Average, Count, Sum…;
+   * right-click it to choose). When false, nothing is computed on selection
+   * changes — useful for read-only / embedded previews.
    * @default true
    */
   showStatsBar?: boolean;
@@ -163,6 +207,34 @@ export type Settings = {
     onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   }[];
   currency?: string;
+  /**
+   * Colour theme of the workbook UI and canvas. `auto` follows the
+   * `prefers-color-scheme` media query and updates live.
+   * @default "light"
+   */
+  theme?: ThemeSetting;
+  /** Author of new threaded comments (who may edit/delete their posts). */
+  currentUser?: CommentUser | null;
+  /** People offered by the @mention picker of threaded comments. */
+  users?: CommentUser[];
+  /** Looks people up for the @mention picker (instead of `users`). */
+  searchUsers?:
+    | ((query: string) => CommentUser[] | Promise<CommentUser[]>)
+    | null;
+  /**
+   * Show the automatic page breaks (dashed lines) in Normal view once a
+   * sheet was previewed or printed, or a page break was inserted, as Excel
+   * does.
+   * @default true
+   */
+  showPageBreaksAfterPrint?: boolean;
+  /**
+   * Calculation options used while the workbook data carries none
+   * (`sheet.calcSettings`, set from Formulas > Calculation Options).
+   */
+  calculation?: CalcSettings;
+  /** Background error checking rules (green triangles). */
+  errorChecking?: ErrorCheckingOptions;
 };
 
 export const defaultSettings: Required<Settings> = {
@@ -184,93 +256,150 @@ export const defaultSettings: Required<Settings> = {
   defaultColWidth: 73,
   defaultRowHeight: 19,
   defaultFontSize: 10,
+  // Excel's Home tab order, grouped like its ribbon groups; items that do
+  // not fit move to the "More" menu from the end.
   toolbarItems: [
+    // Undo / Clipboard
     "undo",
     "redo",
     "format-painter",
-    "clear-format",
     "|",
-    "currency-format",
-    "percentage-format",
-    "number-decrease",
-    "number-increase",
-    "format",
-    "|",
+    // Font
     "font",
-    "|",
     "font-size",
     "|",
     "bold",
     "italic",
-    "strike-through",
     "underline",
+    "strike-through",
     "|",
-    "font-color",
-    "background",
     "border",
-    "merge-cell",
+    "background",
+    "font-color",
     "|",
-    "horizontal-align",
+    // Alignment
     "vertical-align",
+    "horizontal-align",
     "text-wrap",
     "text-rotation",
+    "merge-cell",
     "|",
-    "freeze",
+    // Number
+    "format",
+    "currency-format",
+    "percentage-format",
+    "number-increase",
+    "number-decrease",
+    "|",
+    // Styles
     "conditionFormat",
-    "filter",
-    "link",
-    "image",
-    "comment",
+    "formatAsTable",
+    "cell-styles",
+    "|",
+    // Editing
     "quick-formula",
+    "clear-format",
+    "filter",
+    "search",
+    "|",
+    // View / Insert
+    "freeze",
+    "image",
+    "picture-in-cell", // Place picture in cell (pictures in cells)
+    "chart",
+    "sparkline",
+    "shapes",
+    "pivotTable",
+    "slicer",
+    "link",
+    "comment",
+    "threaded-comment", // New Comment, Previous/Next, Comments pane
+    "checkbox", // Insert › Checkbox (cell controls)
+    "|",
+    // Formulas / Data
+    "nameManager",
     "dataVerification",
     "splitColumn",
+    "outline", // Group / Ungroup, Subtotal, Auto Outline (Data › Outline)
+    "data-tools", // Flash Fill, Advanced Filter, What-If Analysis
     "locationCondition",
     "screenshot",
-    "search",
+    "|",
+    // Page Layout / File > Print (registered by the react package)
+    "pageLayout",
+    "print",
+    "|",
+    // Formula Auditing / Calculation
+    "trace-precedents",
+    "trace-dependents",
+    "remove-arrows",
+    "show-formulas",
+    "error-checking",
+    "evaluate-formula",
+    "watch-window",
+    "calculation-options",
+    "|",
+    // View options / Review › Protection (react/src/components/Protection)
+    "view-options",
+    "protection",
   ], // 自定义工具栏
+  // Excel's cell menu. Entries backed by other modules ("paste-special",
+  // "cell-format", "define-name", "chart") appear once registered; see
+  // react/src/components/ContextMenu/actions.ts. Also available:
+  // "insert-row" / "insert-column" (insert n rows/columns with a count),
+  // "delete-row" / "delete-column", "orderAZ", "orderZA", "sort", "filter".
   cellContextMenu: [
-    "copy", // 复制
-    "paste", // 粘贴
+    "cut",
+    "copy",
+    "paste",
+    "paste-special",
     "|",
-    "insert-row", // 插入行
-    "insert-column", // 插入列
-    "delete-row", // 删除选中行
-    "delete-column", // 删除选中列
-    "delete-cell", // 删除单元格
-    "hide-row", // 隐藏选中行和显示选中行
-    "hide-column", // 隐藏选中列和显示选中列
-    "set-row-height", // 设置行高
-    "set-column-width", // 设置列宽
+    // PivotTable entries (shown inside a report, see react PivotTable)
+    "pivot-refresh",
+    "pivot-value-settings",
+    "pivot-field-list",
     "|",
-    "clear", // 清除内容
-    "sort", // 排序选区
-    "orderAZ", // 升序
-    "orderZA", // 降序
-    "filter", // 筛选选区
-    "chart", // 图表生成
-    "image", // 插入图片
-    "link", // 插入链接
-    "data", // 数据验证
-    "cell-format", // 设置单元格格式
+    "insert-cells", // Insert… (shift cells right / down, entire row / column)
+    "delete-cells", // Delete… (shift cells left / up, entire row / column)
+    "clear", // Clear Contents
+    "|",
+    "filter-menu",
+    "sort-menu",
+    "|",
+    "new-comment", // threaded comments: new / reply / delete
+    "comment", // insert / edit / delete / show notes
+    "|",
+    "cell-format", // Format Cells…
+    "pick-list", // Pick From Drop-down List…
+    "define-name",
+    "link",
+    "image",
+    "picture-in-cell", // Place Picture in Cell…
+    "picture-over-cells", // on a picture cell: Place over Cells
+    "picture-alt-text", // on a placed picture: Alt Text…
+    "data", // Data Validation…
+    "chart",
+    "|",
+    "formula-auditing", // Trace Precedents / Dependents, Evaluate, Watch…
+    "sparkline", // Sparklines submenu on cells with sparklines
   ], // 自定义单元格右键菜单
+  // row / column header menu
   headerContextMenu: [
-    "copy", // 复制
-    "paste", // 粘贴
+    "cut",
+    "copy",
+    "paste",
+    "paste-special",
     "|",
-    "insert-row", // 插入行
-    "insert-column", // 插入列
-    "delete-row", // 删除选中行
-    "delete-column", // 删除选中列
-    "delete-cell", // 删除单元格
-    "hide-row", // 隐藏选中行和显示选中行
-    "hide-column", // 隐藏选中列和显示选中列
-    "set-row-height", // 设置行高
-    "set-column-width", // 设置列宽
+    "insert-rowcol",
+    "delete-rowcol",
+    "clear",
     "|",
-    "clear", // 清除内容
-    "sort", // 排序选区
-    "orderAZ", // 升序
-    "orderZA", // 降序
+    "cell-format",
+    "set-row-height", // Row Height…
+    "set-column-width", // Column Width…
+    "autofit",
+    "hide-row", // Hide / Unhide
+    "hide-column",
   ], // header菜单
   sheetTabContextMenu: [
     "delete",
@@ -286,14 +415,21 @@ export const defaultSettings: Required<Settings> = {
     "sort-by-asc",
     "sort-by-desc",
     "|",
+    "clear-column-filter",
     "filter-by-color",
+    "filter-by-condition",
     "|",
-    // "filter-by-condition",
-    // "|",
     "filter-by-value",
   ], // 筛选菜单
   generateSheetId: () => uuidv4(),
   hooks: {},
   customToolbarItems: [],
   currency: "¥",
+  theme: "light", // "light" | "dark" | "auto"
+  currentUser: null,
+  users: [],
+  searchUsers: null,
+  showPageBreaksAfterPrint: true,
+  calculation: {},
+  errorChecking: {},
 };

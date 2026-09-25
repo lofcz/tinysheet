@@ -1,0 +1,73 @@
+/* Protection and View options (dialogs reuse the data tools layout). */
+
+.fortune-protection-dialog {
+  min-width: 380px;
+  max-width: 460px;
+}
+
+.fortune-protection-actions {
+  max-height: 300px;
+  padding: 6px 10px;
+  margin: 6px 0 0;
+  background: var(--fortune-bg-input, var(--fortune-bg));
+}
+
+.fortune-protection-actions .fortune-dt-check {
+  margin-bottom: 4px;
+}
+
+.fortune-protection-caution {
+  line-height: 1.45;
+  margin-bottom: var(--fortune-space-2);
+}
+
+.fortune-protection-ranges {
+  display: flex;
+  gap: var(--fortune-space-2);
+  align-items: flex-start;
+  margin-top: 6px;
+}
+
+.fortune-protection-ranges .fortune-dt-scroll {
+  flex: 1;
+  min-height: 120px;
+}
+
+.fortune-protection-ranges .fortune-dt-table tbody tr {
+  cursor: default;
+}
+
+.fortune-protection-range-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2);
+  min-width: 90px;
+}
+
+.fortune-protection-menu-line {
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 170px;
+}
+
+.fortune-protection-menu-line[aria-disabled="true"] {
+  opacity: 0.45;
+}
+
+.fortune-protection-check {
+  display: inline-block;
+  width: 14px;
+  color: var(--fortune-accent-text, var(--fortune-accent));
+  font-weight: 600;
+}
+
+/* wrappers of the toolbar items: lay out as the combo itself */
+.fortune-protection-toolbar {
+  display: contents;
+}
+
+.fortune-protection-active .fortune-toolbar-combo-button {
+  color: var(--fortune-accent-text, var(--fortune-accent));
+  background: var(--fortune-accent-soft);
+  border-radius: var(--fortune-radius-sm);
+}

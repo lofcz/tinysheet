@@ -4,6 +4,14 @@ import {
   cancelNormalSelected,
   cancelActiveImgItem,
   locale,
+  getGroupedSheetIds,
+  onSheetTabActivated,
+  selectSheetRange,
+  toggleSheetInGroup,
+  checkWorkbookStructure,
+  isWorkbookStructureProtected,
+  isEditingFormula,
+  switchSheetWhileEditing,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
@@ -16,6 +24,7 @@ import React, {
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import SVGIcon from "../SVGIcon";
+import { activateOnKey } from "../Toolbar/Button";
 
 type Props = {
   sheet: Sheet;
@@ -28,12 +37,25 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const editable = useRef<HTMLSpanElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [svgColor, setSvgColor] = useState<string>("#c3c3c3");
   const { showAlert } = useAlert();
   const { info } = locale(context);
+  const isGrouped =
+    !isDropPlaceholder && getGroupedSheetIds(context).includes(sheet.id!);
+  /** The editor with the formula being edited (cell editor or formula bar). */
+  const formulaEditor = useCallback(
+    () =>
+      document.activeElement === refs.fxInput.current
+        ? refs.fxInput.current
+        : refs.cellInput.current,
+    [refs.cellInput, refs.fxInput]
+  );
 
   useEffect(() => {
     setContext((draftCtx) => {
+      // leaving Point mode across sheets already restored the edited cell's
+      // sheet (and a commit may have moved its selection since)
+      if (draftCtx.sheetScrollRestoredFor === draftCtx.currentSheetId) return;
+      draftCtx.sheetScrollRestoredFor = undefined;
       const r = context.sheetScrollRecord[draftCtx?.currentSheetId];
       if (r) {
         draftCtx.scrollLeft = r.scrollLeft ?? 0;
@@ -110,6 +132,7 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
       if (context.allowEdit === false) return;
       const draggingId = e.dataTransfer.getData("sheetId");
       setContext((draftCtx) => {
+        if (!checkWorkbookStructure(draftCtx)) return;
         const droppingId = sheet.id;
         let draggingSheet: Sheet | undefined;
         let droppingSheet: Sheet | undefined;
@@ -139,7 +162,9 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
 
   return (
     <div
-      role="button"
+      role="tab"
+      aria-selected={context.currentSheetId === sheet.id || isGrouped}
+      onKeyDown={activateOnKey}
       onDragOver={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -158,7 +183,9 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
       }}
       onDrop={onDrop}
       onDragStart={onDragStart}
-      draggable={context.allowEdit && !editing}
+      draggable={
+        context.allowEdit && !editing && !isWorkbookStructureProtected(context)
+      }
       key={sheet.id}
       ref={containerRef}
       className={
@@ -168,11 +195,34 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
               context.currentSheetId === sheet.id
                 ? " luckysheet-sheets-item-active"
                 : ""
-            }`
+            }${isGrouped ? " luckysheet-sheets-item-grouped" : ""}`
       }
-      onClick={() => {
+      onMouseDown={(e) => {
+        // Point mode across sheets: the formula keeps the focus
+        if (!isDropPlaceholder && isEditingFormula(context, formulaEditor())) {
+          e.preventDefault();
+        }
+      }}
+      onClick={(e) => {
         if (isDropPlaceholder) return;
+        // editing a formula: show the sheet to pick references on it
+        const editor = formulaEditor();
+        if (isEditingFormula(context, editor)) {
+          setContext((draftCtx) => {
+            switchSheetWhileEditing(draftCtx, sheet.id!, editor);
+          });
+          return;
+        }
+        // Ctrl/Cmd+click and Shift+click group sheets (Excel)
+        if (e.ctrlKey || e.metaKey || e.shiftKey) {
+          setContext((draftCtx) => {
+            if (e.shiftKey) selectSheetRange(draftCtx, sheet.id!);
+            else toggleSheetInGroup(draftCtx, sheet.id!);
+          });
+          return;
+        }
         setContext((draftCtx) => {
+          onSheetTabActivated(draftCtx, sheet.id!);
           draftCtx.sheetScrollRecord[draftCtx.currentSheetId] = {
             scrollLeft: draftCtx.scrollLeft,
             scrollTop: draftCtx.scrollTop,
@@ -193,10 +243,13 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         const rect = refs.workbookContainer.current!.getBoundingClientRect();
         const { pageX, pageY } = e;
         setContext((ctx) => {
-          // 右击的时候先进行跳转
-          ctx.dataVerificationDropDownList = false;
-          ctx.currentSheetId = sheet.id!;
-          ctx.zoomRatio = sheet.zoomRatio || 1;
+          // 右击的时候先进行跳转 (a right-click inside a group keeps it)
+          if (!getGroupedSheetIds(ctx).includes(sheet.id!)) {
+            onSheetTabActivated(ctx, sheet.id!);
+            ctx.dataVerificationDropDownList = false;
+            ctx.currentSheetId = sheet.id!;
+            ctx.zoomRatio = sheet.zoomRatio || 1;
+          }
           ctx.sheetTabContextMenu = {
             x: pageX - rect.left - window.scrollX,
             y: pageY - rect.top - window.scrollY,
@@ -206,7 +259,7 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         });
       }}
       style={{
-        borderLeft: dragOver ? "2px solid #0188fb" : "",
+        borderLeft: dragOver ? "2px solid var(--fortune-accent)" : "",
         display: sheet.hide === 1 ? "none" : "",
       }}
     >
@@ -215,7 +268,13 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         spellCheck="false"
         suppressContentEditableWarning
         contentEditable={isDropPlaceholder ? false : editing}
-        onDoubleClick={() => setEditing(true)}
+        onDoubleClick={() => {
+          if (isWorkbookStructureProtected(context)) {
+            setContext((ctx) => {
+              checkWorkbookStructure(ctx);
+            });
+          } else setEditing(true);
+        }}
         onBlur={onBlur}
         onKeyDown={onKeyDown}
         ref={editable}
@@ -225,8 +284,6 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
       </span>
       <span
         className="luckysheet-sheets-item-function"
-        onMouseEnter={() => setSvgColor("#5c5c5c")}
-        onMouseLeave={() => setSvgColor("#c3c3c3")}
         onClick={(e) => {
           if (isDropPlaceholder || context.allowEdit === false) return;
           const rect = refs.workbookContainer.current!.getBoundingClientRect();
@@ -242,10 +299,13 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
             };
           });
         }}
+        onKeyDown={activateOnKey}
         tabIndex={0}
+        role="button"
         aria-label={info.sheetOptions}
+        aria-haspopup="menu"
       >
-        <SVGIcon name="downArrow" width={12} style={{ fill: svgColor }} />
+        <SVGIcon name="downArrow" width={12} />
       </span>
       {!!sheet.color && (
         <div

@@ -9,6 +9,8 @@ import error, {
   ERROR_NUM,
   ERROR_REF,
   ERROR_VALUE,
+  ERROR_SPILL,
+  ERROR_CALC,
 } from "./error";
 import {
   extractLabel,
@@ -18,6 +20,14 @@ import {
   rowIndexToLabel,
   rowLabelToIndex,
 } from "./helper/cell";
+import { isLambda } from "./functions/lambda";
+import { createReference, isReference } from "./helper/reference";
+import {
+  createImageValue,
+  imageValueText,
+  isAllowedImageSource,
+  isImageValue,
+} from "./helper/image";
 
 export {
   SUPPORTED_FORMULAS,
@@ -29,6 +39,8 @@ export {
   ERROR_NUM,
   ERROR_REF,
   ERROR_VALUE,
+  ERROR_SPILL,
+  ERROR_CALC,
   Parser,
   error,
   extractLabel,
@@ -37,4 +49,14 @@ export {
   columnLabelToIndex,
   rowIndexToLabel,
   rowLabelToIndex,
+  isLambda,
+  createReference,
+  isReference,
+  createImageValue,
+  imageValueText,
+  isAllowedImageSource,
+  isImageValue,
 };
+
+export { LEGACY_FUNCTION_NAMES } from "./functions";
+export { databaseCriterion } from "./functions/database";

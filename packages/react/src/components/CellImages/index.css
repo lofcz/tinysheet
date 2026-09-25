@@ -1,0 +1,141 @@
+/* Pictures in cells: hover tooltip, dialogs, formula bar chip. */
+
+.fortune-cell-image-tooltip {
+  position: absolute;
+  z-index: 1003;
+  max-width: 280px;
+  padding: var(--fortune-space-1) var(--fortune-space-2);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-tooltip-bg);
+  color: var(--fortune-tooltip-text);
+  font-family: var(--fortune-font-family);
+  font-size: var(--fortune-font-size-sm);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  box-shadow: var(--fortune-shadow-sm);
+  pointer-events: none;
+}
+
+.fortune-cell-image-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-3);
+  width: 340px;
+  max-width: 100%;
+}
+
+.fortune-cell-image-dialog .title {
+  margin-bottom: 0;
+}
+
+.fortune-cell-image-dialog-source {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  min-height: var(--fortune-control-height);
+}
+
+.fortune-cell-image-dialog-button {
+  flex: none;
+  height: var(--fortune-control-height);
+  padding: 0 var(--fortune-space-3);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input);
+  color: var(--fortune-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.fortune-cell-image-dialog-button:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-cell-image-dialog-button:focus-visible {
+  outline: none;
+  box-shadow: var(--fortune-focus-ring);
+}
+
+.fortune-cell-image-dialog-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  min-width: 0;
+  color: var(--fortune-text-muted);
+}
+
+.fortune-cell-image-dialog-file img {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-muted);
+}
+
+.fortune-cell-image-dialog-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fortune-cell-image-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1);
+  color: var(--fortune-text-muted);
+}
+
+.fortune-cell-image-dialog-field .fortune-cellmenu-dialog-input {
+  width: 100%;
+}
+
+.fortune-cell-image-dialog-textarea {
+  height: auto;
+  min-height: 64px;
+  padding: var(--fortune-space-1) var(--fortune-space-2);
+  resize: vertical;
+}
+
+.fortune-cell-image-dialog-error {
+  color: var(--fortune-danger);
+  font-size: var(--fortune-font-size-sm);
+}
+
+/* formula bar: a placed picture shows as a chip until the bar is focused */
+.fortune-fx-picture-chip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-left: var(--fortune-space-1);
+  background: var(--fortune-bg);
+  pointer-events: none;
+}
+
+.fortune-fx-picture-chip-body {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fortune-space-1);
+  max-width: 100%;
+  padding: 0 var(--fortune-space-2) 0 var(--fortune-space-1);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-lg);
+  background: var(--fortune-bg-muted);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size-sm);
+  line-height: 20px;
+}
+
+.fortune-fx-picture-chip-body svg {
+  flex: none;
+  color: var(--fortune-icon);
+}
+
+.fortune-fx-picture-chip-body span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

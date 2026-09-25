@@ -1,9 +1,15 @@
 import _ from "lodash";
+import { checkDeleteRowCol, checkProtection } from "./protection";
 import { Context } from "../context";
 import { Sheet } from "../types";
 import { getSheetIndex } from "../utils";
-import { getcellFormula } from "./cell";
-import { functionStrChange } from "./formula";
+import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
+import { adjustFrozenForDelete, adjustFrozenForInsert } from "./freeze";
+// eslint-disable-next-line import/no-cycle
+import { onSpillStructureChange, spillAnchorsOf } from "./spill";
+// names, tables, charts and notes follow structural changes through the
+// reference adjusters registered by modelSync (run by adjustReferences)
+import "./modelSync";
 
 const refreshLocalMergeData = (merge_new: Record<string, any>, file: Sheet) => {
   Object.entries(merge_new).forEach(([, v]) => {
@@ -52,17 +58,8 @@ export function insertRowCol(
   const { type, index, direction } = op;
   id = id || ctx.currentSheetId;
 
-  // if (
-  //   type === "row" &&
-  //   !checkProtectionAuthorityNormal(sheetId, "insertRows")
-  // ) {
-  //   return;
-  // } else if (
-  //   type === "column" &&
-  //   !checkProtectionAuthorityNormal(sheetId, "insertColumns")
-  // ) {
-  //   return;
-  // }
+  const insertAction = type === "row" ? "insertRows" : "insertColumns";
+  if (!checkProtection(ctx, insertAction, null, id)) return;
 
   const curOrder = getSheetIndex(ctx, id);
   if (curOrder == null) return;
@@ -72,6 +69,8 @@ export function insertRowCol(
 
   const d = file.data;
   if (!d) return;
+  // spill anchors as they are before the change (see onSpillStructureChange)
+  const spillAnchors = spillAnchorsOf(ctx, id);
 
   const cfg = file.config || {};
 
@@ -165,105 +164,29 @@ export function insertRowCol(
   });
   cfg.merge = merge_new;
 
-  // 公式配置变动
+  // 公式配置变动: rewrite every reference in the workbook (Excel semantics),
+  // then move the calcChain entries of this sheet
+  adjustReferences(ctx, {
+    type: "insert",
+    sheetId: id,
+    axis: type,
+    index: direction === "lefttop" ? index : index + 1,
+    count,
+  });
   const newCalcChain = [];
-  for (
-    let SheetIndex = 0;
-    SheetIndex < ctx.luckysheetfile.length;
-    SheetIndex += 1
-  ) {
-    if (
-      _.isNil(ctx.luckysheetfile[SheetIndex].calcChain) ||
-      ctx.luckysheetfile.length === 0
-    ) {
-      continue;
-    }
-    const { calcChain } = ctx.luckysheetfile[SheetIndex];
-    const { data } = ctx.luckysheetfile[SheetIndex];
-    for (let i = 0; i < calcChain!.length; i += 1) {
-      const calc: any = _.cloneDeep(calcChain![i]);
-      const calc_r = calc.r;
-      const calc_c = calc.c;
-      const calc_i = calc.id;
-      const calc_funcStr = getcellFormula(ctx, calc_r, calc_c, calc_i);
-
-      if (type === "row" && SheetIndex === curOrder) {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "add",
-          "row",
-          direction,
-          index,
-          count
-        )}`;
-
-        if (d[calc_r]?.[calc_c]?.f === calc_funcStr) {
-          d[calc_r]![calc_c]!.f = functionStr;
-        }
-
-        if (direction === "lefttop") {
-          if (calc_r >= index) {
-            calc.r += count;
-          }
-        } else if (direction === "rightbottom") {
-          if (calc_r > index) {
-            calc.r += count;
-          }
-        }
-
-        newCalcChain.push(calc);
-      } else if (type === "row") {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "add",
-          "row",
-          direction,
-          index,
-          count
-        )}`;
-
-        if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-          data![calc_r]![calc_c]!.f = functionStr;
-        }
-      } else if (type === "column" && SheetIndex === curOrder) {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "add",
-          "col",
-          direction,
-          index,
-          count
-        )}`;
-
-        if (d[calc_r]?.[calc_c]?.f === calc_funcStr) {
-          d[calc_r]![calc_c]!.f = functionStr;
-        }
-
-        if (direction === "lefttop") {
-          if (calc_c >= index) {
-            calc.c += count;
-          }
-        } else if (direction === "rightbottom") {
-          if (calc_c > index) {
-            calc.c += count;
-          }
-        }
-
-        newCalcChain.push(calc);
-      } else if (type === "column") {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "add",
-          "col",
-          direction,
-          index,
-          count
-        )}`;
-
-        if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-          data![calc_r]![calc_c]!.f = functionStr;
-        }
+  const { calcChain } = file;
+  if (calcChain != null) {
+    for (let i = 0; i < calcChain.length; i += 1) {
+      const calc: any = _.cloneDeep(calcChain[i]);
+      const pos = type === "row" ? calc.r : calc.c;
+      if (
+        (direction === "lefttop" && pos >= index) ||
+        (direction === "rightbottom" && pos > index)
+      ) {
+        if (type === "row") calc.r += count;
+        else calc.c += count;
       }
+      newCalcChain.push(calc);
     }
   }
 
@@ -367,18 +290,8 @@ export function insertRowCol(
     newFilterObj.filter_select = { row: [f_r1, f_r2], column: [f_c1, f_c2] };
   }
 
-  if (newFilterObj != null && newFilterObj.filter != null) {
-    if (cfg.rowhidden == null) {
-      cfg.rowhidden = {};
-    }
-
-    _.forEach(newFilterObj.filter, (v, k) => {
-      const f_rowhidden = newFilterObj.filter[k].rowhidden;
-      _.forEach(f_rowhidden, (v1, n) => {
-        cfg.rowhidden![n] = 0;
-      });
-    });
-  }
+  // rows hidden by the filter are in cfg.rowhidden, which is shifted below
+  // (adding their new positions here would shift them twice)
 
   // 条件格式配置变动
   const CFarr = file.luckysheet_conditionformat_save;
@@ -498,27 +411,13 @@ export function insertRowCol(
     }
   }
 
-  // 冻结配置变动
-  const { frozen } = file;
-  if (frozen) {
-    const normalizedIndex = direction === "lefttop" ? index - 1 : index;
-    if (
-      type === "row" &&
-      (frozen.type === "rangeRow" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.row_focus ?? -1) > normalizedIndex) {
-        frozen.range!.row_focus += count;
-      }
-    }
-    if (
-      type === "column" &&
-      (frozen.type === "rangeColumn" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.column_focus ?? -1) > normalizedIndex) {
-        frozen.range!.column_focus += count;
-      }
-    }
-  }
+  // frozen panes stay on the same rows/columns
+  adjustFrozenForInsert(
+    file,
+    type,
+    direction === "lefttop" ? index : index + 1,
+    count
+  );
 
   // 数据验证配置变动
   const { dataVerification } = file;
@@ -610,6 +509,7 @@ export function insertRowCol(
     });
   }
 
+  // oxlint-disable-next-line no-unused-vars -- legacy, kept for the commented-out rc payload
   let type1;
   if (type === "row") {
     type1 = "r";
@@ -1152,7 +1052,18 @@ export function insertRowCol(
   }
 
   refreshLocalMergeData(merge_new, file);
-  ctx.formulaCache.formulaCellInfoMap = null;
+  recalcAfterStructuralChange(ctx);
+  onSpillStructureChange(
+    ctx,
+    id,
+    {
+      type,
+      insert: true,
+      index: direction === "rightbottom" ? index + 1 : index,
+      count,
+    },
+    spillAnchors
+  );
 
   // if (type === "row") {
   //   const scrollLeft = $("#luckysheet-cell-main").scrollLeft();
@@ -1189,18 +1100,7 @@ export function deleteRowCol(
   let { start, end, id } = op;
   id = id || ctx.currentSheetId;
 
-  // if (
-  //   type == "row" &&
-  //   !checkProtectionAuthorityNormal(sheetId, "deleteRows")
-  // ) {
-  //   return;
-  // }
-  // if (
-  //   type == "column" &&
-  //   !checkProtectionAuthorityNormal(sheetId, "deleteColumns")
-  // ) {
-  //   return;
-  // }
+  if (!checkDeleteRowCol(ctx, type, start, end, id)) return;
 
   const curOrder = getSheetIndex(ctx, id);
   if (curOrder == null) return;
@@ -1224,6 +1124,8 @@ export function deleteRowCol(
 
   const d = file.data;
   if (!d) return;
+  // spill anchors as they are before the change (see onSpillStructureChange)
+  const spillAnchors = spillAnchorsOf(ctx, id);
 
   if (start < 0) {
     start = 0;
@@ -1315,96 +1217,28 @@ export function deleteRowCol(
   });
   cfg.merge = merge_new;
 
-  // 公式配置变动
+  // 公式配置变动: rewrite every reference in the workbook (Excel semantics:
+  // ranges shrink, references to deleted cells become #REF!), then drop or
+  // move the calcChain entries of this sheet
+  adjustReferences(ctx, {
+    type: "delete",
+    sheetId: id,
+    axis: type,
+    start,
+    end,
+  });
   const newCalcChain = [];
-  for (
-    let SheetIndex = 0;
-    SheetIndex < ctx.luckysheetfile.length;
-    SheetIndex += 1
-  ) {
-    if (
-      _.isNil(ctx.luckysheetfile[SheetIndex].calcChain) ||
-      ctx.luckysheetfile.length === 0
-    ) {
-      continue;
-    }
-    const { calcChain } = ctx.luckysheetfile[SheetIndex];
-    const { data } = ctx.luckysheetfile[SheetIndex];
-    for (let i = 0; i < calcChain!.length; i += 1) {
-      const calc: any = _.cloneDeep(calcChain![i]);
-      const calc_r = calc.r;
-      const calc_c = calc.c;
-      const calc_i = calc.id;
-      const calc_funcStr = getcellFormula(ctx, calc_r, calc_c, calc_i);
-
-      if (type === "row" && SheetIndex === curOrder) {
-        if (calc_r < start || calc_r > end) {
-          const functionStr = `=${functionStrChange(
-            calc_funcStr,
-            "del",
-            "row",
-            null,
-            start,
-            slen
-          )}`;
-
-          if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-            data![calc_r]![calc_c]!.f = functionStr;
-          }
-
-          if (calc_r > end) {
-            calc.r = calc_r - slen;
-          }
-
-          newCalcChain.push(calc);
+  const { calcChain } = file;
+  if (calcChain != null) {
+    for (let i = 0; i < calcChain.length; i += 1) {
+      const calc: any = _.cloneDeep(calcChain[i]);
+      const pos = type === "row" ? calc.r : calc.c;
+      if (pos < start || pos > end) {
+        if (pos > end) {
+          if (type === "row") calc.r -= slen;
+          else calc.c -= slen;
         }
-      } else if (type === "row") {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "del",
-          "row",
-          null,
-          start,
-          slen
-        )}`;
-
-        if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-          data![calc_r]![calc_c]!.f = functionStr;
-        }
-      } else if (type === "column" && SheetIndex === curOrder) {
-        if (calc_c < start || calc_c > end) {
-          const functionStr = `=${functionStrChange(
-            calc_funcStr,
-            "del",
-            "col",
-            null,
-            start,
-            slen
-          )}`;
-
-          if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-            data![calc_r]![calc_c]!.f = functionStr;
-          }
-
-          if (calc_c > end) {
-            calc.c = calc_c - slen;
-          }
-
-          newCalcChain.push(calc);
-        }
-      } else if (type === "column") {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "del",
-          "col",
-          null,
-          start,
-          slen
-        )}`;
-
-        if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-          data![calc_r]![calc_c]!.f = functionStr;
-        }
+        newCalcChain.push(calc);
       }
     }
   }
@@ -1531,18 +1365,8 @@ export function deleteRowCol(
     }
   }
 
-  if (newFilterObj != null && newFilterObj.filter != null) {
-    if (cfg.rowhidden == null) {
-      cfg.rowhidden = {};
-    }
-
-    _.forEach(newFilterObj.filter, (v, k) => {
-      const f_rowhidden = newFilterObj.filter[k].rowhidden;
-      _.forEach(f_rowhidden, (v1, n) => {
-        cfg.rowhidden![n] = 0;
-      });
-    });
-  }
+  // rows hidden by the filter are in cfg.rowhidden, which is shifted below
+  // (adding their new positions here would shift them twice)
 
   // 条件格式配置变动
   const CFarr = file.luckysheet_conditionformat_save;
@@ -1676,28 +1500,8 @@ export function deleteRowCol(
     }
   }
 
-  // 冻结配置变动
-  const { frozen } = file;
-  if (frozen) {
-    if (
-      type === "row" &&
-      (frozen.type === "rangeRow" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.row_focus ?? -1) >= start) {
-        frozen.range!.row_focus -=
-          Math.min(end, frozen.range!.row_focus) - start + 1;
-      }
-    }
-    if (
-      type === "column" &&
-      (frozen.type === "rangeColumn" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.column_focus ?? -1) >= start) {
-        frozen.range!.column_focus -=
-          Math.min(end, frozen.range!.column_focus) - start + 1;
-      }
-    }
-  }
+  // frozen panes stay on the same rows/columns
+  adjustFrozenForDelete(file, type, start, end);
 
   // 数据验证配置变动
   const { dataVerification } = file;
@@ -1750,6 +1554,7 @@ export function deleteRowCol(
   }
 
   // 主逻辑
+  // oxlint-disable-next-line no-unused-vars -- legacy, kept for the commented-out rc payload
   let type1;
   if (type === "row") {
     type1 = "r";
@@ -2063,7 +1868,7 @@ export function deleteRowCol(
   file.hyperlink = newHyperlink;
 
   refreshLocalMergeData(merge_new, file);
-  ctx.formulaCache.formulaCellInfoMap = null;
+  recalcAfterStructuralChange(ctx);
 
   if (file.id === ctx.currentSheetId) {
     ctx.config = cfg;
@@ -2082,6 +1887,12 @@ export function deleteRowCol(
     // );
   } else {
   }
+  onSpillStructureChange(
+    ctx,
+    id,
+    { type, insert: false, start, end },
+    spillAnchors
+  );
 }
 
 // 计算表格行高数组
@@ -2114,6 +1925,9 @@ export function computeRowlenArr(ctx: Context, rowHeight: number, cfg: any) {
 export function hideSelected(ctx: Context, type: string) {
   if (!ctx.luckysheet_select_save || ctx.luckysheet_select_save.length > 1)
     return "noMulti";
+  if (!checkProtection(ctx, type === "row" ? "formatRows" : "formatColumns")) {
+    return "protected";
+  }
   const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
   // 隐藏行
   if (type === "row") {
@@ -2193,6 +2007,9 @@ export function hideSelected(ctx: Context, type: string) {
 export function showSelected(ctx: Context, type: string) {
   if (!ctx.luckysheet_select_save || ctx.luckysheet_select_save.length > 1)
     return "noMulti";
+  if (!checkProtection(ctx, type === "row" ? "formatRows" : "formatColumns")) {
+    return "protected";
+  }
   const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
   // 取消隐藏行
   if (type === "row") {

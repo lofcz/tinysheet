@@ -1,0 +1,56 @@
+/*
+ * Notes (cell comments): the sticky-note colours are tokens so embedders
+ * can restyle them and the dark theme gets a dimmed note.
+ */
+.fortune-container,
+.fortune-modal-container {
+  --fortune-note-bg: #ffffe1;
+  --fortune-note-text: #1f1f1f;
+  --fortune-note-border: #8a8a6a;
+  --fortune-note-arrow: #5f6368;
+  --fortune-note-shadow: 0 1px 3px rgba(60, 64, 67, 0.3);
+}
+
+.fortune-container[data-theme="dark"],
+.fortune-modal-container[data-theme="dark"] {
+  --fortune-note-bg: #3b3825;
+  --fortune-note-text: #f1eed6;
+  --fortune-note-border: #807a52;
+  --fortune-note-arrow: #a8a48a;
+  --fortune-note-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.fortune-note-box {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 5px 6px;
+  border: 1px solid var(--fortune-note-border);
+  background-color: var(--fortune-note-bg);
+  color: var(--fortune-note-text);
+  box-shadow: var(--fortune-note-shadow);
+  font-family: var(--fortune-font-family);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-note-box-editing {
+  border-color: var(--fortune-selection);
+}
+
+.fortune-note-body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.fortune-note-editor {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  line-height: 18px;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+  overflow-y: auto;
+  cursor: text;
+}

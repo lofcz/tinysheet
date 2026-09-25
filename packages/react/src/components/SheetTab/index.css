@@ -1,10 +1,10 @@
 .luckysheet-sheet-area {
   width: 100%;
   box-sizing: border-box;
-  background-color: #fafafc;
-  color: #444;
-  height: 31px;
-  padding: 0 30px 0 44px;
+  background-color: var(--fortune-bg-subtle);
+  color: var(--fortune-text-muted);
+  height: 34px;
+  padding: 0 var(--fortune-space-4) 0 44px;
   margin: 0;
   -webkit-touch-callout: none;
   cursor: default;
@@ -13,6 +13,8 @@
   align-items: center;
   justify-content: space-between;
   position: relative;
+  border-top: 1px solid var(--fortune-border);
+  font-size: var(--fortune-font-size);
 }
 
 #luckysheet-sheet-content {
@@ -20,11 +22,12 @@
   flex: 3;
   display: flex;
   align-items: center;
+  gap: 2px;
 }
 
 #luckysheet-bottom-pager {
   width: 0;
-  background-color: #fafafc;
+  background-color: var(--fortune-bg-subtle);
   z-index: 1;
   flex: 2;
   text-align: right;
@@ -34,15 +37,11 @@
 .luckysheet-sheet-area > div,
 .luckysheet-sheet-area .luckysheet-sheets-item {
   display: inline-block;
-  /* margin-right: 6px;
-	margin-top: 1px;
-	padding: 1px 6px; */
-  /* padding: 6px 10px; */
 }
 
 .fortune-sheettab-container {
   padding: 0px 0px;
-  margin-left: 0px;
+  margin-left: var(--fortune-space-1);
   position: relative;
   max-width: 54%;
   vertical-align: bottom;
@@ -55,21 +54,21 @@
   width: 6px;
   height: 100%;
   z-index: 1;
-  background: rgb(255, 255, 255);
+  background: var(--fortune-bg-subtle);
 }
 
 .fortune-sheettab-container .boundary-left {
   left: 0;
   background-image: linear-gradient(to right, var(--tw-gradient-stops));
-  --tw-gradient-from: #4445;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, #8880);
+  --tw-gradient-from: rgba(0, 0, 0, 0.18);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, #0000);
 }
 
 .fortune-sheettab-container .boundary-right {
   right: 0;
   background-image: linear-gradient(to left, var(--tw-gradient-stops));
-  --tw-gradient-from: #4445;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, #8880);
+  --tw-gradient-from: rgba(0, 0, 0, 0.18);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, #0000);
 }
 
 .fortune-sheettab-container .fortune-sheettab-container-c {
@@ -92,22 +91,24 @@
 }
 
 .luckysheet-sheet-area div.luckysheet-sheets-item {
-  padding: 2px 6px;
-  height: 29px;
-  line-height: 29px;
-  background-color: #fafafc;
-  color: #676464;
+  height: 30px;
+  line-height: 30px;
+  background-color: transparent;
+  color: var(--fortune-text-muted);
   min-width: 30px;
   top: 0px;
   position: relative;
-  margin-right: -1px;
+  margin-right: 1px;
   cursor: pointer;
-  transition: all 0.1s;
-  font-size: 13px;
-  padding: 2px 19px 0px 5px;
+  transition:
+    background-color var(--fortune-transition),
+    color var(--fortune-transition);
+  font-size: var(--fortune-font-size);
+  font-weight: 500;
+  padding: 0 22px 0 var(--fortune-space-2);
   box-sizing: border-box;
-  border-left: 1px solid #e0e0e0;
-  border-right: 1px solid #e0e0e0;
+  border: none;
+  border-radius: var(--fortune-radius-sm) var(--fortune-radius-sm) 0 0;
   vertical-align: middle;
 }
 
@@ -116,9 +117,8 @@
 }
 
 .luckysheet-sheet-area div.luckysheet-sheets-item:hover {
-  background-color: #efefef;
-  /* border-color: #a5a5a5; */
-  color: #490500;
+  background-color: var(--fortune-bg-hover);
+  color: var(--fortune-text);
 }
 
 .luckysheet-sheet-area div.luckysheet-sheets-item .luckysheet-sheets-item-menu {
@@ -126,7 +126,7 @@
   display: inline-block;
   top: -2px;
   position: relative;
-  color: #a1a1a1;
+  color: var(--fortune-text-subtle);
   position: absolute;
   height: 100%;
   width: 15px;
@@ -137,7 +137,7 @@
 .luckysheet-sheet-area
   div.luckysheet-sheets-item
   .luckysheet-sheets-item-menu:hover {
-  color: #2a2a2a;
+  color: var(--fortune-text);
   cursor: pointer;
 }
 
@@ -147,7 +147,7 @@
 
 .luckysheet-sheets-item-color {
   width: 100%;
-  height: 10%;
+  height: 3px;
   position: absolute;
   bottom: 0;
   left: 0;
@@ -156,7 +156,10 @@
 .luckysheet-sheet-area
   div.luckysheet-sheets-item
   .luckysheet-sheets-item-name[contenteditable="true"] {
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--fortune-border);
+  border-radius: 2px;
+  background-color: var(--fortune-bg-input);
+  color: var(--fortune-text);
   display: inline-block;
   height: 18px;
   line-height: 18px;
@@ -172,49 +175,44 @@
 .luckysheet-sheet-area
   div.luckysheet-sheets-item
   .luckysheet-sheets-item-name[contenteditable="true"]:focus {
-  -webkit-box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
-  -moz-box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
-  border: 1px solid #4d90fe;
+  box-shadow: 0 0 0 1px var(--fortune-accent);
+  border: 1px solid var(--fortune-accent);
   outline: none;
 }
 
 .luckysheet-sheet-area div.luckysheet-sheets-item-active {
-  /* padding: 2px 8px; */
-  height: 29px;
-  line-height: 29px;
-  background-color: #efefef;
-  /* border-color: #aaa; */
-  border-top-color: #fff;
-  color: #222;
-  /* box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); */
+  height: 30px;
+  line-height: 30px;
+  background-color: var(--fortune-bg);
+  color: var(--fortune-accent-text);
+  box-shadow:
+    inset 0 -2px 0 var(--fortune-accent),
+    var(--fortune-shadow-sm);
   cursor: default;
-  /* top: -2px; */
-  /* border-bottom: none; */
-  /* padding-right: 20px; */
 }
 
 .luckysheet-sheet-area div.luckysheet-sheets-item-active:hover {
-  background-color: #ececec;
-  /* border-color: #aaa; */
-  color: #222;
+  background-color: var(--fortune-bg);
+  color: var(--fortune-accent-text);
 }
 
 .fortune-sheettab-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 29px;
-  width: 29px;
+  height: 28px;
+  width: 28px;
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+  transition: background-color var(--fortune-transition);
 }
 
 .fortune-sheettab-button:hover {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 29px;
-  width: 29px;
-  background-color: #efefef;
+  background-color: var(--fortune-bg-hover);
+}
+
+.fortune-sheettab-button:active {
+  background-color: var(--fortune-bg-active);
 }
 
 .luckysheet-noselected-text {
@@ -228,20 +226,21 @@
 .fortune-sheettab-scroll {
   display: flex;
   align-items: center;
-  padding: 0 5px;
-  height: 29px;
+  padding: 0 6px;
+  height: 28px;
   cursor: pointer;
+  border-radius: var(--fortune-radius-sm);
 }
 
 .fortune-sheettab-scroll:hover {
-  background-color: #e0e0e0;
+  background-color: var(--fortune-bg-hover);
 }
 
 .fortune-sheettab-placeholder {
   display: inline-block;
   width: 30px;
-  height: 29px;
-  line-height: 29px;
+  height: 30px;
+  line-height: 30px;
   vertical-align: middle;
 }
 
@@ -254,11 +253,12 @@
 
 .luckysheet-sheet-selection-calInfo {
   display: flex;
-  font-size: 12px;
+  font-size: var(--fortune-font-size-sm);
   align-content: center;
-  padding: 0 0 0 44px;
+  padding: 0 var(--fortune-space-4) 0 44px;
   height: 22px;
   align-self: flex-end;
+  color: var(--fortune-text-muted);
 }
 
 .luckysheet-sheet-selection-calInfo div {
@@ -268,13 +268,113 @@
 }
 
 .luckysheet-sheets-item-function {
-  width: 12px;
+  width: 16px;
   height: 24px;
   position: absolute;
-  top: 4px;
-  right: 2px;
+  top: 3px;
+  right: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+}
+
+.luckysheet-sheets-item-function svg {
+  color: var(--fortune-text-subtle);
+}
+
+.luckysheet-sheets-item-active .luckysheet-sheets-item-function svg {
+  color: var(--fortune-text-muted);
+}
+
+.luckysheet-sheets-item-function:hover {
+  background-color: var(--fortune-bg-hover);
+}
+
+.luckysheet-sheets-item-function:hover svg {
+  color: var(--fortune-text);
 }
 
 .fortune-sheet-area-right {
   display: flex !important;
+}
+
+/* Grouped sheets (Ctrl/Shift+click): selected but not active */
+.luckysheet-sheet-area div.luckysheet-sheets-item-grouped {
+  background-color: var(--fortune-bg);
+  box-shadow: inset 0 -2px 0 var(--fortune-border-strong);
+}
+
+.luckysheet-sheet-area
+  div.luckysheet-sheets-item-grouped.luckysheet-sheets-item-active {
+  box-shadow:
+    inset 0 -2px 0 var(--fortune-accent),
+    var(--fortune-shadow-sm);
+}
+
+/* Move or Copy / Unhide dialogs */
+.fortune-sheet-dialog {
+  width: 300px;
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-sheet-dialog .title {
+  margin-bottom: var(--fortune-space-3);
+}
+
+.fortune-sheet-dialog-label {
+  color: var(--fortune-text-muted);
+  margin-bottom: var(--fortune-space-1);
+}
+
+.fortune-sheet-dialog-list {
+  height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input);
+  padding: var(--fortune-space-1) 0;
+}
+
+.fortune-sheet-dialog-list > div {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  padding: 0 var(--fortune-space-2);
+  line-height: 26px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.fortune-sheet-dialog-list > div:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-sheet-dialog-list > div.on {
+  background: var(--fortune-accent-soft);
+  color: var(--fortune-accent-text);
+}
+
+.fortune-sheet-dialog-list input,
+.fortune-sheet-dialog-check input {
+  margin: 0;
+  accent-color: var(--fortune-accent);
+}
+
+.fortune-sheet-dialog-check {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  margin-top: var(--fortune-space-3);
+  cursor: pointer;
+}
+
+.fortune-sheet-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--fortune-space-2);
+  margin-top: var(--fortune-space-4);
 }

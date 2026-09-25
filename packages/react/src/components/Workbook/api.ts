@@ -18,6 +18,8 @@ import {
   Sheet,
   CellMatrix,
   CellWithRowAndCol,
+  invalidateSpillAnchors,
+  hasPendingRecalc,
 } from "@lofcz/tinysheet-core";
 import { applyPatches } from "immer";
 import _ from "lodash";
@@ -34,8 +36,13 @@ export function generateAPIs(
   settings: Required<Settings>,
   cellInput: HTMLDivElement | null,
   scrollbarX: HTMLDivElement | null,
-  scrollbarY: HTMLDivElement | null
+  scrollbarY: HTMLDivElement | null,
+  flushRecalcNow?: () => Context
 ) {
+  // A queued (time-sliced) recalculation is finished first, so values read
+  // through the API are final.
+  const settled = () =>
+    flushRecalcNow && hasPendingRecalc(context) ? flushRecalcNow() : context;
   type ApiCall = {
     name: string;
     args: any[];
@@ -135,6 +142,8 @@ export function generateAPIs(
 
           try {
             applyPatches(ctx_, validPatches);
+            // cells may now hold spill anchors the anchor index does not know
+            invalidateSpillAnchors(ctx_);
           } catch (e) {
             console.error(e);
           }
@@ -147,7 +156,15 @@ export function generateAPIs(
       row: number,
       column: number,
       options: api.CommonOptions & { type?: keyof Cell } = {}
-    ) => api.getCellValue(context, row, column, options),
+    ) => api.getCellValue(settled(), row, column, options),
+
+    /**
+     * Finish a queued (time-sliced) recalculation now, so every formula cell
+     * holds its final value.
+     */
+    flushRecalc: () => {
+      settled();
+    },
 
     setCellValue: (
       row: number,

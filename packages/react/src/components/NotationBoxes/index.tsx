@@ -1,5 +1,7 @@
-import React, { useContext, useEffect } from "react";
+import React, { useContext, useEffect, useRef } from "react";
 import {
+  CellMatrix,
+  forEachChangedRow,
   getFlowdata,
   onCommentBoxMoveStart,
   onCommentBoxResizeStart,
@@ -9,24 +11,73 @@ import {
 import _ from "lodash";
 import ContentEditable from "../SheetOverlay/ContentEditable";
 import WorkbookContext from "../../context";
+import "./index.css";
+
+const NO_COLS: number[] = [];
 
 const NotationBoxes: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const flowdata = getFlowdata(context);
 
-  // TODO use patch to detect ps isShow change may be more effecient
+  // Columns of shown comments per row (rows without any are left out). Rows
+  // are immutable (immer), so after an edit only rows whose identity changed
+  // are rescanned, not every cell; for chunked (large) sheets only the rows
+  // of changed chunks are even looked at.
+  const shownByRow = useRef(new WeakMap<object, number[]>());
+  const lastScan = useRef<{
+    data: CellMatrix;
+    shown: Map<number, number[]>;
+  } | null>(null);
+  const hasCommentBoxes = (context.commentBoxes?.length ?? 0) > 0;
+  const hasCommentBoxesRef = useRef(hasCommentBoxes);
+  hasCommentBoxesRef.current = hasCommentBoxes;
   useEffect(() => {
     if (flowdata) {
-      const psShownCells: { r: number; c: number }[] = [];
-      for (let i = 0; i < flowdata.length; i += 1) {
-        for (let j = 0; j < flowdata[i].length; j += 1) {
-          const cell = flowdata[i][j];
-          if (!cell) continue;
-          if (cell.ps?.isShow) {
-            psShownCells.push({ r: i, c: j });
+      const cache = shownByRow.current;
+      const colsOf = (i: number) => {
+        const row = flowdata[i];
+        if (!row) return NO_COLS;
+        let cols = cache.get(row);
+        if (cols === undefined) {
+          cols = NO_COLS;
+          for (let j = 0; j < row.length; j += 1) {
+            if (row[j]?.ps?.isShow) {
+              if (cols === NO_COLS) cols = [];
+              cols.push(j);
+            }
           }
+          cache.set(row, cols);
+        }
+        return cols;
+      };
+      const last = lastScan.current;
+      let shown: Map<number, number[]> | null = null;
+      if (last) {
+        let next: Map<number, number[]> | null = null;
+        const compared = forEachChangedRow(last.data, flowdata, (i) => {
+          if (!next) next = new Map(last.shown);
+          const cols = colsOf(i);
+          if (cols.length > 0) next.set(i, cols);
+          else next.delete(i);
+        });
+        if (compared) shown = next ?? last.shown;
+      }
+      if (!shown) {
+        shown = new Map();
+        for (let i = 0; i < flowdata.length; i += 1) {
+          const cols = colsOf(i);
+          if (cols.length > 0) shown.set(i, cols);
         }
       }
+      lastScan.current = { data: flowdata, shown };
+      const psShownCells: { r: number; c: number }[] = [];
+      Array.from(shown.keys())
+        .sort((a, b) => a - b)
+        .forEach((r) => {
+          shown!.get(r)!.forEach((c) => psShownCells.push({ r, c }));
+        });
+      // nothing shown and nothing to clear: skip the extra context update
+      if (psShownCells.length === 0 && !hasCommentBoxesRef.current) return;
       setContext((ctx) => showComments(ctx, psShownCells));
     }
   }, [flowdata, setContext]);
@@ -60,18 +111,14 @@ const NotationBoxes: React.FC = () => {
             />
             <div
               id={commentId}
-              className="luckysheet-postil-show-main"
+              className={`luckysheet-postil-show-main fortune-note-box${
+                isEditing ? " fortune-note-box-editing" : ""
+              }`}
               style={{
                 width,
                 height,
-                color: "#000",
-                padding: 5,
-                border: "1px solid #000",
-                backgroundColor: "rgb(255,255,225)",
-                position: "absolute",
                 left,
                 top,
-                boxSizing: "border-box",
                 zIndex: isEditing ? 200 : 100,
               }}
               onMouseDown={(e) => {
@@ -124,25 +171,11 @@ const NotationBoxes: React.FC = () => {
                   ))}
                 </div>
               )}
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  overflow: "hidden",
-                }}
-              >
+              <div className="fortune-note-body">
                 <ContentEditable
                   id={`comment-editor-${rc}`}
+                  className="fortune-note-editor"
                   autoFocus={autoFocus}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    lineHeight: "20px",
-                    boxSizing: "border-box",
-                    textAlign: "center",
-                    wordBreak: "break-all",
-                    outline: "none",
-                  }}
                   allowEdit={context.allowEdit}
                   spellCheck={false}
                   data-r={r}

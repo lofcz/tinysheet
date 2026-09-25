@@ -38,7 +38,8 @@ export function getCellValue(
     ret = cellData[type];
 
     if (type === "f" && ret != null) {
-      ret = functionHTMLGenerate(ret);
+      // the formula text as stored ("=SUM(A1:A3)"); the editor's highlighted
+      // HTML comes from getCellFormulaHtml
     } else if (type === "f") {
       ret = cellData.v;
     } else if (cellData && cellData.ct && cellData.ct.fa === "yyyy-MM-dd") {
@@ -56,6 +57,21 @@ export function getCellValue(
   }
 
   return ret;
+}
+
+/**
+ * The formula of a cell as the editor's highlighted HTML (reference colours,
+ * function names), or null when the cell holds no formula. `getCellValue`
+ * with `type: "f"` returns the plain formula text.
+ */
+export function getCellFormulaHtml(
+  ctx: Context,
+  row: number,
+  column: number,
+  options: CommonOptions = {}
+): string | null {
+  const f = getSheet(ctx, options).data?.[row]?.[column]?.f;
+  return _.isString(f) ? functionHTMLGenerate(f) : null;
 }
 
 export function setCellValue(
@@ -185,8 +201,6 @@ export function clearCell(
     if (cell.f != null) {
       delete cell.f;
       delFunctionGroup(ctx, row, column, sheet.id);
-
-      delete cell.spl;
     }
   }
 }
@@ -248,7 +262,7 @@ export function setCellFormat(
 
     cfg.borderInfo.push(borderInfo);
   } else {
-    cellData[attr] = value;
+    (cellData as any)[attr] = value;
   }
 
   targetSheetData[row][column] = cellData;

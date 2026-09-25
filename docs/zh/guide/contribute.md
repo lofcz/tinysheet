@@ -46,7 +46,7 @@
 
 ## 代码规范
 
-项目配置有`eslint`与`prettier`，若它们在您提交代码时报了错，请确保您修复后再次提交。
+项目使用 `oxlint`（`bun run lint`）与 `oxfmt`（`bun run format`）。提交时会运行代码检查，若报错请修复后再次提交。
 
 
 ## 如何贡献文档

@@ -1,19 +1,619 @@
 import React, { useRef, useEffect, useContext, useCallback } from "react";
 import {
   Canvas,
+  Context,
+  GlobalCache,
   updateContextWithCanvas,
   updateContextWithSheetData,
   handleGlobalWheel,
   initFreeze,
+  lowerBound,
+  getSheetIndex,
+  getOutlineGutterSize,
+  hasCellDecorators,
   Sheet as SheetType,
 } from "@lofcz/tinysheet-core";
 import "./index.css";
 import WorkbookContext from "../../context";
 import SheetOverlay from "../SheetOverlay";
+import { OutlineGutter } from "../Outline";
+import { TrackedScope } from "../../context/store";
+
+// The overlay re-renders for the context fields it reads, not with the Sheet
+// (which sees every context change to schedule canvas redraws).
+const SHEET_OVERLAY = <SheetOverlay />;
 
 type Props = {
   sheet: SheetType;
 };
+
+type Freeze = NonNullable<GlobalCache["freezen"]>[string];
+
+/**
+ * Context fields that only drive DOM overlays (selection, editors, menus,
+ * drag state, ...). A change limited to these fields leaves the canvas
+ * untouched, so the sheet is not redrawn for it.
+ */
+const OVERLAY_ONLY_KEYS = new Set<string>([
+  "commentBoxes",
+  "editingCommentBox",
+  "hoveredCommentBox",
+  "editingInsertedImgs",
+  "activeImg",
+  "presences",
+  "showSearch",
+  "showReplace",
+  "linkCard",
+  "rangeDialog",
+  "warnDialog",
+  "dataVerificationDropDownList",
+  "contextMenu",
+  "sheetTabContextMenu",
+  "filterContextMenu",
+  "cellmainWidth",
+  "cellmainHeight",
+  "sheetScrollRecord",
+  "luckysheet_select_status",
+  "luckysheet_select_save",
+  "luckysheet_selection_range",
+  "formulaRangeHighlight",
+  "formulaRangeSelect",
+  "functionCandidates",
+  "functionHint",
+  "functionCandidateIndex",
+  "functionHintArgIndex",
+  "luckysheet_copy_save",
+  "luckysheet_paste_iscut",
+  "filterOptions",
+  "filter",
+  "luckysheet_sheet_move_status",
+  "luckysheet_sheet_move_data",
+  "luckysheet_scroll_status",
+  "luckysheet_rows_selected_status",
+  "luckysheet_cols_selected_status",
+  "luckysheet_rows_change_size",
+  "luckysheet_rows_change_size_start",
+  "luckysheet_cols_change_size",
+  "luckysheet_cols_change_size_start",
+  "luckysheet_cols_freeze_drag",
+  "luckysheet_rows_freeze_drag",
+  "luckysheetCellUpdate",
+  "luckysheet_shiftkeydown",
+  "luckysheet_shiftpositon",
+  "iscopyself",
+  "luckysheet_model_move_state",
+  "luckysheet_model_xy",
+  "luckysheet_model_move_obj",
+  "luckysheet_cell_selected_move",
+  "luckysheet_cell_selected_move_index",
+  "luckysheet_cell_selected_extend",
+  "luckysheet_cell_selected_extend_index",
+  "chart_selection",
+  "luckysheetPaintModelOn",
+  "luckysheetPaintSingle",
+  "showSheetList",
+  "sheetFocused",
+  // phase 2 dialogs, panels and edit state (DOM only)
+  "activeChart",
+  "chartEditorOpen",
+  "activeShapes",
+  "editingShape",
+  "shapeDrawKind",
+  "shapeFormatOpen",
+  "showPasteSpecial",
+  "formatCellsDialog",
+  "dataVerificationAlert",
+  "dataVerificationSidebar",
+  "editState",
+  "endMode",
+  "tabReturn",
+  "groupedSheetIds",
+  "showGoTo",
+  // formula auditing overlays and status (SVG / DOM only)
+  "traceArrows",
+  "watchWindow",
+  "calculationPending",
+  // status bar only
+  "recalcProgress",
+]);
+
+/** Whether anything the canvas renderer reads differs between two contexts. */
+function canvasInputsChanged(prev: Context, next: Context) {
+  if (prev === next) return false;
+  const keys = Object.keys(next) as (keyof Context)[];
+  for (let i = 0; i < keys.length; i += 1) {
+    const k = keys[i];
+    if (prev[k] !== next[k] && !OVERLAY_ONLY_KEYS.has(k)) return true;
+  }
+  return Object.keys(prev).length !== keys.length;
+}
+
+/** Whether the only canvas-relevant change is the scroll position. */
+function onlyScrolled(prev: Context, next: Context) {
+  if (prev.scrollLeft === next.scrollLeft && prev.scrollTop === next.scrollTop)
+    return false;
+  const keys = Object.keys(next) as (keyof Context)[];
+  if (Object.keys(prev).length !== keys.length) return false;
+  for (let i = 0; i < keys.length; i += 1) {
+    const k = keys[i];
+    if (
+      prev[k] !== next[k] &&
+      k !== "scrollLeft" &&
+      k !== "scrollTop" &&
+      !OVERLAY_ONLY_KEYS.has(k)
+    )
+      return false;
+  }
+  return true;
+}
+
+// Extra rows/columns (in px) drawn around an exposed strip, so borders and
+// cells bleeding across its edge are repainted too (the strip is clipped).
+const STRIP_MARGIN = 4;
+
+// Leading px of a scrolling band that are redrawn instead of copied.
+const BAND_EDGE = 4;
+
+// How far a strip ending at the canvas edge is clipped past it.
+const STRIP_OVERHANG = 64;
+
+/**
+ * One step of a sheet redraw, in canvas (CSS px) coordinates. A frozen sheet
+ * is drawn as up to four cell panes, the header parts and the freeze lines;
+ * later steps paint over what earlier ones spilled across pane edges.
+ */
+type DrawPass =
+  | {
+      kind: "cells";
+      scrollWidth: number;
+      scrollHeight: number;
+      drawWidth: number;
+      drawHeight: number;
+      offsetLeft: number;
+      offsetTop: number;
+      clear?: boolean;
+    }
+  | {
+      kind: "colHeader";
+      scrollWidth: number;
+      drawWidth: number;
+      offsetLeft: number;
+    }
+  | {
+      kind: "rowHeader";
+      scrollHeight: number;
+      drawHeight: number;
+      offsetTop: number;
+    }
+  | { kind: "freezeLine"; horizontalTop?: number; verticalLeft?: number };
+
+/** The passes of a full redraw, in drawing order. */
+function sheetPasses(context: Context, freeze: Freeze | undefined): DrawPass[] {
+  const [W, H] = context.luckysheetTableContentHW;
+  const { rowHeaderWidth: rhw, columnHeaderHeight: chh } = context;
+  const horizontalData = freeze?.horizontal?.freezenhorizontaldata;
+  const verticalData = freeze?.vertical?.freezenverticaldata;
+  // frozen (or split-pane) rows: bottom edge, and the pane's own scroll
+  const [hPx, , hScroll] = horizontalData ?? [0, 0, 0];
+  const [vPx, , vScroll] = verticalData ?? [0, 0, 0];
+  const mainLeft = verticalData ? vPx - vScroll + rhw : rhw;
+  const mainTop = horizontalData ? hPx - hScroll + chh : chh;
+  const mainScrollX = context.scrollLeft + (verticalData ? vPx - vScroll : 0);
+  const mainScrollY = context.scrollTop + (horizontalData ? hPx - hScroll : 0);
+  const passes: DrawPass[] = [
+    {
+      kind: "cells",
+      scrollWidth: mainScrollX,
+      scrollHeight: mainScrollY,
+      drawWidth: W,
+      drawHeight: H,
+      offsetLeft: mainLeft,
+      offsetTop: mainTop,
+      clear: true,
+    },
+  ];
+  if (horizontalData) {
+    // frozen rows, scrolling horizontally with the main pane
+    passes.push({
+      kind: "cells",
+      scrollWidth: mainScrollX,
+      scrollHeight: hScroll,
+      drawWidth: W,
+      drawHeight: hPx - hScroll,
+      offsetLeft: mainLeft,
+      offsetTop: chh,
+    });
+  }
+  if (verticalData) {
+    // frozen columns, scrolling vertically with the main pane
+    passes.push({
+      kind: "cells",
+      scrollWidth: vScroll,
+      scrollHeight: mainScrollY,
+      drawWidth: vPx - vScroll,
+      drawHeight: H,
+      offsetLeft: rhw,
+      offsetTop: mainTop,
+    });
+  }
+  if (horizontalData && verticalData) {
+    passes.push({
+      kind: "cells",
+      scrollWidth: vScroll,
+      scrollHeight: hScroll,
+      drawWidth: vPx - vScroll,
+      drawHeight: hPx - hScroll,
+      offsetLeft: rhw,
+      offsetTop: chh,
+    });
+  }
+  // headers: the scrolling part, then the frozen part
+  passes.push({
+    kind: "colHeader",
+    scrollWidth: mainScrollX,
+    drawWidth: W,
+    offsetLeft: mainLeft,
+  });
+  if (verticalData) {
+    passes.push({
+      kind: "colHeader",
+      scrollWidth: vScroll,
+      drawWidth: vPx - vScroll,
+      offsetLeft: rhw,
+    });
+  }
+  passes.push({
+    kind: "rowHeader",
+    scrollHeight: mainScrollY,
+    drawHeight: H,
+    offsetTop: mainTop,
+  });
+  if (horizontalData) {
+    passes.push({
+      kind: "rowHeader",
+      scrollHeight: hScroll,
+      drawHeight: hPx - hScroll,
+      offsetTop: chh,
+    });
+  }
+  if (horizontalData || verticalData) {
+    passes.push({
+      kind: "freezeLine",
+      horizontalTop: horizontalData ? mainTop - 2 : undefined,
+      verticalLeft: verticalData ? mainLeft - 2 : undefined,
+    });
+  }
+  return passes;
+}
+
+/**
+ * Narrow one axis of a pass to [lo, hi) (canvas px, margin included):
+ * shifting the scroll offset and the draw offset by the same k keeps every
+ * cell where a full pass puts it. Returns null when nothing is left.
+ */
+function narrow(
+  scroll: number,
+  offset: number,
+  size: number,
+  lo: number,
+  hi: number
+) {
+  const start = Math.max(offset, lo);
+  const end = Math.min(offset + size, hi);
+  if (end <= start) return null;
+  const k = start - offset;
+  return { scroll: scroll + k, offset: offset + k, size: end - start };
+}
+
+type Strip = { axis: "x" | "y"; start: number; size: number };
+
+function runPass(canvas: Canvas, pass: DrawPass, strip?: Strip) {
+  // narrowed to the strip (plus margin) along its axis only
+  const lo = strip ? strip.start - STRIP_MARGIN : -Infinity;
+  const hi = strip ? strip.start + strip.size + STRIP_MARGIN : Infinity;
+  const onX = strip?.axis === "x";
+  const onY = strip?.axis === "y";
+  if (pass.kind === "cells") {
+    const nx = onX
+      ? narrow(pass.scrollWidth, pass.offsetLeft, pass.drawWidth, lo, hi)
+      : {
+          scroll: pass.scrollWidth,
+          offset: pass.offsetLeft,
+          size: pass.drawWidth,
+        };
+    const ny = onY
+      ? narrow(pass.scrollHeight, pass.offsetTop, pass.drawHeight, lo, hi)
+      : {
+          scroll: pass.scrollHeight,
+          offset: pass.offsetTop,
+          size: pass.drawHeight,
+        };
+    if (!nx || !ny) return;
+    canvas.drawMain({
+      scrollWidth: nx.scroll,
+      scrollHeight: ny.scroll,
+      drawWidth: nx.size,
+      drawHeight: ny.size,
+      offsetLeft: nx.offset,
+      offsetTop: ny.offset,
+      clear: pass.clear,
+    });
+  } else if (pass.kind === "colHeader") {
+    if (onY && lo > canvas.sheetCtx.columnHeaderHeight) return;
+    const nx = onX
+      ? narrow(pass.scrollWidth, pass.offsetLeft, pass.drawWidth, lo, hi)
+      : {
+          scroll: pass.scrollWidth,
+          offset: pass.offsetLeft,
+          size: pass.drawWidth,
+        };
+    if (!nx) return;
+    canvas.drawColumnHeader(nx.scroll, nx.size, nx.offset);
+  } else if (pass.kind === "rowHeader") {
+    if (onX && lo > canvas.sheetCtx.rowHeaderWidth) return;
+    const ny = onY
+      ? narrow(pass.scrollHeight, pass.offsetTop, pass.drawHeight, lo, hi)
+      : {
+          scroll: pass.scrollHeight,
+          offset: pass.offsetTop,
+          size: pass.drawHeight,
+        };
+    if (!ny) return;
+    canvas.drawRowHeader(ny.scroll, ny.size, ny.offset);
+  } else {
+    canvas.drawFreezeLine(pass);
+  }
+}
+
+/**
+ * Draw the sheet, or only a strip of it: clipped to the strip, with each
+ * pass narrowed to the rows (or columns) that reach it, so the pixels in the
+ * strip are exactly those of a full redraw.
+ */
+function drawSheet(
+  canvasElement: HTMLCanvasElement,
+  context: Context,
+  freeze: Freeze | undefined,
+  strip?: Strip
+) {
+  const tableCanvas = new Canvas(canvasElement, context);
+  const passes = sheetPasses(context, freeze);
+  if (!strip) {
+    passes.forEach((pass) => runPass(tableCanvas, pass));
+    return;
+  }
+  const ctx2d = canvasElement.getContext("2d");
+  if (!ctx2d) return;
+  const dpr = context.devicePixelRatio;
+  const [width, height] = context.luckysheetTableContentHW;
+  ctx2d.save();
+  ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+  ctx2d.beginPath();
+  if (strip.axis === "y") {
+    ctx2d.rect(0, strip.start * dpr, width * dpr, strip.size * dpr);
+  } else {
+    ctx2d.rect(strip.start * dpr, 0, strip.size * dpr, height * dpr);
+  }
+  ctx2d.clip();
+  passes.forEach((pass) => runPass(tableCanvas, pass, strip));
+  ctx2d.restore();
+}
+
+/**
+ * Merged cells that span the freeze line along `axis` (frozen rows for a
+ * vertical scroll, frozen columns for a horizontal one) are painted whole by
+ * every pane that shows part of them. So the frozen pane paints part of
+ * them at a fixed place inside the scrolling band, and the scrolling panes
+ * paint part of them, moving with the scroll, over the frozen panes: pixels
+ * that a blit would get wrong. Returns the range of canvas coordinates
+ * (CSS px, along `axis`) that holds such pixels before or after a scroll by
+ * `delta`, which is then redrawn instead; null when there is none.
+ */
+function freezeMergeSpan(
+  context: Context,
+  freeze: Freeze | undefined,
+  axis: "x" | "y",
+  delta: number
+): [number, number] | null {
+  const data =
+    axis === "y"
+      ? freeze?.horizontal?.freezenhorizontaldata
+      : freeze?.vertical?.freezenverticaldata;
+  const merge = context.config?.merge;
+  if (!data || !merge) return null;
+  const frozenCount = data[1] as number;
+  const paneScroll = (data[2] as number) ?? 0;
+  const passes = sheetPasses(context, freeze);
+  const main = passes[0] as Extract<DrawPass, { kind: "cells" }>;
+  const mainOffset = axis === "y" ? main.offsetTop : main.offsetLeft;
+  const mainScroll = axis === "y" ? main.scrollHeight : main.scrollWidth;
+  const along =
+    axis === "y" ? context.visibledatarow : context.visibledatacolumn;
+  const header =
+    axis === "y" ? context.columnHeaderHeight : context.rowHeaderWidth;
+  let lo = Infinity;
+  let hi = -Infinity;
+  Object.values(merge).forEach((m) => {
+    const [start, span] = axis === "y" ? [m.r, m.rs] : [m.c, m.cs];
+    if (!(start < frozenCount && start + span > frozenCount)) return;
+    const first = start > 0 ? (along[start - 1] ?? 0) : 0;
+    const last = along[Math.min(start + span, along.length) - 1] ?? first;
+    // the frozen pane: from its top (left) edge to its far end, fixed
+    hi = Math.max(hi, last - paneScroll + header);
+    // the scrolling panes: from its top (left) edge, before and after
+    lo = Math.min(lo, first - mainScroll + mainOffset + Math.min(0, delta));
+  });
+  if (hi < lo) return null;
+  return [Math.max(0, Math.floor(lo) - 1), Math.ceil(hi) + 1];
+}
+
+/**
+ * Whether cells may hold anti-aliased paths (conditional-format icons,
+ * paint of cell decorators): their pixels where a canvas edge cuts them
+ * depend on where they are drawn, so a blit redraws those cells.
+ */
+function hasEdgeSensitivePaint(context: Context) {
+  if (hasCellDecorators()) return true;
+  const i = getSheetIndex(context, context.currentSheetId);
+  const rules =
+    i == null
+      ? undefined
+      : context.luckysheetfile[i]?.luckysheet_conditionformat_save;
+  return Array.isArray(rules) && rules.some((r: any) => r?.type === "icons");
+}
+
+/**
+ * The edge between two cells of the scrolling panes (canvas px along
+ * `axis`) at or before (`after` false) or at or after `pos`.
+ */
+function cellEdge(
+  context: Context,
+  freeze: Freeze | undefined,
+  axis: "x" | "y",
+  pos: number,
+  after: boolean
+) {
+  const main = sheetPasses(context, freeze)[0] as Extract<
+    DrawPass,
+    { kind: "cells" }
+  >;
+  const edges =
+    axis === "y" ? context.visibledatarow : context.visibledatacolumn;
+  const scroll = axis === "y" ? main.scrollHeight : main.scrollWidth;
+  const offset = axis === "y" ? main.offsetTop : main.offsetLeft;
+  const target = pos + scroll - offset;
+  const i = lowerBound(edges, target);
+  if (after) {
+    return i < edges.length
+      ? Math.max(pos, Math.ceil(edges[i] - scroll + offset))
+      : pos;
+  }
+  let edge = 0;
+  if (i < edges.length && edges[i] === target) edge = edges[i];
+  else if (i > 0) edge = edges[i - 1];
+  return Math.max(0, Math.min(pos, Math.floor(edge - scroll + offset)));
+}
+
+/**
+ * Scroll by moving the pixels already on the canvas and drawing only the
+ * newly exposed strip. Along the scrolled axis everything past the frozen
+ * panes moves: for a vertical scroll, the band below the frozen rows (row
+ * header, frozen columns and main pane alike); the frozen rows stay put.
+ * Applies to scrolls along one axis by less than half the band, when every
+ * edge lands on a device pixel (so the copy is exact). Returns false when a
+ * full redraw is needed instead.
+ */
+function blitScroll(
+  canvasElement: HTMLCanvasElement,
+  prev: Context,
+  next: Context,
+  freeze: Freeze | undefined
+) {
+  const dx = next.scrollLeft - prev.scrollLeft;
+  const dy = next.scrollTop - prev.scrollTop;
+  if ((dx !== 0) === (dy !== 0)) return false;
+  const dpr = next.devicePixelRatio;
+  const [width, height] = next.luckysheetTableContentHW;
+  const main = sheetPasses(next, freeze)[0] as Extract<
+    DrawPass,
+    { kind: "cells" }
+  >;
+  const axis = dx ? "x" : "y";
+  // The moving band starts where the main pane's fill does. Its first
+  // BAND_EDGE px are redrawn rather than copied: frozen panes and header
+  // parts reach across the boundary there (borders, header clears) and do
+  // not move with the scroll.
+  const bandStart = dx ? main.offsetLeft - 1 : main.offsetTop - 1;
+  const end = dx ? width : height;
+  const delta = dx || dy;
+  const copyStart = bandStart + BAND_EDGE;
+  const len = end - copyStart - Math.abs(delta);
+  if (Math.abs(delta) * 2 > end - copyStart) return false;
+  if (
+    ![bandStart, copyStart, width, height, delta].every((v) =>
+      Number.isInteger(v * dpr)
+    )
+  ) {
+    return false;
+  }
+  // merged cells across the freeze line are redrawn, not moved
+  const merged = freezeMergeSpan(next, freeze, axis, delta);
+  if (merged && merged[1] - merged[0] + Math.abs(delta) * 2 > end) {
+    return false;
+  }
+  const ctx2d = canvasElement.getContext("2d");
+  if (!ctx2d || typeof ctx2d.setTransform !== "function") return false;
+
+  // 1. shift the band (device pixels, identity transform)
+  const src = delta > 0 ? copyStart + delta : copyStart;
+  const dst = delta > 0 ? copyStart : copyStart - delta;
+  const [sx, sy, tx, ty, w, h] = dx
+    ? [src, 0, dst, 0, len, height]
+    : [0, src, 0, dst, width, len];
+  ctx2d.save();
+  ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+  ctx2d.beginPath();
+  ctx2d.rect(tx * dpr, ty * dpr, w * dpr, h * dpr);
+  ctx2d.clip();
+  ctx2d.globalCompositeOperation = "copy";
+  ctx2d.drawImage(
+    canvasElement,
+    sx * dpr,
+    sy * dpr,
+    w * dpr,
+    h * dpr,
+    tx * dpr,
+    ty * dpr,
+    w * dpr,
+    h * dpr
+  );
+  ctx2d.restore();
+
+  // 2. redraw the exposed strip and the band edge with every pass, clipped.
+  // A clip edge cutting through an anti-aliased path (a conditional format
+  // icon) rasterises it a little differently, so the strips end on cell
+  // edges inside the band (icons keep clear of those), and reach past the
+  // canvas (or to its start: headers and frozen panes are few pixels)
+  // where they end at the canvas edge.
+  const strip = (from: number, to: number) => {
+    const a = from <= bandStart ? 0 : cellEdge(next, freeze, axis, from, false);
+    const b =
+      to >= end ? end + STRIP_OVERHANG : cellEdge(next, freeze, axis, to, true);
+    drawSheet(canvasElement, next, freeze, { axis, start: a, size: b - a });
+  };
+  if (delta > 0) {
+    strip(end - delta, end);
+    strip(bandStart, bandStart + BAND_EDGE);
+  } else {
+    strip(bandStart, bandStart + BAND_EDGE - delta);
+  }
+  // 3. merged cells across the freeze line (see freezeMergeSpan)
+  if (merged) strip(merged[0], merged[1] + Math.max(0, -delta));
+  // 4. cells cut by the far canvas edges: a path cut by the canvas edge is
+  // rasterised differently too, so these are redrawn, not moved (along the
+  // scroll when it moves them outwards, and across it always)
+  if (hasEdgeSensitivePaint(next)) {
+    if (delta < 0) strip(cellEdge(next, freeze, axis, end, false), end);
+    const across = axis === "x" ? "y" : "x";
+    const acrossEnd = axis === "x" ? height : width;
+    const from = cellEdge(next, freeze, across, acrossEnd, false);
+    drawSheet(canvasElement, next, freeze, {
+      axis: across,
+      start: from,
+      size: acrossEnd + STRIP_OVERHANG - from,
+    });
+  }
+  return true;
+}
+
+const requestFrame: (cb: () => void) => number =
+  typeof window !== "undefined" && window.requestAnimationFrame
+    ? (cb) => window.requestAnimationFrame(cb)
+    : (cb) => setTimeout(cb, 16) as unknown as number;
+const cancelFrame: (id: number) => void =
+  typeof window !== "undefined" && window.cancelAnimationFrame
+    ? (id) => window.cancelAnimationFrame(id)
+    : (id) => clearTimeout(id);
 
 const Sheet: React.FC<Props> = ({ sheet }) => {
   const { data } = sheet;
@@ -49,20 +649,36 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
   }, [data, refs.canvas, setContext, settings.devicePixelRatio]);
 
   /**
-   * Recalculate row/col info when data changes
+   * Recalculate row/col info when the sheet's dimensions or row/column
+   * sizes change. Cell edits replace `data` without changing its shape, and
+   * must not rebuild visibledatarow/visibledatacolumn (and with them the
+   * freeze cache and every consumer of those arrays).
    */
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const rowCount = data?.length ?? 0;
+  const colCount = data?.[0]?.length ?? 0;
   useEffect(() => {
-    if (!data) return;
-    setContext((draftCtx) => updateContextWithSheetData(draftCtx, data));
+    const currentData = dataRef.current;
+    if (!currentData) return;
+    setContext((draftCtx) => updateContextWithSheetData(draftCtx, currentData));
   }, [
     context.config?.rowlen,
     context.config?.columnlen,
     context.config?.rowhidden,
     context.config.colhidden,
-    data,
+    rowCount,
+    colCount,
+    sheet.id,
     context.zoomRatio,
+    context.defaultrowlen,
+    context.defaultcollen,
     setContext,
   ]);
+
+  // Outline (Data › Group) gutters left of the row headers and above the
+  // column headers: the sheet area shrinks by their size.
+  const outline = getOutlineGutterSize(context);
 
   /**
    * Init canvas
@@ -81,6 +697,8 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     context.rowHeaderWidth,
     context.columnHeaderHeight,
     context.devicePixelRatio,
+    outline.left,
+    outline.top,
   ]);
 
   /**
@@ -98,9 +716,38 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     context.visibledatarow,
   ]);
 
+  // What was last drawn, so overlay-only context changes (selection, hover,
+  // editing state, ...) skip the redraw entirely.
+  const lastDrawn = useRef<{
+    context: Context;
+    freeze: Freeze | undefined;
+    sheetId?: string;
+  } | null>(null);
+  // What is actually on the canvas (lastDrawn is updated when a draw is
+  // scheduled); lets a pure scroll reuse the pixels.
+  const lastPainted = useRef<{
+    context: Context;
+    freeze: Freeze | undefined;
+    sheetId?: string;
+    canvas: HTMLCanvasElement;
+    width: number;
+    height: number;
+  } | null>(null);
+  // Draws are coalesced into one per animation frame; this holds the latest.
+  const pendingDraw = useRef<(() => void) | null>(null);
+  const frameId = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (frameId.current != null) cancelFrame(frameId.current);
+      frameId.current = null;
+      pendingDraw.current = null;
+    },
+    []
+  );
+
   /**
-   * Redraw canvas When context changes
-   * All context changes will trigger this
+   * Redraw canvas when a context change affects it
    */
   useEffect(() => {
     // update formula chains value first if not empty
@@ -109,135 +756,54 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
       return;
     }
 
-    const tableCanvas = new Canvas(refs.canvas.current!, context);
-    if (tableCanvas == null) return;
     const freeze = refs.globalCache.freezen?.[sheet.id!];
+    const last = lastDrawn.current;
     if (
-      freeze?.horizontal?.freezenhorizontaldata ||
-      freeze?.vertical?.freezenverticaldata
+      last &&
+      last.freeze === freeze &&
+      last.sheetId === sheet.id &&
+      !canvasInputsChanged(last.context, context)
     ) {
-      // with frozen
-      const horizontalData = freeze?.horizontal?.freezenhorizontaldata;
-      const verticallData = freeze?.vertical?.freezenverticaldata;
-      if (horizontalData && verticallData) {
-        const [horizontalPx, , horizontalScrollTop] = horizontalData;
-        const [verticalPx, , verticalScrollWidth] = verticallData;
-        // main
-        tableCanvas.drawMain({
-          scrollWidth: context.scrollLeft + verticalPx - verticalScrollWidth,
-          scrollHeight: context.scrollTop + horizontalPx - horizontalScrollTop,
-          offsetLeft: verticalPx - verticalScrollWidth + context.rowHeaderWidth,
-          offsetTop:
-            horizontalPx - horizontalScrollTop + context.columnHeaderHeight,
-          clear: true,
-        });
-        // right top
-        tableCanvas.drawMain({
-          scrollWidth: context.scrollLeft + verticalPx - verticalScrollWidth,
-          scrollHeight: horizontalScrollTop,
-          drawHeight: horizontalPx,
-          offsetLeft: verticalPx - verticalScrollWidth + context.rowHeaderWidth,
-        });
-        // left down
-        tableCanvas.drawMain({
-          scrollWidth: verticalScrollWidth,
-          scrollHeight: context.scrollTop + horizontalPx - horizontalScrollTop,
-          drawWidth: verticalPx,
-          offsetTop:
-            horizontalPx - horizontalScrollTop + context.columnHeaderHeight,
-        });
-        // left top
-        tableCanvas.drawMain({
-          scrollWidth: verticalScrollWidth,
-          scrollHeight: horizontalScrollTop,
-          drawWidth: verticalPx,
-          drawHeight: horizontalPx,
-        });
-        // headers
-        tableCanvas.drawColumnHeader(
-          context.scrollLeft + verticalPx - verticalScrollWidth,
-          undefined,
-          verticalPx - verticalScrollWidth + context.rowHeaderWidth
-        );
-        tableCanvas.drawColumnHeader(verticalScrollWidth, verticalPx);
-        tableCanvas.drawRowHeader(
-          context.scrollTop + horizontalPx - horizontalScrollTop,
-          undefined,
-          horizontalPx - horizontalScrollTop + context.columnHeaderHeight
-        );
-        tableCanvas.drawRowHeader(horizontalScrollTop, horizontalPx);
-        tableCanvas.drawFreezeLine({
-          horizontalTop:
-            horizontalPx - horizontalScrollTop + context.columnHeaderHeight - 2,
-          verticalLeft:
-            verticalPx - verticalScrollWidth + context.rowHeaderWidth - 2,
-        });
-      } else if (horizontalData) {
-        const [horizontalPx, , horizontalScrollTop] = horizontalData;
-        // main
-        tableCanvas.drawMain({
-          scrollWidth: context.scrollLeft,
-          scrollHeight: context.scrollTop + horizontalPx - horizontalScrollTop,
-          offsetTop:
-            horizontalPx - horizontalScrollTop + context.columnHeaderHeight,
-          clear: true,
-        });
-        // top
-        tableCanvas.drawMain({
-          scrollWidth: context.scrollLeft,
-          scrollHeight: horizontalScrollTop,
-          drawHeight: horizontalPx,
-        });
-        // headers
-        tableCanvas.drawColumnHeader(context.scrollLeft);
-        tableCanvas.drawRowHeader(
-          context.scrollTop + horizontalPx - horizontalScrollTop,
-          undefined,
-          horizontalPx - horizontalScrollTop + context.columnHeaderHeight
-        );
-        tableCanvas.drawRowHeader(horizontalScrollTop, horizontalPx);
-        tableCanvas.drawFreezeLine({
-          horizontalTop:
-            horizontalPx - horizontalScrollTop + context.columnHeaderHeight - 2,
-        });
-      } else if (verticallData) {
-        const [verticalPx, , verticalScrollWidth] = verticallData;
-        // main
-        tableCanvas.drawMain({
-          scrollWidth: context.scrollLeft + verticalPx - verticalScrollWidth,
-          scrollHeight: context.scrollTop,
-          offsetLeft: verticalPx - verticalScrollWidth + context.rowHeaderWidth,
-        });
-        // left
-        tableCanvas.drawMain({
-          scrollWidth: verticalScrollWidth,
-          scrollHeight: context.scrollTop,
-          drawWidth: verticalPx,
-        });
-        // headers
-        tableCanvas.drawRowHeader(context.scrollTop);
-        tableCanvas.drawColumnHeader(
-          context.scrollLeft + verticalPx - verticalScrollWidth,
-          undefined,
-          verticalPx - verticalScrollWidth + context.rowHeaderWidth
-        );
-        tableCanvas.drawColumnHeader(verticalScrollWidth, verticalPx);
-        tableCanvas.drawFreezeLine({
-          verticalLeft:
-            verticalPx - verticalScrollWidth + context.rowHeaderWidth - 2,
-        });
-      }
-    } else {
-      // without frozen
-      tableCanvas.drawMain({
-        scrollWidth: context.scrollLeft,
-        scrollHeight: context.scrollTop,
-        clear: true,
-      });
-      tableCanvas.drawColumnHeader(context.scrollLeft);
-      tableCanvas.drawRowHeader(context.scrollTop);
+      return;
     }
-  }, [context, refs.canvas, refs.globalCache.freezen, setContext, sheet.id]);
+    lastDrawn.current = { context, freeze, sheetId: sheet.id };
+
+    const canvasElement = refs.canvas.current;
+    if (!canvasElement) return;
+    pendingDraw.current = () => {
+      const painted = lastPainted.current;
+      const canBlit =
+        painted != null &&
+        painted.canvas === canvasElement &&
+        painted.width === canvasElement.width &&
+        painted.height === canvasElement.height &&
+        painted.sheetId === sheet.id &&
+        painted.freeze === freeze &&
+        onlyScrolled(painted.context, context);
+      if (
+        !canBlit ||
+        !blitScroll(canvasElement, painted!.context, context, freeze)
+      ) {
+        drawSheet(canvasElement, context, freeze);
+      }
+      lastPainted.current = {
+        context,
+        freeze,
+        sheetId: sheet.id,
+        canvas: canvasElement,
+        width: canvasElement.width,
+        height: canvasElement.height,
+      };
+    };
+    if (frameId.current == null) {
+      frameId.current = requestFrame(() => {
+        frameId.current = null;
+        const draw = pendingDraw.current;
+        pendingDraw.current = null;
+        draw?.();
+      });
+    }
+  }, [context, refs.canvas, refs.globalCache.freezen, sheet.id]);
 
   const onWheel = useCallback(
     (e: WheelEvent) => {
@@ -268,7 +834,19 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
   }, [onWheel]);
 
   return (
-    <div ref={containerRef} className="fortune-sheet-container">
+    <div
+      ref={containerRef}
+      className="fortune-sheet-container"
+      style={
+        outline.left > 0 || outline.top > 0
+          ? {
+              position: "relative",
+              paddingLeft: outline.left,
+              paddingTop: outline.top,
+            }
+          : undefined
+      }
+    >
       {/* this is a placeholder div to help measure the empty space between toolbar and footer, directly measuring the canvas element is inaccurate, don't know why */}
       <div ref={placeholderRef} className="fortune-sheet-canvas-placeholder" />
       <canvas
@@ -276,7 +854,12 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
         ref={refs.canvas}
         aria-hidden="true"
       />
-      <SheetOverlay />
+      <TrackedScope>{SHEET_OVERLAY}</TrackedScope>
+      {(outline.left > 0 || outline.top > 0) && (
+        <TrackedScope>
+          <OutlineGutter />
+        </TrackedScope>
+      )}
     </div>
   );
 };

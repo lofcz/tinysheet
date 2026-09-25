@@ -1,4 +1,6 @@
-import React, { useCallback, useState, useMemo } from "react";
+import React, { useCallback, useState, useMemo, useContext } from "react";
+import WorkbookContext from ".";
+import { TrackedScope } from "./store";
 
 const ModalContext = React.createContext<{
   component: React.ReactNode;
@@ -14,6 +16,8 @@ const ModalProvider: React.FC<{ children?: React.ReactNode }> = ({
   children,
 }) => {
   const [component, setComponent] = useState<React.ReactNode>(null);
+  // Modals render outside .fortune-container, so they carry the theme too.
+  const { context } = useContext(WorkbookContext);
 
   const showModal = useCallback((c: React.ReactNode) => {
     setComponent(c);
@@ -42,8 +46,9 @@ const ModalProvider: React.FC<{ children?: React.ReactNode }> = ({
           onMouseUp={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.stopPropagation()}
           className="fortune-popover-backdrop fortune-modal-container"
+          data-theme={context.theme || "light"}
         >
-          {component}
+          <TrackedScope>{component}</TrackedScope>
         </div>
       )}
     </ModalContext.Provider>

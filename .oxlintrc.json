@@ -1,0 +1,122 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "import", "jsx-a11y", "jest", "unicorn"],
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/lib/**",
+    "storybook-static/**",
+    "docs/**",
+    "packages/formula-parser/bower.json",
+    "packages/formula-parser/src/grammar-parser/grammar-parser.js",
+    "packages/excel/src/stories/**"
+  ],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "no-console": [
+      "warn",
+      {
+        "allow": ["warn", "error", "info"]
+      }
+    ],
+    "eqeqeq": ["error", "smart"],
+    "no-var": "error",
+    "prefer-const": "error",
+    "no-unused-vars": [
+      "error",
+      {
+        "caughtErrors": "none",
+        "ignoreRestSiblings": true,
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    "react/jsx-key": "error",
+    "react/button-has-type": "error",
+    "react/self-closing-comp": "warn",
+    "import/no-cycle": "off",
+    "jest/no-conditional-expect": "off",
+    "jsx-a11y/click-events-have-key-events": "off",
+    "jsx-a11y/no-static-element-interactions": "off",
+    "jsx-a11y/no-noninteractive-tabindex": "off",
+    "react/refs": "off",
+    "react/preserve-manual-memoization": "off",
+    "react/set-state-in-effect": "off",
+    "react/globals": "off",
+    "react/purity": "off",
+    "react/immutability": "off",
+    "react/static-components": "off",
+    "react/use-memo": "off",
+    "react/incompatible-library": "off",
+    "react/unsupported-syntax": "off",
+    "react/error-boundaries": "off",
+    "react/set-state-in-render": "off",
+    "jsx-a11y/prefer-tag-over-role": "off",
+    "jsx-a11y/interactive-supports-focus": "off",
+    "jsx-a11y/no-noninteractive-element-interactions": "off",
+    "jsx-a11y/no-noninteractive-element-to-interactive-role": "off",
+    "jsx-a11y/no-autofocus": "off",
+    "jsx-a11y/control-has-associated-label": "off",
+    "unicorn/no-new-array": "off",
+    "unicorn/no-useless-fallback-in-spread": "off",
+    "typescript/no-non-null-asserted-optional-chain": "off",
+    "jest/require-to-throw-message": "off",
+    "jest/expect-expect": "warn",
+    "jest/no-standalone-expect": "off"
+  },
+  "overrides": [
+    {
+      "files": ["packages/excel/**"],
+      "rules": {
+        "no-unused-vars": "warn",
+        "eqeqeq": "warn",
+        "no-var": "off",
+        "prefer-const": "off",
+        "unicorn/no-useless-spread": "off",
+        "typescript/no-this-alias": "warn",
+        "no-control-regex": "warn",
+        "typescript/no-wrapper-object-types": "warn",
+        "unicorn/prefer-string-starts-ends-with": "warn",
+        "no-self-assign": "warn",
+        "no-unassigned-vars": "warn",
+        "no-constant-condition": "warn",
+        "no-unused-expressions": "warn"
+      }
+    },
+    {
+      "files": [
+        "packages/formula-parser/**",
+        "e2e/**",
+        "scripts/**",
+        "**/*.cjs",
+        "**/*.mjs"
+      ],
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": ["e2e/**"],
+      "rules": {
+        "jest/valid-expect": "off",
+        "jest/expect-expect": "off",
+        "jest/no-standalone-expect": "off",
+        "react/rules-of-hooks": "off"
+      }
+    },
+    {
+      "files": ["**/test/**", "**/*.test.*"],
+      "rules": {
+        "no-unassigned-vars": "off"
+      }
+    }
+  ]
+}

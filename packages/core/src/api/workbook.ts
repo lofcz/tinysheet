@@ -1,10 +1,12 @@
 import _ from "lodash";
+import { checkWorkbookStructure } from "../modules/protection";
 import { Context, Sheet } from "..";
 import {
   addSheet as addSheetInternal,
   deleteSheet as deleteSheetInternal,
   updateSheet as updateSheetInternal,
 } from "../modules";
+import { adjustReferences } from "../modules/refAdjust";
 import { Settings } from "../settings";
 import { CommonOptions, getSheet } from "./common";
 import { INVALID_PARAMS } from "./errors";
@@ -46,11 +48,22 @@ export function setSheetName(
   name: string,
   options: CommonOptions = {}
 ) {
+  if (!checkWorkbookStructure(ctx)) return;
   const sheet = getSheet(ctx, options);
+  if (sheet.name && sheet.name !== name && sheet.id != null) {
+    // sheet-qualified references follow the new name (Excel)
+    adjustReferences(ctx, {
+      type: "renameSheet",
+      sheetId: sheet.id,
+      oldName: sheet.name,
+      newName: name,
+    });
+  }
   sheet.name = name;
 }
 
 export function setSheetOrder(ctx: Context, orderList: Record<string, number>) {
+  if (!checkWorkbookStructure(ctx)) return;
   ctx.luckysheetfile?.forEach((sheet) => {
     if (sheet.id! in orderList) {
       sheet.order = orderList[sheet.id!];

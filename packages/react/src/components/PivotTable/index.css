@@ -1,0 +1,432 @@
+/* PivotTable Fields pane */
+.fortune-pivot-pane {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1003;
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  max-width: 100%;
+  box-sizing: border-box;
+  color: var(--fortune-text);
+  font-family: var(--fortune-font-family);
+  font-size: var(--fortune-font-size);
+  background: var(--fortune-bg-elevated);
+  border-left: 1px solid var(--fortune-border);
+  box-shadow: var(--fortune-shadow);
+}
+
+.fortune-pivot-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--fortune-space-2) var(--fortune-space-3);
+  font-size: var(--fortune-font-size-lg);
+  font-weight: 500;
+  border-bottom: 1px solid var(--fortune-divider);
+}
+
+.fortune-pivot-pane-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--fortune-icon);
+  background: transparent;
+  border: none;
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+}
+
+.fortune-pivot-pane-close:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-pivot-pane-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--fortune-space-2) var(--fortune-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2);
+}
+
+/* the body scrolls; its sections keep their size */
+.fortune-pivot-pane-body > * {
+  flex-shrink: 0;
+}
+
+.fortune-pivot-pane-hint {
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-pivot-pane-search {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--fortune-control-height);
+  padding: 0 var(--fortune-space-2);
+  color: var(--fortune-text);
+  background: var(--fortune-bg-input);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+}
+
+.fortune-pivot-field-list {
+  margin: 0;
+  padding: var(--fortune-space-1) 0;
+  list-style: none;
+  max-height: 180px;
+  min-height: 60px;
+  overflow-y: auto;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg);
+}
+
+.fortune-pivot-field {
+  padding: 2px var(--fortune-space-2);
+  cursor: grab;
+}
+
+.fortune-pivot-field:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-pivot-field label {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  cursor: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fortune-pivot-areas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--fortune-space-2);
+}
+
+.fortune-pivot-area {
+  display: flex;
+  flex-direction: column;
+  min-height: 84px;
+  min-width: 0;
+  padding: var(--fortune-space-1);
+  background: var(--fortune-bg);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  transition: border-color var(--fortune-transition);
+}
+
+.fortune-pivot-area-over {
+  border-color: var(--fortune-accent);
+  background: var(--fortune-accent-soft);
+}
+
+.fortune-pivot-area-title {
+  padding: 0 var(--fortune-space-1) var(--fortune-space-1);
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+  font-weight: 600;
+}
+
+.fortune-pivot-area-list {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fortune-pivot-chip {
+  position: relative;
+}
+
+.fortune-pivot-chip-button {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-1);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 2px var(--fortune-space-1);
+  color: var(--fortune-text);
+  font: inherit;
+  font-size: var(--fortune-font-size-sm);
+  text-align: left;
+  background: var(--fortune-bg-subtle);
+  border: 1px solid var(--fortune-divider);
+  border-radius: var(--fortune-radius-sm);
+  cursor: grab;
+}
+
+.fortune-pivot-chip-button:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-pivot-chip-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fortune-pivot-chip-arrow {
+  color: var(--fortune-icon);
+}
+
+.fortune-pivot-chip-menu,
+.fortune-pivot-popover {
+  z-index: 1004;
+  padding: var(--fortune-space-1) 0;
+  color: var(--fortune-text);
+  font-family: var(--fortune-font-family);
+  font-size: var(--fortune-font-size);
+  background: var(--fortune-bg-elevated);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  box-shadow: var(--fortune-shadow-lg);
+}
+
+.fortune-pivot-chip-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  min-width: 170px;
+}
+
+.fortune-pivot-chip-menu-item,
+.fortune-pivot-popover-item {
+  padding: 4px var(--fortune-space-3);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fortune-pivot-chip-menu-item:hover,
+.fortune-pivot-chip-menu-item:focus,
+.fortune-pivot-popover-item:hover,
+.fortune-pivot-popover-item:focus {
+  background: var(--fortune-bg-hover);
+  outline: none;
+}
+
+.fortune-pivot-options summary {
+  cursor: pointer;
+  color: var(--fortune-text-muted);
+  font-weight: 600;
+}
+
+.fortune-pivot-options[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1);
+}
+
+.fortune-pivot-pane-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fortune-pivot-pane-field > span {
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-pivot-pane-field select,
+.fortune-pivot-pane-field input {
+  box-sizing: border-box;
+  height: var(--fortune-control-height);
+  padding: 0 var(--fortune-space-2);
+}
+
+.fortune-pivot-pane-check {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  cursor: pointer;
+}
+
+.fortune-pivot-pane-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--fortune-space-2) var(--fortune-space-3);
+  border-top: 1px solid var(--fortune-divider);
+}
+
+/* Dialogs */
+.fortune-pivot-dialog {
+  width: 400px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-3);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-pivot-field-dialog {
+  width: 560px;
+}
+
+.fortune-pivot-dialog-title {
+  font-size: var(--fortune-font-size-lg);
+  font-weight: 500;
+}
+
+.fortune-pivot-dialog-subtitle {
+  margin: var(--fortune-space-2) 0 var(--fortune-space-1);
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+  font-weight: 600;
+}
+
+.fortune-pivot-dialog-muted {
+  margin-top: calc(-1 * var(--fortune-space-2));
+  color: var(--fortune-text-muted);
+}
+
+.fortune-pivot-dialog-group {
+  margin: 0;
+  padding: var(--fortune-space-2) var(--fortune-space-3) var(--fortune-space-3);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2);
+}
+
+.fortune-pivot-dialog-group legend {
+  padding: 0 var(--fortune-space-1);
+  color: var(--fortune-text-muted);
+}
+
+.fortune-pivot-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.fortune-pivot-dialog-field > span {
+  color: var(--fortune-text-muted);
+}
+
+.fortune-pivot-dialog-field input,
+.fortune-pivot-dialog-field select:not([size]) {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--fortune-control-height);
+  padding: 0 var(--fortune-space-2);
+}
+
+.fortune-pivot-dialog-field select[size] {
+  width: 100%;
+}
+
+.fortune-pivot-dialog-check {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  user-select: none;
+  cursor: pointer;
+}
+
+.fortune-pivot-dialog-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fortune-space-2);
+}
+
+.fortune-pivot-dialog-inline input[type="text"],
+.fortune-pivot-dialog-inline input[type="number"] {
+  width: 90px;
+  height: var(--fortune-control-height);
+  box-sizing: border-box;
+}
+
+.fortune-pivot-dialog-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--fortune-space-4);
+}
+
+.fortune-pivot-items {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: var(--fortune-space-1) var(--fortune-space-2);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg);
+}
+
+.fortune-pivot-dialog-error {
+  color: var(--fortune-danger);
+}
+
+.fortune-pivot-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--fortune-space-2);
+}
+
+/* Report drop-down buttons and their popover (in the cell area) */
+.fortune-pivot-dropdown {
+  position: absolute;
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  color: var(--fortune-icon);
+  background: var(--fortune-bg-elevated);
+  border: 1px solid var(--fortune-border-strong);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.fortune-pivot-dropdown:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-pivot-dropdown-active {
+  color: var(--fortune-accent);
+}
+
+.fortune-pivot-popover-anchor {
+  position: absolute;
+  z-index: 1004;
+}
+
+.fortune-pivot-popover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1);
+  width: 220px;
+  padding: var(--fortune-space-2);
+}
+
+.fortune-pivot-popover .fortune-pivot-popover-item {
+  padding: 4px var(--fortune-space-2);
+  border-radius: var(--fortune-radius-sm);
+}
+
+.fortune-pivot-popover-divider {
+  height: 1px;
+  margin: var(--fortune-space-1) 0;
+  background: var(--fortune-divider);
+}

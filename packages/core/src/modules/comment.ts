@@ -1,5 +1,7 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { mergeBorder } from "./cell";
+import { peekCell } from "./dependencyGraph";
 
 import { Context, getFlowdata } from "../context";
 import { CellMatrix, GlobalCache } from "../types";
@@ -73,8 +75,8 @@ export function drawArrow(
 ) {
   const canvas = document.getElementById(
     `arrowCanvas-${rc}`
-  ) as HTMLCanvasElement;
-  const ctx = canvas.getContext("2d");
+  ) as HTMLCanvasElement | null;
+  const ctx = canvas?.getContext("2d");
   if (!canvas || !ctx) return;
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
@@ -89,7 +91,13 @@ export function drawArrow(
   headlen = headlen || 6;
   // width = width || 1;
   const arrowWidth = 1;
-  color = color || "#000";
+  // follow the theme: --fortune-note-arrow is set on the workbook container
+  color =
+    color ||
+    (typeof getComputedStyle === "function"
+      ? getComputedStyle(canvas).getPropertyValue("--fortune-note-arrow").trim()
+      : "") ||
+    "#000";
 
   // 计算各角度和对应的P2,P3坐标
   const angle = (Math.atan2(fromY - toY, fromX - toX) * 180) / Math.PI;
@@ -269,10 +277,12 @@ export function newComment(
   r: number,
   c: number
 ) {
+  if (!checkProtection(ctx, "editObjects")) return;
   // if(!checkProtectionAuthorityNormal(Store.currentSheetId, "editObjects")){
   //     return;
   // }
-  const allowEdit = isAllowEdit(ctx);
+  // notes are objects: Edit Objects decides, not the cell's lock
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   if (ctx.hooks.beforeInsertComment?.(r, c) === false) {
     return;
@@ -312,10 +322,12 @@ export function editComment(
   r: number,
   c: number
 ) {
+  if (!checkProtection(ctx, "editObjects")) return;
   // if(!checkProtectionAuthorityNormal(Store.currentSheetId, "editObjects")){
   //     return;
   // }
-  const allowEdit = isAllowEdit(ctx);
+  // notes are objects: Edit Objects decides, not the cell's lock
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   const flowdata = getFlowdata(ctx);
   removeEditingComment(ctx, globalCache);
@@ -341,10 +353,12 @@ export function deleteComment(
   r: number,
   c: number
 ) {
+  if (!checkProtection(ctx, "editObjects")) return;
   // if(!checkProtectionAuthorityNormal(Store.currentSheetId, "editObjects")){
   //     return;
   // }
-  const allowEdit = isAllowEdit(ctx);
+  // notes are objects: Edit Objects decides, not the cell's lock
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   if (ctx.hooks.beforeDeleteComment?.(r, c) === false) {
     return;
@@ -502,7 +516,8 @@ export function overShowComment(
   }
   const rc = `${r}_${c}`;
 
-  const comment = flowdata[r]?.[c]?.ps;
+  // read without drafting: a draft row read makes immer copy every row
+  const comment = peekCell(flowdata, r, c)?.ps;
   if (
     comment == null ||
     comment.isShow ||

@@ -1,3 +1,106 @@
+/*
+ * Design tokens.
+ *
+ * Every colour, radius, shadow and font used by the workbook UI is declared
+ * here as a CSS custom property on the root container, so embedders can
+ * restyle the sheet by overriding a handful of variables, e.g.
+ *
+ *   .fortune-container { --fortune-accent: #0f9d58; }
+ *
+ * `data-theme="dark"` (set from `settings.theme`) swaps the palette. The
+ * canvas grid/header colours live in `core/src/theme.ts` and are kept in
+ * sync with the values below.
+ */
+.fortune-container,
+.fortune-modal-container {
+  /* typography */
+  --fortune-font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "WenQuanYi Micro Hei", sans-serif;
+  --fortune-font-size: 13px;
+  --fortune-font-size-sm: 12px;
+  --fortune-font-size-lg: 16px;
+
+  /* spacing & shape */
+  --fortune-space-1: 4px;
+  --fortune-space-2: 8px;
+  --fortune-space-3: 12px;
+  --fortune-space-4: 16px;
+  --fortune-space-5: 24px;
+  --fortune-radius-sm: 4px;
+  --fortune-radius: 6px;
+  --fortune-radius-lg: 8px;
+  --fortune-control-height: 28px;
+  --fortune-toolbar-button-size: 28px;
+
+  /* surfaces */
+  --fortune-bg: #ffffff; /* sheet, dialogs, menus */
+  --fortune-bg-subtle: #f8f9fa; /* toolbar, tab bar, status bar */
+  --fortune-bg-muted: #f1f3f4; /* inset areas, table headings */
+  --fortune-bg-elevated: #ffffff; /* popovers, menus */
+  --fortune-bg-hover: rgba(60, 64, 67, 0.08);
+  --fortune-bg-active: rgba(60, 64, 67, 0.16);
+  --fortune-bg-input: #ffffff;
+  --fortune-backdrop: rgba(255, 255, 255, 0.5);
+
+  /* text */
+  --fortune-text: #1f1f1f;
+  --fortune-text-muted: #5f6368;
+  --fortune-text-subtle: #80868b;
+  --fortune-text-disabled: #b0b3b8;
+  --fortune-text-inverse: #ffffff;
+  --fortune-icon: #444746;
+
+  /* lines */
+  --fortune-border: #dadce0;
+  --fortune-border-strong: #bdc1c6;
+  --fortune-divider: #e3e3e3;
+  --fortune-grid-line: #e1e1e1;
+
+  /* accent & selection */
+  --fortune-accent: #1a73e8;
+  --fortune-accent-hover: #1765cc;
+  --fortune-accent-active: #185abc;
+  --fortune-accent-soft: #e8f0fe; /* selected menu items, toggled buttons */
+  --fortune-accent-text: #0b57d0;
+  --fortune-on-accent: #ffffff;
+  --fortune-selection: #1a73e8;
+  --fortune-selection-fill: rgba(26, 115, 232, 0.1);
+  --fortune-selection-focus-fill: rgba(26, 115, 232, 0.16);
+  --fortune-focus-ring: 0 0 0 2px rgba(26, 115, 232, 0.55);
+
+  /* row / column headers (DOM overlays above the canvas headers) */
+  --fortune-header-bg: #f8f9fa;
+  --fortune-header-text: #5f6368;
+  --fortune-header-hover: rgba(60, 64, 67, 0.1);
+  --fortune-header-selected: rgba(26, 115, 232, 0.16);
+
+  /* status */
+  --fortune-danger: #d93025;
+  --fortune-danger-hover: #b3261e;
+  --fortune-success: #188038;
+  --fortune-warning: #f29900;
+  --fortune-filter: #7b61ff;
+
+  /* chrome */
+  --fortune-tooltip-bg: #3c4043;
+  --fortune-tooltip-text: #ffffff;
+  --fortune-scrollbar-thumb: rgba(95, 99, 104, 0.4);
+  --fortune-scrollbar-thumb-hover: rgba(95, 99, 104, 0.6);
+  --fortune-shadow-sm:
+    0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  --fortune-shadow:
+    0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 1px 2px rgba(60, 64, 67, 0.3);
+  --fortune-shadow-lg:
+    0 4px 8px 3px rgba(60, 64, 67, 0.15), 0 1px 3px rgba(60, 64, 67, 0.3);
+  --fortune-transition: 0.12s ease;
+
+  color-scheme: light;
+  font-family: var(--fortune-font-family);
+  color: var(--fortune-text);
+}
+
 .fortune-container {
   display: flex;
   width: 100%;
@@ -5,15 +108,244 @@
   margin: 0;
   padding: 0;
   flex-direction: column;
-  font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC",
-    "Hiragino Sans GB", "Heiti SC", "Microsoft YaHei", "WenQuanYi Micro Hei",
-    sans-serif;
-  background-color: white;
+  background-color: var(--fortune-bg);
   position: relative;
+}
+
+.fortune-container[data-theme="dark"],
+.fortune-modal-container[data-theme="dark"] {
+  --fortune-bg: #1e1f22;
+  --fortune-bg-subtle: #26272b;
+  --fortune-bg-muted: #2d2f33;
+  --fortune-bg-elevated: #2b2d31;
+  --fortune-bg-hover: rgba(232, 234, 237, 0.08);
+  --fortune-bg-active: rgba(232, 234, 237, 0.16);
+  --fortune-bg-input: #1e1f22;
+  --fortune-backdrop: rgba(0, 0, 0, 0.45);
+
+  --fortune-text: #e3e3e3;
+  --fortune-text-muted: #a8abb0;
+  --fortune-text-subtle: #8e9196;
+  --fortune-text-disabled: #5f6368;
+  --fortune-text-inverse: #1e1f22;
+  --fortune-icon: #c4c7c5;
+
+  --fortune-border: #44474d;
+  --fortune-border-strong: #5f6368;
+  --fortune-divider: #3a3c41;
+  --fortune-grid-line: #34363a;
+
+  --fortune-accent: #8ab4f8;
+  --fortune-accent-hover: #aecbfa;
+  --fortune-accent-active: #c2d7fb;
+  --fortune-accent-soft: rgba(138, 180, 248, 0.16);
+  --fortune-accent-text: #a8c7fa;
+  --fortune-on-accent: #0b1f3e;
+  --fortune-selection: #669df6;
+  --fortune-selection-fill: rgba(102, 157, 246, 0.16);
+  --fortune-selection-focus-fill: rgba(102, 157, 246, 0.24);
+  --fortune-focus-ring: 0 0 0 2px rgba(138, 180, 248, 0.7);
+
+  --fortune-header-bg: #26272b;
+  --fortune-header-text: #9aa0a6;
+  --fortune-header-hover: rgba(232, 234, 237, 0.1);
+  --fortune-header-selected: rgba(102, 157, 246, 0.24);
+
+  --fortune-danger: #f28b82;
+  --fortune-danger-hover: #f6aea9;
+  --fortune-success: #81c995;
+  --fortune-warning: #fdd663;
+  --fortune-filter: #b0a4ff;
+
+  --fortune-tooltip-bg: #e8eaed;
+  --fortune-tooltip-text: #202124;
+  --fortune-scrollbar-thumb: rgba(232, 234, 237, 0.28);
+  --fortune-scrollbar-thumb-hover: rgba(232, 234, 237, 0.45);
+  --fortune-shadow-sm:
+    0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 3px 1px rgba(0, 0, 0, 0.3);
+  --fortune-shadow:
+    0 2px 6px 2px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --fortune-shadow-lg:
+    0 4px 12px 4px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+
+  color-scheme: dark;
+}
+
+/* Icons: the sprite in SVGDefines draws with currentColor. */
+:is(.fortune-container, .fortune-modal-container) svg {
+  color: var(--fortune-icon);
+}
+
+:is(.fortune-container, .fortune-modal-container) use {
+  fill: currentColor;
+}
+
+/* Keyboard focus ring shared by interactive elements. */
+:is(.fortune-container, .fortune-modal-container) [role="button"]:focus-visible,
+:is(.fortune-container, .fortune-modal-container)
+  [role="menuitem"]:focus-visible,
+:is(.fortune-container, .fortune-modal-container) [role="option"]:focus-visible,
+:is(.fortune-container, .fortune-modal-container) [role="tab"]:focus-visible,
+:is(.fortune-container, .fortune-modal-container) button:focus-visible,
+:is(.fortune-container, .fortune-modal-container) select:focus-visible,
+:is(.fortune-container, .fortune-modal-container)
+  input[type="checkbox"]:focus-visible,
+:is(.fortune-container, .fortune-modal-container)
+  input[type="radio"]:focus-visible,
+:is(.fortune-container, .fortune-modal-container)
+  .fortune-toolbar-select-option:focus-visible {
+  outline: none;
+  box-shadow: var(--fortune-focus-ring);
+}
+
+/*
+ * Form controls inside dialogs and menus. Zero specificity (:where) so any
+ * component rule, or an embedder's own CSS, overrides these defaults.
+ */
+:where(.fortune-container, .fortune-modal-container)
+  :where(
+    input[type="text"],
+    input[type="number"],
+    input:not([type]),
+    select,
+    textarea
+  ) {
+  color: var(--fortune-text);
+  background-color: var(--fortune-bg-input);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  font-family: inherit;
+  outline: none;
+  transition:
+    border-color var(--fortune-transition),
+    box-shadow var(--fortune-transition);
+}
+
+:where(.fortune-container, .fortune-modal-container)
+  :where(
+    input[type="text"],
+    input[type="number"],
+    input:not([type]),
+    select,
+    textarea
+  ):focus {
+  border-color: var(--fortune-accent);
+  box-shadow: 0 0 0 1px var(--fortune-accent);
+}
+
+:where(.fortune-container, .fortune-modal-container)
+  :where(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--fortune-accent);
+}
+
+/* Shared buttons (dialogs, menus, cards). */
+:is(.fortune-container, .fortune-modal-container) .button-basic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fortune-space-1);
+  min-height: var(--fortune-control-height);
+  margin-bottom: 0;
+  padding: 0 var(--fortune-space-4);
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: var(--fortune-font-size);
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  transition:
+    background-color var(--fortune-transition),
+    border-color var(--fortune-transition),
+    color var(--fortune-transition);
+}
+
+:is(.fortune-container, .fortune-modal-container) .button-primary {
+  color: var(--fortune-on-accent);
+  background-color: var(--fortune-accent);
+  border-color: var(--fortune-accent);
+}
+
+:is(.fortune-container, .fortune-modal-container) .button-primary:hover {
+  background-color: var(--fortune-accent-hover);
+  border-color: var(--fortune-accent-hover);
+}
+
+:is(.fortune-container, .fortune-modal-container) .button-primary:active {
+  background-color: var(--fortune-accent-active);
+  border-color: var(--fortune-accent-active);
+}
+
+:is(.fortune-container, .fortune-modal-container) .button-default,
+:is(.fortune-container, .fortune-modal-container) .button-close {
+  color: var(--fortune-text);
+  background-color: var(--fortune-bg);
+  border-color: var(--fortune-border);
+}
+
+:is(.fortune-container, .fortune-modal-container) .button-default:hover,
+:is(.fortune-container, .fortune-modal-container) .button-close:hover {
+  background-color: var(--fortune-bg-hover);
+}
+
+:is(.fortune-container, .fortune-modal-container) .button-default:active,
+:is(.fortune-container, .fortune-modal-container) .button-close:active {
+  background-color: var(--fortune-bg-active);
+}
+
+:is(.fortune-container, .fortune-modal-container) .button-danger {
+  color: var(--fortune-text-inverse);
+  background-color: var(--fortune-danger);
+  border-color: var(--fortune-danger);
+}
+
+:is(.fortune-container, .fortune-modal-container) .button-danger:hover {
+  background-color: var(--fortune-danger-hover);
+  border-color: var(--fortune-danger-hover);
+}
+
+:is(.fortune-container, .fortune-modal-container) .button-basic:disabled,
+:is(.fortune-container, .fortune-modal-container)
+  .button-basic[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Scrollbars of menus, lists and dialogs. */
+:is(.fortune-container, .fortune-modal-container)
+  :not(.luckysheet-scrollbar-ltr)::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background-color: transparent;
+}
+
+:is(.fortune-container, .fortune-modal-container)
+  :not(.luckysheet-scrollbar-ltr)::-webkit-scrollbar-thumb {
+  background-color: var(--fortune-scrollbar-thumb);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 10px;
+}
+
+:is(.fortune-container, .fortune-modal-container)
+  :not(.luckysheet-scrollbar-ltr)::-webkit-scrollbar-thumb:hover {
+  background-color: var(--fortune-scrollbar-thumb-hover);
+}
+
+:is(.fortune-container, .fortune-modal-container)
+  :not(.luckysheet-scrollbar-ltr)::-webkit-scrollbar-corner {
+  background-color: transparent;
 }
 
 .fortune-workarea {
   width: 100%;
+  background-color: var(--fortune-bg-subtle);
 }
 
 .fortune-popover-backdrop {
@@ -27,7 +359,7 @@
 }
 
 .fortune-modal-container {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--fortune-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -41,6 +373,8 @@ html::-webkit-scrollbar-button {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  color: var(--fortune-text-muted);
+  background-color: var(--fortune-bg-subtle);
 }
 
 .sr-only {

@@ -612,6 +612,67 @@ example of `data`:
     6. `str` is the start row, `edr` is the end row, `stc` is the start column, and `edc` is the end column. The four numbers represent the entire filter range, which should be consistent with the content of `filter_select`.
 
 ------------
+### tables
+- type：Array
+- default：undefined
+- usage：Excel tables ("Format as Table") of the sheet. Each table has its own filter and its slicers; the sheet autofilter (`filter_select` / `filter`) and table filters coexist, and the sheet's `config.rowhidden` holds the union of the rows they hide (plus rows hidden by hand).
+- example：
+    ```js
+    {
+        name: "Sales",                      // workbook-unique, usable in formulas: Sales[Qty]
+        range: { row: [0, 6], column: [0, 2] }, // header row + data rows + total row
+        headerRow: true,
+        totalRow: true,
+        bandedRows: true,
+        bandedColumns: false,
+        firstColumn: false,
+        lastColumn: false,
+        style: "TableStyleMedium2",         // TableStyleLight1-7, TableStyleMedium1-8, TableStyleDark1-7
+        filterButton: true,                 // header filter buttons (default true)
+        columns: [
+            { name: "Region", totalFunction: "none", totalLabel: "Total" },
+            { name: "Qty", totalFunction: "sum" },   // total row: =SUBTOTAL(109,Sales[Qty])
+            {
+                name: "Double",
+                calculatedFormula: "=[@Qty]*2",      // calculated column (as in the first data row)
+                totalFunction: "custom",
+                totalFormula: "=SUM(Sales[Double])", // More Functions… / a formula typed in the total row
+            },
+        ],
+        // per-column filters, keyed by the column's index in the table
+        filters: {
+            0: { condition: { type: "values", hidden: ["West"] }, rowhidden: { 2: 0 } },
+            1: { condition: { type: "custom", op1: "greaterThan", value1: "1" }, rowhidden: {} },
+        },
+        slicers: [
+            {
+                name: "Slicer_Region",      // workbook-unique
+                column: "Region",           // table column it filters
+                caption: "Region",
+                showCaption: true,
+                r: 1, c: 5, offsetX: 10, offsetY: 4, // anchored to cell F2 (+ px at 100%)
+                width: 180, height: 240,
+                columnCount: 1,
+                buttonHeight: 26,
+                buttonWidth: undefined,     // fill the panel
+                style: "SlicerStyleLight1", // SlicerStyleLight1-6, SlicerStyleDark1-6, SlicerStyleOther1-2
+                multiSelect: false,
+                sortOrder: "ascending",
+                hideNoData: false,
+                noDataLast: true,
+            },
+        ],
+    }
+    ```
+    Filter conditions (`condition.type`): `values` (`hidden` lists the display texts to hide, `""` for blanks), `custom` (`op1`/`value1`, optional `join`/`op2`/`value2`), `top10`, `average`, `datePeriod`, `cellColor`, `fontColor`. A slicer's selection is its column's `values` filter, so the header button and the slicer always agree; several slicers combine (AND).
+
+    xlsx import / export:
+    + written and read: range, header/total rows, style name and options, total functions and labels, custom total formulas (`totalsRowFormula`), calculated columns (`calculatedColumnFormula`), filter buttons on/off, filter state (`<autoFilter>`: value lists, custom criteria with wildcards, top 10, above/below average, date periods) and table slicers (`xl/slicers/`, `xl/slicerCaches/` with an x15 `tableSlicerCache`, the drawing anchor, the workbook/sheet `extLst` entries and the hidden `Slicer_…` names);
+    + on import, value lists recompute the rows they hide from the cells; other criteria keep the rows the file hides;
+    + not written: colour filters, a slicer's "hide items with no data" and multi-select mode (Excel keeps no such state for table slicers; multi-select is a view option), `buttonWidth`;
+    + not read: colour and icon filters, pivot-table and timeline slicers, slicer caches of tables on other sheets.
+
+------------
 ### luckysheet_alternateformat_save
 - type：Array
 - default：[]

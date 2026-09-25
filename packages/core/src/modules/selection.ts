@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection, checkProtectionAllSelected } from "./protection";
 import type { Sheet as SheetType, Freezen, Range } from "../types";
 import { Context, getFlowdata } from "../context";
 import {
@@ -9,9 +10,16 @@ import {
   mergeBorder,
   mergeMoveMain,
 } from "./cell";
-import clipboard from "./clipboard";
+import clipboard, {
+  clipboardState,
+  newClipboardToken,
+  rangeToClipboard,
+} from "./clipboard";
 import { getBorderInfoCompute } from "./border";
 import { cellFocus } from "./dataVerification";
+import { checkEditGuards } from "./extensions";
+import { checkboxClearMode, clearCheckboxCell } from "./checkbox";
+import { delFunctionGroup } from "./formula";
 import {
   escapeHTMLTag,
   getSheetIndex,
@@ -19,7 +27,7 @@ import {
   replaceHtml,
 } from "../utils";
 import { hasPartMC } from "./validation";
-import { update } from "./format";
+import { is_date, update } from "./format";
 // @ts-ignore
 import SSF from "./ssf";
 import { CFSplitRange } from "./ConditionFormat";
@@ -42,7 +50,10 @@ export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
 
   if (r >= 0) {
     const row_focus = sheet?.frozen?.range?.row_focus || 0;
-    const freezeH = frozen && r > row_focus ? ctx.visibledatarow[row_focus] : 0;
+    // the frozen pane's visible height (it may start below row 1)
+    const hiddenH = frozen?.top ? (ctx.visibledatarow[frozen.top - 1] ?? 0) : 0;
+    const freezeH =
+      frozen && r > row_focus ? ctx.visibledatarow[row_focus] - hiddenH : 0;
     const row = ctx.visibledatarow[r];
     const row_pre = r - 1 === -1 ? 0 : ctx.visibledatarow[r - 1];
 
@@ -56,8 +67,13 @@ export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
 
   if (c >= 0) {
     const column_focus = sheet?.frozen?.range?.column_focus || 0;
+    const hiddenW = frozen?.left
+      ? (ctx.visibledatacolumn[frozen.left - 1] ?? 0)
+      : 0;
     const freezeW =
-      frozen && c > column_focus ? ctx.visibledatacolumn[column_focus] : 0;
+      frozen && c > column_focus
+        ? ctx.visibledatacolumn[column_focus] - hiddenW
+        : 0;
     const col = ctx.visibledatacolumn[c];
     const col_pre = c - 1 === -1 ? 0 : ctx.visibledatacolumn[c - 1];
 
@@ -239,9 +255,7 @@ export function pasteHandlerOfPaintModel(
   ctx: Context,
   copyRange: Context["luckysheet_copy_save"]
 ) {
-  // if (!checkProtectionLockedRangeList(ctx.luckysheet_select_save, ctx.currentSheetId)) {
-  //   return;
-  // }
+  if (!checkProtection(ctx, "formatCells")) return;
   const cfg = ctx.config;
   if (cfg.merge == null) {
     cfg.merge = {};
@@ -446,7 +460,6 @@ export function pasteHandlerOfPaintModel(
             delete value.v;
             delete value.m;
             delete value.f;
-            delete value.spl;
 
             if (value.ct && value.ct.t === "inlineStr") {
               delete value.ct;
@@ -490,6 +503,13 @@ export function pasteHandlerOfPaintModel(
                 // 修改被格式刷的值
                 const mask = update(value.ct.fa, x[c].v);
                 x[c].m = mask;
+                // the painted cell keeps its own value type
+                if (typeof x[c].v === "number" && value.ct.fa !== "@") {
+                  x[c].ct = {
+                    ...x[c].ct,
+                    t: is_date(value.ct.fa) ? "d" : "n",
+                  };
+                }
               }
             }
           }
@@ -506,16 +526,17 @@ export function pasteHandlerOfPaintModel(
   // 复制范围 是否有 条件格式
   let cdformat: any = null;
   const copyIndex = getSheetIndex(ctx, copySheetIndex);
-  if (!copyIndex) return;
+  if (copyIndex == null) return;
   const ruleArr = _.cloneDeep(
     ctx.luckysheetfile[copyIndex].luckysheet_conditionformat_save
   );
 
   if (!_.isNil(ruleArr) && ruleArr.length > 0) {
     const currentIndex = getSheetIndex(ctx, ctx.currentSheetId) as number;
-    cdformat = _.cloneDeep(
-      ctx.luckysheetfile[currentIndex].luckysheet_conditionformat_save
-    );
+    cdformat =
+      _.cloneDeep(
+        ctx.luckysheetfile[currentIndex].luckysheet_conditionformat_save
+      ) || [];
 
     for (let i = 0; i < ruleArr.length; i += 1) {
       const cdformat_cellrange = ruleArr[i].cellrange;
@@ -539,6 +560,8 @@ export function pasteHandlerOfPaintModel(
         cdformat.push(ruleArr[i]);
       }
     }
+    // the painted range gets the source's conditional formats
+    ctx.luckysheetfile[currentIndex].luckysheet_conditionformat_save = cdformat;
   }
 }
 
@@ -2042,19 +2065,26 @@ export function copy(ctx: Context) {
     HasMC,
   };
 
-  const cpdata = rangeValueToHtml(
+  // HTML (styles, merges, borders, number formats) + TSV, tagged with a
+  // token so a paste can recognise our own copy (see clipboard.ts)
+  const token = newClipboardToken();
+  const cp = rangeToClipboard(
     ctx,
     ctx.currentSheetId,
-    ctx.luckysheet_select_save
+    ctx.luckysheet_select_save ?? [],
+    token
   );
 
-  if (cpdata) {
+  if (cp) {
+    clipboardState.token = token;
+    clipboardState.text = cp.text;
     ctx.iscopyself = true;
-    clipboard.writeHtml(cpdata);
+    clipboard.writeHtml(cp.html, cp.text);
   }
 }
 
 export function deleteSelectedCellText(ctx: Context): string {
+  if (!checkProtection(ctx, "editCells")) return "protected";
   const allowEdit = isAllowEdit(ctx);
   if (allowEdit === false) {
     return "allowEdit";
@@ -2081,6 +2111,14 @@ export function deleteSelectedCellText(ctx: Context): string {
     if (has_PartMC) {
       return "partMC";
     }
+    // read-only regions registered by features (data table bodies, ...)
+    const refused = checkEditGuards(ctx, selection, "clear");
+    if (refused) {
+      ctx.warnDialog = refused;
+      return "guarded";
+    }
+    // Delete unchecks checkboxes, or removes them when all are unchecked
+    const checkboxMode = checkboxClearMode(d, selection);
 
     const hyperlinkMap =
       ctx.luckysheetfile[getSheetIndex(ctx, ctx.currentSheetId)!].hyperlink;
@@ -2099,9 +2137,15 @@ export function deleteSelectedCellText(ctx: Context): string {
             // Ensure the row exists
             if (!data[r]) data[r] = [];
 
-            // Replace the entire cell with an empty object
-            if (data[r] && data[r][c]) {
-              data[r][c] = {}; // Fully replace cell with empty object
+            // Clear the contents but keep the formatting, like Excel's Delete
+            const cell = data[r]?.[c];
+            if (cell) {
+              if (cell.f) delFunctionGroup(ctx, r, c);
+              const kept = _.omit(cell, ["v", "m", "f", "qp", "hl", "img"]);
+              if (kept.ct?.t === "inlineStr") {
+                kept.ct = { fa: "General", t: "g" };
+              }
+              data[r][c] = clearCheckboxCell(kept, checkboxMode);
             }
 
             if (hyperlinkMap && hyperlinkMap[`${r}_${c}`]) {
@@ -2153,9 +2197,7 @@ export function selectIsOverlap(ctx: Context, range?: any) {
 
 export function selectAll(ctx: Context) {
   // 全选表格
-  // if (!checkProtectionAllSelected(ctx.currentSheetId)) {
-  //   return;
-  // }
+  if (!checkProtectionAllSelected(ctx, ctx.currentSheetId)) return;
 
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;

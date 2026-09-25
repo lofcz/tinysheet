@@ -45,7 +45,7 @@ In FortuneSheet's [Issues](https://github.com/ruilisi/fortune-sheet/issues) list
 
 ## Code Specification
 
-This project has configured `eslint` and `prettier`, if they claim error when you commit code, be sure to fix them before committing again.
+This project uses `oxlint` (`bun run lint`) and `oxfmt` (`bun run format`). The pre-commit hook runs the linter; fix what it reports before committing again.
 
 ## How to contribute documents
 

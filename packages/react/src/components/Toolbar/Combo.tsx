@@ -9,6 +9,7 @@ import { locale } from "@lofcz/tinysheet-core";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import SVGIcon from "../SVGIcon";
 import WorkbookContext from "../../context";
+import { activateOnKey } from "./Button";
 
 type Props = {
   tooltip: string;
@@ -65,10 +66,13 @@ const Combo: React.FC<Props> = ({
             if (onClick) onClick(e);
             else setOpen(!open);
           }}
+          onKeyDown={activateOnKey}
+          aria-haspopup={onClick ? undefined : true}
+          aria-expanded={onClick ? undefined : open}
           tabIndex={0}
           data-tips={tooltip}
           role="button"
-          aria-label={`${tooltip}: ${text !== undefined ? text : ""}`}
+          aria-label={text ? `${tooltip}: ${text}` : tooltip}
           style={style}
         >
           {iconId ? (
@@ -82,6 +86,9 @@ const Combo: React.FC<Props> = ({
         <div
           className="fortune-toolbar-combo-arrow"
           onClick={() => setOpen(!open)}
+          onKeyDown={activateOnKey}
+          aria-haspopup
+          aria-expanded={open}
           tabIndex={0}
           data-tips={tooltip}
           role="button"
@@ -90,7 +97,11 @@ const Combo: React.FC<Props> = ({
         >
           <SVGIcon name="combo-arrow" width={10} />
         </div>
-        {tooltip && <div className="fortune-tooltip">{tooltip}</div>}
+        {tooltip && (
+          <div className="fortune-tooltip" aria-hidden="true">
+            {tooltip}
+          </div>
+        )}
       </div>
       {open && (
         <div

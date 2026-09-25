@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "description": "Playwright end-to-end tests; run with `bun run test:e2e` from the repo root.",
+  "type": "commonjs"
+}

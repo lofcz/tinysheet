@@ -15,10 +15,9 @@ import {
   theme1File,
   calcChainFile,
   workbookRels,
-  numFmtDefaultMap,
 } from "../common/constant";
 import { ReadXml, IStyleCollections, Element } from "./ReadXml";
-import { getXmlAttibute } from "../common/method";
+import { escapeCharacter, getXmlAttibute } from "../common/method";
 import {
   FortuneFileBase,
   FortuneFileInfo,
@@ -28,6 +27,17 @@ import {
   FortuneSheetCellFormat,
 } from "./FortuneBase";
 import { ImageList } from "./FortuneImage";
+import {
+  sheetImportFeatures,
+  workbookImportFeatures,
+  WorkbookImportInfo,
+  resolvePartPath,
+} from "./importFeatures";
+import {
+  importDefinedNames,
+  readDefinedNamesXml,
+} from "../common/definedNames";
+import { generateChartId } from "@lofcz/tinysheet-core";
 
 export class FortuneFile {
   private files: IuploadfileList;
@@ -40,6 +50,7 @@ export class FortuneFile {
   private imageList: ImageList;
   private sheets?: FortuneSheet[];
   private info?: FortuneFileInfo;
+  private workbookInfo: WorkbookImportInfo = {};
 
   constructor(files: IuploadfileList, fileName: string) {
     this.files = files;
@@ -104,10 +115,17 @@ export class FortuneFile {
       let attrList = numfmts[i].attributeList;
       let numfmtid = getXmlAttibute(attrList, "numFmtId", "49");
       let formatcode = getXmlAttibute(attrList, "formatCode", "@");
-      // console.log(numfmtid, formatcode);
-      if (!(numfmtid in numFmtDefault)) {
-        numFmtDefaultC[numfmtid] = numFmtDefaultMap[formatcode] || formatcode;
-      }
+      // Custom codes (ids >= 164) and explicit overrides of built-in ids.
+      numFmtDefaultC[numfmtid] = formatcode;
+    }
+
+    let workbookPr = this.readXml.getElementsByTagName(
+      "workbookPr",
+      workBookFile
+    );
+    if (workbookPr.length > 0) {
+      let date1904 = workbookPr[0].attributeList.date1904;
+      this.workbookInfo.date1904 = date1904 == "1" || date1904 == "true";
     }
 
     // console.log(JSON.stringify(numFmtDefaultC), numfmts);
@@ -126,19 +144,23 @@ export class FortuneFile {
       return;
     }
 
-    let regex = new RegExp("worksheets/[^/]*?.xml");
+    let regex = new RegExp("worksheets/[^/]*?.xml", "i");
     let sheetNames: IattributeList = {};
+    // part names are case-insensitive: map targets to the zip's spelling
+    let byLowerName = new Map<string, string>();
+    Object.keys(this.files).forEach((name) =>
+      byLowerName.set(name.toLowerCase(), name)
+    );
     for (let i = 0; i < workbookRelList.length; i++) {
       let rel = workbookRelList[i],
         attrList = rel.attributeList;
       let id = attrList["Id"],
-        target = attrList["Target"];
-      if (regex.test(target)) {
-        if (target.indexOf("/xl") === 0) {
-          sheetNames[id] = target.substr(1);
-        } else {
-          sheetNames[id] = "xl/" + target;
-        }
+        target = attrList["Target"],
+        type = attrList["Type"] || "";
+      if (id == null || target == null) continue;
+      if (/\/worksheet$/.test(type) || (!type && regex.test(target))) {
+        let path = resolvePartPath("xl", escapeCharacter(target));
+        sheetNames[id] = byLowerName.get(path.toLowerCase()) ?? path;
       }
     }
 
@@ -200,22 +222,21 @@ export class FortuneFile {
     let sheetList: IattributeList = {};
     for (let key in sheets) {
       let sheet = sheets[key];
-      sheetList[sheet.attributeList.name] = sheet.attributeList["sheetId"];
+      sheetList[escapeCharacter(sheet.attributeList.name)] =
+        sheet.attributeList["sheetId"];
     }
     this.sheets = [];
     let order = 0;
     for (let key in sheets) {
       let sheet = sheets[key];
-      let sheetName = sheet.attributeList.name;
+      let sheetName = escapeCharacter(sheet.attributeList.name);
       let sheetId = sheet.attributeList["sheetId"];
       let rid = sheet.attributeList["r:id"];
       let sheetFile = this.getSheetFileBysheetId(rid);
-      let hide = sheet.attributeList.state === "hidden" ? 1 : 0;
+      let state = sheet.attributeList.state;
+      let hide = state === "hidden" || state === "veryHidden" ? 1 : 0;
 
-      let drawing = this.readXml.getElementsByTagName(
-          "worksheet/drawing",
-          sheetFile
-        ),
+      let drawing = this.readXml.getElementsByTagName("drawing", sheetFile),
         drawingFile,
         drawingRelsFile;
       if (drawing != null && drawing.length > 0) {
@@ -223,7 +244,8 @@ export class FortuneFile {
         let rid = getXmlAttibute(attrList, "r:id", null);
         if (rid != null) {
           drawingFile = this.getDrawingFile(rid, sheetFile);
-          drawingRelsFile = this.getDrawingRelsFile(drawingFile);
+          drawingRelsFile =
+            drawingFile != null ? this.getDrawingRelsFile(drawingFile) : null;
         }
       }
 
@@ -239,16 +261,47 @@ export class FortuneFile {
           drawingFile: drawingFile,
           drawingRelsFile: drawingRelsFile,
           hide: hide,
+          workbookInfo: this.workbookInfo,
         });
+        for (const feature of sheetImportFeatures) {
+          feature.read({
+            sheet,
+            sheetFile,
+            readXml: this.readXml,
+            files: this.files,
+            styles: this.styles,
+            workbook: this.workbookInfo,
+          });
+        }
         this.columnWidthSet = [];
         this.rowHeightSet = [];
 
         this.imagePositionCaculation(sheet);
+        this.chartPositionCalculation(sheet);
 
         this.sheets.push(sheet);
         order++;
       }
     }
+    for (const feature of workbookImportFeatures) {
+      feature.read({
+        sheets: this.sheets,
+        readXml: this.readXml,
+        files: this.files,
+        workbook: this.workbookInfo,
+      });
+    }
+  }
+
+  /** Charts use the same two-cell anchors as images. */
+  private chartPositionCalculation(sheet: FortuneSheet) {
+    if (sheet.chartObjects.length == 0) {
+      return;
+    }
+    let images = sheet.images;
+    sheet.images = sheet.chartObjects as any;
+    this.imagePositionCaculation(sheet);
+    sheet.images = images;
   }
 
   private columnWidthSet: number[] = [];
@@ -470,6 +523,25 @@ export class FortuneFile {
     this.getSheetsFull();
   }
 
+  /** Defined names of xl/workbook.xml -> sheet.definedNames (core names.ts) */
+  private attachDefinedNames(sheets: any[]) {
+    const key = Object.keys(this.files).find(
+      (k) => k.indexOf(workBookFile) > -1
+    );
+    if (!key) return;
+    const names = readDefinedNamesXml(this.files[key]);
+    if (names.length === 0) return;
+    const order = this.readXml
+      .getElementsByTagName("sheets/sheet", workBookFile)
+      .map((el) => el.attributeList.name);
+    importDefinedNames(names, order).forEach((list, sheetName) => {
+      const sheet = sheets.find((s) => s.name === sheetName) ?? sheets[0];
+      if (sheet) {
+        sheet.definedNames = [...(sheet.definedNames ?? []), ...list];
+      }
+    });
+  }
+
   serialize(): FortuneFileBase {
     const FortuneOutPutFile = new FortuneFileBase();
     FortuneOutPutFile.info = this.info;
@@ -488,7 +560,8 @@ export class FortuneFile {
       }
 
       if (sheet.config != null) {
-        sheetout.config = sheet.config;
+        // Plain objects (the parser uses classes), so immer can draft them.
+        sheetout.config = JSON.parse(JSON.stringify(sheet.config));
         // if(sheetout.config._borderInfo!=null){
         //     delete sheetout.config._borderInfo;
         // }
@@ -543,50 +616,57 @@ export class FortuneFile {
       }
 
       // https://github.com/ruilisi/fortune-sheet/issues/299
+      // every cell of every merge -> its merge (anchors get rs/cs)
       const merges = new Map();
       if (sheet.config?.merge) {
         for (const { r, c, rs, cs } of Object.values(sheet.config.merge)) {
+          // huge merges (whole rows/columns) are resolved per cell below
+          if (!(rs * cs <= 100000)) continue;
+          for (let i = r; i < r + rs; i++)
+            for (let j = c; j < c + cs; j++)
+              if (i !== r || j !== c) merges.set(i + "_" + j, { r, c });
           merges.set(r + "_" + c, { r, c, rs, cs });
-          for (let i = r + 1; i < r + rs; i++)
-            for (let j = c + 1; j < c + cs; j++)
-              merges.set(i + "_" + j, { r, c });
         }
       }
+      const bigMerges = Object.values(sheet.config?.merge ?? {}).filter(
+        (m) => !(m.rs * m.cs <= 100000)
+      );
+      const plain = (o: any) => Object.getPrototypeOf(o) === Object.prototype;
 
       if (sheet.celldata != null) {
-        // Plain objects matter here
-        sheetout.celldata = [];
+        // Plain objects matter here (immer can only draft plain objects)
+        sheetout.celldata = new Array(sheet.celldata.length);
+        let n = 0;
         for (let { r, c, v } of sheet.celldata) {
-          if (typeof v === "object") {
-            const { ...xv } = v;
-            v = xv;
-            if (v.ct) {
+          if (v != null && typeof v === "object") {
+            if (!plain(v)) {
+              const { ...xv } = v;
+              v = xv;
+            }
+            if (v.ct && !plain(v.ct)) {
               const { ...ct } = v.ct;
               v.ct = ct;
             }
-            if (merges.has(r + "_" + c)) {
-              v.mc = merges.get(r + "_" + c);
-              if (v.mc.r !== r || v.mc.c !== c) v = { mc: v.mc };
-            } else {
-              for (const key in sheet.config.merge) {
-                if (sheet.config.merge.hasOwnProperty(key)) {
-                  const range = sheet.config.merge[key];
-                  if (
-                    r >= range.r &&
-                    r < range.r + range.rs &&
-                    c >= range.c &&
-                    c < range.c + range.cs
-                  ) {
-                    v.mc = { r: range.r, c: range.c };
-                    if (v.mc.r !== r || v.mc.c !== c) v = { mc: v.mc };
-                    break;
-                  }
-                }
+            let merge = merges.size ? merges.get(r + "_" + c) : undefined;
+            if (merge == null && bigMerges.length) {
+              const range = bigMerges.find(
+                (m) => r >= m.r && r < m.r + m.rs && c >= m.c && c < m.c + m.cs
+              );
+              if (range) {
+                merge =
+                  range.r === r && range.c === c
+                    ? { r, c, rs: range.rs, cs: range.cs }
+                    : { r: range.r, c: range.c };
               }
             }
+            if (merge != null) {
+              v.mc = { ...merge };
+              if (merge.r !== r || merge.c !== c) v = { mc: v.mc };
+            }
           }
-          sheetout.celldata.push({ r, c, v });
+          sheetout.celldata[n++] = { r, c, v };
         }
+        sheetout.celldata.length = n;
       }
 
       if (sheet.chart != null) {
@@ -610,23 +690,62 @@ export class FortuneFile {
         sheetout.freezen = sheet.freezen;
       }
 
+      if (sheet.frozen != null) {
+        sheetout.frozen = sheet.frozen;
+      }
+
       if (sheet.calcChain != null) {
         sheetout.calcChain = sheet.calcChain;
       }
 
       if (sheet.images != null) {
-        sheetout.images = Object.entries(sheet.images).map(([id, image]: any) => ({
-          ...image,
-          id,
-          left: image.default?.left ?? 0,
-          top: image.default?.top ?? 0,
-          width: image.default?.width ?? image.originWidth ?? 0,
-          height: image.default?.height ?? image.originHeight ?? 0,
+        sheetout.images = Object.entries(sheet.images).map(
+          ([id, image]: any) => ({
+            ...image,
+            id,
+            left: image.default?.left ?? 0,
+            top: image.default?.top ?? 0,
+            width: image.default?.width ?? image.originWidth ?? 0,
+            height: image.default?.height ?? image.originHeight ?? 0,
+          })
+        );
+      }
+
+      let chartObjects = (sheet as any).chartObjects as any[] | undefined;
+      if (chartObjects != null && chartObjects.length > 0) {
+        sheetout.charts = chartObjects.map((item) => ({
+          ...item.chart,
+          id: generateChartId(),
+          left: item.default?.left ?? 0,
+          top: item.default?.top ?? 0,
+          width: item.default?.width || item.originWidth || 480,
+          height: item.default?.height || item.originHeight || 288,
         }));
       }
 
       if (sheet.dataVerification != null) {
         sheetout.dataVerification = sheet.dataVerification;
+      }
+
+      if ((sheet as any).tables != null) {
+        sheetout.tables = (sheet as any).tables;
+      }
+
+      if ((sheet as any).threadedComments != null) {
+        sheetout.threadedComments = (sheet as any).threadedComments;
+      }
+      if ((sheet as any).pageSetup != null) {
+        sheetout.pageSetup = (sheet as any).pageSetup;
+      }
+      if ((sheet as any).sparklineGroups != null) {
+        sheetout.sparklineGroups = (sheet as any).sparklineGroups;
+      }
+      if ((sheet as any).shapes != null) {
+        sheetout.shapes = (sheet as any).shapes;
+      }
+      // PivotTables (common/pivotTables.ts readPivotTables)
+      if ((sheet as any).pivotTables != null) {
+        sheetout.pivotTables = (sheet as any).pivotTables;
       }
 
       if (sheet.hyperlink != null) {
@@ -637,8 +756,20 @@ export class FortuneFile {
         sheetout.hide = sheet.hide;
       }
 
+      if ((sheet as any).calcSettings != null) {
+        sheetout.calcSettings = (sheet as any).calcSettings;
+      }
+      // set by feature readers (importProtection.ts)
+      ["showRowColHeaders", "rightToLeft", "workbookProtection"].forEach(
+        (key) => {
+          if ((sheet as any)[key] != null) sheetout[key] = (sheet as any)[key];
+        }
+      );
+
       FortuneOutPutFile.sheets.push(sheetout);
     }
+
+    this.attachDefinedNames(FortuneOutPutFile.sheets);
 
     return FortuneOutPutFile;
   }

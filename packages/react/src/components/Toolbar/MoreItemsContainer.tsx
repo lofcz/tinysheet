@@ -6,13 +6,9 @@ const MoreItemsContaier: React.FC<{
   children?: React.ReactNode;
 }> = ({ onClose, children }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  useOutsideClick(
-    containerRef,
-    () => {
-      onClose?.();
-    },
-    [containerRef, onClose]
-  );
+  useOutsideClick(containerRef, () => {
+    onClose?.();
+  }, [containerRef, onClose]);
 
   return (
     <div ref={containerRef} className="fortune-toolbar-more-container">

@@ -8,20 +8,33 @@ import {
   GlobalCache,
   Sheet as SheetType,
   handleGlobalKeyDown,
+  getRowColShortcutOp,
+  applyRowColShortcutOp,
   getSheetIndex,
   handlePaste,
-  filterPatch,
   patchToOp,
   Op,
-  inverseRowColOptions,
   ensureSheetIndex,
   CellMatrix,
   insertRowCol,
   locale,
-  calcSelectionInfo,
   groupValuesRefresh,
   setFormulaCellInfoMap,
+  expandCellData,
+  mirrorGroupedSheetEdits,
+  produceWithHistory,
+  popHistoryGroup,
+  applyUndoSteps,
+  applyRedoSteps,
+  beginUndoGroup,
+  filterPatch,
+  flushRecalc,
+  hasPendingRecalc,
+  runRecalcSlice,
+  setRecalcScheduler,
 } from "@lofcz/tinysheet-core";
+import type { History } from "@lofcz/tinysheet-core";
+import { flushSync } from "react-dom";
 import React, {
   useMemo,
   useState,
@@ -29,30 +42,49 @@ import React, {
   useEffect,
   useRef,
   useImperativeHandle,
+  useLayoutEffect,
 } from "react";
 import "./index.css";
-import produce, {
-  applyPatches,
-  enablePatches,
-  Patch,
-  produceWithPatches,
-} from "immer";
+import { enablePatches, Patch } from "immer";
 import _ from "lodash";
 import Sheet from "../Sheet";
-import WorkbookContext, { RefValues, SetContextOptions } from "../../context";
+import { RefValues, SetContextOptions } from "../../context";
+import {
+  TrackedScope,
+  WorkbookApi,
+  WorkbookProvider,
+  WorkbookStore,
+} from "../../context/store";
 import Toolbar from "../Toolbar";
 import FxEditor from "../FxEditor";
 import SheetTab from "../SheetTab";
 import ContextMenu from "../ContextMenu";
 import SVGDefines from "../SVGDefines";
 import SheetTabContextMenu from "../ContextMenu/SheetTab";
+import DataToolsLayer from "../DataVerification/DataToolsLayer";
 import MoreItemsContaier from "../Toolbar/MoreItemsContainer";
 import { generateAPIs } from "./api";
 import { ModalProvider } from "../../context/modal";
 import FilterMenu from "../ContextMenu/FilterMenu";
+import FormatCells from "../FormatCells";
 import SheetList from "../SheetList";
+import StatusBar from "../StatusBar";
+import { useResolvedTheme } from "../../hooks/useResolvedTheme";
 
 enablePatches();
+
+// Prop-less children as constant elements: React skips them when the
+// Workbook re-renders, and the TrackedScope around each re-renders them only
+// for the context fields they read.
+const FX_EDITOR = <FxEditor />;
+const SHEET_TAB = <SheetTab />;
+const SHEET_LIST = <SheetList />;
+const CONTEXT_MENU = <ContextMenu />;
+const FILTER_MENU = <FilterMenu />;
+const SHEET_TAB_CONTEXT_MENU = <SheetTabContextMenu />;
+const DATA_TOOLS_LAYER = <DataToolsLayer />;
+const FORMAT_CELLS = <FormatCells />;
+const STATUS_BAR = <StatusBar />;
 
 export type WorkbookInstance = ReturnType<typeof generateAPIs>;
 
@@ -60,6 +92,17 @@ type AdditionalProps = {
   onChange?: (data: SheetType[]) => void;
   onOp?: (op: Op[]) => void;
 };
+
+/** Run `cb` when the browser is idle (after paint); returns a canceller. */
+function scheduleIdle(cb: () => void) {
+  const w: any = typeof window !== "undefined" ? window : undefined;
+  if (w?.requestIdleCallback) {
+    const id = w.requestIdleCallback(cb, { timeout: 500 });
+    return () => w.cancelIdleCallback(id);
+  }
+  const id = setTimeout(cb, 1);
+  return () => clearTimeout(id);
+}
 
 const triggerGroupValuesRefresh = (ctx: Context) => {
   if (ctx.groupValuesRefreshData.length > 0) {
@@ -74,6 +117,18 @@ const concatProducer = (...producers: ((ctx: Context) => void)[]) => {
     });
   };
 };
+
+function shallowEqualProps(
+  a: Record<string, unknown> | null,
+  b: Record<string, unknown>
+) {
+  if (!a) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  return ka.every(
+    (k) => Object.prototype.hasOwnProperty.call(b, k) && Object.is(a[k], b[k])
+  );
+}
 
 const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
   ({ onChange, onOp, data: originalData, ...props }, ref) => {
@@ -100,33 +155,28 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       []
     );
 
-    const [context, setContext] = useState(defaultContext(refs));
-    const { formula, info } = locale(context);
+    // Lazy initializer: defaultContext builds a FormulaCache (and with it a
+    // Chevrotain parser), which is far too expensive to evaluate and throw
+    // away on every Workbook render.
+    const [context, setContext] = useState(() => defaultContext(refs));
+    const { info } = locale(context);
 
     const [moreToolbarItems, setMoreToolbarItems] =
       useState<React.ReactNode>(null);
 
-    const [calInfo, setCalInfo] = useState<{
-      numberC: number;
-      count: number;
-      sum: number;
-      max: number;
-      min: number;
-      average: string;
-    }>({
-      numberC: 0,
-      count: 0,
-      sum: 0,
-      max: 0,
-      min: 0,
-      average: "",
-    });
-
+    // Recompute when any prop changes, including props added or removed after
+    // mount (a values-array dependency list would change length and be
+    // ignored by React).
+    const settingsProps = useRef<typeof props | null>(null);
+    const settingsVersion = useRef(0);
+    if (!shallowEqualProps(settingsProps.current, props)) {
+      settingsProps.current = props;
+      settingsVersion.current += 1;
+    }
     const mergedSettings = useMemo(
       () => _.assign(_.cloneDeep(defaultSettings), props) as Required<Settings>,
-      // props expect data, onChage, onOp
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [..._.values(props)]
+      [settingsVersion.current]
     );
 
     // Keep hooks on a ref so selection / settings effects do not re-subscribe
@@ -135,60 +185,23 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     const hooksRef = useRef(mergedSettings.hooks);
     hooksRef.current = mergedSettings.hooks;
 
-    // Selection aggregates — expensive (scans every selected cell) and triggers
-    // an extra Workbook re-render via setCalInfo. Skip entirely when hidden;
-    // otherwise debounce so drag-select stays responsive.
-    useEffect(() => {
-      if (!mergedSettings.showStatsBar) return undefined;
-      const selection = context.luckysheet_select_save;
-      if (!selection) return undefined;
-      const { lang } = mergedSettings;
-      const handle = window.setTimeout(() => {
-        setCalInfo(calcSelectionInfo(context, lang));
-      }, 120);
-      return () => window.clearTimeout(handle);
-      // context is read for the selection-bound snapshot at schedule time
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-      context.luckysheet_select_save,
-      mergedSettings.showStatsBar,
-      mergedSettings.lang,
-    ]);
-
+    // Expands a sheet's celldata into its data matrix (see expandCellData:
+    // frozen rows keep immer from walking every cell on the next produce).
     const initSheetData = useCallback(
       (
         draftCtx: Context,
         newData: SheetType,
         index: number
       ): CellMatrix | null => {
-        const { celldata, row, column } = newData;
-        const lastRow = _.maxBy<CellWithRowAndCol>(celldata, "r");
-        const lastCol = _.maxBy(celldata, "c");
-        let lastRowNum = (lastRow?.r ?? 0) + 1;
-        let lastColNum = (lastCol?.c ?? 0) + 1;
-        if (row != null && column != null && row > 0 && column > 0) {
-          lastRowNum = Math.max(lastRowNum, row);
-          lastColNum = Math.max(lastColNum, column);
-        } else {
-          lastRowNum = Math.max(lastRowNum, draftCtx.defaultrowNum);
-          lastColNum = Math.max(lastColNum, draftCtx.defaultcolumnNum);
-        }
-        if (lastRowNum && lastColNum) {
-          const expandedData: SheetType["data"] = _.times(lastRowNum, () =>
-            _.times(lastColNum, () => null)
-          );
-          celldata?.forEach((d) => {
-            // TODO setCellValue(draftCtx, d.r, d.c, expandedData, d.v);
-            expandedData[d.r][d.c] = d.v;
-          });
-          draftCtx.luckysheetfile = produce(draftCtx.luckysheetfile, (d) => {
-            d[index!].data = expandedData;
-            delete d[index!].celldata;
-            return d;
-          });
-          return expandedData;
-        }
-        return null;
+        const expandedData = expandCellData(
+          newData,
+          draftCtx.defaultrowNum,
+          draftCtx.defaultcolumnNum
+        );
+        const target = draftCtx.luckysheetfile[index];
+        target.data = expandedData;
+        delete target.celldata;
+        return expandedData;
       },
       []
     );
@@ -207,224 +220,141 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       [onOp]
     );
 
-    function reduceUndoList(ctx: Context, ctxBefore: Context) {
-      const sheetsId = ctx.luckysheetfile.map((sheet) => sheet.id);
-      const sheetDeletedByMe = globalCache.current.undoList
-        .filter((undo) => undo.options?.deleteSheetOp)
-        .map((item) => item.options?.deleteSheetOp?.id);
-      globalCache.current.undoList = globalCache.current.undoList.filter(
-        (undo) =>
-          undo.options?.deleteSheetOp ||
-          undo.options?.id === undefined ||
-          _.indexOf(sheetsId, undo.options?.id) !== -1 ||
-          _.indexOf(sheetDeletedByMe, undo.options?.id) !== -1
-      );
-      if (ctxBefore.luckysheetfile.length > ctx.luckysheetfile.length) {
-        const sheetDeleted = ctxBefore.luckysheetfile
-          .filter(
-            (oneSheet) =>
-              _.indexOf(
-                ctx.luckysheetfile.map((item) => item.id),
-                oneSheet.id
-              ) === -1
-          )
-          .map((item) => getSheetIndex(ctxBefore, item.id as string));
-        const deletedIndex = sheetDeleted[0];
-        globalCache.current.undoList = globalCache.current.undoList.map(
-          (oneStep) => {
-            oneStep.patches = oneStep.patches.map((onePatch) => {
-              if (
-                typeof onePatch.path[1] === "number" &&
-                onePatch.path[1] > (deletedIndex as number)
-              ) {
-                onePatch.path[1] -= 1;
-              }
-              return onePatch;
-            });
-            oneStep.inversePatches = oneStep.inversePatches.map((onePatch) => {
-              if (
-                typeof onePatch.path[1] === "number" &&
-                onePatch.path[1] > (deletedIndex as number)
-              ) {
-                onePatch.path[1] -= 1;
-              }
-              return onePatch;
-            });
-            return oneStep;
-          }
-        );
-      }
-    }
-
-    function dataToCelldata(data: CellMatrix) {
-      const cellData: CellWithRowAndCol[] = [];
-      for (let row = 0; row < data?.length; row += 1) {
-        for (let col = 0; col < data[row]?.length; col += 1) {
-          if (data[row][col] !== null) {
-            cellData.push({
-              r: row,
-              c: col,
-              v: data[row][col],
-            });
-          }
-        }
-      }
-      return cellData;
-    }
-
     const setContextWithProduce = useCallback(
       (recipe: (ctx: Context) => void, options: SetContextOptions = {}) => {
+        // the undo group is read now: React may run the updater later
+        const group = globalCache.current.undoGroup?.id;
+        // React may call this updater again: twice for the same state
+        // (StrictMode), or on top of an update that was still pending when it
+        // first ran ("rebasing"). The edit must stay one undo step and one op.
+        let memo: { input: Context; output: Context } | null = null;
+        let step: History | undefined;
+        let emitted = false;
         setContext((ctx_) => {
-          const [result, patches, inversePatches] = produceWithPatches(
+          if (memo?.input === ctx_) return memo.output;
+          const { result, recorded } = produceWithHistory(
             ctx_,
-            concatProducer(recipe, triggerGroupValuesRefresh)
+            concatProducer(
+              recipe,
+              // grouped sheets: repeat the edit on every grouped sheet
+              (draft) => mirrorGroupedSheetEdits(ctx_, draft),
+              triggerGroupValuesRefresh
+            ),
+            options,
+            globalCache.current,
+            group
           );
-          if (patches.length > 0 && !options.noHistory) {
-            if (options.logPatch) {
-              // eslint-disable-next-line no-console
-              console.info("patch", patches);
-            }
-            const filteredPatches = filterPatch(patches);
-            let filteredInversePatches = filterPatch(inversePatches);
-            if (filteredInversePatches.length > 0) {
-              options.id = ctx_.currentSheetId;
-              if (options.deleteSheetOp) {
-                const target = ctx_.luckysheetfile.filter(
-                  (sheet) => sheet.id === options.deleteSheetOp?.id
-                );
-                if (target) {
-                  const index = getSheetIndex(
-                    ctx_,
-                    options.deleteSheetOp.id as string
-                  ) as number;
-                  options.deletedSheet = {
-                    id: options.deleteSheetOp.id as string,
-                    index: index as number,
-                    value: _.cloneDeep(ctx_.luckysheetfile[index]),
-                  };
-                  options.deletedSheet!.value!.celldata = dataToCelldata(
-                    options.deletedSheet!.value!.data as CellMatrix
-                  );
-                  delete options.deletedSheet!.value!.data;
-                  options.deletedSheet.value!.status = 0;
-                  filteredInversePatches = [
-                    {
-                      op: "add",
-                      path: ["luckysheetfile", 0],
-                      value: options.deletedSheet.value,
-                    },
-                  ];
-                }
-              } else if (options.addSheetOp) {
-                options.addSheet = {};
-                options.addSheet!.id =
-                  result.luckysheetfile[result.luckysheetfile.length - 1].id;
-              }
-              globalCache.current.undoList.push({
-                patches: filteredPatches,
-                inversePatches: filteredInversePatches,
-                options,
-              });
-              globalCache.current.redoList = [];
-              emitOp(result, filteredPatches, options);
-            }
-          } else {
-            if (patches?.[0]?.value?.length < ctx_?.luckysheetfile?.length) {
-              reduceUndoList(result, ctx_);
-            }
+          // a re-run replaces the step its earlier run recorded
+          if (step) {
+            const { undoList } = globalCache.current;
+            const i = undoList.lastIndexOf(step);
+            if (i >= 0) undoList.splice(i, 1);
           }
+          step = recorded;
+          if (recorded && !emitted) {
+            emitted = true;
+            emitOp(result, recorded.patches, recorded.options);
+          }
+          memo = { input: ctx_, output: result };
           return result;
         });
       },
       [emitOp]
     );
 
-    const handleUndo = useCallback(() => {
-      const history = globalCache.current.undoList.pop();
-      if (history) {
+    // Time-sliced recalculation (core recalcScheduler.ts): a long
+    // recalculation evaluates what fits in a frame's budget and queues the
+    // rest, which runs here one slice per animation frame. Slices change
+    // formula values only: no undo step, but collaborators get the ops.
+    const sliceFrame = useRef<number | null>(null);
+    const runRecalcSliceUpdate = useCallback(
+      (unlimited = false) => {
         setContext((ctx_) => {
-          if (history.options?.deleteSheetOp) {
-            history.inversePatches[0].path[1] = ctx_.luckysheetfile.length;
-            const order = history.options.deletedSheet?.value?.order as number;
-            const sheetsRight = ctx_.luckysheetfile.filter(
-              (sheet) =>
-                (sheet?.order as number) >= (order as number) &&
-                sheet.id !== history?.options?.deleteSheetOp?.id
-            );
-            _.forEach(sheetsRight, (sheet) => {
-              history.inversePatches.push({
-                op: "replace",
-                path: [
-                  "luckysheetfile",
-                  getSheetIndex(ctx_, sheet.id as string) as number,
-                  "order",
-                ],
-                value: (sheet?.order as number) + 1,
-              } as Patch);
-            });
+          if (!hasPendingRecalc(ctx_) && ctx_.recalcProgress === undefined) {
+            return ctx_;
           }
-          const newContext = applyPatches(ctx_, history.inversePatches);
-          globalCache.current.redoList.push(history);
-          const inversedOptions = inverseRowColOptions(history.options);
-          if (inversedOptions?.insertRowColOp) {
-            inversedOptions.restoreDeletedCells = true;
-          }
-          if (history.options?.addSheetOp) {
-            const index = getSheetIndex(
-              ctx_,
-              history.options.addSheet!.id as string
-            ) as number;
-            inversedOptions!.addSheet = {
-              id: history.options.addSheet!.id as string,
-              index: index as number,
-              value: _.cloneDeep(ctx_.luckysheetfile[index]),
-            };
-            inversedOptions!.addSheet!.value!.celldata = dataToCelldata(
-              inversedOptions!.addSheet!.value?.data as CellMatrix
-            );
-            delete inversedOptions!.addSheet!.value!.data;
-          }
-          emitOp(newContext, history.inversePatches, inversedOptions, true);
-          if (
-            history.options?.deleteRowColOp ||
-            history.options?.insertRowColOp ||
-            history.options?.restoreDeletedCells
-          )
-            newContext.formulaCache.formulaCellInfoMap = null;
-          else
-            newContext.formulaCache.updateFormulaCache(
-              newContext,
-              history,
-              "undo"
-            );
-          return newContext;
+          const { result, patches } = produceWithHistory(
+            ctx_,
+            (draft) => {
+              if (unlimited) flushRecalc(draft);
+              else runRecalcSlice(draft);
+              triggerGroupValuesRefresh(draft);
+            },
+            { noHistory: true },
+            globalCache.current
+          );
+          const ops = filterPatch(patches);
+          if (ops.length > 0) emitOp(result, ops);
+          return result;
         });
+      },
+      [emitOp]
+    );
+    useEffect(() => {
+      // A macrotask per slice: input events and paints get in between
+      // slices (a slice is ~8 ms), without waiting a frame for each.
+      let channel: MessageChannel | null = null;
+      let cancelled = false;
+      const run = () => {
+        sliceFrame.current = null;
+        if (!cancelled) runRecalcSliceUpdate();
+      };
+      if (typeof MessageChannel !== "undefined") {
+        channel = new MessageChannel();
+        channel.port1.onmessage = run;
       }
+      setRecalcScheduler(context, () => {
+        if (sliceFrame.current != null) return;
+        sliceFrame.current = 1;
+        if (channel) channel.port2.postMessage(null);
+        else setTimeout(run, 0);
+      });
+      return () => {
+        cancelled = true;
+        setRecalcScheduler(context, null);
+        if (channel) channel.port1.onmessage = null;
+      };
+      // the formula cache lives as long as the workbook
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [context.formulaCache, runRecalcSliceUpdate]);
+
+    // Latest committed context, for API calls that must see the result of a
+    // synchronous flush (getCellValue while a recalculation is queued).
+    const latestContext = useRef(context);
+    latestContext.current = context;
+    const flushRecalcNow = useCallback(() => {
+      if (!hasPendingRecalc(latestContext.current))
+        return latestContext.current;
+      flushSync(() => runRecalcSliceUpdate(true));
+      return latestContext.current;
+    }, [runRecalcSliceUpdate]);
+
+    const handleUndo = useCallback(() => {
+      // the lists are updated here, not in the updater (which React may call
+      // more than once)
+      const steps = popHistoryGroup(globalCache.current.undoList);
+      if (steps.length === 0) return;
+      globalCache.current.redoList.push(...steps);
+      setContext((ctx_) => {
+        const step = applyUndoSteps(ctx_, steps);
+        step.applied.forEach(({ patches, options }) => {
+          emitOp(step.context, patches, options, true);
+        });
+        return step.context;
+      });
     }, [emitOp]);
 
     const handleRedo = useCallback(() => {
-      const history = globalCache.current.redoList.pop();
-      if (history) {
-        setContext((ctx_) => {
-          const newContext = applyPatches(ctx_, history.patches);
-          globalCache.current.undoList.push(history);
-          emitOp(newContext, history.patches, history.options);
-
-          if (
-            history.options?.deleteRowColOp ||
-            history.options?.insertRowColOp ||
-            history.options?.restoreDeletedCells
-          )
-            newContext.formulaCache.formulaCellInfoMap = null;
-          else
-            newContext.formulaCache.updateFormulaCache(
-              newContext,
-              history,
-              "redo"
-            );
-          return newContext;
+      const steps = popHistoryGroup(globalCache.current.redoList);
+      if (steps.length === 0) return;
+      globalCache.current.undoList.push(...steps);
+      setContext((ctx_) => {
+        const step = applyRedoSteps(ctx_, steps);
+        step.applied.forEach(({ patches, options }) => {
+          emitOp(step.context, patches, options);
         });
-      }
+        return step.context;
+      });
     }, [emitOp]);
 
     useEffect(() => {
@@ -447,24 +377,33 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       );
     }, [mergedSettings.hooks, setContextWithProduce]);
 
-    const providerValue = useMemo(
+    const workbookApi: WorkbookApi = useMemo(
       () => ({
-        context,
         setContext: setContextWithProduce,
         settings: mergedSettings,
         handleUndo,
         handleRedo,
         refs,
       }),
-      [
-        context,
-        handleRedo,
-        handleUndo,
-        mergedSettings,
-        refs,
-        setContextWithProduce,
-      ]
+      [handleRedo, handleUndo, mergedSettings, refs, setContextWithProduce]
     );
+    const providerValue = useMemo(
+      () => ({ context, ...workbookApi }),
+      [context, workbookApi]
+    );
+
+    // Components below a TrackedScope subscribe to this store and re-render
+    // only for the context fields they read (the Workbook itself, the Sheet
+    // canvas and unscoped consumers still see every update).
+    const storeRef = useRef<WorkbookStore | null>(null);
+    if (storeRef.current == null) {
+      storeRef.current = new WorkbookStore(context, workbookApi);
+    }
+    const store = storeRef.current;
+    store.update(context, workbookApi);
+    useLayoutEffect(() => {
+      store.emit();
+    });
 
     useEffect(() => {
       if (!_.isEmpty(context.luckysheetfile)) {
@@ -479,20 +418,23 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           draftCtx.defaultrowNum = mergedSettings.row;
           draftCtx.defaultFontSize = mergedSettings.defaultFontSize;
           if (_.isEmpty(draftCtx.luckysheetfile)) {
-            const newData = produce(originalData, (draftData) => {
-              ensureSheetIndex(draftData, mergedSettings.generateSheetId);
+            // Shallow copies: ensureSheetIndex fills in ids and status.
+            // (Running it through produce would deep-freeze every cell of
+            // every sheet, which dominated load time for big workbooks.)
+            const newData = originalData.map((sheet) => ({ ...sheet }));
+            ensureSheetIndex(newData, mergedSettings.generateSheetId);
+            newData.forEach((sheet) => {
+              // pending sheets keep their celldata until expanded; a frozen
+              // copy spares immer from walking it
+              if (sheet.celldata && _.isEmpty(sheet.data)) {
+                sheet.celldata = Object.freeze(
+                  sheet.celldata.slice()
+                ) as CellWithRowAndCol[];
+              }
             });
             draftCtx.luckysheetfile = newData;
-            newData.forEach((newDatum) => {
-              const index = getSheetIndex(draftCtx, newDatum.id!) as number;
-              const sheet = draftCtx.luckysheetfile?.[index];
-              const cellMatrixData = initSheetData(draftCtx, sheet, index);
-              setFormulaCellInfoMap(
-                draftCtx,
-                sheet.calcChain,
-                cellMatrixData || undefined
-              );
-            });
+            // Only the sheet shown first is expanded here, below; the others
+            // are expanded after the first paint (see expandPendingSheets).
           }
           if (mergedSettings.devicePixelRatio > 0) {
             draftCtx.devicePixelRatio = mergedSettings.devicePixelRatio;
@@ -524,6 +466,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             if (!_.isNull(temp)) {
               data = temp;
             }
+            setFormulaCellInfoMap(draftCtx, sheet.calcChain, data);
           }
 
           if (
@@ -624,13 +567,55 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       mergedSettings.currency,
     ]);
 
+    // Sheets other than the one shown are expanded from celldata after the
+    // first paint, one per idle slot, so opening a big multi-sheet workbook
+    // does not wait for sheets nobody is looking at yet.
+    const pendingSheets = context.luckysheetfile.reduce(
+      (n, s) =>
+        s.id !== context.currentSheetId && _.isEmpty(s.data) ? n + 1 : n,
+      0
+    );
+    useEffect(() => {
+      if (pendingSheets === 0) return undefined;
+      return scheduleIdle(() => {
+        setContextWithProduce(
+          (draftCtx) => {
+            const files = draftCtx.luckysheetfile;
+            const idx = files.findIndex(
+              (s) => s.id !== draftCtx.currentSheetId && _.isEmpty(s.data)
+            );
+            if (idx < 0) return;
+            const sheet = files[idx];
+            const data = initSheetData(draftCtx, sheet, idx);
+            setFormulaCellInfoMap(draftCtx, sheet.calcChain, data ?? undefined);
+          },
+          { noHistory: true }
+        );
+      });
+    }, [pendingSheets, initSheetData, setContextWithProduce]);
+
+    // Colour theme: resolved here so the canvas (ctx.theme) and the CSS
+    // tokens (data-theme on the root) always agree. Layout effect so the
+    // first painted frame already uses the right palette.
+    const resolvedTheme = useResolvedTheme(mergedSettings.theme);
+    useLayoutEffect(() => {
+      setContextWithProduce(
+        (draftCtx) => {
+          draftCtx.theme = resolvedTheme;
+        },
+        { noHistory: true }
+      );
+    }, [resolvedTheme, setContextWithProduce]);
+
     const onKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
         const { nativeEvent } = e;
         // handling undo and redo ahead because handleUndo and handleRedo
         // themselves are calling setContext, and should not be nested
-        // in setContextWithProduce.
-        if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") {
+        // in setContextWithProduce. While a cell is being edited the editor
+        // undoes its own typing, like Excel.
+        const editing = context.luckysheetCellUpdate.length > 0;
+        if (!editing && (e.ctrlKey || e.metaKey) && e.code === "KeyZ") {
           if (e.shiftKey) {
             handleRedo();
           } else {
@@ -639,10 +624,26 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           e.stopPropagation();
           return;
         }
-        if ((e.ctrlKey || e.metaKey) && e.code === "KeyY") {
+        if (!editing && (e.ctrlKey || e.metaKey) && e.code === "KeyY") {
           handleRedo();
           e.stopPropagation();
           e.preventDefault();
+          return;
+        }
+        // Ctrl+- / Ctrl++ on whole rows/columns: run as a row/column op so
+        // undo and collaboration see it
+        const rowColOp = getRowColShortcutOp(
+          context,
+          nativeEvent,
+          cellInput.current,
+          fxInput.current
+        );
+        if (rowColOp) {
+          e.preventDefault();
+          e.stopPropagation();
+          setContextWithProduce((draftCtx) => {
+            applyRowColShortcutOp(draftCtx, rowColOp);
+          }, rowColOp);
           return;
         }
         setContextWithProduce((draftCtx) => {
@@ -658,7 +659,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           );
         });
       },
-      [handleRedo, handleUndo, setContextWithProduce]
+      [context, handleRedo, handleUndo, setContextWithProduce]
     );
 
     const onPaste = useCallback(
@@ -692,6 +693,8 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               ) as number
             ].data!.length;
           const range = context.luckysheet_select_save;
+          // growing the sheet and pasting are one undo step
+          const endUndoGroup = beginUndoGroup(globalCache.current);
           if (rowToBeAdded > 0) {
             const insertRowColOp: SetContextOptions["insertRowColOp"] = {
               type: "row",
@@ -723,6 +726,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               console.error(err);
             }
           });
+          endUndoGroup();
         }
       },
       [context, setContextWithProduce]
@@ -751,9 +755,47 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           mergedSettings,
           cellInput.current,
           scrollbarX.current,
-          scrollbarY.current
+          scrollbarY.current,
+          flushRecalcNow
         ),
-      [context, setContextWithProduce, handleUndo, handleRedo, mergedSettings]
+      [
+        context,
+        setContextWithProduce,
+        handleUndo,
+        handleRedo,
+        mergedSettings,
+        flushRecalcNow,
+      ]
+    );
+
+    // ~1300 lines of static SVG symbols: keep the element identity stable so
+    // React skips it on every context change.
+    const svgDefines = useMemo(
+      () => <SVGDefines currency={mergedSettings.currency} />,
+      [mergedSettings.currency]
+    );
+
+    // Stable elements, each in its own TrackedScope: a Workbook render (on
+    // every context change) skips them, and each re-renders only when the
+    // context fields it reads change.
+    const moreItemsOpen = moreToolbarItems !== null;
+    const toolbar = useMemo(
+      () => (
+        <Toolbar
+          moreItemsOpen={moreItemsOpen}
+          setMoreItems={setMoreToolbarItems}
+        />
+      ),
+      [moreItemsOpen]
+    );
+    const moreItems = useMemo(
+      () =>
+        moreToolbarItems && (
+          <MoreItemsContaier onClose={onMoreToolbarItemsClose}>
+            {moreToolbarItems}
+          </MoreItemsContaier>
+        ),
+      [moreToolbarItems, onMoreToolbarItemsClose]
     );
 
     const i = getSheetIndex(context, context.currentSheetId);
@@ -766,10 +808,11 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     }
 
     return (
-      <WorkbookContext.Provider value={providerValue}>
+      <WorkbookProvider store={store} value={providerValue}>
         <ModalProvider>
           <div
             className="fortune-container"
+            data-theme={resolvedTheme}
             ref={workbookContainer}
             onKeyDown={onKeyDown}
           >
@@ -797,27 +840,28 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
                 <li>{info.moveLeftShortcut}</li>
               </ul>
             </section>
-            <SVGDefines currency={mergedSettings.currency} />
+            {svgDefines}
             <div className="fortune-workarea">
               {mergedSettings.showToolbar && (
-                <Toolbar
-                  moreItemsOpen={moreToolbarItems !== null}
-                  setMoreItems={setMoreToolbarItems}
-                />
+                <TrackedScope>{toolbar}</TrackedScope>
               )}
-              {mergedSettings.showFormulaBar && <FxEditor />}
+              {mergedSettings.showFormulaBar && (
+                <TrackedScope>{FX_EDITOR}</TrackedScope>
+              )}
             </div>
             <Sheet sheet={sheet} />
-            {mergedSettings.showSheetTabs && <SheetTab />}
-            <ContextMenu />
-            <FilterMenu />
-            <SheetTabContextMenu />
-            {context.showSheetList && <SheetList />}
-            {moreToolbarItems && (
-              <MoreItemsContaier onClose={onMoreToolbarItemsClose}>
-                {moreToolbarItems}
-              </MoreItemsContaier>
+            {mergedSettings.showSheetTabs && (
+              <TrackedScope>{SHEET_TAB}</TrackedScope>
             )}
+            <TrackedScope>{CONTEXT_MENU}</TrackedScope>
+            <TrackedScope>{FILTER_MENU}</TrackedScope>
+            <TrackedScope>{DATA_TOOLS_LAYER}</TrackedScope>
+            <TrackedScope>{SHEET_TAB_CONTEXT_MENU}</TrackedScope>
+            {context.formatCellsDialog && (
+              <TrackedScope>{FORMAT_CELLS}</TrackedScope>
+            )}
+            {context.showSheetList && <TrackedScope>{SHEET_LIST}</TrackedScope>}
+            {moreItems && <TrackedScope>{moreItems}</TrackedScope>}
             {!_.isEmpty(context.contextMenu) && (
               <div
                 onMouseDown={() => {
@@ -837,39 +881,11 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               />
             )}
             {mergedSettings.showStatsBar && (
-              <div className="fortune-stat-area">
-                <div className="luckysheet-sheet-selection-calInfo">
-                  {!!calInfo.count && (
-                    <div style={{ width: "60px" }}>
-                      {formula.count}: {calInfo.count}
-                    </div>
-                  )}
-                  {!!calInfo.numberC && !!calInfo.sum && (
-                    <div>
-                      {formula.sum}: {calInfo.sum}
-                    </div>
-                  )}
-                  {!!calInfo.numberC && !!calInfo.average && (
-                    <div>
-                      {formula.average}: {calInfo.average}
-                    </div>
-                  )}
-                  {!!calInfo.numberC && !!calInfo.max && (
-                    <div>
-                      {formula.max}: {calInfo.max}
-                    </div>
-                  )}
-                  {!!calInfo.numberC && !!calInfo.min && (
-                    <div>
-                      {formula.min}: {calInfo.min}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <TrackedScope>{STATUS_BAR}</TrackedScope>
             )}
           </div>
         </ModalProvider>
-      </WorkbookContext.Provider>
+      </WorkbookProvider>
     );
   }
 );

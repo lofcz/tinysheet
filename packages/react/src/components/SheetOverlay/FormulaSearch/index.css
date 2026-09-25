@@ -1,16 +1,17 @@
 .luckysheet-formula-search-c {
   position: absolute;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  color: #535353;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  box-shadow: var(--fortune-shadow);
+  color: var(--fortune-text-muted);
   font-size: 12px;
-  background: #fff;
+  background: var(--fortune-bg-elevated);
   z-index: 1003;
   width: 300px;
 }
 
 .luckysheet-formula-search-c .luckysheet-formula-search-item {
-  background: #fff;
+  background: transparent;
   padding: 5px 10px;
   cursor: pointer;
 }
@@ -19,25 +20,79 @@
   .luckysheet-formula-search-item
   .luckysheet-formula-search-detail {
   display: none;
-  color: #444;
+  color: var(--fortune-text-muted);
 }
 
 .luckysheet-formula-search-c
   .luckysheet-formula-search-item
   .luckysheet-formula-search-func {
-  color: #222;
+  color: var(--fortune-text);
   font-size: 14px;
 }
 
 .luckysheet-formula-search-c .luckysheet-formula-search-item-active {
   display: block;
-  border-top: 1px solid #ebebeb;
-  border-bottom: 1px solid #ebebeb;
-  background: #f5f5f5;
+  border-top: 1px solid var(--fortune-divider);
+  border-bottom: 1px solid var(--fortune-divider);
+  background: var(--fortune-accent-soft);
 }
 
 .luckysheet-formula-search-c
   .luckysheet-formula-search-item-active
   .luckysheet-formula-search-detail {
   display: block;
+}
+
+.luckysheet-formula-search-c {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.luckysheet-formula-search-c .luckysheet-formula-search-item {
+  padding: 4px 10px;
+}
+
+.luckysheet-formula-search-c .luckysheet-formula-search-item:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.luckysheet-formula-search-c
+  .luckysheet-formula-search-item
+  .luckysheet-formula-search-match {
+  font-weight: bold;
+}
+
+/* short description for every item, full one for the highlighted item */
+.luckysheet-formula-search-c
+  .luckysheet-formula-search-item
+  .luckysheet-formula-search-detail {
+  display: block;
+  color: var(--fortune-text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.luckysheet-formula-search-c
+  .luckysheet-formula-search-item-active
+  .luckysheet-formula-search-detail {
+  color: var(--fortune-text-muted);
+  white-space: normal;
+}
+
+/* parenthesis pair around the caret while editing a formula */
+.fortune-formula-paren-match {
+  font-weight: bold;
+  background-color: var(--fortune-bg-active);
+  border-radius: 2px;
+}
+
+/* formula tokens are drawn in the theme text colour, not the cell's font
+   colour (which may be unreadable on the editor background in dark mode) */
+.luckysheet-formula-text-func,
+.luckysheet-formula-text-lpar,
+.luckysheet-formula-text-rpar,
+.luckysheet-formula-text-comma,
+.luckysheet-formula-text-calc {
+  color: var(--fortune-text);
 }

@@ -1,4 +1,5 @@
 import formulajs from "./formulajs";
+import CUSTOM_FUNCTIONS from "./functions";
 
 /**
  * Collect formula call names, including Excel-style dotted paths
@@ -38,6 +39,12 @@ function collectSupportedFormulas(
   return names;
 }
 
-const SUPPORTED_FORMULAS = [...collectSupportedFormulas(formulajs)];
+const SUPPORTED_FORMULAS = [
+  ...collectSupportedFormulas(
+    formulajs,
+    "",
+    new Set(Object.keys(CUSTOM_FUNCTIONS))
+  ),
+];
 
 export default SUPPORTED_FORMULAS;

@@ -1,42 +1,42 @@
-import ExcelJS from "@protobi/exceljs";
 import * as fileSaver from "file-saver";
-import { setStyleAndValue } from "./ExcelStyle";
-import { setMerge } from "../common/method";
-import { setImages } from "./ExcelImage";
-import { setBorder } from "./ExcelBorder";
-import { setDataValidations } from "./ExcelValidation";
-import { setHiddenRowCol } from "./ExcelConfig";
 import { IFileType } from "../common/ICommon";
+import { exportToXlsx, XlsxExportOptions } from "./buildWorkbook";
+import { CsvExportOptions, exportCsv } from "../csv";
 
+export type SheetExportOptions = XlsxExportOptions & {
+  /** CSV/TSV only: see CsvExportOptions (values: "displayed" | "raw", ...). */
+  csv?: CsvExportOptions;
+  /** File name without extension (default: the current sheet's name). */
+  fileName?: string;
+};
 
+/**
+ * Export a mounted Workbook (ref with getAllSheets/getSheet): the whole
+ * workbook as .xlsx, or the current sheet as .csv / .tsv.
+ */
 export async function exportSheetExcel(
   luckysheetRef: any,
   fileType: IFileType,
-  download: boolean = true
+  download: boolean = true,
+  options: SheetExportOptions = {}
 ) {
-  const luckysheet = luckysheetRef.current.getAllSheets();
-  const workbook = new ExcelJS.Workbook();
-  luckysheet.every(function (table: any) {
-    if (table?.data?.length === 0) return true;
-    const worksheet = workbook.addWorksheet(table.name);
-    setStyleAndValue(table, worksheet);
-    setMerge(table?.config?.merge, worksheet);
-    setBorder(table, worksheet);
-    setImages(table, worksheet, workbook);
-    setDataValidations(table, worksheet);
-    setHiddenRowCol(table, worksheet);
-    return true;
-  });
-
-  let fileData;
-  if (fileType === IFileType.CSV) {
-    const buffer = await workbook.csv.writeBuffer();
-    fileData = new Blob([buffer]);
+  const api = luckysheetRef.current;
+  const current = api.getSheet();
+  let fileData: Blob;
+  if (fileType === IFileType.CSV || fileType === IFileType.TSV) {
+    fileData = exportCsv(current, {
+      ...(fileType === IFileType.TSV ? { delimiter: "\t" } : {}),
+      ...options.csv,
+    });
   } else {
-    const buffer = await workbook.xlsx.writeBuffer();
-    fileData = new Blob([buffer]);
+    const bytes = await exportToXlsx(api.getAllSheets(), options);
+    fileData = new Blob([bytes as Uint8Array<ArrayBuffer>], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
   }
-  if (download)
-    fileSaver.saveAs(fileData, `${luckysheetRef.current.getSheet().name}.${fileType}`);
+  if (download) {
+    const name = options.fileName ?? current?.name ?? "workbook";
+    fileSaver.saveAs(fileData, `${name}.${fileType}`);
+  }
   return fileData;
 }

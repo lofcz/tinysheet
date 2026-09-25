@@ -1,7 +1,9 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { Context, getFlowdata } from "../context";
 import { getSheetIndex, isAllowEdit } from "../utils";
 import { mergeBorder } from "./cell";
+import { peekCell } from "./dependencyGraph";
 import { getcellrange, iscelldata } from "./formula";
 import { colLocation, rowLocation } from "./location";
 import { normalizeSelection } from "./selection";
@@ -53,6 +55,7 @@ export function saveHyperlink(
   linkType: string,
   linkAddress: string
 ) {
+  if (!checkProtection(ctx, "insertHyperlinks")) return;
   const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
   const flowdata = getFlowdata(ctx);
   if (sheetIndex != null && flowdata != null && linkType && linkAddress) {
@@ -73,6 +76,7 @@ export function saveHyperlink(
 }
 
 export function removeHyperlink(ctx: Context, r: number, c: number) {
+  if (!checkProtection(ctx, "insertHyperlinks")) return;
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) return;
   const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
@@ -101,7 +105,8 @@ export function showLinkCard(
   if (ctx.linkCard?.selectingCellRange) return;
   if (`${r}_${c}` === ctx.linkCard?.rc) return;
   const link = getCellHyperlink(ctx, r, c);
-  const cell = getFlowdata(ctx)?.[r]?.[c];
+  // read without drafting: a draft row read makes immer copy every row
+  const cell = peekCell(getFlowdata(ctx), r, c);
   if (
     !isEditing &&
     link == null &&

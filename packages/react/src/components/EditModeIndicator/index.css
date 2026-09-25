@@ -1,0 +1,12 @@
+.fortune-edit-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-4, 8px);
+  margin-right: auto;
+  padding: 0 var(--fortune-space-4, 8px);
+  height: 22px;
+  font-size: var(--fortune-font-size-sm, 12px);
+  color: var(--fortune-text-muted);
+  white-space: nowrap;
+  user-select: none;
+}

@@ -1,0 +1,271 @@
+/* Shared layout of the data tools dialogs (validation, sort, filter,
+   remove duplicates, text to columns). Colours come from --fortune-* tokens. */
+
+.fortune-dt-dialog {
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+  min-width: 440px;
+  max-width: 640px;
+  user-select: none;
+}
+
+.fortune-dt-title {
+  font-size: var(--fortune-font-size-lg, 16px);
+  font-weight: 500;
+  margin: 0 0 var(--fortune-space-3);
+}
+
+.fortune-dt-subtitle {
+  font-size: var(--fortune-font-size-sm);
+  color: var(--fortune-text-muted);
+  margin: 0 0 var(--fortune-space-3);
+}
+
+.fortune-dt-tabs {
+  display: flex;
+  gap: var(--fortune-space-1);
+  border-bottom: 1px solid var(--fortune-divider, var(--fortune-border));
+  margin-bottom: var(--fortune-space-3);
+}
+
+.fortune-dt-tab {
+  padding: 6px 12px;
+  cursor: pointer;
+  color: var(--fortune-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  border-radius: var(--fortune-radius-sm) var(--fortune-radius-sm) 0 0;
+}
+
+.fortune-dt-tab:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-dt-tab.active {
+  color: var(--fortune-accent-text, var(--fortune-accent));
+  border-bottom-color: var(--fortune-accent);
+}
+
+.fortune-dt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--fortune-space-3);
+}
+
+.fortune-dt-label {
+  font-size: var(--fortune-font-size-sm);
+  color: var(--fortune-text-muted);
+}
+
+.fortune-dt-hint {
+  font-size: var(--fortune-font-size-sm);
+  color: var(--fortune-text-subtle, var(--fortune-text-muted));
+}
+
+.fortune-dt-error {
+  font-size: var(--fortune-font-size-sm);
+  color: var(--fortune-danger);
+  margin-bottom: var(--fortune-space-2);
+}
+
+.fortune-dt-row {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+}
+
+.fortune-dt-row > .fortune-dt-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.fortune-dt-input,
+.fortune-dt-select,
+.fortune-dt-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--fortune-control-height, 30px);
+  padding: 0 8px;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input, var(--fortune-bg));
+  color: var(--fortune-text);
+  font-family: inherit;
+  font-size: var(--fortune-font-size);
+  outline: none;
+}
+
+.fortune-dt-textarea {
+  padding: 6px 8px;
+  min-height: 72px;
+  resize: vertical;
+}
+
+.fortune-dt-input:focus,
+.fortune-dt-select:focus,
+.fortune-dt-textarea:focus {
+  border-color: var(--fortune-accent);
+  box-shadow: var(--fortune-focus-ring);
+}
+
+.fortune-dt-input-group {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input, var(--fortune-bg));
+}
+
+.fortune-dt-input-group:focus-within {
+  border-color: var(--fortune-accent);
+  box-shadow: var(--fortune-focus-ring);
+}
+
+.fortune-dt-input-group .fortune-dt-input {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.fortune-dt-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  cursor: pointer;
+  border-left: 1px solid var(--fortune-border);
+  color: var(--fortune-icon);
+}
+
+.fortune-dt-picker:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-dt-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--fortune-space-2);
+  cursor: pointer;
+}
+
+.fortune-dt-check input {
+  margin: 0;
+}
+
+.fortune-dt-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  margin-top: var(--fortune-space-4);
+}
+
+.fortune-dt-buttons .fortune-dt-spacer {
+  flex: 1;
+}
+
+.fortune-dt-section {
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  padding: var(--fortune-space-3);
+  margin-bottom: var(--fortune-space-3);
+}
+
+.fortune-dt-section-title {
+  font-weight: 500;
+  margin-bottom: var(--fortune-space-2);
+}
+
+.fortune-dt-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg);
+  color: var(--fortune-text);
+  cursor: pointer;
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-dt-icon-button:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-dt-icon-button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fortune-dt-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fortune-dt-table th,
+.fortune-dt-table td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--fortune-divider, var(--fortune-border));
+  font-weight: normal;
+}
+
+.fortune-dt-table th {
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-dt-table tr.selected td {
+  background: var(--fortune-accent-soft);
+}
+
+.fortune-dt-scroll {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+}
+
+/* error alert icons */
+.fortune-dt-alert {
+  display: flex;
+  gap: var(--fortune-space-3);
+  align-items: flex-start;
+  min-width: 320px;
+  max-width: 480px;
+}
+
+.fortune-dt-alert-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--fortune-text-inverse);
+}
+
+.fortune-dt-alert-icon.stop {
+  background: var(--fortune-danger);
+}
+
+.fortune-dt-alert-icon.warning {
+  background: var(--fortune-warning);
+}
+
+.fortune-dt-alert-icon.information {
+  background: var(--fortune-accent);
+  color: var(--fortune-on-accent);
+}
+
+.fortune-dt-alert-message {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}

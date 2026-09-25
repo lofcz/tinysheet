@@ -1,5 +1,6 @@
 import React from "react";
 import CustomIcon from "./CustomIcon";
+import { activateOnKey } from "./Button";
 
 type Props = {
   tooltip?: string;
@@ -18,18 +19,30 @@ const CustomButton: React.FC<Props> = ({
   iconName,
   icon,
 }) => {
-  // const style: CSSProperties = { userSelect: "none" };
+  const className = [
+    "fortune-toolbar-button",
+    "fortune-toolbar-item",
+    selected ? "fortune-toolbar-button-active" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <div
-      className="fortune-toolbar-button fortune-toolbar-item"
+      className={className}
       onClick={onClick}
+      onKeyDown={activateOnKey}
       tabIndex={0}
       data-tips={tooltip}
       role="button"
-      style={selected ? { backgroundColor: "#E7E5EB" } : {}}
+      aria-label={tooltip}
+      aria-pressed={selected === undefined ? undefined : !!selected}
     >
       <CustomIcon iconName={iconName} content={icon} />
-      {tooltip && <div className="fortune-tooltip">{tooltip}</div>}
+      {tooltip && (
+        <div className="fortune-tooltip" aria-hidden="true">
+          {tooltip}
+        </div>
+      )}
       {children}
     </div>
   );

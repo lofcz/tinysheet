@@ -16,7 +16,7 @@ steps:
   - name: restore-cache
     image: docker.mirrors.ustc.edu.cn/meltwater/drone-cache:dev
     settings:
-      backend: 'filesystem'
+      backend: "filesystem"
       restore: true
       cache_key: '{{ .Repo.Name }}_{{ checksum "yarn.lock" }}'
       mount:
@@ -50,7 +50,7 @@ steps:
     image: docker.mirrors.ustc.edu.cn/meltwater/drone-cache:dev
     pull: never
     settings:
-      backend: 'filesystem'
+      backend: "filesystem"
       rebuild: true
       cache_key: '{{ .Repo.Name }}_{{ checksum "yarn.lock" }}'
       mount:

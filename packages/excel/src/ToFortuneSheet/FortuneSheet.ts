@@ -18,8 +18,10 @@
   IfortunesheetHyperlink,
   IfortunesheetHyperlinkType,
   IfortunesheetDataVerification,
+  IfortunesheetDataVerificationValue,
 } from "./IFortune";
-import { FortuneSheetCelldata } from "./FortuneCell";
+import { FortuneSheetCelldata, FortuneCellWorkbookInfo } from "./FortuneCell";
+import { shiftFormula } from "../common/formulaText";
 import { IattributeList } from "../common/ICommon";
 import {
   getXmlAttibute,
@@ -33,6 +35,7 @@ import {
   getTransR1C1ToSequence,
   getPeelOffX14,
   getMultiFormulaValue,
+  escapeCharacter,
 } from "../common/method";
 import {
   borderTypes,
@@ -50,8 +53,11 @@ import {
   FortuneSheetborderInfoCellValue,
   FortunesheetCalcChain,
   FortuneSheetConfigMerge,
+  FortuneSheetCelldataValue,
 } from "./FortuneBase";
 import { ImageList } from "./FortuneImage";
+import { scanElements, scanRows } from "./xmlScan";
+import { readSheetConditionalFormats } from "./FortuneConditionFormat";
 import dayjs from "dayjs";
 import {
   FortuneChartSpec,
@@ -65,6 +71,10 @@ import {
   escapeXml as chartEscapeXml,
   roundSvgNumber as chartRoundSvgNumber,
 } from "../chart";
+import { importChartXml, ImportedChart } from "../chart/importXlsx";
+import { hasCustomGeometry } from "../shapes/importXlsx";
+import { importChartExXml } from "../chart/chartEx";
+import { parseChartRange } from "@lofcz/tinysheet-core";
 
 interface DrawingAnchorRect {
   fromCol: number;
@@ -104,6 +114,86 @@ interface ShapeRenderItem {
   fontSize: number;
 }
 
+/** Excel's default column width for Calibri 11 (8.43 characters + padding). */
+const EXCEL_DEFAULT_COLUMN_WIDTH = 9.140625;
+
+/** TinySheet's own default sizes (px); sheet defaults close to these are not materialised. */
+const TINYSHEET_COLUMN_WIDTH = 73;
+const TINYSHEET_ROW_HEIGHT = 19;
+
+/** `<pane xSplit ySplit state="frozen">` -> TinySheet `frozen`. */
+export function frozenFromPane(panes: Element[] | null) {
+  if (panes == null || panes.length == 0) return undefined;
+  const attrList = panes[0].attributeList;
+  const state = getXmlAttibute(attrList, "state", "split");
+  if (state != "frozen" && state != "frozenSplit") return undefined;
+  const xSplit = Math.round(
+    parseFloat(getXmlAttibute(attrList, "xSplit", "0"))
+  );
+  const ySplit = Math.round(
+    parseFloat(getXmlAttibute(attrList, "ySplit", "0"))
+  );
+  if (!(xSplit > 0) && !(ySplit > 0)) return undefined;
+  const range = {
+    row_focus: ySplit > 0 ? ySplit - 1 : 0,
+    column_focus: xSplit > 0 ? xSplit - 1 : 0,
+  };
+  const type: "rangeRow" | "rangeColumn" | "rangeBoth" =
+    xSplit > 0 && ySplit > 0
+      ? "rangeBoth"
+      : ySplit > 0
+        ? "rangeRow"
+        : "rangeColumn";
+  return { type, range };
+}
+
+const DV_RANGE_RE =
+  /^(?:(?:'[^']+'|[^!'"]+)!)?\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?$/;
+
+/** Top-left cell (0-based) of the first range of a sqref ("B2:C5 E1"). */
+function sqrefAnchor(sqref: string | null): { r: number; c: number } | null {
+  const first = String(sqref ?? "")
+    .trim()
+    .split(/\s+/)[0];
+  const m = /^\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?$/.exec(
+    first
+  );
+  if (!m) return null;
+  const col = (letters: string) =>
+    letters
+      .toUpperCase()
+      .split("")
+      .reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+  const r1 = parseInt(m[2], 10) - 1;
+  const c1 = col(m[1]);
+  const r2 = m[4] ? parseInt(m[4], 10) - 1 : r1;
+  const c2 = m[3] ? col(m[3]) : c1;
+  return { r: Math.min(r1, r2), c: Math.min(c1, c2) };
+}
+
+/** Excel data-validation operators -> TinySheet `type2`. */
+const DV_OPERATORS: Record<string, string> = {
+  between: "between",
+  notBetween: "notBetween",
+  equal: "equal",
+  notEqual: "notEqualTo",
+  greaterThan: "moreThanThe",
+  lessThan: "lessThan",
+  greaterThanOrEqual: "greaterOrEqualTo",
+  lessThanOrEqual: "lessThanOrEqualTo",
+};
+
+const DV_DATE_OPERATORS: Record<string, string> = {
+  between: "between",
+  notBetween: "notBetween",
+  equal: "equal",
+  notEqual: "notEqualTo",
+  greaterThan: "laterThan",
+  lessThan: "earlierThan",
+  greaterThanOrEqual: "noEarlierThan",
+  lessThanOrEqual: "noLaterThan",
+};
+
 export class FortuneSheet extends FortuneSheetBase {
   private readXml: ReadXml;
   private sheetFile: string;
@@ -116,7 +206,20 @@ export class FortuneSheet extends FortuneSheetBase {
 
   private imageList: ImageList;
 
+  /** Live chart objects with their drawing anchors (positioned later). */
+  chartObjects: any[] = [];
+
   private formulaRefList: IFormulaSI;
+  private workbookInfo: FortuneCellWorkbookInfo;
+  private customDefaultRowHeight: boolean;
+  private customDefaultColWidth: boolean;
+  private arrayFormulaCells: FortuneSheetCelldata[] = [];
+
+  /** Excel frozen panes, in TinySheet's model. */
+  frozen?: {
+    type: "rangeRow" | "rangeColumn" | "rangeBoth";
+    range: { row_focus: number; column_focus: number };
+  };
 
   constructor(
     sheetName: string,
@@ -137,6 +240,7 @@ export class FortuneSheet extends FortuneSheetBase {
     this.sheetList = allFileOption.sheetList;
     this.imageList = allFileOption.imageList;
     this.hide = allFileOption.hide;
+    this.workbookInfo = allFileOption.workbookInfo || {};
 
     //Output
     this.name = sheetName;
@@ -163,6 +267,7 @@ export class FortuneSheet extends FortuneSheetBase {
       tabSelected = getXmlAttibute(attrList, "tabSelected", "0");
       zoomScale = getXmlAttibute(attrList, "zoomScale", "100");
       // let colorId = getXmlAttibute(attrList, "colorId", "0");
+      this.frozen = frozenFromPane(sheetView[0].getInnerElements("pane"));
       let selections = sheetView[0].getInnerElements("selection");
       if (selections != null && selections.length > 0) {
         activeCell = getXmlAttibute(
@@ -200,15 +305,35 @@ export class FortuneSheet extends FortuneSheetBase {
       "sheetFormatPr",
       this.sheetFile
     );
-    let defaultColWidth, defaultRowHeight;
+    // Excel's defaults (Calibri 11): 8.43 characters (+ padding) and 15pt.
+    let defaultColWidth = EXCEL_DEFAULT_COLUMN_WIDTH,
+      defaultRowHeight = 15,
+      customDefaultHeight = false,
+      customDefaultWidth = false;
     if (sheetFormatPr.length > 0) {
       let attrList = sheetFormatPr[0].attributeList;
-      defaultColWidth = getXmlAttibute(attrList, "defaultColWidth", "9.21");
-      defaultRowHeight = getXmlAttibute(attrList, "defaultRowHeight", "19");
+      let width = parseFloat(getXmlAttibute(attrList, "defaultColWidth", null));
+      let base = parseFloat(getXmlAttibute(attrList, "baseColWidth", null));
+      let height = parseFloat(
+        getXmlAttibute(attrList, "defaultRowHeight", null)
+      );
+      if (isFinite(width) && width > 0) {
+        defaultColWidth = width;
+        customDefaultWidth = true;
+      } else if (isFinite(base) && base > 0) {
+        defaultColWidth = base + (EXCEL_DEFAULT_COLUMN_WIDTH - 8);
+        customDefaultWidth = base != 8;
+      }
+      if (isFinite(height) && height > 0) defaultRowHeight = height;
+      customDefaultHeight =
+        getXmlAttibute(attrList, "customHeight", "0") == "1" ||
+        getXmlAttibute(attrList, "customHeight", "0") == "true";
     }
 
-    this.defaultColWidth = getColumnWidthPixel(parseFloat(defaultColWidth));
-    this.defaultRowHeight = getRowHeightPixel(parseFloat(defaultRowHeight));
+    this.defaultColWidth = getColumnWidthPixel(defaultColWidth);
+    this.defaultRowHeight = getRowHeightPixel(defaultRowHeight);
+    this.customDefaultRowHeight = customDefaultHeight;
+    this.customDefaultColWidth = customDefaultWidth;
 
     this.generateConfigColumnLenAndHidden();
     let cellOtherInfo: IcellOtherInfo =
@@ -218,35 +343,35 @@ export class FortuneSheet extends FortuneSheetBase {
       this.calcChain = [];
     }
 
-    let formulaListExist: IformulaList = {};
+    let formulaListExist = new Set<number>();
+    // `i` (the sheet id) may be omitted: it repeats the previous entry's
+    let chainSheet: string = undefined;
     for (let c = 0; c < this.calcChainEles.length; c++) {
       let calcChainEle = this.calcChainEles[c],
         attrList = calcChainEle.attributeList;
-      if (attrList.i != sheetId) {
+      if (attrList.i != null) chainSheet = attrList.i;
+      if (chainSheet != sheetId || attrList.r == null) {
         continue;
       }
 
-      let r = attrList.r,
-        i = attrList.i,
-        l = attrList.l,
-        s = attrList.s,
-        a = attrList.a,
-        t = attrList.t;
-
-      let range = getcellrange(r);
+      let range = getcellrange(attrList.r);
+      if (range == null) continue;
       let chain = new FortunesheetCalcChain();
       chain.r = range.row[0];
       chain.c = range.column[0];
       chain.id = this.id;
       this.calcChain.push(chain);
-      formulaListExist["r" + r + "c" + c] = null;
+      formulaListExist.add(chain.r * 16384 + chain.c);
     }
 
     if (this.formulaRefList != null) {
       for (let key in this.formulaRefList) {
         let funclist = this.formulaRefList[key];
-        let mainFunc = funclist["mainRef"],
-          mainCellValue = mainFunc.cellValue;
+        let mainFunc = funclist["mainRef"];
+        if (mainFunc == null) {
+          continue;
+        }
+        let mainCellValue = mainFunc.cellValue;
         let formulaTxt = mainFunc.fv;
         let mainR = mainCellValue.r,
           mainC = mainCellValue.c;
@@ -264,26 +389,13 @@ export class FortuneSheet extends FortuneSheetBase {
           let r = cellValue.r,
             c = cellValue.c;
 
-          let func = formulaTxt;
-          let offsetRow = r - mainR,
-            offsetCol = c - mainC;
-
-          if (offsetRow > 0) {
-            func = "=" + fromulaRef.functionCopy(func, "down", offsetRow);
-          } else if (offsetRow < 0) {
-            func =
-              "=" + fromulaRef.functionCopy(func, "up", Math.abs(offsetRow));
+          if (formulaTxt == null) {
+            continue;
           }
-
-          if (offsetCol > 0) {
-            func = "=" + fromulaRef.functionCopy(func, "right", offsetCol);
-          } else if (offsetCol < 0) {
-            func =
-              "=" + fromulaRef.functionCopy(func, "left", Math.abs(offsetCol));
+          let func = shiftFormula(formulaTxt, r - mainR, c - mainC);
+          if (cellValue.v == null || typeof cellValue.v !== "object") {
+            cellValue.v = new FortuneSheetCelldataValue();
           }
-
-          // console.log(offsetRow, offsetCol, func);
-
           (cellValue.v as IfortuneSheetCelldataValue).f = func;
 
           //添加共享公式链
@@ -297,9 +409,11 @@ export class FortuneSheet extends FortuneSheetBase {
     }
 
     //There may be formulas that do not appear in calcChain
-    for (let key in cellOtherInfo.formulaList) {
-      if (!(key in formulaListExist)) {
-        let formulaListItem = cellOtherInfo.formulaList[key];
+    for (const formulaListItem of (cellOtherInfo as any)
+      .formulaCells as IformulaListItem[]) {
+      if (
+        !formulaListExist.has(formulaListItem.r * 16384 + formulaListItem.c)
+      ) {
         let chain = new FortunesheetCalcChain();
         chain.r = formulaListItem.r;
         chain.c = formulaListItem.c;
@@ -313,6 +427,20 @@ export class FortuneSheet extends FortuneSheetBase {
 
     // hyperlink config
     this.hyperlink = this.generateConfigHyperlinks();
+    this.linkHyperlinkCells();
+
+    // array / dynamic-array formulas: spill anchors and spilled cells
+    this.applyArrayFormulas();
+
+    // sheet default width/height for columns and rows without their own
+    this.applyDefaultSizes();
+
+    // conditional formatting
+    this.luckysheet_conditionformat_save = readSheetConditionalFormats(
+      this.readXml,
+      this.sheetFile,
+      this.styles
+    ) as any;
 
     // sheet hide
     this.hide = this.hide;
@@ -357,9 +485,52 @@ export class FortuneSheet extends FortuneSheetBase {
 
     for (let i = 0; i < anchors.length; i++) {
       this.addPictureImages(anchors[i], drawingRelsFile);
-      this.addShapeImage(anchors[i]);
+      // chartex charts carry a text-box fallback for old Excel versions
+      if (!this.addChartExObject(anchors[i], drawingRelsFile)) {
+        this.addShapeImage(anchors[i]);
+      }
       this.addChartImage(anchors[i], drawingRelsFile);
     }
+  }
+
+  /**
+   * Office 2016 charts (waterfall, histogram, Pareto, funnel): a cx:chart
+   * in the anchor's mc:Choice. Returns true when the anchor held one.
+   */
+  private addChartExObject(anchor: Element, drawingRelsFile: string) {
+    let charts = anchor.getInnerElements("cx:chart");
+    if (charts == null || charts.length == 0) {
+      return false;
+    }
+    let rid = getXmlAttibute(charts[0].attributeList, "r:id", null);
+    let relationship = this.getRelationshipByRid(rid, drawingRelsFile);
+    let chartFile =
+      relationship && relationship.target
+        ? this.normalizeRelationshipTarget(relationship.target)
+        : null;
+    if (chartFile == null) {
+      return true;
+    }
+    let spaces = this.readXml.getElementsByTagName("cx:chartSpace", chartFile);
+    if (spaces == null || spaces.length == 0) {
+      return true;
+    }
+    let sheets = Object.keys(this.sheetList).map((name) => ({
+      name: this.decodeXml(name),
+      id: String(this.sheetList[name]),
+    }));
+    try {
+      let chart = importChartExXml(spaces[0].elementString, {
+        resolveRange: (ref) =>
+          parseChartRange({ luckysheetfile: sheets as any }, ref, this.id),
+      });
+      if (chart != null) {
+        this.addChartObject(anchor, chart);
+      }
+    } catch (e) {
+      // unreadable chartex part: skip it
+    }
+    return true;
   }
 
   private addPictureImages(anchor: Element, drawingRelsFile: string) {
@@ -387,6 +558,11 @@ export class FortuneSheet extends FortuneSheetBase {
   }
 
   private addShapeImage(anchor: Element) {
+    // Preset shapes, text boxes, connectors and groups are imported as live
+    // shapes (shapes/importXlsx.ts); only custom geometry stays a picture.
+    if (!hasCustomGeometry(anchor.container)) {
+      return;
+    }
     let svg = this.renderShapeAnchorSvg(anchor);
     if (svg == null) {
       return;
@@ -425,6 +601,12 @@ export class FortuneSheet extends FortuneSheetBase {
         continue;
       }
 
+      let liveChart = this.buildLiveChart(chartFile);
+      if (liveChart != null) {
+        this.addChartObject(anchor, liveChart);
+        continue;
+      }
+
       let chartSpec = this.buildChartSpec(chartFile, rect.width, rect.height);
       if (chartSpec == null) {
         continue;
@@ -434,18 +616,90 @@ export class FortuneSheet extends FortuneSheetBase {
         chartSpec,
         this.createParseCellResolver()
       );
-      let svg = renderChartSvgFromSeries(series, chartSpec.width, chartSpec.height, {
-        title: chartSpec.title,
-        categoryAxisTitle: chartSpec.categoryAxisTitle,
-        valueAxisTitle: chartSpec.valueAxisTitle,
-        valueAxis: chartSpec.valueAxis,
-      });
+      let svg = renderChartSvgFromSeries(
+        series,
+        chartSpec.width,
+        chartSpec.height,
+        {
+          title: chartSpec.title,
+          categoryAxisTitle: chartSpec.categoryAxisTitle,
+          valueAxisTitle: chartSpec.valueAxisTitle,
+          valueAxis: chartSpec.valueAxis,
+        }
+      );
 
       this.addDrawingImage(anchor, {
         src: chartSvgToDataUri(svg),
         chartSpec: chartSpec,
       });
     }
+  }
+
+  /** Supported chart types become live chart objects (see chart/importXlsx). */
+  private buildLiveChart(chartFile: string): ImportedChart | null {
+    let spaces = this.readXml.getElementsByTagName("c:chartSpace", chartFile);
+    if (spaces == null || spaces.length == 0) {
+      return null;
+    }
+    let sheets = Object.keys(this.sheetList).map((name) => ({
+      name: this.decodeXml(name),
+      id: String(this.sheetList[name]),
+    }));
+    try {
+      return importChartXml(spaces[0].elementString, {
+        resolveRange: (ref) =>
+          parseChartRange({ luckysheetfile: sheets as any }, ref, this.id),
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  private addChartObject(anchor: Element, chart: ImportedChart) {
+    let rect = this.getAnchorRect(anchor);
+    if (rect == null) {
+      return;
+    }
+    // editAs: move and size with cells / move only / neither
+    let placement =
+      rect.type == "3" ? "absolute" : rect.type == "2" ? "oneCell" : "twoCell";
+    this.chartObjects.push({
+      chart: {
+        ...chart,
+        placement: placement,
+        anchor: {
+          from: {
+            row: rect.fromRow,
+            col: rect.fromCol,
+            rowOff: rect.fromRowOff,
+            colOff: rect.fromColOff,
+          },
+          to: {
+            row: rect.toRow,
+            col: rect.toCol,
+            rowOff: rect.toRowOff,
+            colOff: rect.toColOff,
+          },
+        },
+      },
+      fromCol: rect.fromCol,
+      fromColOff: rect.fromColOff,
+      fromRow: rect.fromRow,
+      fromRowOff: rect.fromRowOff,
+      toCol: rect.toCol,
+      toColOff: rect.toColOff,
+      toRow: rect.toRow,
+      toRowOff: rect.toRowOff,
+      originWidth: rect.width,
+      originHeight: rect.height,
+      crop: {
+        height: rect.height,
+        width: rect.width,
+        offsetLeft: 0,
+        offsetTop: 0,
+      },
+      default: { height: rect.height, width: rect.width, left: 0, top: 0 },
+    });
   }
 
   private addDrawingImage(anchor: Element, imageObject: any) {
@@ -716,7 +970,10 @@ export class FortuneSheet extends FortuneSheetBase {
     };
   }
 
-  private getAxisAnchorByOffset(offset: number, axis: string): DrawingCellAnchor {
+  private getAxisAnchorByOffset(
+    offset: number,
+    axis: string
+  ): DrawingCellAnchor {
     let current = 0;
     let remaining = offset;
     let guard = 0;
@@ -841,7 +1098,8 @@ export class FortuneSheet extends FortuneSheetBase {
     let items: ShapeRenderItem[] = [];
     let groupTransform = this.getGroupTransform(group);
     let scaleX = groupTransform.width == 0 ? 1 : width / groupTransform.width;
-    let scaleY = groupTransform.height == 0 ? 1 : height / groupTransform.height;
+    let scaleY =
+      groupTransform.height == 0 ? 1 : height / groupTransform.height;
     let shapes = group.getInnerElements("xdr:sp");
 
     if (shapes == null) {
@@ -866,7 +1124,8 @@ export class FortuneSheet extends FortuneSheetBase {
 
   private getGroupTransform(group: Element) {
     let transforms = group.getInnerElements("a:xfrm");
-    let transform = transforms != null && transforms.length > 0 ? transforms[0] : null;
+    let transform =
+      transforms != null && transforms.length > 0 ? transforms[0] : null;
     let x = 0,
       y = 0,
       width = 1,
@@ -875,8 +1134,10 @@ export class FortuneSheet extends FortuneSheetBase {
     if (transform != null) {
       let childOff = transform.getInnerElements("a:chOff");
       let childExt = transform.getInnerElements("a:chExt");
-      let off = childOff != null ? childOff : transform.getInnerElements("a:off");
-      let ext = childExt != null ? childExt : transform.getInnerElements("a:ext");
+      let off =
+        childOff != null ? childOff : transform.getInnerElements("a:off");
+      let ext =
+        childExt != null ? childExt : transform.getInnerElements("a:ext");
 
       if (off != null && off.length > 0) {
         x = parseInt(getXmlAttibute(off[0].attributeList, "x", "0"));
@@ -1040,7 +1301,9 @@ export class FortuneSheet extends FortuneSheetBase {
       return 14;
     }
 
-    let size = parseInt(getXmlAttibute(runProperties[0].attributeList, "sz", "1400"));
+    let size = parseInt(
+      getXmlAttibute(runProperties[0].attributeList, "sz", "1400")
+    );
     if (isNaN(size)) {
       return 14;
     }
@@ -1136,7 +1399,10 @@ export class FortuneSheet extends FortuneSheetBase {
     width: number,
     height: number
   ): FortuneChartSpec {
-    let charts = this.readXml.getElementsByTagName("c:chartSpace/c:chart", chartFile);
+    let charts = this.readXml.getElementsByTagName(
+      "c:chartSpace/c:chart",
+      chartFile
+    );
     if (charts == null || charts.length == 0) {
       return null;
     }
@@ -1377,7 +1643,8 @@ export class FortuneSheet extends FortuneSheetBase {
       return 0;
     }
     return (
-      (range.row[1] - range.row[0] + 1) * (range.column[1] - range.column[0] + 1)
+      (range.row[1] - range.row[0] + 1) *
+      (range.column[1] - range.column[0] + 1)
     );
   }
 
@@ -1685,6 +1952,103 @@ export class FortuneSheet extends FortuneSheetBase {
     return null;
   }
 
+  private findCell(r: number, c: number) {
+    if (this.cellIndex == null) {
+      this.cellIndex = new Map();
+      for (const cell of this.celldata) {
+        this.cellIndex.set(cell.r + "_" + cell.c, cell);
+      }
+    }
+    return this.cellIndex.get(r + "_" + c);
+  }
+
+  private cellIndex: Map<string, IfortuneSheetCelldata>;
+
+  /** Cells with a hyperlink carry `hl` like links created in TinySheet. */
+  private linkHyperlinkCells() {
+    for (const key of Object.keys(this.hyperlink || {})) {
+      const [r, c] = key.split("_").map(Number);
+      const cell = this.findCell(r, c);
+      if (cell == null || cell.v == null || typeof cell.v !== "object") {
+        continue;
+      }
+      (cell.v as any).hl = { r, c, id: this.id };
+    }
+  }
+
+  /**
+   * Array formulas (`t="array"`, dynamic arrays with `cm`, and legacy CSE
+   * formulas alike) become TinySheet spills: the anchor keeps the formula
+   * and gets `spill: { rs, cs }`, the other cells of the range keep their
+   * cached values and get `spillFrom` so recalculation owns them.
+   */
+  private applyArrayFormulas() {
+    for (const anchor of this.arrayFormulaCells) {
+      const range = getcellrange(anchor._arrayRef);
+      if (range == null) continue;
+      const rs = range.row[1] - range.row[0] + 1;
+      const cs = range.column[1] - range.column[0] + 1;
+      if (!(rs >= 1 && cs >= 1) || (rs == 1 && cs == 1)) continue;
+      if (anchor.v == null || typeof anchor.v !== "object") continue;
+      (anchor.v as any).spill = { rs, cs };
+      for (let i = 0; i < rs; i++) {
+        for (let j = 0; j < cs; j++) {
+          if (i == 0 && j == 0) continue;
+          const cell = this.findCell(anchor.r + i, anchor.c + j);
+          if (cell == null) continue;
+          if (cell.v == null || typeof cell.v !== "object") {
+            cell.v = new FortuneSheetCelldataValue();
+          }
+          delete (cell.v as any).f;
+          (cell.v as any).spillFrom = { dr: i, dc: j };
+        }
+      }
+    }
+  }
+
+  /**
+   * A sheet default column width (or custom default row height) that differs
+   * from TinySheet's default is materialised on every used column/row that
+   * has no size of its own, since TinySheet has no per-sheet default.
+   */
+  private applyDefaultSizes() {
+    let maxRow = -1,
+      maxCol = -1;
+    for (const cell of this.celldata) {
+      if (cell.r > maxRow) maxRow = cell.r;
+      if (cell.c > maxCol) maxCol = cell.c;
+    }
+    for (const key in this.config.merge || {}) {
+      const m = this.config.merge[key];
+      maxRow = Math.max(maxRow, m.r + m.rs - 1);
+      maxCol = Math.max(maxCol, m.c + m.cs - 1);
+    }
+    if (
+      this.customDefaultColWidth &&
+      Math.abs(this.defaultColWidth - TINYSHEET_COLUMN_WIDTH) > 1
+    ) {
+      const lastCol = Math.max(maxCol, 25);
+      for (let c = 0; c <= lastCol; c++) {
+        if (this.config.columnlen?.[c] != null) continue;
+        if (this.config.colhidden?.[c] != null) continue;
+        if (this.config.columnlen == null) this.config.columnlen = {};
+        this.config.columnlen[c] = this.defaultColWidth;
+      }
+    }
+    if (
+      this.customDefaultRowHeight &&
+      Math.abs(this.defaultRowHeight - TINYSHEET_ROW_HEIGHT) > 1
+    ) {
+      const lastRow = Math.max(maxRow, 0);
+      for (let r = 0; r <= lastRow; r++) {
+        if (this.config.rowlen?.[r] != null) continue;
+        if (this.config.rowhidden?.[r] != null) continue;
+        if (this.config.rowlen == null) this.config.rowlen = {};
+        this.config.rowlen[r] = this.defaultRowHeight;
+      }
+    }
+  }
+
   /**
    * @desc This will convert cols/col to fortunesheet config of column'width
    */
@@ -1721,7 +2085,7 @@ export class FortuneSheet extends FortuneSheetBase {
           }
           this.config.colhidden[m] = 0;
 
-          if (this.config.columnlen) {
+          if (this.config.columnlen && !(widthNum > 0)) {
             delete this.config.columnlen[m];
           }
         }
@@ -1740,41 +2104,42 @@ export class FortuneSheet extends FortuneSheetBase {
    * @desc This will convert cols/col to fortunesheet config of column'width
    */
   private generateConfigRowLenAndHiddenAddCell(): IcellOtherInfo {
-    let rows = this.readXml.getElementsByTagName(
-      "sheetData/row",
-      this.sheetFile
-    );
     let cellOtherInfo: IcellOtherInfo = {};
-    let formulaList: IformulaList = {};
-    cellOtherInfo.formulaList = formulaList;
-    for (let i = 0; i < rows.length; i++) {
-      let row = rows[i],
-        attrList = row.attributeList;
+    // formula cells (not an object keyed by address: 100k+ keys are slow)
+    let formulaCells: IformulaListItem[] = [];
+    (cellOtherInfo as any).formulaCells = formulaCells;
+    // Rows and cells are read with the fast scanner (xmlScan.ts): this is
+    // the hot path of the import. `r` attributes are optional in the file
+    // format; missing ones continue from the previous row / cell.
+    let previousRow = -1;
+    scanRows(this.readXml.getFileText(this.sheetFile), (row) => {
+      let attrList = row.attrs;
       let rowNo = getXmlAttibute(attrList, "r", null);
       let height = getXmlAttibute(attrList, "ht", null);
       let hidden = getXmlAttibute(attrList, "hidden", null);
       let customHeight = getXmlAttibute(attrList, "customHeight", null);
 
-      if (rowNo == null) {
-        continue;
-      }
-
-      let rowNoNum = parseInt(rowNo) - 1;
+      let rowNoNum = rowNo == null ? NaN : parseInt(rowNo) - 1;
+      if (!(rowNoNum >= 0)) rowNoNum = previousRow + 1;
+      previousRow = rowNoNum;
       if (height != null) {
         let heightNum = parseFloat(height);
         if (this.config.rowlen == null) {
           this.config.rowlen = {};
         }
-        this.config.rowlen[rowNoNum] = getRowHeightPixel(heightNum);
+        if (isFinite(heightNum)) {
+          this.config.rowlen[rowNoNum] = getRowHeightPixel(heightNum);
+        }
       }
 
-      if (hidden == "1") {
+      if (hidden == "1" || hidden == "true") {
         if (this.config.rowhidden == null) {
           this.config.rowhidden = {};
         }
         this.config.rowhidden[rowNoNum] = 0;
 
-        if (this.config.rowlen) {
+        // Keep the height to restore on unhide (writers use ht="0" for none).
+        if (this.config.rowlen && !(parseFloat(height) > 0)) {
           delete this.config.rowlen[rowNoNum];
         }
       }
@@ -1786,132 +2151,74 @@ export class FortuneSheet extends FortuneSheetBase {
         this.config.customHeight[rowNoNum] = 1;
       }
 
-      if (this.isInitialCell) {
-        let cells = row.getInnerElements("c");
-        for (let key in cells) {
-          let cell = cells[key];
-          let cellValue = new FortuneSheetCelldata(
-            cell,
-            this.styles,
-            this.sharedStrings,
-            this.mergeCells,
-            this.sheetFile,
-            this.readXml
-          );
-          if (cellValue._borderObject != null) {
-            if (this.config.borderInfo == null) {
-              this.config.borderInfo = [];
-            }
-            this.config.borderInfo.push(cellValue._borderObject);
-            delete cellValue._borderObject;
+      if (!this.isInitialCell || row.inner == null) return;
+      let previousCol = -1;
+      scanElements(row.inner, "c", (cell) => {
+        let cellValue = new FortuneSheetCelldata(
+          cell,
+          this.styles,
+          this.sharedStrings,
+          this.mergeCells,
+          this.sheetFile,
+          this.readXml,
+          this.workbookInfo,
+          { r: rowNoNum, c: previousCol + 1 }
+        );
+        previousCol = cellValue.c;
+        if (cellValue._borderObject != null) {
+          if (this.config.borderInfo == null) {
+            this.config.borderInfo = [];
           }
-
-          // let borderId = cellValue._borderId;
-          // if(borderId!=null){
-          //     let borders = this.styles["borders"] as Element[];
-          //     if(this.config._borderInfo==null){
-          //         this.config._borderInfo = {};
-          //     }
-          //     if( borderId in this.config._borderInfo){
-          //         this.config._borderInfo[borderId].cells.push(cellValue.r + "_" + cellValue.c);
-          //     }
-          //     else{
-          //         let border = borders[borderId];
-          //         let borderObject = new FortuneSheetborderInfoCellForImp();
-          //         borderObject.rangeType = "cellGroup";
-          //         borderObject.cells = [];
-          //         let borderCellValue = new FortuneSheetborderInfoCellValue();
-
-          //         let lefts = border.getInnerElements("left");
-          //         let rights = border.getInnerElements("right");
-          //         let tops = border.getInnerElements("top");
-          //         let bottoms = border.getInnerElements("bottom");
-          //         let diagonals = border.getInnerElements("diagonal");
-
-          //         let left = this.getBorderInfo(lefts);
-          //         let right = this.getBorderInfo(rights);
-          //         let top = this.getBorderInfo(tops);
-          //         let bottom = this.getBorderInfo(bottoms);
-          //         let diagonal = this.getBorderInfo(diagonals);
-
-          //         let isAdd = false;
-          //         if(left!=null && left.color!=null){
-          //             borderCellValue.l = left;
-          //             isAdd = true;
-          //         }
-
-          //         if(right!=null && right.color!=null){
-          //             borderCellValue.r = right;
-          //             isAdd = true;
-          //         }
-
-          //         if(top!=null && top.color!=null){
-          //             borderCellValue.t = top;
-          //             isAdd = true;
-          //         }
-
-          //         if(bottom!=null && bottom.color!=null){
-          //             borderCellValue.b = bottom;
-          //             isAdd = true;
-          //         }
-
-          //         if(isAdd){
-          //             borderObject.value = borderCellValue;
-          //             this.config._borderInfo[borderId] = borderObject;
-          //         }
-
-          //     }
-          // }
-          if (cellValue._formulaType == "shared") {
-            if (this.formulaRefList == null) {
-              this.formulaRefList = {};
-            }
-
-            if (this.formulaRefList[cellValue._formulaSi] == null) {
-              this.formulaRefList[cellValue._formulaSi] = {};
-            }
-
-            let fv;
-            if (cellValue.v != null) {
-              fv = (cellValue.v as IfortuneSheetCelldataValue).f;
-            }
-
-            let refValue = {
-              t: cellValue._formulaType,
-              ref: cellValue._fomulaRef,
-              si: cellValue._formulaSi,
-              fv: fv,
-              cellValue: cellValue,
-            };
-
-            if (cellValue._fomulaRef != null) {
-              this.formulaRefList[cellValue._formulaSi]["mainRef"] = refValue;
-            } else {
-              this.formulaRefList[cellValue._formulaSi][
-                cellValue.r + "_" + cellValue.c
-              ] = refValue;
-            }
-
-            // console.log(refValue, this.formulaRefList);
-          }
-
-          //There may be formulas that do not appear in calcChain
-          if (
-            cellValue.v != null &&
-            (cellValue.v as IfortuneSheetCelldataValue).f != null
-          ) {
-            let formulaCell: IformulaListItem = {
-              r: cellValue.r,
-              c: cellValue.c,
-            };
-            cellOtherInfo.formulaList["r" + cellValue.r + "c" + cellValue.c] =
-              formulaCell;
-          }
-
-          this.celldata.push(cellValue);
+          this.config.borderInfo.push(cellValue._borderObject);
+          delete cellValue._borderObject;
         }
-      }
-    }
+
+        if (cellValue._arrayRef != null) {
+          this.arrayFormulaCells.push(cellValue);
+        }
+
+        if (cellValue._formulaType == "shared") {
+          if (this.formulaRefList == null) {
+            this.formulaRefList = {};
+          }
+
+          if (this.formulaRefList[cellValue._formulaSi] == null) {
+            this.formulaRefList[cellValue._formulaSi] = {};
+          }
+
+          let fv;
+          if (cellValue.v != null) {
+            fv = (cellValue.v as IfortuneSheetCelldataValue).f;
+          }
+
+          let refValue = {
+            t: cellValue._formulaType,
+            ref: cellValue._fomulaRef,
+            si: cellValue._formulaSi,
+            fv: fv,
+            cellValue: cellValue,
+          };
+
+          if (cellValue._fomulaRef != null) {
+            this.formulaRefList[cellValue._formulaSi]["mainRef"] = refValue;
+          } else {
+            this.formulaRefList[cellValue._formulaSi][
+              cellValue.r + "_" + cellValue.c
+            ] = refValue;
+          }
+        }
+
+        //There may be formulas that do not appear in calcChain
+        if (
+          cellValue.v != null &&
+          (cellValue.v as IfortuneSheetCelldataValue).f != null
+        ) {
+          formulaCells.push({ r: cellValue.r, c: cellValue.c });
+        }
+
+        this.celldata.push(cellValue);
+      });
+    });
 
     return cellOtherInfo;
   }
@@ -1921,6 +2228,25 @@ export class FortuneSheet extends FortuneSheetBase {
    *
    * @returns {IfortunesheetDataVerification} - dataValidations config
    */
+  private bounds?: { lastRow: number; lastCol: number };
+
+  /**
+   * Where per-cell settings (validation, links) given for huge ranges
+   * (whole columns) are clipped: the used area, at least A1:Z1000.
+   */
+  private rangeBounds() {
+    if (this.bounds == null) {
+      let lastRow = 999;
+      let lastCol = 25;
+      for (const cell of this.celldata) {
+        if (cell.r > lastRow) lastRow = cell.r;
+        if (cell.c > lastCol) lastCol = cell.c;
+      }
+      this.bounds = { lastRow, lastCol };
+    }
+    return this.bounds;
+  }
+
   private generateConfigDataValidations(): IfortunesheetDataVerification {
     let rows = this.readXml.getElementsByTagName(
       "dataValidations/dataValidation",
@@ -1942,75 +2268,128 @@ export class FortuneSheet extends FortuneSheetBase {
       let formulaValue = row.value;
 
       let type = getXmlAttibute(attrList, "type", null);
-      if (!type) {
+      if (!type || type == "none") {
         continue;
       }
-      let operator = "",
+      let operator = getXmlAttibute(attrList, "operator", null) || "between",
         sqref = "",
         sqrefIndexArr: string[] = [],
         valueArr: string[] = [];
-      let _prohibitInput =
-        getXmlAttibute(attrList, "allowBlank", null) !== "1" ? false : true;
 
       // x14 processing
       const formulaReg = new RegExp(/<x14:formula1>|<xm:sqref>/g);
-      if (formulaReg.test(formulaValue) && extLst?.length >= 0) {
-        operator = getXmlAttibute(attrList, "operator", null);
+      if (formulaReg.test(formulaValue)) {
         const peelOffData = getPeelOffX14(formulaValue);
         sqref = peelOffData?.sqref;
-        sqrefIndexArr = getMultiSequenceToNum(sqref);
         valueArr = getMultiFormulaValue(peelOffData?.formula);
       } else {
-        operator = getXmlAttibute(attrList, "operator", null);
         sqref = getXmlAttibute(attrList, "sqref", null);
-        sqrefIndexArr = getMultiSequenceToNum(sqref);
         valueArr = getMultiFormulaValue(formulaValue);
       }
+      sqrefIndexArr = getMultiSequenceToNum(sqref, this.rangeBounds());
 
-      let _type = DATA_VERIFICATION_MAP[type];
-      let _type2 = null;
+      let _type: string = DATA_VERIFICATION_MAP[type];
+      if (_type == null) {
+        continue;
+      }
+      let _type2: string | null = null;
       let _value1: string | number = valueArr?.length >= 1 ? valueArr[0] : "";
-      let _value2: string | number = valueArr?.length === 2 ? valueArr[1] : "";
-      let _hint = getXmlAttibute(attrList, "prompt", null);
-      let _hintShow = _hint ? true : false;
-
-      const matchType = COMMON_TYPE2.includes(_type) ? "common" : _type;
-      _type2 = operator
-        ? DATA_VERIFICATION_TYPE2_MAP[matchType][operator]
-        : "bw";
-
-      // mobile phone number processing
-      if (
-        _type === "text_content" &&
-        (_value1?.includes("LEN") || _value1?.includes("len")) &&
-        _value1?.includes("=11")
-      ) {
-        _type = "validity";
-        _type2 = "phone";
+      let _value2: string | number = valueArr?.length >= 2 ? valueArr[1] : "";
+      let _hint = escapeCharacter(getXmlAttibute(attrList, "prompt", null));
+      let _hintTitle = escapeCharacter(
+        getXmlAttibute(attrList, "promptTitle", null)
+      );
+      let showInput = getXmlAttibute(attrList, "showInputMessage", "0");
+      let showError = getXmlAttibute(attrList, "showErrorMessage", "0");
+      let errorStyle = getXmlAttibute(attrList, "errorStyle", "stop");
+      if (errorStyle !== "warning" && errorStyle !== "information") {
+        errorStyle = "stop";
       }
+      let allowBlank = getXmlAttibute(attrList, "allowBlank", "0");
+      // Excel's inverted flag: showDropDown="1" hides the in-cell arrow
+      let showDropDown = getXmlAttibute(attrList, "showDropDown", "0");
+      let hideArrow = showDropDown == "1" || showDropDown == "true";
+      let _hintShow =
+        !!(_hint || _hintTitle) && (showInput == "1" || showInput == "true");
+      // an error alert of any style (Stop blocks the input, Warning and
+      // Information ask)
+      let _prohibitInput = showError == "1" || showError == "true";
+      let _errorTitle = escapeCharacter(
+        getXmlAttibute(attrList, "errorTitle", null)
+      );
+      let _errorMessage = escapeCharacter(
+        getXmlAttibute(attrList, "error", null)
+      );
+      // Excel reads the rule's relative references from the top-left cell
+      // of its first range: TinySheet keeps that cell as the rule's anchor.
+      let _anchor = sqrefAnchor(sqref);
+      // a bound written as a formula ("B1", "$C$1*2") stays a formula
+      const asBound = (value: string | number) =>
+        value === "" || isFinite(Number(value)) ? value : `=${value}`;
 
-      // date processing
       if (_type === "date") {
-        const D1900 = new Date(1899, 11, 30, 0, 0, 0);
-        _value1 = dayjs(D1900)
-          .clone()
-          .add(Number(_value1), "day")
-          .format("YYYY-MM-DD");
-        _value2 = dayjs(D1900)
-          .clone()
-          .add(Number(_value2), "day")
-          .format("YYYY-MM-DD");
-      }
-
-      // checkbox and dropdown processing
-      if (_type === "checkbox" || _type === "dropdown") {
-        _type2 = null;
+        _type2 = DV_DATE_OPERATORS[operator] || "between";
+        const toDate = (value: string | number) => {
+          let serial = Number(value);
+          if (value === "" || !isFinite(serial)) return value;
+          if (this.workbookInfo.date1904) serial += 1462;
+          return dayjs(new Date(Date.UTC(1899, 11, 30) + serial * 86400000))
+            .add(new Date().getTimezoneOffset(), "minute")
+            .format("YYYY-MM-DD");
+        };
+        _value1 = toDate(_value1);
+        _value2 = toDate(_value2);
+      } else if (_type === "dropdown") {
+        // "a,b,c" -> a,b,c ; ranges stay references
+        const list = String(_value1).replace(/^=/, "");
+        if (/^".*"$/s.test(list)) {
+          _value1 = list.slice(1, -1).replace(/""/g, '"');
+        } else if (
+          DV_RANGE_RE.test(list) ||
+          /^[A-Za-z_\\][A-Za-z0-9_.\\]*$/.test(list)
+        ) {
+          // ranges and defined names are list sources as they are
+          _value1 = list;
+        } else {
+          // any other formula (OFFSET(...), INDIRECT(...), ...)
+          _value1 = `=${list}`;
+        }
+      } else if (_type === "text_content") {
+        // Custom formulas generated for "contains / excludes / equals" rules.
+        const text = String(_value1);
+        const include =
+          /^ISNUMBER\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(
+            text
+          );
+        const exclude =
+          /^ISERROR\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(text);
+        const equal = /^\$?[A-Z]+\$?\d+="((?:[^"]|"")*)"$/i.exec(text);
+        if (include) {
+          _type2 = "include";
+          _value1 = include[1].replace(/""/g, '"');
+        } else if (exclude) {
+          _type2 = "exclude";
+          _value1 = exclude[1].replace(/""/g, '"');
+        } else if (equal) {
+          _type2 = "equal";
+          _value1 = equal[1].replace(/""/g, '"');
+        } else {
+          // Any other custom formula.
+          _type = "custom";
+          _value1 = text.replace(/^=/, "");
+        }
+      } else {
+        _type2 = DV_OPERATORS[operator] || "between";
+        if (_type !== "checkbox") {
+          _value1 = asBound(_value1);
+          _value2 = asBound(_value2);
+        }
       }
 
       // dynamically add dataVerifications
       for (const ref of sqrefIndexArr) {
-        dataVerification[ref] = {
-          type: _type,
+        const item: IfortunesheetDataVerificationValue = {
+          type: _type as any,
           type2: _type2,
           value1: _value1,
           value2: _value2,
@@ -2019,7 +2398,16 @@ export class FortuneSheet extends FortuneSheetBase {
           prohibitInput: _prohibitInput,
           hintShow: _hintShow,
           hintText: _hint,
+          hintValue: _hint || "",
+          ignoreBlank: allowBlank == "1" || allowBlank == "true",
         };
+        if (_hintTitle) item.hintTitle = _hintTitle;
+        if (_prohibitInput) item.errorStyle = errorStyle as any;
+        if (_errorTitle) item.errorTitle = _errorTitle;
+        if (_errorMessage) item.errorMessage = _errorMessage;
+        if (_anchor) item.anchor = { ..._anchor };
+        if (hideArrow && _type === "dropdown") item.showDropdown = false;
+        dataVerification[ref] = item;
       }
     }
 
@@ -2041,10 +2429,10 @@ export class FortuneSheet extends FortuneSheetBase {
       let row = rows[i];
       let attrList = row.attributeList;
       let ref = getXmlAttibute(attrList, "ref", null),
-        refArr = getMultiSequenceToNum(ref),
-        _display = getXmlAttibute(attrList, "display", null),
-        _address = getXmlAttibute(attrList, "location", null),
-        _tooltip = getXmlAttibute(attrList, "tooltip", null);
+        refArr = getMultiSequenceToNum(ref, this.rangeBounds()),
+        _display = escapeCharacter(getXmlAttibute(attrList, "display", null)),
+        _address = escapeCharacter(getXmlAttibute(attrList, "location", null)),
+        _tooltip = escapeCharacter(getXmlAttibute(attrList, "tooltip", null));
       let _type: IfortunesheetHyperlinkType = _address
         ? "cellrange"
         : "webpage";
@@ -2063,14 +2451,16 @@ export class FortuneSheet extends FortuneSheetBase {
         );
 
         if (findRid) {
-          _address = findRid.attributeList["Target"];
-          const type = findRid.attributeList[
-            "TargetMode"
-          ]?.toLocaleLowerCase();
+          _address = escapeCharacter(findRid.attributeList["Target"]);
+          const type = findRid.attributeList["TargetMode"]?.toLocaleLowerCase();
           if (type === "external") {
             _type = "webpage";
           }
         }
+      }
+
+      if (_address && _type === "cellrange") {
+        _address = _address.replace(/^#/, "");
       }
 
       // match R1C1

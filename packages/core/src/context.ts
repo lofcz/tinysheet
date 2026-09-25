@@ -2,7 +2,12 @@ import _ from "lodash";
 import { SheetConfig } from ".";
 import { FormulaCache } from "./modules";
 import { normalizeSelection } from "./modules/selection";
+import { computeAxisPositions } from "./modules/geometry";
 import { Hooks } from "./settings";
+import type { ThemeName } from "./theme";
+import type { EditState } from "./modules/editMode";
+import type { TraceArrowsState } from "./modules/formulaAudit";
+import type { ErrorCheckingOptions } from "./modules/errorChecking";
 import {
   Sheet,
   Selection,
@@ -17,6 +22,7 @@ import {
   DataRegulationProps,
   ConditionRulesProps,
   GlobalCache,
+  CalcSettings,
 } from "./types";
 import { getSheetIndex } from "./utils";
 
@@ -46,14 +52,76 @@ export type Context = {
   insertedImgs?: Image[];
   editingInsertedImgs?: Image;
   activeImg?: string;
+  /**
+   * Bumped when pictures in cells finish loading, so the canvas redraws
+   * (see modules/cellImageDraw.ts).
+   */
+  cellImageRevision?: number;
+  /** Id of the selected chart object, if any. */
+  activeChart?: string;
+  /** Whether the chart editor panel is open for `activeChart`. */
+  chartEditorOpen?: boolean;
+  /** Ids of the selected shapes on the current sheet (modules/shapes.ts). */
+  activeShapes?: string[];
+  /** Shape whose text is being edited. */
+  editingShape?: string;
+  /** Insert › Shapes: gallery key the next drag on the grid draws. */
+  shapeDrawKind?: string;
+  /** Whether the Format Shape pane is open for the selected shapes. */
+  shapeFormatOpen?: boolean;
+  /** The PivotTable Fields pane was closed (see modules/pivot.ts). */
+  pivotFieldListHidden?: boolean;
   presences?: Presence[];
   showSearch?: boolean;
   showReplace?: boolean;
+  /** Paste Special dialog open (Ctrl+Alt+V, Ctrl+Shift+V) */
+  showPasteSpecial?: boolean;
   linkCard?: LinkCardProps;
   rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
   // 提醒弹窗
   warnDialog?: string;
+  /**
+   * An edit refused by sheet/workbook protection (see checkProtection); the
+   * UI shows `message` and clears it. `seq` makes a repeated message show.
+   */
+  protectionAlert?: { message: string; seq: number };
+  /** Edit hit an Allow Edit Range with a password: ask for it (Unlock Range). */
+  protectionUnlock?: { sheetId: string; name: string };
+  /** Allow Edit Ranges unlocked this session ("sheetId|name"). */
+  unlockedEditRanges?: string[];
+  /** View › Formula Bar unchecked (hides the formula bar). */
+  hideFormulaBar?: boolean;
+  /**
+   * Result of the last Flash Fill / Advanced Filter, shown next to the
+   * cells (see modules/flashFill.ts, advancedFilter.ts).
+   */
+  cellToolsNotice?: {
+    id: number;
+    kind: "flashFill" | "advancedFilter";
+    count: number;
+    total?: number;
+    range?: { row: [number, number]; column: [number, number] };
+    error?: string;
+  };
+  /** Goal Seek in progress: its result, awaiting OK / Cancel. */
+  goalSeekStatus?: {
+    id: number;
+    setCell: { r: number; c: number };
+    setSheetId?: string;
+    changingCell: { r: number; c: number };
+    toValue: number;
+    found: boolean;
+    value: number;
+    result: number;
+    iterations: number;
+    original: Cell | null;
+    error?: string;
+  };
+  /** Open Format Cells dialog and its tab (see openFormatCells). */
+  formatCellsDialog?: { tab: string };
   currency?: string;
+  /** Resolved colour theme (from `settings.theme`); read by the canvas. */
+  theme?: ThemeName;
   dataVerification?: {
     selectStatus: boolean;
     selectRange: [];
@@ -64,9 +132,37 @@ export type Context = {
     optionLabel_hi: any;
     optionLabel_ru: any;
     dataRegulation?: DataRegulationProps; // 数据验证规则
+    /** rule edited from the rules sidebar (see getDataVerificationRules) */
+    editingRuleId?: string;
   };
   // 数据验证下拉列表
   dataVerificationDropDownList?: boolean;
+  /** pending data validation error alert (see checkDataVerificationInput) */
+  dataVerificationAlert?: {
+    sheetId: string;
+    r: number;
+    c: number;
+    value: string;
+    style: "stop" | "warning" | "information";
+    title: string;
+    message: string;
+  };
+  /** sheets whose invalid cells are circled (Circle Invalid Data) */
+  dataVerificationCircles?: Record<string, boolean>;
+  /** the data validation rules sidebar is open */
+  dataVerificationSidebar?: boolean;
+  /**
+   * The threaded comment card open on a cell (see
+   * modules/threadedComments.ts): "new" starts a thread, "view" shows it.
+   */
+  threadedCommentCard?: {
+    sheetId: string;
+    r: number;
+    c: number;
+    mode: "new" | "view";
+  } | null;
+  /** The Comments pane listing every threaded comment is open. */
+  threadedCommentsPane?: boolean;
   conditionRules: ConditionRulesProps; // 条件格式
 
   contextMenu: {
@@ -75,6 +171,8 @@ export type Context = {
     headerMenu?: boolean;
     pageX?: number;
     pageY?: number;
+    /** the menu of a floating picture (items registered for "image") */
+    imageMenu?: boolean;
   };
   sheetTabContextMenu: {
     x?: number;
@@ -92,6 +190,26 @@ export type Context = {
     endCol: number;
     hiddenRows: number[];
     listBoxMaxHeight: number;
+  };
+  /**
+   * The table whose header filter button opened the filter menu: filter
+   * functions act on that table's filters instead of the sheet autofilter
+   * (see modules/tableFilter.ts). Cleared by the autofilter's buttons.
+   */
+  filterScope?: { sheetId: string; table: string };
+  /** The slicer selected by a click (Delete removes it). */
+  activeSlicer?: { sheetId: string; table: string; name: string };
+  /**
+   * AutoCorrect options of the last table edit: a calculated column was
+   * created (`created`) or a formula could fill the column (`overwrite`).
+   */
+  tableAutoCorrect?: {
+    sheetId: string;
+    table: string;
+    column: number;
+    r: number;
+    c: number;
+    kind: "created" | "overwrite";
   };
 
   currentSheetId: string;
@@ -133,6 +251,20 @@ export type Context = {
   formulaRangeSelect: ({ rangeIndex: number } & Rect) | undefined;
   functionCandidates: any[];
   functionHint: string | null | undefined;
+  /** highlighted item of `functionCandidates` (formula autocomplete) */
+  functionCandidateIndex?: number;
+  /** argument of `functionHint` the caret is in */
+  functionHintArgIndex?: number;
+  /** the formula bar shows several lines (Ctrl+Shift+U), and its height */
+  formulaBarExpanded?: boolean;
+  formulaBarHeight?: number;
+  /**
+   * Point mode across sheets: while a formula is edited, another sheet is
+   * shown to pick references on; this is the sheet of the edited cell.
+   */
+  formulaEditOrigin?: { sheetId: string };
+  /** the sheet whose selection and scroll were already restored on switch */
+  sheetScrollRestoredFor?: string;
 
   luckysheet_copy_save?: {
     dataSheetId: string;
@@ -175,6 +307,12 @@ export type Context = {
   luckysheet_rows_freeze_drag: boolean;
 
   luckysheetCellUpdate: any[];
+  /** Enter/Edit/Point mode of the edit session (see modules/editMode) */
+  editState?: EditState;
+  /** Excel's End mode: the next arrow key jumps like Ctrl+arrow */
+  endMode?: boolean;
+  /** column where a run of Tab presses started (Enter returns to it) */
+  tabReturn?: { col: number; at: [number, number] };
 
   luckysheet_shiftkeydown: boolean;
   luckysheet_shiftpositon: Selection | undefined;
@@ -212,13 +350,52 @@ export type Context = {
   defaultCell: Cell;
 
   groupValuesRefreshData: any[];
+  /**
+   * Share (0..1) of a time-sliced recalculation done, while one is queued
+   * (see modules/recalcScheduler.ts); undefined otherwise.
+   */
+  recalcProgress?: number;
   formulaCache: FormulaCache;
   hooks: Hooks;
-  showSheetList?: Boolean;
+  showSheetList?: boolean;
+  /** Grouped sheets (Ctrl/Shift+click on tabs); edits apply to all of them. */
+  groupedSheetIds?: string[];
+  /** Go To dialog (Ctrl+G / F5) visibility. */
+  showGoTo?: boolean;
+  /** Page layout view state (modules/pageSetup.ts). */
+  pageLayout?: {
+    /** Page Break Preview view of these sheets (by id). */
+    breakPreviewSheets?: string[];
+    /** Sheets whose automatic page breaks show in Normal view (after printing). */
+    shownBreakSheets?: string[];
+    /** Open the Print Preview (set by Ctrl+P, read by the React UI). */
+    printPreviewRequest?: number;
+  };
+  /**
+   * Group / Ungroup asked for a range that is neither whole rows nor whole
+   * columns (Shift+Alt+Right / Left): the UI asks which one (outline.ts).
+   */
+  outlinePrompt?: "group" | "ungroup";
   // 只读模式公式被引用单元格强制高光
-  forceFormulaRef?: Boolean;
+  forceFormulaRef?: boolean;
 
   sheetFocused: boolean; // property to track sheet focus for keyboard navigation
+
+  /** Calculation options used while no sheet stores any (`calculation` setting). */
+  calcDefaults?: CalcSettings;
+  /** Manual calculation: changes wait for F9 (status bar "Calculate"). */
+  calculationPending?: boolean;
+  /** Trace Precedents / Dependents arrows (modules/formulaAudit.ts). */
+  traceArrows?: TraceArrowsState;
+  /** Show Formulas (Ctrl+`) per sheet id. */
+  showFormulas?: Record<string, boolean>;
+  /** Watch Window panel and its watched cells. */
+  watchWindow?: {
+    open: boolean;
+    watches: { sheetId: string; r: number; c: number }[];
+  };
+  /** Error checking rules (modules/errorChecking.ts), from the settings. */
+  errorCheckingOptions?: ErrorCheckingOptions;
 
   getRefs: () => RefValues;
 };
@@ -527,90 +704,46 @@ export function getFlowdata(ctx?: Context, id?: string | null) {
 }
 
 function calcRowColSize(ctx: Context, rowCount: number, colCount: number) {
-  ctx.visibledatarow = [];
-  ctx.rh_height = 0;
-
-  for (let r = 0; r < rowCount; r += 1) {
-    let rowlen: number | string = ctx.defaultrowlen;
-
-    if (ctx.config.rowlen?.[r]) {
-      rowlen = ctx.config?.rowlen?.[r];
-    }
-
-    if (ctx.config?.rowhidden?.[r] != null) {
-      ctx.visibledatarow.push(ctx.rh_height);
-      continue;
-    }
-
-    // 自动行高计算
-    // if (rowlen === "auto") {
-    //   rowlen = computeRowlenByContent(ctx.flowdata, r);
-    // }
-    ctx.rh_height += Math.round(((rowlen as number) + 1) * ctx.zoomRatio);
-
-    ctx.visibledatarow.push(ctx.rh_height); // 行的临时长度分布
-  }
+  // Tight loops over plain (non-draft) objects: this runs inside immer
+  // producers, where every proxied read costs as much as the loop body.
+  const rows = computeAxisPositions(
+    rowCount,
+    ctx.defaultrowlen,
+    ctx.config?.rowlen,
+    ctx.config?.rowhidden,
+    ctx.zoomRatio
+  );
+  // Frozen up front so immer's auto-freeze does not walk every entry.
+  ctx.visibledatarow = Object.freeze(rows.positions) as number[];
 
   // 如果增加行和回到顶部按钮隐藏，则减少底部空白区域，但是预留足够空间给单元格下拉按钮
-  // if (
-  //   !luckysheetConfigsetting.enableAddRow &&
-  //   !luckysheetConfigsetting.enableAddBackTop
-  // ) {
-  //   ctx.rh_height += 29;
-  // } else {
-  // }
-  ctx.rh_height += 80; // 最底部增加空白
-
-  ctx.visibledatacolumn = [];
-  ctx.ch_width = 0;
+  ctx.rh_height = rows.total + 80; // 最底部增加空白
 
   const maxColumnlen = 120;
 
-  const flowdata = getFlowdata(ctx);
-  for (let c = 0; c < colCount; c += 1) {
-    let firstcolumnlen: number | string = ctx.defaultcollen;
-
-    if (ctx.config?.columnlen?.[c]) {
-      firstcolumnlen = ctx.config.columnlen[c];
-    } else {
-      if (flowdata?.[0]?.[c]) {
-        if (firstcolumnlen > 300) {
-          firstcolumnlen = 300;
-        } else if (firstcolumnlen < ctx.defaultcollen) {
-          firstcolumnlen = ctx.defaultcollen;
+  // Legacy clamp: columns with content in the first row get an explicit
+  // width when the default width lies outside [defaultcollen, 300].
+  if (ctx.defaultcollen > 300) {
+    const flowdata = getFlowdata(ctx);
+    for (let c = 0; c < colCount; c += 1) {
+      if (!ctx.config?.columnlen?.[c] && flowdata?.[0]?.[c]) {
+        if (!ctx.config?.columnlen) {
+          ctx.config.columnlen = {};
         }
-
-        if (firstcolumnlen !== ctx.defaultcollen) {
-          if (!ctx.config?.columnlen) {
-            ctx.config.columnlen = {};
-          }
-
-          ctx.config.columnlen[c] = firstcolumnlen;
-        }
+        ctx.config.columnlen[c] = 300;
       }
     }
-
-    if (ctx.config?.colhidden?.[c] != null) {
-      ctx.visibledatacolumn.push(ctx.ch_width);
-      continue;
-    }
-
-    // 自动行高计算
-    // if (firstcolumnlen === "auto") {
-    //   firstcolumnlen = computeColWidthByContent(
-    //     ctx.flowdata,
-    //     c,
-    //     rowCount
-    //   );
-    // }
-    ctx.ch_width += Math.round(
-      ((firstcolumnlen as number) + 1) * ctx.zoomRatio
-    );
-
-    ctx.visibledatacolumn.push(ctx.ch_width); // 列的临时长度分布
   }
 
-  ctx.ch_width += maxColumnlen;
+  const cols = computeAxisPositions(
+    colCount,
+    ctx.defaultcollen,
+    ctx.config?.columnlen,
+    ctx.config?.colhidden,
+    ctx.zoomRatio
+  );
+  ctx.visibledatacolumn = Object.freeze(cols.positions) as number[];
+  ctx.ch_width = cols.total + maxColumnlen;
 }
 
 export function ensureSheetIndex(data: Sheet[], generateSheetId: () => string) {

@@ -1,4 +1,4 @@
-const { readdirSync } = require("fs");
+const { readdirSync, realpathSync } = require("fs");
 const { join } = require("path");
 
 const pkgList = readdirSync(join(__dirname, "./packages")).filter(
@@ -7,14 +7,28 @@ const pkgList = readdirSync(join(__dirname, "./packages")).filter(
 
 const moduleNameMapper = {
   "\\.(css|less|sass|scss)$": require.resolve("identity-obj-proxy"),
-  uuid: require.resolve("uuid"),
+  // Bun uses an isolated node_modules layout, so resolve from the package that depends on it.
+  "^uuid$": require.resolve("uuid", {
+    paths: [join(__dirname, "packages/core")],
+  }),
 };
 
+// @chevrotain/* only expose an "import" export condition, which Jest's
+// CommonJS resolver ignores; point it at the ESM entry and let Babel transform it.
+const chevrotainDir = realpathSync(
+  join(__dirname, "packages/formula-parser/node_modules/chevrotain")
+);
+moduleNameMapper["^@chevrotain/(.*)$"] = join(
+  chevrotainDir,
+  "../@chevrotain/$1/lib/src/api.js"
+);
+
 pkgList.forEach((shortName) => {
-  const name = `@tinysheet/${shortName}`;
-  // Workaround for Jest not having ESM support yet
-  // See: https://github.com/uuidjs/uuid/issues/451
-  moduleNameMapper[name] = join(__dirname, `./packages/${shortName}/src`);
+  // Point workspace packages at their sources so tests don't need a build.
+  moduleNameMapper[`^@lofcz/tinysheet-${shortName}$`] = join(
+    __dirname,
+    `./packages/${shortName}/src`
+  );
 });
 
 module.exports = {
@@ -23,8 +37,22 @@ module.exports = {
   moduleNameMapper,
   moduleFileExtensions: ["js", "jsx", "ts", "tsx"],
   transform: {
-    "\\.(t|j)sx?$": require.resolve("./tests/transformer"),
+    "\\.(t|j)sx?$": require.resolve("./tests/transformer.cjs"),
   },
+  // chevrotain (and its lodash-es / @chevrotain deps) ship ESM only.
+  transformIgnorePatterns: [
+    "/node_modules/(?!.*(chevrotain|lodash-es|@formulajs|regexp-to-ast))",
+  ],
+  // Legacy preview test targets a removed dist/main.js bundle.
+  testPathIgnorePatterns: [
+    "/node_modules/",
+    "/worktrees/",
+    // Playwright specs (run by `bun run test:e2e`, not Jest).
+    "<rootDir>/e2e/",
+    "packages/excel/test/transformExcelToFortune.xls_preview.test.js",
+  ],
+  // Local git worktrees duplicate every package.
+  modulePathIgnorePatterns: ["/worktrees/"],
   unmockedModulePathPatterns: ["node_modules/react/", "node_modules/enzyme/"],
   verbose: true,
   setupFiles: ["./tests/setup.js"],

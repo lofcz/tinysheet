@@ -138,3 +138,6 @@ dist
 
 # storybook
 /storybook-static
+
+# Playwright e2e output
+/test-results

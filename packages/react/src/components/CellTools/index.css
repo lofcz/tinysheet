@@ -1,0 +1,119 @@
+/* Cell tools (checkboxes, Flash Fill, Advanced Filter, What-If). Colours
+   come from the --fortune-* tokens. */
+
+.fortune-cell-tools-menu-hint {
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+  margin-left: var(--fortune-space-4);
+}
+
+.fortune-cell-tools-message {
+  margin-bottom: var(--fortune-space-3);
+  line-height: 1.4;
+}
+
+.fortune-cell-tools-summary {
+  border-collapse: collapse;
+}
+
+.fortune-cell-tools-summary th {
+  text-align: left;
+  font-weight: normal;
+  color: var(--fortune-text-muted);
+  padding: 2px var(--fortune-space-4) 2px 0;
+}
+
+.fortune-cell-tools-summary td {
+  font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+}
+
+.fortune-goal-seek,
+.fortune-data-table,
+.fortune-goal-seek-status {
+  min-width: 340px;
+}
+
+/* result next to the cells (inside the cell area) */
+.fortune-cell-tools-notice {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-3);
+  max-width: 360px;
+  padding: 6px 10px;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  background: var(--fortune-bg-elevated, var(--fortune-bg));
+  color: var(--fortune-text);
+  box-shadow: var(--fortune-shadow);
+  font-family: var(--fortune-font-family);
+  font-size: var(--fortune-font-size-sm);
+  line-height: 1.35;
+  pointer-events: auto;
+  white-space: normal;
+}
+
+.fortune-cell-tools-notice.error {
+  border-color: var(--fortune-warning);
+}
+
+.fortune-cell-tools-notice-action {
+  color: var(--fortune-accent-text, var(--fortune-accent));
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.fortune-cell-tools-notice-action:hover {
+  text-decoration: underline;
+}
+
+/* reference picking bar (dialog collapsed while selecting on the sheet) */
+.fortune-cell-tools-pick {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1003;
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-3);
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  background: var(--fortune-bg-elevated, var(--fortune-bg));
+  color: var(--fortune-text);
+  box-shadow: var(--fortune-shadow-lg, var(--fortune-shadow));
+  font-family: var(--fortune-font-family);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-cell-tools-pick-label {
+  color: var(--fortune-text-muted);
+}
+
+.fortune-cell-tools-pick-ref {
+  min-width: 120px;
+  padding: 3px 8px;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input, var(--fortune-bg));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.fortune-cell-tools-pick-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--fortune-radius-sm);
+  color: var(--fortune-icon);
+  cursor: pointer;
+}
+
+.fortune-cell-tools-pick-close:hover {
+  background: var(--fortune-bg-hover);
+}

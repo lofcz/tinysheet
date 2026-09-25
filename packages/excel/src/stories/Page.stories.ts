@@ -5,7 +5,7 @@ const meta = {
   title: "Example/FortuneExcel",
   parameters: {
     layout: "fullscreen",
-    options: { showPanel: false } 
+    options: { showPanel: false },
   },
 };
 

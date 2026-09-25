@@ -1,17 +1,13 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { mergeCells } from "./merge";
 import { Context, getFlowdata } from "../context";
 // import { locale } from "../locale";
 import { Cell, CellMatrix, GlobalCache } from "../types";
 import { getSheetIndex, isAllowEdit } from "../utils";
-import {
-  getRangetxt,
-  isAllSelectedCellsInStatus,
-  normalizedAttr,
-  setCellValue,
-} from "./cell";
+import { getRangetxt, isAllSelectedCellsInStatus, setCellValue } from "./cell";
 import { colors } from "./color";
-import { genarate, is_date, update } from "./format";
+import { adjustDecimals, buildFormatCode, is_date, update } from "./format";
 import {
   execfunction,
   execFunctionGroup,
@@ -42,6 +38,7 @@ import { showLinkCard } from "./hyperlink";
 import { cfSplitRange } from "./conditionalFormat";
 import { getCellTextInfo } from "./text";
 import { setFormulaCellInfo } from "./formulaHelper";
+import { FreezeMode, freezePanes, toggleSplitPanes } from "./freeze";
 
 type ToolbarItemClickHandler = (
   ctx: Context,
@@ -109,6 +106,9 @@ export function updateFormatCell(
         } else if (foucsStatus === "General" || foucsStatus === 0) {
           // type = "g";
           type = isRealNum(value) ? "n" : "g";
+        } else if (!_.isNil(value) && value !== "" && !isRealNum(value)) {
+          // text under a number format stays text
+          type = cell?.ct?.t === "s" ? "s" : "g";
         }
 
         if (cell && _.isPlainObject(cell)) {
@@ -237,11 +237,14 @@ export function updateFormat(
   foucsStatus: any,
   canvas?: CanvasRenderingContext2D
 ) {
-  //   if (!checkProtectionFormatCells(ctx.currentSheetId)) {
-  //     return;
-  //   }
-
-  const allowEdit = isAllowEdit(ctx);
+  // formatting is its own permission on a protected sheet
+  if (
+    ctx.luckysheetCellUpdate.length === 0 &&
+    !checkProtection(ctx, "formatCells")
+  ) {
+    return;
+  }
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
 
   if (attr in inlineStyleAffectAttribute) {
@@ -721,6 +724,7 @@ export function autoSelectionFormula(
   formula: string,
   cache: GlobalCache
 ) {
+  if (!checkProtection(ctx, "editCells")) return;
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) return;
   const flowdata = getFlowdata(ctx);
@@ -940,15 +944,41 @@ export function cancelPaintModel(ctx: Context) {
   // $("#luckysheetpopover").fadeOut(200,function(){
   //     $("#luckysheetpopover").remove();
 }
+/** Currency symbol of the workbook (settings.currency). */
+function currencySymbol(ctx: Context) {
+  return ctx.currency || "¥";
+}
+
+/**
+ * Ctrl+Shift+$: Excel's Currency format, two decimals, negative numbers in
+ * parentheses.
+ */
 export function handleCurrencyFormat(ctx: Context, cellInput: HTMLDivElement) {
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;
-
-  const currency = ctx.currency || "¥";
-
-  updateFormat(ctx, cellInput, flowdata, "ct", `${currency} #.00`);
+  const fa = buildFormatCode("currency", {
+    decimals: 2,
+    symbol: currencySymbol(ctx),
+    negative: "parens",
+  });
+  updateFormat(ctx, cellInput, flowdata, "ct", fa);
 }
 
+/** The ribbon's currency button: Excel's Accounting Number Format. */
+export function handleAccountingFormat(
+  ctx: Context,
+  cellInput: HTMLDivElement
+) {
+  const flowdata = getFlowdata(ctx);
+  if (!flowdata) return;
+  const fa = buildFormatCode("accounting", {
+    decimals: 2,
+    symbol: currencySymbol(ctx),
+  });
+  updateFormat(ctx, cellInput, flowdata, "ct", fa);
+}
+
+/** The ribbon's % button (Percent Style): 0%. */
 export function handlePercentageFormat(
   ctx: Context,
   cellInput: HTMLDivElement
@@ -956,184 +986,45 @@ export function handlePercentageFormat(
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;
 
-  updateFormat(ctx, cellInput, flowdata, "ct", "0.00%");
+  updateFormat(ctx, cellInput, flowdata, "ct", "0%");
+}
+
+/**
+ * Increase/Decrease Decimal: the new code is derived from the active
+ * cell's format (or, for General, from the decimals its value shows) and
+ * applied to the whole selection, like Excel. Works on every numeric code:
+ * currency, accounting, percent, scientific and custom codes with sections.
+ */
+function changeDecimals(
+  ctx: Context,
+  cellInput: HTMLDivElement,
+  delta: number
+) {
+  const flowdata = getFlowdata(ctx);
+  const sel = ctx.luckysheet_select_save?.[0];
+  if (!flowdata || !sel) return;
+  const r = sel.row_focus ?? sel.row[0];
+  const c = sel.column_focus ?? sel.column[0];
+  if (r === undefined || c === undefined) return;
+  const cell = flowdata[r]?.[c];
+  if (cell?.ct?.t === "inlineStr") return;
+  const v = cell?.v;
+  if (!_.isNil(v) && v !== "" && !isRealNum(v)) return; // text
+  const fa = adjustDecimals(
+    cell?.ct?.fa,
+    delta,
+    _.isNil(v) || v === "" ? undefined : Number(v)
+  );
+  if (fa === null) return;
+  updateFormat(ctx, cellInput, flowdata, "ct", fa);
 }
 
 export function handleNumberDecrease(ctx: Context, cellInput: HTMLDivElement) {
-  const flowdata = getFlowdata(ctx);
-  if (!flowdata || !ctx.luckysheet_select_save) return;
-
-  const row_index = ctx.luckysheet_select_save[0].row_focus;
-  const col_index = ctx.luckysheet_select_save[0].column_focus;
-  if (row_index === undefined || col_index === undefined) return;
-
-  let foucsStatus = normalizedAttr(flowdata, row_index, col_index, "ct");
-  const cell = flowdata[row_index][col_index];
-
-  if (foucsStatus == null || foucsStatus.t !== "n") {
-    return;
-  }
-
-  if (foucsStatus.fa === "General") {
-    if (!cell || !cell.v) return;
-
-    const mask = genarate(cell.v);
-    if (!mask || mask.length < 2) return;
-    [, foucsStatus] = mask;
-  }
-
-  // 万亿格式
-  const reg = /^(w|W)((0?)|(0\.0+))$/;
-  if (reg.test(foucsStatus.fa)) {
-    if (foucsStatus.fa.indexOf(".") > -1) {
-      if (foucsStatus.fa.substr(-2) === ".0") {
-        updateFormat(
-          ctx,
-          cellInput,
-          flowdata,
-          "ct",
-          foucsStatus.fa.split(".")[0]
-        );
-      } else {
-        updateFormat(
-          ctx,
-          cellInput,
-          flowdata,
-          "ct",
-          foucsStatus.fa.substr(0, foucsStatus.fa.length - 1)
-        );
-      }
-    } else {
-      updateFormat(ctx, cellInput, flowdata, "ct", foucsStatus.fa);
-    }
-
-    return;
-  }
-  // Uncaught ReferenceError: Cannot access 'fa' before initialization
-  let prefix = "";
-  let main = "";
-  let fa = [];
-  if (foucsStatus.fa.indexOf(".") > -1) {
-    fa = foucsStatus.fa.split(".");
-    [prefix, main] = fa;
-  } else {
-    return;
-  }
-
-  fa = main.split("");
-  let tail = "";
-  for (let i = fa.length - 1; i >= 0; i -= 1) {
-    const c = fa[i];
-    if (c !== "#" && c !== "0" && c !== "," && Number.isNaN(parseInt(c, 10))) {
-      tail = c + tail;
-    } else {
-      break;
-    }
-  }
-
-  let fmt = "";
-  if (foucsStatus.fa.indexOf(".") > -1) {
-    let suffix = main;
-    if (tail.length > 0) {
-      suffix = main.replace(tail, "");
-    }
-
-    let pos = suffix.replace(/#/g, "0");
-    pos = pos.substr(0, pos.length - 1);
-    if (pos === "") {
-      fmt = prefix + tail;
-    } else {
-      fmt = `${prefix}.${pos}${tail}`;
-    }
-  }
-
-  updateFormat(ctx, cellInput, flowdata, "ct", fmt);
+  changeDecimals(ctx, cellInput, -1);
 }
 
 export function handleNumberIncrease(ctx: Context, cellInput: HTMLDivElement) {
-  const flowdata = getFlowdata(ctx);
-  if (!flowdata) return;
-  if (!ctx.luckysheet_select_save) return;
-  const row_index = ctx.luckysheet_select_save[0].row_focus;
-  const col_index = ctx.luckysheet_select_save[0].column_focus;
-  if (row_index === undefined || col_index === undefined) return;
-  let foucsStatus = normalizedAttr(flowdata, row_index, col_index, "ct");
-  const cell = flowdata[row_index][col_index];
-
-  if (foucsStatus == null || foucsStatus.t !== "n") {
-    return;
-  }
-
-  if (foucsStatus.fa === "General") {
-    if (!cell || !cell.v) return;
-    const mask = genarate(cell.v);
-    if (!mask || mask.length < 2) return;
-    [, foucsStatus] = mask;
-  }
-
-  if (foucsStatus.fa === "General") {
-    updateFormat(ctx, cellInput, flowdata, "ct", "#.0");
-    return;
-  }
-
-  // 万亿格式
-  const reg = /^(w|W)((0?)|(0\.0+))$/;
-  if (reg.test(foucsStatus.fa)) {
-    if (foucsStatus.fa.indexOf(".") > -1) {
-      updateFormat(ctx, cellInput, flowdata, "ct", `${foucsStatus.fa}0`);
-    } else {
-      if (foucsStatus.fa.substr(-1) === "0") {
-        updateFormat(ctx, cellInput, flowdata, "ct", `${foucsStatus.fa}.0`);
-      } else {
-        updateFormat(ctx, cellInput, flowdata, "ct", `${foucsStatus.fa}0.0`);
-      }
-    }
-
-    return;
-  }
-
-  // Uncaught ReferenceError: Cannot access 'fa' before initialization
-  let prefix = "";
-  let main = "";
-  let fa = [];
-
-  if (foucsStatus.fa.indexOf(".") > -1) {
-    fa = foucsStatus.fa.split(".");
-    [prefix, main] = fa;
-  } else {
-    main = foucsStatus.fa;
-  }
-
-  fa = main.split("");
-  let tail = "";
-  for (let i = fa.length - 1; i >= 0; i -= 1) {
-    const c = fa[i];
-    if (c !== "#" && c !== "0" && c !== "," && Number.isNaN(parseInt(c, 10))) {
-      tail = c + tail;
-    } else {
-      break;
-    }
-  }
-
-  let fmt = "";
-  if (foucsStatus.fa.indexOf(".") > -1) {
-    let suffix = main;
-    if (tail.length > 0) {
-      suffix = main.replace(tail, "");
-    }
-
-    let pos = suffix.replace(/#/g, "0");
-    pos += "0";
-    fmt = `${prefix}.${pos}${tail}`;
-  } else {
-    if (tail.length > 0) {
-      fmt = `${main.replace(tail, "")}.0${tail}`;
-    } else {
-      fmt = `${main}.0${tail}`;
-    }
-  }
-
-  updateFormat(ctx, cellInput, flowdata, "ct", fmt);
+  changeDecimals(ctx, cellInput, 1);
 }
 
 export function handleBold(ctx: Context, cellInput: HTMLDivElement) {
@@ -1168,7 +1059,12 @@ export function handleVerticalAlign(
   setAttr(ctx, cellInput, "vt", value);
 }
 
-export function handleFormatPainter(ctx: Context) {
+/**
+ * Pick up the selection's formatting for painting. One-shot painting ends
+ * after the next paste; sticky painting (double-click) lasts until Esc or
+ * another click on the button.
+ */
+export function startFormatPainter(ctx: Context, sticky: boolean) {
   //   if (!checkIsAllowEdit()) {
   //     tooltip.info("", locale().pivotTable.errorNotAllowEdit);
   //     return
@@ -1178,7 +1074,8 @@ export function handleFormatPainter(ctx: Context) {
 
   // let _locale = locale();
   // let locale_paint = _locale.paint;
-  const allowEdit = isAllowEdit(ctx);
+  // picking up formats is allowed on locked cells
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   if (
     ctx.luckysheet_select_save == null ||
@@ -1277,12 +1174,25 @@ export function handleFormatPainter(ctx: Context) {
   };
 
   ctx.luckysheetPaintModelOn = true;
-  ctx.luckysheetPaintSingle = true;
+  ctx.luckysheetPaintSingle = !sticky;
+}
+
+/**
+ * The Format Painter button: a click starts a one-shot painter (or turns an
+ * active one off, like Excel); see startFormatPainter for double-click.
+ */
+export function handleFormatPainter(ctx: Context) {
+  if (ctx.luckysheetPaintModelOn) {
+    cancelPaintModel(ctx);
+    return;
+  }
+  startFormatPainter(ctx, false);
 }
 
 // 2022-10-10 废弃了handleClearFormat中的foreach写法，改为可跳出的every写法，以防止选区多次覆盖
 export function handleClearFormat(ctx: Context) {
   if (ctx.allowEdit === false) return;
+  if (!checkProtection(ctx, "formatCells")) return;
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;
   ctx.luckysheet_select_save?.every((selection) => {
@@ -1394,7 +1304,8 @@ export function handleBorder(
   // const d = editor.deepCopyFlowData(Store.flowdata);
   // let type = $(this).attr("type");
   // let type = "border-all";
-  const allowEdit = isAllowEdit(ctx);
+  if (!checkProtection(ctx, "formatCells")) return;
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   if (type == null) {
     type = "border-all";
@@ -1466,6 +1377,7 @@ export function handleBorder(
 }
 
 export function handleMerge(ctx: Context, type: string) {
+  if (!checkProtection(ctx, "protected")) return;
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) return;
   // if (!checkProtectionNotEnable(ctx.currentSheetId)) {
@@ -1519,23 +1431,37 @@ export function handleSort(ctx: Context, isAsc: boolean) {
   sortSelection(ctx, isAsc);
 }
 
-export function handleFreeze(ctx: Context, type: string) {
-  const allowEdit = isAllowEdit(ctx);
-  if (!allowEdit) return;
+// Excel's Freeze Panes menu (see freezePanes) and Split.
+const FREEZE_MENU_MODES: Record<string, FreezeMode> = {
+  "freeze-panes": "panes",
+  "freeze-top-row": "topRow",
+  "freeze-first-column": "firstColumn",
+  unfreeze: "unfreeze",
+};
+
+export function handleFreeze(
+  ctx: Context,
+  type: string
+): "ok" | "tooLarge" | "noop" | undefined {
+  // freezing panes is allowed on protected sheets
+  const allowEdit = isAllowEdit(ctx, undefined, true);
+  if (!allowEdit) return undefined;
+  if (FREEZE_MENU_MODES[type]) return freezePanes(ctx, FREEZE_MENU_MODES[type]);
+  if (type === "split") return toggleSplitPanes(ctx) ? "ok" : "noop";
 
   const file = ctx.luckysheetfile[getSheetIndex(ctx, ctx.currentSheetId)!];
-  if (!file) return;
+  if (!file) return "noop";
 
   if (type === "freeze-cancel") {
     delete file.frozen;
-    return;
+    return "ok";
   }
 
   const firstSelection = ctx.luckysheet_select_save?.[0];
-  if (!firstSelection) return;
+  if (!firstSelection) return "noop";
 
   let { row_focus, column_focus } = firstSelection;
-  if (row_focus == null || column_focus == null) return;
+  if (row_focus == null || column_focus == null) return "noop";
 
   const m = ctx.config.merge?.[`${row_focus}_${column_focus}`];
   if (m) {
@@ -1549,6 +1475,7 @@ export function handleFreeze(ctx: Context, type: string) {
   } else if (type === "freeze-col") {
     file.frozen.type = "rangeColumn";
   }
+  return "ok";
 }
 
 export function handleTextSize(
@@ -1570,7 +1497,8 @@ export function handleSum(
 }
 
 export function handleLink(ctx: Context) {
-  const allowEdit = isAllowEdit(ctx);
+  if (!checkProtection(ctx, "insertHyperlinks")) return;
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   const selection = ctx.luckysheet_select_save?.[0];
   const flowdata = getFlowdata(ctx);
@@ -1580,7 +1508,7 @@ export function handleLink(ctx: Context) {
 }
 
 const handlerMap: Record<string, ToolbarItemClickHandler> = {
-  "currency-format": handleCurrencyFormat,
+  "currency-format": handleAccountingFormat,
   "percentage-format": handlePercentageFormat,
   "number-decrease": handleNumberDecrease,
   "number-increase": handleNumberIncrease,

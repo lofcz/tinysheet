@@ -33,7 +33,7 @@ const defaultRefs = {
   workbookContainer: React.createRef<HTMLDivElement | null>(),
 };
 
-const WorkbookContext = React.createContext<{
+export type WorkbookContextValue = {
   context: Context;
   setContext: (
     recipe: (ctx: Context) => void,
@@ -44,7 +44,14 @@ const WorkbookContext = React.createContext<{
   refs: RefValues;
   handleUndo: () => void;
   handleRedo: () => void;
-}>({
+};
+
+/**
+ * The workbook context. Below a TrackedScope (see ./store) a consumer
+ * re-renders only when a context field read inside that scope changes;
+ * elsewhere the value changes on every update.
+ */
+const WorkbookContext = React.createContext<WorkbookContextValue>({
   context: defaultContext(defaultRefs),
   setContext: () => {},
   settings: defaultSettings,

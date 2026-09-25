@@ -15,8 +15,10 @@ import {
   israngeseleciton,
   escapeHTMLTag,
   isAllowEdit,
-  getrangeseleciton,
-  updateCell,
+  getEditorArrowAction,
+  getEditMode,
+  setEditMode,
+  returnToEditSheet,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -33,6 +35,10 @@ import ContentEditable from "./ContentEditable";
 import FormulaSearch from "./FormulaSearch";
 import FormulaHint from "./FormulaHint";
 import usePrevious from "../../hooks/usePrevious";
+import {
+  insertEditorLineBreak,
+  useFormulaEditorKeys,
+} from "./FormulaSearch/useFormulaEditorKeys";
 
 const InputBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -40,11 +46,14 @@ const InputBox: React.FC = () => {
   const lastKeyDownEventRef = useRef<KeyboardEvent | null>(null);
   const prevCellUpdate = usePrevious<any[]>(context.luckysheetCellUpdate);
   const prevSheetId = usePrevious<string>(context.currentSheetId);
+  const prevEditOrigin = usePrevious(context.formulaEditOrigin);
   const [isHidenRC, setIsHidenRC] = useState<boolean>(false);
   const firstSelection = context.luckysheet_select_save?.[0];
   const row_index = firstSelection?.row_focus!;
   const col_index = firstSelection?.column_focus!;
   const preText = useRef("");
+  const contextRef = useRef(context);
+  contextRef.current = context;
 
   const inputBoxStyle = useMemo(() => {
     if (firstSelection && context.luckysheetCellUpdate.length > 0) {
@@ -83,7 +92,10 @@ const InputBox: React.FC = () => {
       }
       if (
         _.isEqual(prevCellUpdate, context.luckysheetCellUpdate) &&
-        prevSheetId === context.currentSheetId
+        (prevSheetId === context.currentSheetId ||
+          // Point mode across sheets: the edit goes on
+          context.formulaEditOrigin ||
+          prevEditOrigin)
       ) {
         // data change by a collabrative update should not trigger this effect
         return;
@@ -133,90 +145,25 @@ const InputBox: React.FC = () => {
     }
   }, [context.luckysheetCellUpdate]);
 
+  // an edit that ended on another sheet (Point mode across sheets) goes
+  // back to the edited cell's sheet
+  useEffect(() => {
+    if (context.formulaEditOrigin && _.isEmpty(context.luckysheetCellUpdate)) {
+      setContext((draftCtx) => {
+        returnToEditSheet(draftCtx);
+      });
+    }
+  }, [context.formulaEditOrigin, context.luckysheetCellUpdate, setContext]);
+
   // 当选中行列是处于隐藏状态的话则不允许编辑
   useEffect(() => {
     setIsHidenRC(isShowHidenCR(context));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.luckysheet_select_save]);
 
-  const getActiveFormula = useCallback(
-    () => document.querySelector(".luckysheet-formula-search-item-active"),
-    []
-  );
-
-  const clearSearchItemActiveClass = useCallback(() => {
-    const activeFormula = getActiveFormula();
-    if (activeFormula) {
-      activeFormula.classList.remove("luckysheet-formula-search-item-active");
-    }
-  }, [getActiveFormula]);
-
-  const selectActiveFormula = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      const activeFormula = getActiveFormula();
-      const formulaNameDiv = activeFormula?.querySelector(
-        ".luckysheet-formula-search-func"
-      );
-      if (formulaNameDiv) {
-        const formulaName = formulaNameDiv.textContent;
-        const textEditor = document.getElementById(
-          "luckysheet-rich-text-editor"
-        );
-        if (textEditor) {
-          // text for which suggestions have been listed
-          const searchTxt = getrangeseleciton()?.textContent || "";
-          const deleteCount = searchTxt.length;
-          textEditor.focus();
-
-          const selection = window.getSelection();
-          if (selection?.rangeCount === 0) return;
-
-          const range = selection?.getRangeAt(0);
-          if (deleteCount !== 0 && range) {
-            const startOffset = Math.max(range.startOffset - deleteCount, 0);
-            const endOffset = range.startOffset;
-
-            // remove searchTxt
-            range.setStart(range.startContainer, startOffset);
-            range.setEnd(range.startContainer, endOffset);
-            range.deleteContents();
-          }
-
-          const functionStr = `<span dir="auto" class="luckysheet-formula-text-func">${formulaName}</span>`;
-          const lParStr = `<span dir="auto" class="luckysheet-formula-text-lpar">(</span>`;
-
-          const functionNode = new DOMParser().parseFromString(
-            functionStr,
-            "text/html"
-          ).body.childNodes[0];
-
-          const lParNode = new DOMParser().parseFromString(lParStr, "text/html")
-            .body.childNodes[0];
-
-          if (range?.startContainer.parentNode) {
-            range?.setStart(range.startContainer.parentNode, 1);
-          }
-
-          range?.insertNode(lParNode);
-          range?.insertNode(functionNode);
-
-          // move the cursor to the end of the inserted text node
-          range?.collapse();
-          selection?.removeAllRanges();
-
-          if (range) selection?.addRange(range);
-
-          setContext((draftCtx) => {
-            // clear functionCandidates and set functionHint
-            draftCtx.functionCandidates = [];
-            draftCtx.functionHint = formulaName;
-          });
-        }
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    },
-    [getActiveFormula, setContext]
+  const formulaKeys = useFormulaEditorKeys(
+    useCallback(() => inputRef.current, []),
+    useCallback(() => refs.fxInput.current, [refs.fxInput])
   );
 
   const onKeyDown = useCallback(
@@ -231,99 +178,46 @@ const InputBox: React.FC = () => {
       //   return;
       // }
 
+      if (formulaKeys.onKeyDown(e)) return;
+
       if (e.key === "Escape" && context.luckysheetCellUpdate.length > 0) {
         setContext((draftCtx) => {
+          // Point mode across sheets: back to the edited cell's sheet
+          returnToEditSheet(draftCtx, inputRef.current);
           cancelNormalSelected(draftCtx);
           moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
         });
         e.preventDefault();
       } else if (e.key === "Enter" && context.luckysheetCellUpdate.length > 0) {
         if (e.altKey || e.metaKey) {
-          // originally `enterKeyControll`
-          document.execCommand("insertHTML", false, "\n "); // 换行符后面的空白符是为了强制让他换行，在下一步的delete中会删掉
-          document.execCommand("delete", false);
+          // Alt+Enter: a line break (a formula keeps the indentation)
+          insertEditorLineBreak(inputRef.current);
           e.stopPropagation();
-        } else selectActiveFormula(e);
+        }
       } else if (e.key === "Tab" && context.luckysheetCellUpdate.length > 0) {
-        // Save current cell and move to the right cell
-        setContext((draftCtx) => {
-          const lastCellUpdate = _.clone(draftCtx.luckysheetCellUpdate);
-          updateCell(
-            draftCtx,
-            draftCtx.luckysheetCellUpdate[0],
-            draftCtx.luckysheetCellUpdate[1],
-            refs.cellInput.current!
-          );
-          draftCtx.luckysheet_select_save = [
-            {
-              row: [lastCellUpdate[0], lastCellUpdate[0]],
-              column: [lastCellUpdate[1], lastCellUpdate[1]],
-              row_focus: lastCellUpdate[0],
-              column_focus: lastCellUpdate[1],
-            },
-          ];
-          moveHighlightCell(
-            draftCtx,
-            "right",
-            e.shiftKey ? -1 : 1,
-            "rangeOfSelect"
-          );
-        });
+        // committed (and moved, wrapping inside the selection) by the
+        // global key handler; keep the focus in the sheet
         e.preventDefault();
-        e.stopPropagation();
       } else if (e.key === "F4" && context.luckysheetCellUpdate.length > 0) {
-        // formula.setfreezonFuc(event);
         e.preventDefault();
       } else if (
-        e.key === "ArrowUp" &&
+        (e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowRight") &&
         context.luckysheetCellUpdate.length > 0
       ) {
-        if (document.getElementById("luckysheet-formula-search-c")) {
-          const formulaSearchContainer = document.getElementById(
-            "luckysheet-formula-search-c"
-          );
-          const activeItem = formulaSearchContainer?.querySelector(
-            ".luckysheet-formula-search-item-active"
-          );
-          let previousItem = activeItem
-            ? activeItem.previousElementSibling
-            : null;
-          if (!previousItem) {
-            previousItem =
-              formulaSearchContainer?.querySelector(
-                ".luckysheet-formula-search-item:last-child"
-              ) || null;
-          }
-          clearSearchItemActiveClass();
-          if (previousItem) {
-            previousItem.classList.add("luckysheet-formula-search-item-active");
-          }
+        // Enter mode commits and Point mode picks a reference (both in the
+        // global key handler): the caret must not move. Up/Down never move
+        // the caret of the one-line editor.
+        if (
+          e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          getEditorArrowAction(contextRef.current, e, inputRef.current) !==
+            "caret"
+        ) {
+          e.preventDefault();
         }
-        e.preventDefault();
-      } else if (
-        e.key === "ArrowDown" &&
-        context.luckysheetCellUpdate.length > 0
-      ) {
-        if (document.getElementById("luckysheet-formula-search-c")) {
-          const formulaSearchContainer = document.getElementById(
-            "luckysheet-formula-search-c"
-          );
-          const activeItem = formulaSearchContainer?.querySelector(
-            ".luckysheet-formula-search-item-active"
-          );
-          let nextItem = activeItem ? activeItem.nextElementSibling : null;
-          if (!nextItem) {
-            nextItem =
-              formulaSearchContainer?.querySelector(
-                ".luckysheet-formula-search-item:first-child"
-              ) || null;
-          }
-          clearSearchItemActiveClass();
-          if (nextItem) {
-            nextItem.classList.add("luckysheet-formula-search-item-active");
-          }
-        }
-        e.preventDefault();
       }
       // else if (
       //   e.key === "ArrowLeft" &&
@@ -338,13 +232,18 @@ const InputBox: React.FC = () => {
       // }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      clearSearchItemActiveClass,
-      context.luckysheetCellUpdate.length,
-      selectActiveFormula,
-      setContext,
-    ]
+    [context.luckysheetCellUpdate.length, formulaKeys, setContext]
   );
+
+  const onMouseUp = useCallback(() => {
+    // clicking into the text while in Enter mode switches to Edit mode
+    if (getEditMode(contextRef.current) === "enter") {
+      setContext((draftCtx) => {
+        setEditMode(draftCtx, "edit");
+      });
+    }
+    formulaKeys.onMouseUp();
+  }, [formulaKeys, setContext]);
 
   const onChange = useCallback(
     (__: any, isBlur?: boolean) => {
@@ -418,7 +317,11 @@ const InputBox: React.FC = () => {
     <div
       className="luckysheet-input-box"
       style={
-        firstSelection && !context.rangeDialog?.show
+        // on another sheet (Point mode across sheets) the formula is edited
+        // in the formula bar only, like Excel
+        firstSelection &&
+        !context.rangeDialog?.show &&
+        !context.formulaEditOrigin
           ? {
               left: firstSelection.left,
               top: firstSelection.top,
@@ -458,6 +361,8 @@ const InputBox: React.FC = () => {
           }}
           onChange={onChange}
           onKeyDown={onKeyDown}
+          onKeyUp={formulaKeys.onKeyUp}
+          onMouseUp={onMouseUp}
           onPaste={onPaste}
           allowEdit={edit ? !isHidenRC : edit}
         />
@@ -468,11 +373,13 @@ const InputBox: React.FC = () => {
             style={{
               top: (firstSelection?.height_move || 0) + 4,
             }}
+            onSelectCandidate={formulaKeys.acceptCandidate}
           />
           <FormulaHint
             style={{
               top: (firstSelection?.height_move || 0) + 4,
             }}
+            onSelectArgument={formulaKeys.selectArgument}
           />
         </>
       )}

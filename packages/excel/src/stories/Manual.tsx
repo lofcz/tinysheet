@@ -11,13 +11,13 @@ const FloatingContainer = (props: any) => {
   return (
     <div
       style={{
-          position: "fixed",
-          bottom: "40px",
-          right: "20px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px",
-          zIndex: 100001,
+        position: "fixed",
+        bottom: "40px",
+        right: "20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+        zIndex: 100001,
       }}
     >
       {children}
@@ -51,11 +51,7 @@ export const ManualExample = () => {
   const sheetRef = React.useRef(null);
 
   const manualExport = async () => {
-    const exportedFile = await transformFortuneToExcel(
-      sheetRef,
-      "xlsx",
-      true,
-    );
+    const exportedFile = await transformFortuneToExcel(sheetRef, "xlsx", true);
     console.log("Exported file data:", exportedFile);
   };
 
@@ -77,7 +73,9 @@ export const ManualExample = () => {
           Manual Export
         </Button>
 
-        <Button onClick={() => document.getElementById("ImportHelper")?.click()}>
+        <Button
+          onClick={() => document.getElementById("ImportHelper")?.click()}
+        >
           Manual Import
         </Button>
       </FloatingContainer>

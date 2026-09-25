@@ -1,7 +1,7 @@
 import { Context, getFlowdata } from "../context";
-import { CellMatrix, Selection } from "../types";
+import { CellMatrix, FormulaCell, Selection } from "../types";
 import { execFunctionGroup } from "./formula";
-import { setFormulaCellInfo } from "./formulaHelper";
+import { setFormulaCellInfoList } from "./formulaHelper";
 
 function runExecFunction(
   ctx: Context,
@@ -9,16 +9,20 @@ function runExecFunction(
   index: string,
   data: any
 ) {
-  ctx.formulaCache.execFunctionExist = [];
+  // re-register the formulas of the changed block, then recalculate its
+  // dependents; one graph validation for the whole block
+  const cells: FormulaCell[] = [];
+  const changed: { r: number; c: number; i: string }[] = [];
   for (let s = 0; s < range.length; s += 1) {
     for (let r = range[s].row[0]; r <= range[s].row[1]; r += 1) {
       for (let c = range[s].column[0]; c <= range[s].column[1]; c += 1) {
-        setFormulaCellInfo(ctx, { r, c, id: index }, data);
-        ctx.formulaCache.execFunctionExist.push({ r, c, i: index });
+        cells.push({ r, c, id: index });
+        changed.push({ r, c, i: index });
       }
     }
   }
-  ctx.formulaCache.execFunctionExist.reverse();
+  setFormulaCellInfoList(ctx, cells, data);
+  ctx.formulaCache.execFunctionExist = changed.reverse();
   // @ts-ignore
   execFunctionGroup(ctx, null, null, null, null, data);
   ctx.formulaCache.execFunctionGlobalData = null;

@@ -1,0 +1,430 @@
+/* Trace Precedents / Dependents arrows (SVG over the cell area) */
+.fortune-trace-arrows {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 14;
+}
+
+.fortune-trace-arrow {
+  --fortune-trace-color: var(--fortune-trace, #2b6cd4);
+  color: var(--fortune-trace-color);
+}
+
+.fortune-trace-arrow.fortune-trace-error {
+  --fortune-trace-color: var(--fortune-danger);
+}
+
+.fortune-trace-arrow line {
+  stroke: var(--fortune-trace-color);
+  stroke-width: 1.5;
+}
+
+.fortune-trace-arrow circle,
+.fortune-trace-arrow polygon {
+  fill: var(--fortune-trace-color);
+  stroke: none;
+}
+
+.fortune-trace-range {
+  fill: none;
+  stroke: var(--fortune-trace-color);
+  stroke-width: 2;
+}
+
+.fortune-trace-external {
+  --fortune-trace-color: var(--fortune-text);
+}
+
+.fortune-trace-external line {
+  stroke-dasharray: 4 3;
+}
+
+.fortune-trace-sheet {
+  pointer-events: auto;
+}
+
+.fortune-trace-sheet rect {
+  fill: var(--fortune-bg-elevated);
+  stroke: var(--fortune-text);
+  stroke-width: 1;
+}
+
+.fortune-trace-sheet path {
+  fill: none;
+  stroke: var(--fortune-text-muted);
+  stroke-width: 0.8;
+}
+
+/* Error-checking smart tag next to the active cell */
+.fortune-error-tag {
+  position: absolute;
+  z-index: 25;
+}
+
+.fortune-error-tag-button {
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--fortune-border-strong);
+  border-radius: 3px;
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-warning);
+  font: bold 12px/16px var(--fortune-font-family, sans-serif);
+  text-align: center;
+  cursor: pointer;
+  box-shadow: var(--fortune-shadow-sm);
+}
+
+.fortune-error-tag-button:hover,
+.fortune-error-tag-button[aria-expanded="true"] {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-error-tag-button:focus-visible {
+  outline: none;
+  box-shadow: var(--fortune-focus-ring);
+}
+
+.fortune-error-tag-menu {
+  position: absolute;
+  top: 22px;
+  left: 0;
+  width: 260px;
+  padding: 6px 0;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius, 6px);
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size-sm, 12px);
+  box-shadow: var(--fortune-shadow);
+}
+
+.fortune-error-tag-title {
+  padding: 2px 12px;
+  font-weight: 600;
+}
+
+.fortune-error-tag-detail {
+  padding: 2px 12px 6px;
+  color: var(--fortune-text-muted);
+  white-space: normal;
+}
+
+.fortune-error-tag-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  color: var(--fortune-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fortune-error-tag-item:first-of-type,
+.fortune-error-tag-options {
+  border-top: 1px solid var(--fortune-divider);
+}
+
+.fortune-error-tag-item:disabled {
+  color: var(--fortune-text-disabled);
+  cursor: default;
+}
+
+.fortune-error-tag-item:not(:disabled):hover,
+.fortune-error-tag-item:focus-visible {
+  outline: none;
+  background: var(--fortune-bg-hover);
+}
+
+/* Toolbar drop-down menus */
+.fortune-audit-menu .fortune-toolbar-select-option {
+  gap: var(--fortune-space-2, 8px);
+  padding: 0 var(--fortune-space-3, 12px) 0 var(--fortune-space-2, 8px);
+  white-space: nowrap;
+}
+
+.fortune-audit-menu-check {
+  width: 14px;
+  color: var(--fortune-accent);
+  text-align: center;
+}
+
+.fortune-audit-menu-label {
+  flex: 1;
+}
+
+.fortune-audit-menu-shortcut {
+  margin-left: var(--fortune-space-4, 16px);
+  color: var(--fortune-text-muted);
+}
+
+/* Dialogs: calculation options, error checking, evaluate formula */
+.fortune-audit-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2, 8px);
+  min-width: 360px;
+  max-width: 640px;
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-audit-dialog-title {
+  font-size: var(--fortune-font-size-lg);
+  font-weight: 500;
+  margin-bottom: var(--fortune-space-1, 4px);
+}
+
+.fortune-audit-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1, 4px);
+  margin: 0;
+  padding: var(--fortune-space-2, 8px) var(--fortune-space-3, 12px);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+}
+
+.fortune-audit-fieldset legend {
+  padding: 0 4px;
+  color: var(--fortune-text-muted);
+}
+
+.fortune-audit-fieldset:disabled {
+  color: var(--fortune-text-disabled);
+}
+
+.fortune-audit-check {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2, 8px);
+  cursor: pointer;
+}
+
+.fortune-audit-check input {
+  accent-color: var(--fortune-accent);
+}
+
+.fortune-audit-grid {
+  display: grid;
+  grid-template-columns: auto 120px;
+  align-items: center;
+  gap: var(--fortune-space-1, 4px) var(--fortune-space-3, 12px);
+  padding-left: 24px;
+}
+
+.fortune-audit-grid input {
+  height: var(--fortune-control-height);
+  box-sizing: border-box;
+  padding: 0 var(--fortune-space-2, 8px);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input);
+  color: var(--fortune-text);
+}
+
+.fortune-audit-grid input:disabled {
+  color: var(--fortune-text-disabled);
+}
+
+.fortune-audit-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--fortune-space-2, 8px);
+  margin-top: var(--fortune-space-2, 8px);
+}
+
+.fortune-audit-spacer {
+  flex: 1;
+}
+
+.fortune-evaluate {
+  width: 560px;
+}
+
+.fortune-evaluate-head,
+.fortune-evaluate-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--fortune-space-2, 8px);
+}
+
+.fortune-evaluate-head {
+  color: var(--fortune-text-muted);
+}
+
+.fortune-evaluate-ref {
+  padding-top: 6px;
+  word-break: break-all;
+}
+
+.fortune-evaluate-text {
+  min-height: 56px;
+  padding: 6px 8px;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input);
+  font-family: Consolas, "Courier New", monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.fortune-evaluate-value {
+  font-style: italic;
+}
+
+.fortune-evaluate-next {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.fortune-evaluate-hint {
+  margin: 0;
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+/* Watch Window panel */
+.fortune-watch-window {
+  position: absolute;
+  z-index: 1003;
+  display: flex;
+  flex-direction: column;
+  width: 560px;
+  max-width: calc(100% - 16px);
+  height: 220px;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius, 6px);
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size-sm, 12px);
+  box-shadow: var(--fortune-shadow-lg);
+}
+
+.fortune-watch-window-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--fortune-divider);
+  font-weight: 600;
+  cursor: move;
+  user-select: none;
+}
+
+.fortune-watch-window-close {
+  border: none;
+  background: none;
+  color: var(--fortune-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fortune-watch-window-close:hover {
+  color: var(--fortune-text);
+}
+
+.fortune-watch-window-toolbar {
+  display: flex;
+  gap: var(--fortune-space-2, 8px);
+  padding: 6px 8px;
+}
+
+.fortune-watch-window-button {
+  padding: 2px 10px;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg);
+  color: var(--fortune-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.fortune-watch-window-button:hover:not(:disabled) {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-watch-window-button:disabled {
+  color: var(--fortune-text-disabled);
+  cursor: default;
+}
+
+.fortune-watch-window-table-wrap {
+  position: relative;
+  flex: 1;
+  overflow: auto;
+  margin: 0 8px 8px;
+  border: 1px solid var(--fortune-border);
+  background: var(--fortune-bg);
+}
+
+.fortune-watch-window-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.fortune-watch-window-table th,
+.fortune-watch-window-table td {
+  padding: 3px 6px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--fortune-divider);
+}
+
+.fortune-watch-window-table th {
+  position: sticky;
+  top: 0;
+  font-weight: 500;
+  color: var(--fortune-text-muted);
+  background: var(--fortune-bg-muted);
+}
+
+.fortune-watch-window-table tbody tr {
+  cursor: default;
+}
+
+.fortune-watch-window-table tbody tr:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-watch-window-table tbody tr[aria-selected="true"] {
+  background: var(--fortune-accent-soft);
+}
+
+.fortune-watch-window-empty {
+  padding: 12px;
+  color: var(--fortune-text-muted);
+}
+
+/* Status bar: Calculate, Circular References */
+.fortune-status-bar-calc,
+.fortune-status-bar-circular {
+  margin-left: var(--fortune-space-3, 12px);
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--fortune-radius-sm);
+  background: none;
+  color: var(--fortune-text);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fortune-status-bar-calc {
+  font-weight: 600;
+}
+
+.fortune-status-bar-calc:hover,
+.fortune-status-bar-circular:hover {
+  background: var(--fortune-bg-hover);
+}

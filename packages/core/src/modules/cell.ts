@@ -10,8 +10,9 @@ import {
 } from "../types";
 import { getSheetIndex, indexToColumnChar, rgbToHex } from "../utils";
 import { checkCF, getComputeMap } from "./ConditionFormat";
-import { getFailureText, validateCellData } from "./dataVerification";
-import { genarate, update } from "./format";
+import { checkDataVerificationInput } from "./dataVerification";
+import { checkEditGuards } from "./extensions";
+import { formatValue, is_date, resolveTypedInput } from "./format";
 import {
   delFunctionGroup,
   execfunction,
@@ -28,13 +29,33 @@ import {
   isInlineStringCT,
 } from "./inline-string";
 import { isRealNull, isRealNum, valueIsError } from "./validation";
-import { getCellTextInfo } from "./text";
+import { autoGrowRowAfterEdit } from "./autofit";
 import { setFormulaCellInfo } from "./formulaHelper";
+import { peek } from "./dependencyGraph";
+import { onTableCellEdited } from "./tables";
+import { applyCellImage, isImageValue } from "./cellImage";
+import {
+  FORMULA_RESULT_FORMATS,
+  inferFormulaFormat,
+  FormatLookup,
+} from "./formatInference";
 
 // TODO put these in context ref
 // let rangestart = false;
 // let rangedrag_column_start = false;
 // let rangedrag_row_start = false;
+
+/**
+ * Excel's "General" horizontal alignment for a cell without an explicit one:
+ * numbers and dates right ("2"), booleans and errors centred ("0"), text left.
+ */
+function generalHorizontalAlign(cell: Cell | null | undefined) {
+  const t = cell?.ct?.t;
+  if (t === "n" || t === "d") return "2";
+  if (t === "b" || t === "e") return "0";
+  if (t == null && typeof cell?.v === "number") return "2";
+  return "1";
+}
 
 export function normalizedCellAttr(
   cell: Cell,
@@ -56,7 +77,7 @@ export function normalizedCellAttr(
   } else if (attr.substring(0, 2) === "bs") {
     value ||= "none";
   } else if (attr === "ht" || attr === "vt") {
-    const defaultValue = attr === "ht" ? "1" : "0";
+    const defaultValue = attr === "ht" ? generalHorizontalAlign(cell) : "0";
     value = !_.isNil(value) ? value.toString() : defaultValue;
     if (["0", "1", "2"].indexOf(value.toString()) === -1) {
       value = defaultValue;
@@ -134,6 +155,62 @@ export function getCellValue(
   return retv;
 }
 
+/**
+ * Format of the date/time function a formula starts with (=TODAY() → a date
+ * format), or undefined. See inferFormulaFormat for the full rule set.
+ */
+export function formulaResultFormat(formula: string | undefined) {
+  const name = /^=\s*([A-Za-z][A-Za-z0-9_.]*)\s*\(/.exec(formula || "")?.[1];
+  return name ? FORMULA_RESULT_FORMATS[name.toUpperCase()] : undefined;
+}
+
+/** Cell reader for format inference: the formula's sheet or a named one. */
+function formatLookup(
+  ctx: Context | null | undefined,
+  d: CellMatrix
+): FormatLookup {
+  return (sheet, r, c) => {
+    if (sheet == null) return d[r]?.[c];
+    const file = ctx?.luckysheetfile?.find((s) => s.name === sheet);
+    return file?.data?.[r]?.[c];
+  };
+}
+
+/**
+ * Store a formula's computed value and its display text on the cell. A
+ * General cell takes the format Excel infers from the formula: =A1+7 over
+ * a date is a date, =SUM(B1:B9) over currency is currency (see
+ * formatInference.ts for the rule table).
+ */
+function setFormulaResult(cell: Cell, value: any, lookup?: FormatLookup) {
+  let fa = cell.ct?.fa || "General";
+  if (fa === "General" && isRealNum(value)) {
+    fa =
+      (lookup
+        ? inferFormulaFormat(cell.f, lookup)
+        : formulaResultFormat(cell.f)) || fa;
+  }
+  if (_.isBoolean(value) || /^(true|false)$/i.test(`${value}`)) {
+    cell.v = _.isBoolean(value) ? value : `${value}`.toUpperCase() === "TRUE";
+    cell.m = cell.v ? "TRUE" : "FALSE";
+    cell.ct = { fa, t: "b" };
+  } else if (valueIsError(value)) {
+    cell.v = value;
+    cell.m = `${value}`;
+    cell.ct = { fa, t: "e" };
+  } else if (isRealNum(value)) {
+    cell.v = parseFloat(value);
+    if (fa !== "@") {
+      cell.ct = { fa, t: is_date(fa) ? "d" : "n" };
+    }
+    cell.m = Number.isFinite(cell.v) ? formatValue(fa, cell.v) : `${cell.v}`;
+  } else {
+    cell.v = value;
+    cell.m = formatValue(fa, `${value}`);
+    cell.ct = fa === "@" ? { fa, t: "s" } : { fa, t: "g" };
+  }
+}
+
 export function setCellValue(
   ctx: Context,
   r: number,
@@ -152,7 +229,9 @@ export function setCellValue(
 
   let vupdate;
 
-  if (_.isPlainObject(v)) {
+  if (isImageValue(v)) {
+    vupdate = v;
+  } else if (_.isPlainObject(v)) {
     if (_.isNil(cell)) {
       cell = v;
     } else {
@@ -162,16 +241,12 @@ export function setCellValue(
         delete cell.f;
       }
 
-      // if (!_.isNil(v.spl)) {
-      //   cell.spl = v.spl;
-      // }
-
       if (!_.isNil(v.ct)) {
         cell.ct = v.ct;
       }
     }
 
-    if (_.isPlainObject(v.v)) {
+    if (_.isPlainObject(v.v) && !isImageValue(v.v)) {
       vupdate = v.v.v;
     } else {
       vupdate = v.v;
@@ -180,11 +255,20 @@ export function setCellValue(
     vupdate = v;
   }
 
+  // a picture (IMAGE() result, placed picture): `img` plus its alt text
+  if (isImageValue(vupdate)) {
+    if (!_.isPlainObject(cell)) cell = {};
+    applyCellImage(cell!, vupdate);
+    d[r][c] = cell;
+    return;
+  }
+
   if (isRealNull(vupdate)) {
     if (_.isPlainObject(cell)) {
       delete cell!.m;
       // @ts-ignore
       delete cell.v;
+      delete cell!.img;
     } else {
       cell = null;
     }
@@ -204,10 +288,15 @@ export function setCellValue(
   }
 
   if (!cell) return;
+  // any other value replaces a picture
+  if (cell.img) delete cell.img;
 
   const vupdateStr = vupdate.toString();
 
-  if (vupdateStr.substr(0, 1) === "'") {
+  if (!_.isNil(cell.f)) {
+    // Formula result: not re-interpreted as typed input (="1/2" stays text).
+    setFormulaResult(cell, vupdate, formatLookup(ctx, d));
+  } else if (vupdateStr.substr(0, 1) === "'") {
     cell.m = vupdateStr.substr(1);
     cell.ct = { fa: "@", t: "s" };
     cell.v = vupdateStr.substr(1);
@@ -216,146 +305,13 @@ export function setCellValue(
     cell.m = vupdateStr;
     cell.ct = { fa: "@", t: "s" };
     cell.v = vupdateStr;
-  } else if (
-    vupdateStr.toUpperCase() === "TRUE" &&
-    (_.isNil(cell.ct?.fa) || cell.ct?.fa !== "@")
-  ) {
-    cell.m = "TRUE";
-    cell.ct = { fa: "General", t: "b" };
-    cell.v = true;
-  } else if (
-    vupdateStr.toUpperCase() === "FALSE" &&
-    (_.isNil(cell.ct?.fa) || cell.ct?.fa !== "@")
-  ) {
-    cell.m = "FALSE";
-    cell.ct = { fa: "General", t: "b" };
-    cell.v = false;
-  } else if (
-    vupdateStr.substr(-1) === "%" &&
-    isRealNum(vupdateStr.substring(0, vupdateStr.length - 1)) &&
-    (_.isNil(cell.ct?.fa) || cell.ct?.fa !== "@")
-  ) {
-    cell.ct = { fa: "0%", t: "n" };
-    cell.v = vupdateStr.substring(0, vupdateStr.length - 1) / 100;
-    cell.m = vupdate;
-  } else if (valueIsError(vupdate)) {
-    cell.m = vupdateStr;
-    // cell.ct = { "fa": "General", "t": "e" };
-    if (!_.isNil(cell.ct)) {
-      cell.ct.t = "e";
-    } else {
-      cell.ct = { fa: "General", t: "e" };
-    }
-    cell.v = vupdate;
   } else {
-    if (
-      !_.isNil(cell.f) &&
-      isRealNum(vupdate) &&
-      !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(
-        vupdate
-      )
-    ) {
-      cell.v = parseFloat(vupdate);
-      if (_.isNil(cell.ct)) {
-        cell.ct = { fa: "General", t: "n" };
-      }
-
-      if (cell.v === Infinity || cell.v === -Infinity) {
-        cell.m = cell.v.toString();
-      } else {
-        if (cell.v.toString().indexOf("e") > -1) {
-          let len;
-          if (cell.v.toString().split(".").length === 1) {
-            len = 0;
-          } else {
-            len = cell.v.toString().split(".")[1].split("e")[0].length;
-          }
-          if (len > 5) {
-            len = 5;
-          }
-
-          cell.m = cell.v.toExponential(len).toString();
-        } else {
-          const v_p = Math.round(cell.v * 1000000000) / 1000000000;
-          if (_.isNil(cell.ct)) {
-            const mask = genarate(v_p);
-            if (mask != null) {
-              cell.m = mask[0].toString();
-            }
-          } else {
-            const mask = update(cell.ct.fa!, v_p);
-            cell.m = mask.toString();
-          }
-
-          // cell.m = mask[0].toString();
-        }
-      }
-    } else if (!_.isNil(cell.ct) && cell.ct.fa === "@") {
-      cell.m = vupdateStr;
-      cell.v = vupdate;
-    } else if (cell.ct != null && cell.ct.t === "d" && _.isString(vupdate)) {
-      const mask = genarate(vupdate) as any;
-      if (mask[1].t !== "d" || mask[1].fa === cell.ct.fa) {
-        [cell.m, cell.ct, cell.v] = mask;
-      } else {
-        [, , cell.v] = mask;
-        cell.m = update(cell.ct.fa!, cell.v);
-      }
-    } else if (
-      !_.isNil(cell.ct) &&
-      !_.isNil(cell.ct.fa) &&
-      cell.ct.fa !== "General"
-    ) {
-      if (isRealNum(vupdate)) {
-        vupdate = parseFloat(vupdate);
-      }
-
-      let mask = update(cell.ct.fa, vupdate);
-
-      if (mask === vupdate) {
-        // 若原来单元格格式 应用不了 要更新的值，则获取更新值的 格式
-        mask = genarate(vupdate);
-
-        cell.m = mask[0].toString();
-        [, cell.ct, cell.v] = mask;
-      } else {
-        cell.m = mask.toString();
-        cell.v = vupdate;
-      }
-    } else {
-      if (
-        isRealNum(vupdate) &&
-        !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(
-          vupdate
-        )
-      ) {
-        if (typeof vupdate === "string") {
-          const flag = vupdate
-            .split("")
-            .every((ele) => ele === "0" || ele === ".");
-          if (flag) {
-            vupdate = parseFloat(vupdate);
-          }
-        }
-        cell.v =
-          vupdate; /* 备注：如果使用parseFloat，1.1111111111111111会转换为1.1111111111111112 ? */
-        cell.ct = { fa: "General", t: "n" };
-        if (cell.v === Infinity || cell.v === -Infinity) {
-          cell.m = cell.v.toString();
-        } else if (cell.v != null) {
-          const mask = genarate(cell.v as string);
-          if (mask) {
-            cell.m = mask[0].toString();
-          }
-        }
-      } else {
-        const mask = genarate(vupdate);
-        if (mask) {
-          cell.m = mask[0].toString();
-          [, cell.ct, cell.v] = mask;
-        }
-      }
-    }
+    // Typed input: recognise numbers, dates, % etc. like Excel, keeping the
+    // cell's existing number format where Excel would.
+    const typed = resolveTypedInput(vupdate, cell.ct?.fa);
+    cell.v = typed.v;
+    cell.ct = { fa: typed.fa, t: typed.t };
+    cell.m = formatValue(typed.fa, typed.v);
   }
 
   // if (!server.allowUpdate && !luckysheetConfigsetting.pointEdit) {
@@ -405,10 +361,12 @@ export function getRealCellValue(
 
 export function mergeBorder(
   ctx: Context,
-  d: CellMatrix,
+  data: CellMatrix,
   row_index: number,
   col_index: number
 ) {
+  // read without drafting: a draft row read makes immer copy every row
+  const d = peek(data);
   if (!d || !d[row_index]) {
     console.warn("Merge info is null", row_index, col_index);
     return null;
@@ -669,6 +627,7 @@ export function cancelNormalSelected(ctx: Context) {
   ctx.luckysheetCellUpdate = [];
   ctx.formulaRangeHighlight = [];
   ctx.functionHint = null;
+  ctx.functionCandidates = [];
   // $("#fortune-formula-functionrange .fortune-formula-functionrange-highlight").remove();
   // $("#luckysheet-input-box").removeAttr("style");
   // $("#luckysheet-input-box-index").hide();
@@ -701,23 +660,21 @@ export function updateCell(
   //   return;
   // }
 
-  // 数据验证 输入数据无效时禁止输入
-  const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-  const { dataVerification } = ctx.luckysheetfile[index];
-  if (!_.isNil(dataVerification)) {
-    const dvItem = dataVerification[`${r}_${c}`];
-    if (
-      !_.isNil(dvItem) &&
-      dvItem.prohibitInput &&
-      !validateCellData(ctx, dvItem, inputText)
-    ) {
-      const failureText = getFailureText(ctx, dvItem);
-
-      cancelNormalSelected(ctx);
-      ctx.warnDialog = failureText;
-
-      return;
-    }
+  // 数据验证: invalid input raises the rule's error alert instead
+  if (!checkDataVerificationInput(ctx, r, c, inputText ?? value)) {
+    cancelNormalSelected(ctx);
+    return;
+  }
+  // read-only regions registered by features (data table bodies, ...)
+  const refused = checkEditGuards(
+    ctx,
+    [{ row: [r, r], column: [c, c] }],
+    "edit"
+  );
+  if (refused) {
+    ctx.warnDialog = refused;
+    cancelNormalSelected(ctx);
+    return;
   }
 
   let curv = flowdata[r][c];
@@ -730,7 +687,14 @@ export function updateCell(
     inputText?.slice(0, 1) !== "=" && inputHtml?.substring(0, 5) === "<span";
 
   let isCopyVal = false;
-  if (!isCurInline && inputText && inputText.length > 0) {
+  // several lines of text become rich text; a formula keeps its line
+  // breaks (Alt+Enter in a formula only formats it)
+  if (
+    !isCurInline &&
+    inputText &&
+    inputText.length > 0 &&
+    !inputText.startsWith("=")
+  ) {
     const splitArr = inputText
       .replace(/\r\n/g, "_x000D_")
       .replace(/&#13;&#10;/g, "_x000D_")
@@ -792,7 +756,7 @@ export function updateCell(
 
   if (!isCurInline) {
     if (isRealNull(value) && !isPrevInline) {
-      if (!curv || (isRealNull(curv.v) && !curv.spl && !curv.f)) {
+      if (!curv || (isRealNull(curv.v) && !curv.f)) {
         cancelNormalSelected(ctx);
         return;
       }
@@ -823,16 +787,17 @@ export function updateCell(
       if (curv.f) {
         // If it turns out to be a formula but the updated data is not a formula, delete the formula.
         delete curv.f;
-        delete curv.spl; // Delete the configuration string of sparklines of the cell
       }
     }
   }
 
   // TODO window.luckysheet_getcelldata_cache = null;
 
+  // oxlint-disable-next-line no-unused-vars -- legacy flags, set but unread
   let isRunExecFunction = true;
 
   const d = flowdata; // TODO const d = editor.deepCopyFlowData(flowdata);
+  // oxlint-disable-next-line no-unused-vars -- legacy flags, set but unread
   let dynamicArrayItem = null; // 动态数组
 
   if (_.isPlainObject(curv)) {
@@ -843,19 +808,7 @@ export function updateCell(
         curv = _.cloneDeep(d?.[r]?.[c] || {});
         [, curv.v, curv.f] = v;
 
-        // 打进单元格的sparklines的配置串， 报错需要单独处理。
-        if (v.length === 4 && v[3].type === "sparklines") {
-          delete curv.m;
-          delete curv.v;
-
-          const curCalv = v[3].data;
-
-          if (_.isArray(curCalv) && !_.isPlainObject(curCalv[0])) {
-            [curv.v] = curCalv;
-          } else {
-            curv.spl = v[3].data;
-          }
-        } else if (v.length === 4 && v[3].type === "dynamicArrayItem") {
+        if (v.length === 4 && v[3].type === "dynamicArrayItem") {
           dynamicArrayItem = v[3].data;
         }
       }
@@ -879,26 +832,14 @@ export function updateCell(
           curv = _.cloneDeep(d?.[r]?.[c] || {});
           [, curv.v, curv.f] = v;
 
-          // 打进单元格的sparklines的配置串， 报错需要单独处理。
-          if (v.length === 4 && v[3].type === "sparklines") {
-            delete curv.m;
-            delete curv.v;
-
-            const curCalv = v[3].data;
-
-            if (_.isArray(curCalv) && !_.isPlainObject(curCalv[0])) {
-              [curv.v] = curCalv;
-            } else {
-              curv.spl = v[3].data;
-            }
-          } else if (v.length === 4 && v[3].type === "dynamicArrayItem") {
+          if (v.length === 4 && v[3].type === "dynamicArrayItem") {
             dynamicArrayItem = v[3].data;
           }
         }
         // from API setCellValue,luckysheet.setCellValue(0, 0, {f: "=sum(D1)", bg:"#0188fb"}),value is an object, so get attribute f as value
         else {
           Object.keys(value).forEach((attr) => {
-            curv![attr as keyof Cell] = value[attr];
+            (curv as any)[attr] = value[attr];
           });
         }
       } else {
@@ -910,7 +851,6 @@ export function updateCell(
         curv.v = value;
 
         delete curv.f;
-        delete curv.spl;
 
         if (curv.qp === 1 && `${value}`.substring(0, 1) !== "'") {
           // if quotePrefix is 1, cell is force string, cell clear quotePrefix when it is updated
@@ -932,16 +872,7 @@ export function updateCell(
         f: v[2],
       };
 
-      // 打进单元格的sparklines的配置串， 报错需要单独处理。
-      if (v.length === 4 && v[3].type === "sparklines") {
-        const curCalv = v[3].data;
-
-        if (_.isArray(curCalv) && !_.isPlainObject(curCalv[0])) {
-          [value.v] = curCalv;
-        } else {
-          value.spl = v[3].data;
-        }
-      } else if (v.length === 4 && v[3].type === "dynamicArrayItem") {
+      if (v.length === 4 && v[3].type === "dynamicArrayItem") {
         dynamicArrayItem = v[3].data;
       }
     }
@@ -968,16 +899,7 @@ export function updateCell(
         // update attribute v
         [, value.v, value.f] = v;
 
-        // 打进单元格的sparklines的配置串， 报错需要单独处理。
-        if (v.length === 4 && v[3].type === "sparklines") {
-          const curCalv = v[3].data;
-
-          if (_.isArray(curCalv) && !_.isPlainObject(curCalv[0])) {
-            [value.v] = curCalv;
-          } else {
-            value.spl = v[3].data;
-          }
-        } else if (v.length === 4 && v[3].type === "dynamicArrayItem") {
+        if (v.length === 4 && v[3].type === "dynamicArrayItem") {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           dynamicArrayItem = v[3].data;
         }
@@ -1009,48 +931,9 @@ export function updateCell(
   }
   */
 
-  if ((curv?.tb === "2" && curv.v) || isInlineStringCell(d[r][c])) {
-    // 自动换行
-    const { defaultrowlen } = ctx;
-
-    // const canvas = $("#luckysheetTableContent").get(0).getContext("2d");
-    // offlinecanvas.textBaseline = 'top'; //textBaseline以top计算
-
-    // let fontset = luckysheetfontformat(d[r][c]);
-    // offlinecanvas.font = fontset;
-
-    const cfg =
-      ctx.luckysheetfile[
-        getSheetIndex(ctx, ctx.currentSheetId as string) as number
-      ].config || {};
-    if (!(cfg.columnlen?.[c] && cfg.rowlen?.[r])) {
-      // let currentRowLen = defaultrowlen;
-      // if(!_.isNil(cfg["rowlen"][r])){
-      //     currentRowLen = cfg["rowlen"][r];
-      // }
-
-      const cellWidth = cfg.columnlen?.[c] || ctx.defaultcollen;
-
-      const textInfo = canvas
-        ? getCellTextInfo(d[r][c] as Cell, canvas, ctx, {
-            r,
-            c,
-            cellWidth,
-          })
-        : null;
-
-      let currentRowLen = defaultrowlen;
-      // console.log("rowlen", textInfo);
-      if (textInfo) {
-        currentRowLen = textInfo.textHeightAll + 2;
-      }
-
-      if (currentRowLen > defaultrowlen && !cfg.customHeight?.[r]) {
-        if (_.isNil(cfg.rowlen)) cfg.rowlen = {};
-        cfg.rowlen[r] = currentRowLen;
-      }
-    }
-  }
+  // wrapped text: rows without a custom height follow their content (Excel)
+  // (measured on an offscreen canvas when the caller has none)
+  autoGrowRowAfterEdit(ctx, r, c, { renderCtx: canvas });
 
   // 动态数组
   /*
@@ -1088,6 +971,8 @@ export function updateCell(
 
   setFormulaCellInfo(ctx, { r, c, id: ctx.currentSheetId });
   ctx.formulaCache.execFunctionGlobalData = null;
+  // typing next to a table extends it; header edits rename its columns
+  onTableCellEdited(ctx, ctx.currentSheetId, r, c);
 }
 
 export function getOrigincell(ctx: Context, r: number, c: number, i: string) {
@@ -1650,6 +1535,12 @@ export function luckysheetUpdateCell(
   col_index: number
 ) {
   ctx.luckysheetCellUpdate = [row_index, col_index];
+  // double-click editing is Excel's Edit mode (arrows move the caret)
+  ctx.editState = {
+    mode: "edit",
+    cell: [row_index, col_index],
+    sheetId: ctx.currentSheetId,
+  };
 }
 
 export function getDataBySelectionNoCopy(ctx: Context, range: Selection) {

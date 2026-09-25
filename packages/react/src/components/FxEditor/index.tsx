@@ -3,17 +3,20 @@ import {
   getFlowdata,
   cancelNormalSelected,
   getCellValue,
-  updateCell,
   getInlineStringNoStyle,
   isInlineStringCell,
   escapeScriptTag,
   moveHighlightCell,
   handleFormulaInput,
-  rangeHightlightselected,
   valueShowEs,
   isShowHidenCR,
   escapeHTMLTag,
   isAllowEdit,
+  getSpilledCellFormula,
+  setEditMode,
+  isCellContentHidden,
+  FORMULA_BAR_COLLAPSED_HEIGHT,
+  returnToEditSheet,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -32,6 +35,12 @@ import FormulaSearch from "../SheetOverlay/FormulaSearch";
 import FormulaHint from "../SheetOverlay/FormulaHint";
 import NameBox from "./NameBox";
 import usePrevious from "../../hooks/usePrevious";
+import { FxPictureChip } from "../CellImages";
+import {
+  insertEditorLineBreak,
+  useFormulaEditorKeys,
+} from "../SheetOverlay/FormulaSearch/useFormulaEditorKeys";
+import { useFormulaBarSize } from "./useFormulaBarSize";
 
 const FxEditor: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -39,20 +48,33 @@ const FxEditor: React.FC = () => {
   const lastKeyDownEventRef = useRef<KeyboardEvent>(undefined);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const [isHidenRC, setIsHidenRC] = useState<boolean>(false);
+  // a spilled cell shows its anchor's formula, greyed out (like Excel)
+  const [spilledFormula, setSpilledFormula] = useState<string | null>(null);
   const firstSelection = context.luckysheet_select_save?.[0];
   const prevFirstSelection = usePrevious(firstSelection);
   const prevSheetId = usePrevious(context.currentSheetId);
+  const prevEditOrigin = usePrevious(context.formulaEditOrigin);
   const recentText = useRef("");
-  const { info } = locale(context);
+  const { info, formulaMore } = locale(context);
+  const bar = useFormulaBarSize();
+  const formulaKeys = useFormulaEditorKeys(
+    useCallback(() => refs.fxInput.current, [refs.fxInput]),
+    useCallback(() => refs.cellInput.current, [refs.cellInput])
+  );
 
   useEffect(() => {
     // 当选中行列是处于隐藏状态的话则不允许编辑
     setIsHidenRC(isShowHidenCR(context));
     if (
-      _.isEqual(prevFirstSelection, firstSelection) &&
-      context.currentSheetId === prevSheetId
+      context.luckysheetCellUpdate.length > 0 &&
+      ((_.isEqual(prevFirstSelection, firstSelection) &&
+        context.currentSheetId === prevSheetId) ||
+        // Point mode across sheets shows another sheet: the edit goes on
+        context.formulaEditOrigin ||
+        prevEditOrigin)
     ) {
-      // data change by a collabrative update should not trigger this effect
+      // a data change (collaboration, undo) must not overwrite the text
+      // being edited; outside editing the bar follows the cell
       return;
     }
     const d = getFlowdata(context);
@@ -63,7 +85,14 @@ const FxEditor: React.FC = () => {
       if (_.isNil(r) || _.isNil(c)) return;
 
       const cell = d?.[r]?.[c];
-      if (cell) {
+      const spilled = getSpilledCellFormula(context, r, c);
+      setSpilledFormula(spilled);
+      if (spilled) {
+        value = spilled;
+      } else if (cell && isCellContentHidden(context, r, c)) {
+        // Format Cells > Protection > Hidden on a protected sheet
+        value = "";
+      } else if (cell) {
         if (isInlineStringCell(cell)) {
           value = getInlineStringNoStyle(r, c, d);
         } else if (cell.f) {
@@ -75,6 +104,7 @@ const FxEditor: React.FC = () => {
       refs.fxInput.current!.innerHTML = escapeHTMLTag(escapeScriptTag(value));
     } else {
       refs.fxInput.current!.innerHTML = "";
+      setSpilledFormula(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -87,6 +117,8 @@ const FxEditor: React.FC = () => {
     if (context.allowEdit === false) {
       return;
     }
+    // the anchor's formula is not this cell's: start from an empty cell
+    if (spilledFormula) refs.fxInput.current!.innerHTML = "";
     if (
       (context.luckysheet_select_save?.length ?? 0) > 0 &&
       !context.luckysheet_cell_selected_move &&
@@ -103,6 +135,8 @@ const FxEditor: React.FC = () => {
         const col_index = last.column_focus;
 
         draftCtx.luckysheetCellUpdate = [row_index, col_index];
+        // the formula bar edits in Edit mode (arrows move the caret)
+        setEditMode(draftCtx, "edit");
         refs.globalCache.doNotFocus = true;
         // formula.rangeResizeTo = $("#luckysheet-functionbox-cell");
       });
@@ -115,6 +149,7 @@ const FxEditor: React.FC = () => {
     context.currentSheetId,
     refs.globalCache,
     setContext,
+    spilledFormula,
   ]);
 
   const onKeyDown = useCallback(
@@ -128,114 +163,35 @@ const FxEditor: React.FC = () => {
       if (key === "ArrowLeft" || key === "ArrowRight") {
         e.stopPropagation();
       }
-      setContext((draftCtx) => {
-        if (context.luckysheetCellUpdate.length > 0) {
-          switch (key) {
-            case "Enter": {
-              // if (
-              //   $("#luckysheet-formula-search-c").is(":visible") &&
-              //   formula.searchFunctionCell != null
-              // ) {
-              //   formula.searchFunctionEnter(
-              //     $("#luckysheet-formula-search-c").find(
-              //       ".luckysheet-formula-search-item-active"
-              //     )
-              //   );
-              // } else {
-              const lastCellUpdate = _.clone(draftCtx.luckysheetCellUpdate);
-              updateCell(
-                draftCtx,
-                draftCtx.luckysheetCellUpdate[0],
-                draftCtx.luckysheetCellUpdate[1],
-                refs.fxInput.current!
-              );
-              draftCtx.luckysheet_select_save = [
-                {
-                  row: [lastCellUpdate[0], lastCellUpdate[0]],
-                  column: [lastCellUpdate[1], lastCellUpdate[1]],
-                  row_focus: lastCellUpdate[0],
-                  column_focus: lastCellUpdate[1],
-                },
-              ];
-              moveHighlightCell(draftCtx, "down", 1, "rangeOfSelect");
-              // $("#luckysheet-rich-text-editor").focus();
-              // }
-              e.preventDefault();
-              e.stopPropagation();
-              break;
-            }
-            case "Escape": {
-              cancelNormalSelected(draftCtx);
-              moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
-              // $("#luckysheet-functionbox-cell").blur();
-              // $("#luckysheet-rich-text-editor").focus();
-              e.preventDefault();
-              e.stopPropagation();
-              break;
-            }
-            /*
-              case "F4": {
-                formula.setfreezonFuc(event);
-                e.preventDefault();
-                e.stopPropagation();
-                break;
-              }
-              case "ArrowUp": {
-                if ($("#luckysheet-formula-search-c").is(":visible")) {
-                  let $up = $("#luckysheet-formula-search-c")
-                    .find(".luckysheet-formula-search-item-active")
-                    .prev();
-                  if ($up.length === 0) {
-                    $up = $("#luckysheet-formula-search-c")
-                      .find(".luckysheet-formula-search-item")
-                      .last();
-                  }
-                  $("#luckysheet-formula-search-c")
-                    .find(".luckysheet-formula-search-item")
-                    .removeClass("luckysheet-formula-search-item-active");
-                  $up.addClass("luckysheet-formula-search-item-active");
-                }
-                e.preventDefault();
-                e.stopPropagation();
-                break;
-              }
-              case "ArrowDown": {
-                if ($("#luckysheet-formula-search-c").is(":visible")) {
-                  let $up = $("#luckysheet-formula-search-c")
-                    .find(".luckysheet-formula-search-item-active")
-                    .next();
-                  if ($up.length === 0) {
-                    $up = $("#luckysheet-formula-search-c")
-                      .find(".luckysheet-formula-search-item")
-                      .first();
-                  }
-                  $("#luckysheet-formula-search-c")
-                    .find(".luckysheet-formula-search-item")
-                    .removeClass("luckysheet-formula-search-item-active");
-                  $up.addClass("luckysheet-formula-search-item-active");
-                }
-                e.preventDefault();
-                e.stopPropagation();
-                break;
-              }
-              */
-            case "ArrowLeft": {
-              rangeHightlightselected(draftCtx, refs.fxInput.current!);
-              break;
-            }
-            case "ArrowRight": {
-              rangeHightlightselected(draftCtx, refs.fxInput.current!);
-              break;
-            }
-            default:
-              break;
-          }
+      if (formulaKeys.onKeyDown(e)) return;
+      if (context.luckysheetCellUpdate.length === 0) return;
+      if (key === "Enter") {
+        if (e.altKey || e.metaKey) {
+          // Alt+Enter: a line break inside the cell
+          insertEditorLineBreak(refs.fxInput.current);
+          e.stopPropagation();
         }
-      });
+        // Enter / Shift+Enter / Ctrl+Enter commit in the global key handler
+        // (moving within a multi-cell selection like the cell editor)
+        e.preventDefault();
+      } else if (key === "Tab") {
+        // committed by the global key handler; keep the focus in the sheet
+        e.preventDefault();
+      } else if (key === "Escape") {
+        setContext((draftCtx) => {
+          // Point mode across sheets: back to the edited cell's sheet
+          returnToEditSheet(draftCtx, refs.fxInput.current);
+          cancelNormalSelected(draftCtx);
+          moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
+        });
+        e.preventDefault();
+        e.stopPropagation();
+      }
     },
     [
       context.allowEdit,
       context.luckysheetCellUpdate.length,
+      formulaKeys,
       refs.fxInput,
       setContext,
     ]
@@ -296,8 +252,14 @@ const FxEditor: React.FC = () => {
   ]);
 
   return (
-    <aside>
-      <div className="fortune-fx-editor">
+    // View > Formula Bar unchecked: hidden but mounted (keys use it)
+    <aside className="fortune-fx-editor-wrap" hidden={!!context.hideFormulaBar}>
+      <div
+        className={`fortune-fx-editor${
+          bar.expanded ? " fortune-fx-editor-expanded" : ""
+        }`}
+        style={bar.height != null ? { height: bar.height } : undefined}
+      >
         <NameBox />
         <div className="fortune-fx-icon">
           <SVGIcon name="fx" width={18} height={18} />
@@ -307,33 +269,78 @@ const FxEditor: React.FC = () => {
             innerRef={(e) => {
               refs.fxInput.current = e;
             }}
-            className="fortune-fx-input"
+            className={
+              spilledFormula && !focused
+                ? "fortune-fx-input fortune-fx-input-spilled"
+                : "fortune-fx-input"
+            }
             role="textbox"
             id="luckysheet-functionbox-cell"
             aria-label={info.currentCellInput}
             onFocus={onFocus}
             onKeyDown={onKeyDown}
+            onKeyUp={formulaKeys.onKeyUp}
+            onMouseUp={formulaKeys.onMouseUp}
             onChange={onChange}
             onBlur={() => setFocused(false)}
             tabIndex={0}
             allowEdit={allowEdit}
           />
+          {/* a placed picture shows as a chip until the bar is focused */}
+          {!focused && <FxPictureChip />}
           {focused && (
             <>
               <FormulaSearch
                 style={{
                   top: inputContainerRef.current!.clientHeight,
                 }}
+                onSelectCandidate={formulaKeys.acceptCandidate}
               />
               <FormulaHint
                 style={{
                   top: inputContainerRef.current!.clientHeight,
                 }}
+                onSelectArgument={formulaKeys.selectArgument}
               />
             </>
           )}
         </div>
+        <button
+          type="button"
+          className="fortune-fx-toggle"
+          aria-expanded={bar.expanded}
+          aria-label={
+            bar.expanded
+              ? formulaMore.collapseFormulaBar
+              : formulaMore.expandFormulaBar
+          }
+          title={
+            bar.expanded
+              ? formulaMore.collapseFormulaBar
+              : formulaMore.expandFormulaBar
+          }
+          // keep the caret in the formula being edited
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={bar.toggle}
+        >
+          <SVGIcon name="downArrow" width={12} height={12} />
+        </button>
       </div>
+      {/* a focusable separator is a window splitter (interactive) */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <div
+        className="fortune-fx-resize-handle"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label={formulaMore.resizeFormulaBar}
+        aria-valuemin={FORMULA_BAR_COLLAPSED_HEIGHT}
+        aria-valuenow={bar.height ?? FORMULA_BAR_COLLAPSED_HEIGHT}
+        title={formulaMore.resizeFormulaBar}
+        tabIndex={0}
+        onPointerDown={bar.onResizeStart}
+        onKeyDown={bar.onResizeKey}
+        onDoubleClick={bar.toggle}
+      />
     </aside>
   );
 };

@@ -1,26 +1,35 @@
-import React from "react";
+import { excelIoLocale } from "@lofcz/tinysheet-core";
 import ExportIcon from "../icons/ExportIcon";
 import ImportIcon from "../icons/ImportIcon";
 
-export const exportToolBarItem = () => {
+export type ExcelToolbarItemOptions = {
+  /** UI language ("en", "zh", "zh-TW", "es", "ru", "hi"; English fallback). */
+  lang?: string | null;
+};
+
+export const exportToolBarItem = (options: ExcelToolbarItemOptions = {}) => {
   return {
     key: "export",
-    tooltip: "Export ...",
+    tooltip: excelIoLocale(options.lang).exportTooltip,
     icon: ExportIcon(),
-    onClick: async (e:any) => {
-      const exportHelper = document.querySelector(".export-helper") as HTMLElement;
-      const visibility = exportHelper?.style.visibility;
-      exportHelper.style.visibility = visibility === "visible" ? "hidden" : "visible";
+    onClick: async () => {
+      const exportHelper = document.querySelector(
+        ".export-helper"
+      ) as HTMLElement;
+      if (!exportHelper) return;
+      const visibility = exportHelper.style.visibility;
+      exportHelper.style.visibility =
+        visibility === "visible" ? "hidden" : "visible";
     },
   };
 };
 
-export const importToolBarItem = () => {
+export const importToolBarItem = (options: ExcelToolbarItemOptions = {}) => {
   return {
     key: "import",
-    tooltip: "Import file",
+    tooltip: excelIoLocale(options.lang).importTooltip,
     icon: ImportIcon(),
-    onClick: (e:any) => {
+    onClick: () => {
       document.getElementById("ImportHelper")?.click();
     },
   };

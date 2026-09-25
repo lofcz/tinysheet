@@ -347,7 +347,7 @@ function hslToRgb(h: number, s: number, l: number) {
  * @return  Array           HSL各值数组
  */
 function rgbToHsl(r: number, g: number, b: number) {
-  (r /= 255), (g /= 255), (b /= 255);
+  ((r /= 255), (g /= 255), (b /= 255));
   var max = Math.max(r, g, b),
     min = Math.min(r, g, b);
   var h,
@@ -404,113 +404,133 @@ export function generateRandomIndex(prefix: string): string {
   return prefix + "_" + mid + "_" + time;
 }
 
+/** Named entities escapeCharacter decodes (XML's five and Latin-1). */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&",
+  quot: '"',
+  lt: "<",
+  gt: ">",
+  nbsp: " ",
+  apos: "'",
+  iexcl: "¡",
+  cent: "¢",
+  pound: "£",
+  curren: "¤",
+  yen: "¥",
+  brvbar: "¦",
+  sect: "§",
+  uml: "¨",
+  copy: "©",
+  ordf: "ª",
+  laquo: "«",
+  not: "¬",
+  shy: "­",
+  reg: "®",
+  macr: "¯",
+  deg: "°",
+  plusmn: "±",
+  sup2: "²",
+  sup3: "³",
+  acute: "´",
+  micro: "µ",
+  para: "¶",
+  middot: "·",
+  cedil: "¸",
+  sup1: "¹",
+  ordm: "º",
+  raquo: "»",
+  frac14: "¼",
+  frac12: "½",
+  frac34: "¾",
+  iquest: "¿",
+  times: "×",
+  divide: "÷",
+  Agrave: "À",
+  Aacute: "Á",
+  Acirc: "Â",
+  Atilde: "Ã",
+  Auml: "Ä",
+  Aring: "Å",
+  AElig: "Æ",
+  Ccedil: "Ç",
+  Egrave: "È",
+  Eacute: "É",
+  Ecirc: "Ê",
+  Euml: "Ë",
+  Igrave: "Ì",
+  Iacute: "Í",
+  Icirc: "Î",
+  Iuml: "Ï",
+  ETH: "Ð",
+  Ntilde: "Ñ",
+  Ograve: "Ò",
+  Oacute: "Ó",
+  Ocirc: "Ô",
+  Otilde: "Õ",
+  Ouml: "Ö",
+  Oslash: "Ø",
+  Ugrave: "Ù",
+  Uacute: "Ú",
+  Ucirc: "Û",
+  Uuml: "Ü",
+  Yacute: "Ý",
+  THORN: "Þ",
+  szlig: "ß",
+  agrave: "à",
+  aacute: "á",
+  acirc: "â",
+  atilde: "ã",
+  auml: "ä",
+  aring: "å",
+  aelig: "æ",
+  ccedil: "ç",
+  egrave: "è",
+  eacute: "é",
+  ecirc: "ê",
+  euml: "ë",
+  igrave: "ì",
+  iacute: "í",
+  icirc: "î",
+  iuml: "ï",
+  eth: "ð",
+  ntilde: "ñ",
+  ograve: "ò",
+  oacute: "ó",
+  ocirc: "ô",
+  otilde: "õ",
+  ouml: "ö",
+  oslash: "ø",
+  ugrave: "ù",
+  uacute: "ú",
+  ucirc: "û",
+  uuml: "ü",
+  yacute: "ý",
+  thorn: "þ",
+  yuml: "ÿ",
+};
+
+const ENTITY_RE = /&(#[xX][0-9a-fA-F]+|#\d+|[A-Za-z][A-Za-z0-9]*);/g;
+
+/**
+ * Decode XML entities in one pass (`&amp;lt;` stays `&lt;`): the five XML
+ * entities, numeric references and the Latin-1 HTML names some writers
+ * emit. Unknown names are left as they are.
+ */
 export function escapeCharacter(str: string) {
-  if (str == null || str.length == 0) {
+  if (str == null || str.length == 0 || str.indexOf("&") < 0) {
     return str;
   }
-
-  return str
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&apos;/g, "'")
-    .replace(/&iexcl;/g, "¡")
-    .replace(/&cent;/g, "¢")
-    .replace(/&pound;/g, "£")
-    .replace(/&curren;/g, "¤")
-    .replace(/&yen;/g, "¥")
-    .replace(/&brvbar;/g, "¦")
-    .replace(/&sect;/g, "§")
-    .replace(/&uml;/g, "¨")
-    .replace(/&copy;/g, "©")
-    .replace(/&ordf;/g, "ª")
-    .replace(/&laquo;/g, "«")
-    .replace(/&not;/g, "¬")
-    .replace(/&shy;/g, "­")
-    .replace(/&reg;/g, "®")
-    .replace(/&macr;/g, "¯")
-    .replace(/&deg;/g, "°")
-    .replace(/&plusmn;/g, "±")
-    .replace(/&sup2;/g, "²")
-    .replace(/&sup3;/g, "³")
-    .replace(/&acute;/g, "´")
-    .replace(/&micro;/g, "µ")
-    .replace(/&para;/g, "¶")
-    .replace(/&middot;/g, "·")
-    .replace(/&cedil;/g, "¸")
-    .replace(/&sup1;/g, "¹")
-    .replace(/&ordm;/g, "º")
-    .replace(/&raquo;/g, "»")
-    .replace(/&frac14;/g, "¼")
-    .replace(/&frac12;/g, "½")
-    .replace(/&frac34;/g, "¾")
-    .replace(/&iquest;/g, "¿")
-    .replace(/&times;/g, "×")
-    .replace(/&divide;/g, "÷")
-    .replace(/&Agrave;/g, "À")
-    .replace(/&Aacute;/g, "Á")
-    .replace(/&Acirc;/g, "Â")
-    .replace(/&Atilde;/g, "Ã")
-    .replace(/&Auml;/g, "Ä")
-    .replace(/&Aring;/g, "Å")
-    .replace(/&AElig;/g, "Æ")
-    .replace(/&Ccedil;/g, "Ç")
-    .replace(/&Egrave;/g, "È")
-    .replace(/&Eacute;/g, "É")
-    .replace(/&Ecirc;/g, "Ê")
-    .replace(/&Euml;/g, "Ë")
-    .replace(/&Igrave;/g, "Ì")
-    .replace(/&Iacute;/g, "Í")
-    .replace(/&Icirc;/g, "Î")
-    .replace(/&Iuml;/g, "Ï")
-    .replace(/&ETH;/g, "Ð")
-    .replace(/&Ntilde;/g, "Ñ")
-    .replace(/&Ograve;/g, "Ò")
-    .replace(/&Oacute;/g, "Ó")
-    .replace(/&Ocirc;/g, "Ô")
-    .replace(/&Otilde;/g, "Õ")
-    .replace(/&Ouml;/g, "Ö")
-    .replace(/&Oslash;/g, "Ø")
-    .replace(/&Ugrave;/g, "Ù")
-    .replace(/&Uacute;/g, "Ú")
-    .replace(/&Ucirc;/g, "Û")
-    .replace(/&Uuml;/g, "Ü")
-    .replace(/&Yacute;/g, "Ý")
-    .replace(/&THORN;/g, "Þ")
-    .replace(/&szlig;/g, "ß")
-    .replace(/&agrave;/g, "à")
-    .replace(/&aacute;/g, "á")
-    .replace(/&acirc;/g, "â")
-    .replace(/&atilde;/g, "ã")
-    .replace(/&auml;/g, "ä")
-    .replace(/&aring;/g, "å")
-    .replace(/&aelig;/g, "æ")
-    .replace(/&ccedil;/g, "ç")
-    .replace(/&egrave;/g, "è")
-    .replace(/&eacute;/g, "é")
-    .replace(/&ecirc;/g, "ê")
-    .replace(/&euml;/g, "ë")
-    .replace(/&igrave;/g, "ì")
-    .replace(/&iacute;/g, "í")
-    .replace(/&icirc;/g, "î")
-    .replace(/&iuml;/g, "ï")
-    .replace(/&eth;/g, "ð")
-    .replace(/&ntilde;/g, "ñ")
-    .replace(/&ograve;/g, "ò")
-    .replace(/&oacute;/g, "ó")
-    .replace(/&ocirc;/g, "ô")
-    .replace(/&otilde;/g, "õ")
-    .replace(/&ouml;/g, "ö")
-    .replace(/&oslash;/g, "ø")
-    .replace(/&ugrave;/g, "ù")
-    .replace(/&uacute;/g, "ú")
-    .replace(/&ucirc;/g, "û")
-    .replace(/&uuml;/g, "ü")
-    .replace(/&yacute;/g, "ý")
-    .replace(/&thorn;/g, "þ")
-    .replace(/&yuml;/g, "ÿ");
+  return str.replace(ENTITY_RE, (whole, ref: string) => {
+    if (ref.charCodeAt(0) === 35) {
+      const hex = ref[1] === "x" || ref[1] === "X";
+      const code = parseInt(ref.slice(hex ? 2 : 1), hex ? 16 : 10);
+      if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return whole;
+      return String.fromCodePoint(code);
+    }
+    return Object.prototype.hasOwnProperty.call(NAMED_ENTITIES, ref)
+      ? NAMED_ENTITIES[ref]
+      : whole;
+  });
 }
 
 export class fromulaRef {
@@ -954,21 +974,65 @@ export function isContainMultiType(str: string): boolean {
  *     ['13_4', '13_9','13_14', '13_19', '13_24', '13_3', '13_8',  '13_13', '13_18', '13_23']
  *  3、E46:E47 -> ['45_4',  '46_4']
  *
+ * Linear in the number of cells (duplicates are dropped with a set). When
+ * the ranges cover more than `bounds.maxCells` cells (whole columns, say),
+ * they are clipped to rows <= bounds.lastRow and columns <= bounds.lastCol
+ * (0-based) first.
+ *
  * @param {string} sqref - before sequence
  * @returns {string[]}
  */
-export function getMultiSequenceToNum(sqref: string): string[] {
+export function getMultiSequenceToNum(
+  sqref: string,
+  bounds?: { lastRow: number; lastCol: number; maxCells?: number }
+): string[] {
   if (!sqref || sqref?.length <= 0) return [];
-  sqref = sqref.toUpperCase();
-  let sqrefRawArr = sqref.split(" ");
-  let sqrefArr = sqrefRawArr.filter((e) => e && e.trim());
-  let sqrefLastArr = getSqrefRawArrFormat(sqrefArr);
-
-  let resArr: string[] = [];
-  for (let i = 0; i < sqrefLastArr.length; i++) {
-    let _res = getSingleSequenceToNum(sqrefLastArr[i]);
-    if (_res) resArr.push(_res);
+  const ranges: { r1: number; c1: number; r2: number; c2: number }[] = [];
+  sqref
+    .toUpperCase()
+    .split(/\s+/)
+    .forEach((token) => {
+      if (!token) return;
+      const [a, b] = token.replace(/\$/g, "").split(":");
+      const m1 = /^([A-Z]+)(\d+)$/.exec(a);
+      const m2 = b != null ? /^([A-Z]+)(\d+)$/.exec(b) : m1;
+      if (!m1 || !m2) return;
+      const ra = parseInt(m1[2]) - 1;
+      const rb = parseInt(m2[2]) - 1;
+      const ca = ABCatNum(m1[1]);
+      const cb = ABCatNum(m2[1]);
+      if (![ra, rb, ca, cb].every((n) => Number.isFinite(n) && n >= 0)) return;
+      ranges.push({
+        r1: Math.min(ra, rb),
+        r2: Math.max(ra, rb),
+        c1: Math.min(ca, cb),
+        c2: Math.max(ca, cb),
+      });
+    });
+  const total = ranges.reduce(
+    (n, x) => n + (x.r2 - x.r1 + 1) * (x.c2 - x.c1 + 1),
+    0
+  );
+  if (bounds && total > (bounds.maxCells ?? 10000)) {
+    ranges.forEach((x) => {
+      x.r2 = Math.min(x.r2, Math.max(bounds.lastRow, x.r1));
+      x.c2 = Math.min(x.c2, Math.max(bounds.lastCol, x.c1));
+    });
   }
+  const seen = new Set<string>();
+  const resArr: string[] = [];
+  ranges.forEach(({ r1, c1, r2, c2 }) => {
+    // column-major, as before
+    for (let c = c1; c <= c2; c++) {
+      for (let r = r1; r <= r2; r++) {
+        const key = r + "_" + c;
+        if (!seen.has(key)) {
+          seen.add(key);
+          resArr.push(key);
+        }
+      }
+    }
+  });
   return resArr;
 }
 
@@ -1130,7 +1194,7 @@ export function getMultiFormulaValue(value: string): string[] {
     const start = value.indexOf(`<formula${i}>`);
     const end = value.indexOf(`</formula${i}>`);
     const _value = value.substring(start + startLen, end);
-    retArr.push(escapeCharacter(_value.replace(/&quot;|^\"|\"$/g, "")));
+    retArr.push(escapeCharacter(_value));
   }
   return retArr;
 }

@@ -91,18 +91,28 @@ export const BuiltInCellStyles: IattributeList = {
   "0": "Normal",
 };
 
+/**
+ * Excel's built-in number formats (ids 0-163 are implied, not stored in
+ * styles.xml). Codes follow ECMA-376 18.8.30 as Excel en-US renders them;
+ * the locale-dependent East Asian ids (27-36, 50-58) map to neutral
+ * date/time codes.
+ */
 export let numFmtDefault: IattributeList = {
   "0": "General",
   "1": "0",
   "2": "0.00",
   "3": "#,##0",
   "4": "#,##0.00",
+  "5": '"$"#,##0_);\\("$"#,##0\\)',
+  "6": '"$"#,##0_);[Red]\\("$"#,##0\\)',
+  "7": '"$"#,##0.00_);\\("$"#,##0.00\\)',
+  "8": '"$"#,##0.00_);[Red]\\("$"#,##0.00\\)',
   "9": "0%",
   "10": "0.00%",
   "11": "0.00E+00",
   "12": "# ?/?",
   "13": "# ??/??",
-  "14": "m/d/yy",
+  "14": "m/d/yyyy",
   "15": "d-mmm-yy",
   "16": "d-mmm",
   "17": "mmm-yy",
@@ -110,16 +120,39 @@ export let numFmtDefault: IattributeList = {
   "19": "h:mm:ss AM/PM",
   "20": "h:mm",
   "21": "h:mm:ss",
-  "22": "m/d/yy h:mm",
-  "37": "#,##0 ;(#,##0)",
-  "38": "#,##0 ;[Red](#,##0)",
-  "39": "#,##0.00;(#,##0.00)",
-  "40": "#,##0.00;[Red](#,##0.00)",
+  "22": "m/d/yyyy h:mm",
+  "27": "yyyy/m/d",
+  "28": "yyyy/m/d",
+  "29": "yyyy/m/d",
+  "30": "m/d/yy",
+  "31": "yyyy/m/d",
+  "32": "h:mm",
+  "33": "h:mm:ss",
+  "34": "h:mm AM/PM",
+  "35": "h:mm:ss AM/PM",
+  "36": "yyyy/m/d",
+  "37": "#,##0_);(#,##0)",
+  "38": "#,##0_);[Red](#,##0)",
+  "39": "#,##0.00_);(#,##0.00)",
+  "40": "#,##0.00_);[Red](#,##0.00)",
+  "41": '_(* #,##0_);_(* \\(#,##0\\);_(* "-"_);_(@_)',
+  "42": '_("$"* #,##0_);_("$"* \\(#,##0\\);_("$"* "-"_);_(@_)',
+  "43": '_(* #,##0.00_);_(* \\(#,##0.00\\);_(* "-"??_);_(@_)',
+  "44": '_("$"* #,##0.00_);_("$"* \\(#,##0.00\\);_("$"* "-"??_);_(@_)',
   "45": "mm:ss",
   "46": "[h]:mm:ss",
-  "47": "mmss.0",
+  "47": "mm:ss.0",
   "48": "##0.0E+0",
   "49": "@",
+  "50": "yyyy/m/d",
+  "51": "yyyy/m/d",
+  "52": "yyyy/m/d",
+  "53": "yyyy/m/d",
+  "54": "yyyy/m/d",
+  "55": "yyyy/m/d",
+  "56": "yyyy/m/d",
+  "57": "yyyy/m/d",
+  "58": "yyyy/m/d",
 };
 
 export const indexedColors: IattributeList = {
@@ -230,13 +263,6 @@ export const borderTypes: stringToNum = {
   thick: 13,
 };
 
-export let numFmtDefaultMap: IattributeList = {
-  "yyyy/m/d;@": "yyyy/MM/dd",
-  "yyyy&quot;年&quot;m&quot;月&quot;d&quot;日&quot;;@":
-    "yyyy&quot;年&quot;MM&quot;月&quot;dd&quot;日&quot;",
-  "[$-409]yyyy/m/d\\ h:mm\\ AM/PM;@": "yyyy/MM/dd hh:mm AM/PM",
-};
-
 export const fontFamilys: IattributeList = {
   "0": "defualt",
   "1": "Roman",
@@ -249,7 +275,7 @@ export const fontFamilys: IattributeList = {
 export const DATA_VERIFICATION_MAP: IDataVerificationMap = {
   list: "dropdown",
   whole: "number_integer",
-  decimal: "number_decimal",
+  decimal: "number",
   custom: "text_content",
   textLength: "text_length",
   date: "date",
@@ -264,7 +290,7 @@ export const DATA_VERIFICATION_REV_MAP: any = {
   number_integer: "decimal",
   number_decimal: "decimal",
   text_length: "textLength",
-  date: "date"
+  date: "date",
 };
 
 export const OPERATOR_MAP: any = {
@@ -275,7 +301,7 @@ export const OPERATOR_MAP: any = {
   moreThanThe: "greaterThan",
   lessThan: "lessThan",
   greaterOrEqualTo: "greaterThanOrEqual",
-  lessThanOrEqualTo: "lessThanOrEqual"
+  lessThanOrEqualTo: "lessThanOrEqual",
 };
 
 export const COMMON_TYPE2: string[] = [

@@ -1,22 +1,281 @@
 import _ from "lodash";
-import { hideCRCount, removeActiveImage } from "..";
+import { removeActiveImage } from "..";
 import { Context, getFlowdata } from "../context";
 import { updateCell, cancelNormalSelected } from "../modules/cell";
-import { handleFormulaInput } from "../modules/formula";
+import { functionCopy, handleFormulaInput } from "../modules/formula";
 import {
   copy,
   deleteSelectedCellText,
   moveHighlightCell,
-  moveHighlightRange,
-  selectAll,
+  normalizeSelection,
   selectionCache,
 } from "../modules/selection";
-import { cancelPaintModel, handleBold } from "../modules/toolbar";
+import {
+  cancelPaintModel,
+  handleBold,
+  handleCurrencyFormat,
+  handleItalic,
+  handleStrikeThrough,
+  handleUnderline,
+  updateFormat,
+} from "../modules/toolbar";
 import { hasPartMC } from "../modules/validation";
-import { CellMatrix, GlobalCache } from "../types";
-import { getNowDateTime, getSheetIndex, isAllowEdit } from "../utils";
+import { GlobalCache, Selection } from "../types";
+import { getNowDateTime, isAllowEdit } from "../utils";
 import { handleCopy } from "./copy";
+import { openPasteSpecial } from "./paste";
 import { jfrefreshgrid } from "../modules/refresh";
+import { fillSelectionFromEdge } from "../modules/dropCell";
+import {
+  deleteRowCol,
+  hideSelected,
+  insertRowCol,
+  showSelected,
+} from "../modules/rowcol";
+import * as nav from "../modules/navigation";
+import { openFormatCells } from "../modules/formatCells";
+import { handleNavigationShortcut } from "../modules/goTo";
+import { runShortcut } from "../modules/extensions";
+import {
+  clearEditMode,
+  endPointMode,
+  getEditorArrowAction,
+  movePointReference,
+  returnToEditSheet,
+  setEditMode,
+  toggleEditMode,
+} from "../modules/editMode";
+import { closeFormulaParens } from "../modules/formulaEditor";
+import { clearGroupedSheetsContents } from "../modules/sheet";
+import { checkProtection } from "../modules/protection";
+
+const MODIFIER_KEYS = new Set([
+  "Shift",
+  "Control",
+  "Alt",
+  "Meta",
+  "AltGraph",
+  "CapsLock",
+  "OS",
+]);
+
+const ARROW_DIRECTIONS: Record<string, nav.NavDirection> = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+};
+
+function isSemicolonKey(e: KeyboardEvent) {
+  return (
+    e.key === ";" ||
+    e.key === ":" ||
+    e.code === "Semicolon" ||
+    e.keyCode === 186
+  );
+}
+
+function pad2(n: number) {
+  return n < 10 ? `0${n}` : `${n}`;
+}
+
+/** Ctrl+; inserts today's date, Ctrl+Shift+; the current time. */
+function currentDateOrTime(time: boolean) {
+  if (!time) return getNowDateTime(1);
+  const now = new Date();
+  return `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+}
+
+/** Excel's Ctrl+Shift+1..6 / Ctrl+Shift+~ number formats. */
+const NUMBER_FORMAT_SHORTCUTS: Record<string, string> = {
+  Backquote: "General",
+  Digit1: "#,##0.00",
+  Digit2: "hh:mm AM/PM",
+  Digit3: "yyyy-MM-dd",
+  Digit5: "0%",
+  Digit6: "0.00E+00",
+};
+
+/** Controls that own their keys (toolbar buttons, menus, dialog inputs...). */
+const INTERACTIVE_SELECTOR = [
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "a[href]",
+  '[contenteditable=""]',
+  '[contenteditable="true"]',
+  ...[
+    "button",
+    "checkbox",
+    "combobox",
+    "dialog",
+    "listbox",
+    "menu",
+    "menubar",
+    "menuitem",
+    "option",
+    "radio",
+    "slider",
+    "spinbutton",
+    "tab",
+    "tablist",
+    "textbox",
+  ].map((role) => `[role="${role}"]`),
+].join(",");
+
+/**
+ * True when the key event comes from an interactive element outside the grid
+ * (anything but the cell editor and the formula bar), which must keep its
+ * own keyboard behaviour (Tab, arrows, Enter...).
+ */
+export function isKeyFromForeignControl(
+  e: KeyboardEvent,
+  cellInput?: HTMLElement | null,
+  fxInput?: HTMLElement | null
+) {
+  const { target } = e;
+  if (typeof Element === "undefined" || !(target instanceof Element))
+    return false;
+  if (cellInput && (target === cellInput || cellInput.contains(target)))
+    return false;
+  if (fxInput && (target === fxInput || fxInput.contains(target))) return false;
+  return target.closest(INTERACTIVE_SELECTOR) != null;
+}
+
+function selectionContains(
+  selection: Selection[] | undefined,
+  r: number,
+  c: number
+) {
+  const last = selection?.[selection.length - 1];
+  return (
+    !!last &&
+    r >= last.row[0] &&
+    r <= last.row[1] &&
+    c >= last.column[0] &&
+    c <= last.column[1]
+  );
+}
+
+function isMultiCell(selection: Selection[] | undefined) {
+  const last = selection?.[selection.length - 1];
+  return (
+    !!last && (last.row[0] !== last.row[1] || last.column[0] !== last.column[1])
+  );
+}
+
+/**
+ * Ctrl+Enter while editing: writes the entered value into every cell of the
+ * selection (formulas get their relative references adjusted per cell) and
+ * keeps the selection.
+ */
+function commitToSelection(
+  ctx: Context,
+  cellInput: HTMLDivElement,
+  origin: [number, number],
+  selection: Selection[] | undefined,
+  canvas?: CanvasRenderingContext2D
+) {
+  const [r0, c0] = origin;
+  const text = cellInput.innerText;
+  updateCell(ctx, r0, c0, cellInput, undefined, canvas);
+
+  const d = getFlowdata(ctx);
+  if (!d || !selection || selection.length === 0) return;
+  const originFormula = d[r0]?.[c0]?.f;
+
+  selection.forEach((range) => {
+    for (let r = range.row[0]; r <= range.row[1]; r += 1) {
+      for (let c = range.column[0]; c <= range.column[1]; c += 1) {
+        if (r === r0 && c === c0) continue;
+        const cell = d[r]?.[c];
+        if (cell?.mc && (cell.mc.r !== r || cell.mc.c !== c)) continue;
+        let value: string = text;
+        if (originFormula) {
+          let f = originFormula;
+          const dr = r - r0;
+          const dc = c - c0;
+          if (dr !== 0)
+            f = `=${functionCopy(
+              ctx,
+              f,
+              dr > 0 ? "down" : "up",
+              Math.abs(dr)
+            )}`;
+          if (dc !== 0)
+            f = `=${functionCopy(
+              ctx,
+              f,
+              dc > 0 ? "right" : "left",
+              Math.abs(dc)
+            )}`;
+          value = f;
+        }
+        updateCell(ctx, r, c, null, value, canvas);
+      }
+    }
+  });
+
+  ctx.luckysheetCellUpdate = [];
+  const restored = _.cloneDeep(selection);
+  const last = restored[restored.length - 1];
+  last.row_focus = r0;
+  last.column_focus = c0;
+  ctx.luckysheet_select_save = normalizeSelection(ctx, restored);
+}
+
+/**
+ * Commits the cell being edited (the text of `editor`, the in-cell editor or
+ * the formula bar) and moves the active cell.
+ *
+ * - `how: "enter"` (Enter, Shift+Enter, Tab, Shift+Tab): inside a
+ *   multi-cell selection that contains the edited cell the selection is
+ *   kept and the active cell wraps within it; otherwise the selection
+ *   collapses and the active cell moves (Enter after a run of Tabs returns
+ *   to the column where the run started).
+ * - `how: "arrow"` (arrow keys in Enter mode): collapses the selection and
+ *   moves one cell.
+ */
+export function commitEditAndMove(
+  ctx: Context,
+  editor: HTMLDivElement,
+  direction: nav.NavDirection,
+  how: "enter" | "arrow",
+  canvas?: CanvasRenderingContext2D
+) {
+  if (ctx.luckysheetCellUpdate.length < 2) return;
+  const cell = _.clone(ctx.luckysheetCellUpdate) as [number, number];
+  const prevSelection = _.cloneDeep(ctx.luckysheet_select_save);
+  closeFormulaParens(editor);
+  updateCell(ctx, cell[0], cell[1], editor, undefined, canvas);
+  clearEditMode(ctx);
+  if (
+    how === "enter" &&
+    isMultiCell(prevSelection) &&
+    selectionContains(prevSelection, cell[0], cell[1])
+  ) {
+    const last = prevSelection![prevSelection!.length - 1];
+    [last.row_focus, last.column_focus] = cell;
+    ctx.luckysheet_select_save = prevSelection;
+    nav.moveAfterEnter(ctx, direction);
+    return;
+  }
+  ctx.luckysheet_select_save = [
+    {
+      row: [cell[0], cell[0]],
+      column: [cell[1], cell[1]],
+      row_focus: cell[0],
+      column_focus: cell[1],
+    },
+  ];
+  if (how === "enter") {
+    nav.moveAfterEnter(ctx, direction);
+  } else {
+    ctx.tabReturn = undefined;
+    nav.moveActiveCell(ctx, direction);
+  }
+}
 
 export function handleGlobalEnter(
   ctx: Context,
@@ -35,237 +294,83 @@ export function handleGlobalEnter(
     }
     e.preventDefault();
   } else if (ctx.luckysheetCellUpdate.length > 0) {
-    // if (
-    //   $("#luckysheet-formula-search-c").is(":visible") &&
-    //   formula.searchFunctionCell != null
-    // ) {
-    //   formula.searchFunctionEnter(
-    //     $("#luckysheet-formula-search-c").find(
-    //       ".luckysheet-formula-search-item-active"
-    //     )
-    //   );
-    // } else {
-    const lastCellUpdate = _.clone(ctx.luckysheetCellUpdate);
-    updateCell(
+    if (e.ctrlKey) {
+      // Ctrl+Enter: fill the whole selection with the entered value
+      const lastCellUpdate = _.clone(ctx.luckysheetCellUpdate) as [
+        number,
+        number,
+      ];
+      const prevSelection = _.cloneDeep(ctx.luckysheet_select_save);
+      closeFormulaParens(cellInput);
+      commitToSelection(ctx, cellInput, lastCellUpdate, prevSelection, canvas);
+      clearEditMode(ctx);
+      e.preventDefault();
+      return;
+    }
+
+    commitEditAndMove(
       ctx,
-      ctx.luckysheetCellUpdate[0],
-      ctx.luckysheetCellUpdate[1],
       cellInput,
-      undefined,
+      e.shiftKey ? "up" : "down",
+      "enter",
       canvas
     );
-    ctx.luckysheet_select_save = [
-      {
-        row: [lastCellUpdate[0], lastCellUpdate[0]],
-        column: [lastCellUpdate[1], lastCellUpdate[1]],
-        row_focus: lastCellUpdate[0],
-        column_focus: lastCellUpdate[1],
-      },
-    ];
-    moveHighlightCell(ctx, "down", 1, "rangeOfSelect");
-    // }
-
-    // // 若有参数弹出框，隐藏
-    // if ($("#luckysheet-search-formula-parm").is(":visible")) {
-    //   $("#luckysheet-search-formula-parm").hide();
-    // }
-    // // 若有参数选取范围弹出框，隐藏
-    // if ($("#luckysheet-search-formula-parm-select").is(":visible")) {
-    //   $("#luckysheet-search-formula-parm-select").hide();
-    // }
     e.preventDefault();
-  } else {
-    // if (
-    //   $(event.target).hasClass("formulaInputFocus") ||
-    //   $("#luckysheet-conditionformat-dialog").is(":visible")
-    // ) {
-    //   return;
-    // }
-    if ((ctx.luckysheet_select_save?.length ?? 0) > 0) {
-      const last =
-        ctx.luckysheet_select_save![ctx.luckysheet_select_save!.length - 1];
-
-      const row_index = last.row_focus;
-      const col_index = last.column_focus;
-
-      ctx.luckysheetCellUpdate = [row_index, col_index];
-      // luckysheetupdateCell(row_index, col_index, ctx.flowdata);
-      e.preventDefault();
-    }
+  } else if ((ctx.luckysheet_select_save?.length ?? 0) > 0) {
+    // Like Excel, Enter moves the active cell (down, Shift+Enter up) and
+    // wraps inside a multi-cell selection; F2 starts editing.
+    nav.moveAfterEnter(ctx, e.shiftKey ? "up" : "down");
+    e.preventDefault();
   }
 }
 
-function moveToEdge(
-  sheetData: CellMatrix,
-  key: string,
-  curr: number,
-  rowDelta: 0 | 1 | -1,
-  colDelta: 0 | 1 | -1,
-  startR: number,
-  endR: number,
-  startC: number,
-  endC: number,
-  maxRow: number,
-  maxCol: number
-) {
-  let selectedLimit = -1;
-  if (key === "ArrowUp") selectedLimit = startR - 1;
-  else if (key === "ArrowDown") selectedLimit = endR + 1;
-  else if (key === "ArrowLeft") selectedLimit = startC - 1;
-  else if (key === "ArrowRight") selectedLimit = endC + 1;
-
-  const maxRowCol = colDelta === 0 ? maxRow : maxCol;
-  let r = colDelta === 0 ? selectedLimit : curr;
-  let c = colDelta === 0 ? curr : selectedLimit;
-
-  while (r >= 0 && c >= 0 && (colDelta === 0 ? r : c) < maxRowCol - 1) {
-    if (
-      !_.isNil(sheetData?.[r]?.[c]?.v) &&
-      (_.isNil(sheetData?.[r - rowDelta]?.[c - colDelta]?.v) ||
-        _.isNil(sheetData?.[r + rowDelta]?.[c + colDelta]?.v))
-    ) {
-      break;
-    } else {
-      r += 1 * rowDelta;
-      c += 1 * colDelta;
-    }
-  }
-  return colDelta === 0 ? r : c;
-}
-
-function handleControlPlusArrowKey(
+/**
+ * Shortcuts that also apply while a cell is being edited. Returns true when
+ * the key was handled.
+ */
+function handleEditModeShortcut(
   ctx: Context,
   e: KeyboardEvent,
-  shiftPressed: boolean
-) {
-  if (ctx.luckysheetCellUpdate.length > 0) return;
-
-  const idx = getSheetIndex(ctx, ctx.currentSheetId);
-  if (_.isNil(idx)) return;
-
-  const file = ctx.luckysheetfile[idx];
-  if (!file || !file.row || !file.column) return;
-  const maxRow = file.row;
-  const maxCol = file.column;
-  let last;
-  if (ctx.luckysheet_select_save && ctx.luckysheet_select_save.length > 0)
-    last = ctx.luckysheet_select_save[ctx.luckysheet_select_save.length - 1];
-  if (!last) return;
-
-  const currR = last.row_focus;
-  const currC = last.column_focus;
-  if (_.isNil(currR) || _.isNil(currC)) return;
-
-  const startR = last.row[0];
-  const endR = last.row[1];
-  const startC = last.column[0];
-  const endC = last.column[1];
-
-  const horizontalOffset = currC - endC !== 0 ? currC - endC : currC - startC;
-  const verticalOffset = currR - endR !== 0 ? currR - endR : currR - startR;
-
-  const sheetData = file.data;
-  if (!sheetData) return;
-  let selectedLimit;
-
-  switch (e.key) {
-    case "ArrowUp":
-      selectedLimit = moveToEdge(
-        sheetData,
-        e.key,
-        currC,
-        -1,
-        0,
-        startR,
-        endR,
-        startC,
-        endC,
-        maxRow,
-        maxCol
-      );
-      if (shiftPressed) {
-        moveHighlightRange(ctx, "down", verticalOffset, "rangeOfSelect");
-        moveHighlightRange(ctx, "down", selectedLimit - currR, "rangeOfSelect");
-      } else {
-        moveHighlightCell(ctx, "down", selectedLimit - currR, "rangeOfSelect");
-      }
-      break;
-    case "ArrowDown":
-      selectedLimit = moveToEdge(
-        sheetData,
-        e.key,
-        currC,
-        1,
-        0,
-        startR,
-        endR,
-        startC,
-        endC,
-        maxRow,
-        maxCol
-      );
-      if (shiftPressed) {
-        moveHighlightRange(ctx, "down", verticalOffset, "rangeOfSelect");
-        moveHighlightRange(ctx, "down", selectedLimit - currR, "rangeOfSelect");
-      } else {
-        moveHighlightCell(ctx, "down", selectedLimit - currR, "rangeOfSelect");
-      }
-      break;
-    case "ArrowLeft":
-      selectedLimit = moveToEdge(
-        sheetData,
-        e.key,
-        currR,
-        0,
-        -1,
-        startR,
-        endR,
-        startC,
-        endC,
-        maxRow,
-        maxCol
-      );
-      if (shiftPressed) {
-        moveHighlightRange(ctx, "right", horizontalOffset, "rangeOfSelect");
-        moveHighlightRange(
-          ctx,
-          "right",
-          selectedLimit - currC,
-          "rangeOfSelect"
-        );
-      } else {
-        moveHighlightCell(ctx, "right", selectedLimit - currC, "rangeOfSelect");
-      }
-      break;
-    case "ArrowRight":
-      selectedLimit = moveToEdge(
-        sheetData,
-        e.key,
-        currR,
-        0,
-        1,
-        startR,
-        endR,
-        startC,
-        endC,
-        maxRow,
-        maxCol
-      );
-      if (shiftPressed) {
-        moveHighlightRange(ctx, "right", horizontalOffset, "rangeOfSelect");
-        moveHighlightRange(
-          ctx,
-          "right",
-          selectedLimit - currC,
-          "rangeOfSelect"
-        );
-      } else {
-        moveHighlightCell(ctx, "right", selectedLimit - currC, "rangeOfSelect");
-      }
-      break;
-    default:
-      break;
+  cellInput: HTMLDivElement
+): boolean {
+  if (isSemicolonKey(e)) {
+    // insert the date/time at the caret
+    if (typeof document.execCommand === "function") {
+      document.execCommand("insertText", false, currentDateOrTime(e.shiftKey));
+    }
+    e.preventDefault();
+    return true;
   }
+  if (e.shiftKey) return false;
+  const handlers: Record<string, typeof handleBold> = {
+    KeyB: handleBold,
+    KeyI: handleItalic,
+    KeyU: handleUnderline,
+    Digit5: handleStrikeThrough,
+  };
+  const handler = handlers[e.code];
+  if (!handler) return false;
+  handler(ctx, cellInput);
+  e.preventDefault();
+  return true;
+}
+
+/** Starts editing the active cell with a prefilled value (Ctrl+; etc.). */
+function startEditingWith(
+  ctx: Context,
+  cache: GlobalCache | undefined,
+  cellInput: HTMLDivElement,
+  fxInput: HTMLDivElement | null | undefined,
+  value: string,
+  kcode: number
+) {
+  const active = nav.getActiveCell(ctx);
+  if (!active) return;
+  ctx.luckysheetCellUpdate = [active[0], active[1]];
+  setEditMode(ctx, "enter");
+  if (cache) cache.ignoreWriteCell = true;
+  cellInput.innerText = value;
+  handleFormulaInput(ctx, fxInput, cellInput, kcode);
 }
 
 export function handleWithCtrlOrMetaKey(
@@ -280,31 +385,34 @@ export function handleWithCtrlOrMetaKey(
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;
 
+  const arrow = ARROW_DIRECTIONS[e.key];
+
   if (e.shiftKey) {
     ctx.luckysheet_shiftpositon = _.cloneDeep(
       ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1]
     );
     ctx.luckysheet_shiftkeydown = true;
 
-    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
-      // Ctrl + Shift + 方向键  调整选区
-      handleControlPlusArrowKey(ctx, e, true);
-    } else if (_.includes([";", '"', ":", "'"], e.key)) {
-      const last =
-        ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
-      if (!last) return;
-
-      const row_index = last.row_focus!;
-      const col_index = last.column_focus!;
-      updateCell(ctx, row_index, col_index, cellInput);
-      ctx.luckysheetCellUpdate = [row_index, col_index];
-
-      cache.ignoreWriteCell = true;
-      const value = getNowDateTime(2);
-      cellInput.innerText = value;
-      // $("#luckysheet-rich-text-editor").html(value);
-      // luckysheetRangeLast($("#luckysheet-rich-text-editor")[0]);
-      handleFormulaInput(ctx, fxInput, cellInput, e.keyCode);
+    if (arrow) {
+      // Ctrl + Shift + arrow: extend to the edge of the data region
+      nav.moveToDataEdge(ctx, arrow, true);
+    } else if (e.key === "Home") {
+      nav.moveToSheetStart(ctx, true);
+    } else if (e.key === "End") {
+      nav.moveToLastUsedCell(ctx, true);
+    } else if (e.code === "Space") {
+      nav.selectCurrentRegionOrAll(ctx);
+    } else if (isSemicolonKey(e)) {
+      // Ctrl + Shift + ; insert the current time
+      if (!isAllowEdit(ctx)) return;
+      startEditingWith(
+        ctx,
+        cache,
+        cellInput,
+        fxInput,
+        currentDateOrTime(true),
+        e.keyCode
+      );
     } else if (e.code === "KeyZ") {
       // Ctrl + shift + z 重做
       handleRedo();
@@ -314,18 +422,59 @@ export function handleWithCtrlOrMetaKey(
       if ((ctx.luckysheet_select_save?.length ?? 0) > 1) {
         return;
       }
+      // Ctrl + Shift + V: Paste Special (plain paste without a copy)
+      if (openPasteSpecial(ctx)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       selectionCache.isPasteAction = true;
       e.stopPropagation();
       return;
+    } else if (e.code === "Digit4") {
+      handleCurrencyFormat(ctx, cellInput);
+    } else if (NUMBER_FORMAT_SHORTCUTS[e.code]) {
+      updateFormat(
+        ctx,
+        cellInput,
+        flowdata,
+        "ct",
+        NUMBER_FORMAT_SHORTCUTS[e.code]
+      );
+    } else if (e.code === "Digit9" || e.code === "Digit0") {
+      // Ctrl + Shift + 9 / 0: unhide rows / columns in the selection
+      if (!isAllowEdit(ctx)) return;
+      showSelected(ctx, e.code === "Digit9" ? "row" : "column");
+      e.stopPropagation();
+    } else if (e.key === "+" || e.code === "Equal") {
+      // insert rows/columns is handled by getRowColShortcutOp; otherwise
+      // leave the key to the zoom handler
+      return;
     }
-  } else if (
-    ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
-  ) {
-    handleControlPlusArrowKey(ctx, e, false);
+  } else if (arrow) {
+    // Ctrl + arrow: jump to the edge of the data region
+    nav.moveToDataEdge(ctx, arrow, false);
+  } else if (e.key === "Home") {
+    nav.moveToSheetStart(ctx, false);
+  } else if (e.key === "End") {
+    nav.moveToLastUsedCell(ctx, false);
+  } else if (e.key === "PageDown" || e.key === "PageUp") {
+    nav.switchSheet(ctx, e.key === "PageDown" ? 1 : -1);
+  } else if (e.code === "Space") {
+    nav.selectEntireColumns(ctx);
+  } else if (e.key === "Backspace") {
+    nav.scrollToActiveCell(ctx);
   } else if (e.code === "KeyB") {
     // Ctrl + B  加粗
     handleBold(ctx, cellInput);
-    // $("#luckysheet-icon-bold").click();
+  } else if (e.code === "KeyI") {
+    handleItalic(ctx, cellInput);
+  } else if (e.code === "KeyU") {
+    handleUnderline(ctx, cellInput);
+  } else if (e.code === "Digit5") {
+    handleStrikeThrough(ctx, cellInput);
+  } else if (e.code === "Digit1" || e.code === "Numpad1") {
+    openFormatCells(ctx); // Ctrl+1: Format Cells
   } else if (e.code === "KeyC") {
     // Ctrl + C  复制
     handleCopy(ctx);
@@ -338,29 +487,15 @@ export function handleWithCtrlOrMetaKey(
   } else if (e.code === "KeyH") {
     // Ctrl + H  替换
     ctx.showReplace = true;
-    //   searchReplace.init();
-
-    //   $("#luckysheet-search-replace #searchInput input").focus();
-    // } else if (e.code === "KeyI") {
-    //   // Ctrl + I  斜体
-    //   $("#luckysheet-icon-italic").click();
   } else if (e.code === "KeyV") {
     // Ctrl + V  粘贴
-    // if (isEditMode()) {
-    //   // 此模式下禁用粘贴
-    //   return;
-    // }
-
-    // if ($(event.target).hasClass("formulaInputFocus")) {
-    //   return;
-    // }
-
     if ((ctx.luckysheet_select_save?.length ?? 0) > 1) {
-      // if (isEditMode()) {
-      //   alert(locale_drag.noPaste);
-      // } else {
-      //   tooltip.info(locale_drag.noPaste, "");
-      // }
+      return;
+    }
+    // Ctrl + Alt + V: Paste Special
+    if (e.altKey && openPasteSpecial(ctx)) {
+      e.preventDefault();
+      e.stopPropagation();
       return;
     }
 
@@ -398,22 +533,12 @@ export function handleWithCtrlOrMetaKey(
       }
 
       if (has_PartMC) {
-        // if (luckysheetConfigsetting.editMode) {
-        //   alert(_locale_drag.noMerge);
-        // } else {
-        //   tooltip.info(_locale_drag.noMerge, "");
-        // }
         return;
       }
     }
 
     // 多重选区时 提示
     if (selection.length > 1) {
-      // if (isEditMode()) {
-      //   alert(locale_drag.noMulti);
-      // } else {
-      //   tooltip.info(locale_drag.noMulti, "");
-      // }
       return;
     }
 
@@ -429,179 +554,42 @@ export function handleWithCtrlOrMetaKey(
     handleUndo();
     e.stopPropagation();
     return;
-  } /* else if (e.key === "ArrowUp") {
-    // Ctrl + up  调整单元格
-    if (
-      parseInt($inputbox.css("top")) > 0 ||
-      $("#luckysheet-singleRange-dialog").is(":visible") ||
-      $("#luckysheet-multiRange-dialog").is(":visible")
-    ) {
-      return;
-    }
-
-    luckysheetMoveHighlightCell2("up", "rangeOfSelect");
-  } else if (e.key === "ArrowDown") {
-    // Ctrl + down  调整单元格
-    if (
-      parseInt($inputbox.css("top")) > 0 ||
-      $("#luckysheet-singleRange-dialog").is(":visible") ||
-      $("#luckysheet-multiRange-dialog").is(":visible")
-    ) {
-      return;
-    }
-
-    luckysheetMoveHighlightCell2("down", "rangeOfSelect");
-  } else if (e.key === "ArrowLeft") {
-    // Ctrl + top  调整单元格
-    if (
-      parseInt($inputbox.css("top")) > 0 ||
-      $("#luckysheet-singleRange-dialog").is(":visible") ||
-      $("#luckysheet-multiRange-dialog").is(":visible")
-    ) {
-      return;
-    }
-
-    luckysheetMoveHighlightCell2("left", "rangeOfSelect");
-  } else if (e.key === "ArrowRight") {
-    // Ctrl + right  调整单元格
-    if (
-      parseInt($inputbox.css("top")) > 0 ||
-      $("#luckysheet-singleRange-dialog").is(":visible") ||
-      $("#luckysheet-multiRange-dialog").is(":visible")
-    ) {
-      return;
-    }
-
-    luckysheetMoveHighlightCell2("right", "rangeOfSelect");
-  } else if (e.keyCode === 186) {
-    // Ctrl + ; 填充系统日期
-    const last =
-      ctx.luckysheet_select_save[ctx.luckysheet_select_save.length - 1];
-    const row_index = last.row_focus;
-    const col_index = last.column_focus;
-    luckysheetupdateCell(row_index, col_index, ctx.flowdata, true);
-
-    const value = getNowDateTime(1);
-    $("#luckysheet-rich-text-editor").html(value);
-    luckysheetRangeLast($("#luckysheet-rich-text-editor")[0]);
-    formula.functionInputHanddler(
-      $("#luckysheet-functionbox-cell"),
-      $("#luckysheet-rich-text-editor"),
-      e.keyCode
-    );
-  } else if (e.keyCode === 222) {
-    // Ctrl + ' 填充系统时间
-    const last =
-      ctx.luckysheet_select_save[ctx.luckysheet_select_save.length - 1];
-    const row_index = last.row_focus;
-    const col_index = last.column_focus;
-    luckysheetupdateCell(row_index, col_index, ctx.flowdata, true);
-
-    const value = getNowDateTime(2);
-    $("#luckysheet-rich-text-editor").html(value);
-    luckysheetRangeLast($("#luckysheet-rich-text-editor")[0]);
-    formula.functionInputHanddler(
-      $("#luckysheet-functionbox-cell"),
-      $("#luckysheet-rich-text-editor"),
-      e.keyCode
-    );
-  } */ else if (e.code === "KeyA") {
-    // Ctrl + A  全选
-    // $("#luckysheet-left-top").trigger("mousedown");
-    // $(document).trigger("mouseup");
-    selectAll(ctx);
-  } else if (e.code === "KeyD") {
-    if (
-      !ctx.luckysheet_select_save ||
-      ctx.luckysheet_select_save.length === 0
-    ) {
-      return;
-    }
-
+  } else if (e.code === "KeyA") {
+    // Ctrl + A: current region first, then the whole sheet
+    nav.selectCurrentRegionOrAll(ctx);
+  } else if (e.code === "KeyD" || e.code === "KeyR") {
+    // Ctrl + D / Ctrl + R: fill down / right
     e.preventDefault();
     e.stopPropagation();
-
-    const selectedRange = ctx.luckysheet_select_save[0];
-    const { row, column } = selectedRange;
-
-    if (!row || !column) return;
+    fillSelectionFromEdge(ctx, e.code === "KeyD" ? "down" : "right");
+    return;
+  } else if (isSemicolonKey(e)) {
+    // Ctrl + ; insert today's date
     if (!isAllowEdit(ctx)) return;
-
-    // Loop through selected columns
-    for (let col = column[0]; col <= column[1]; col += 1) {
-      const sourceCell = flowdata?.[row[0]]?.[col];
-
-      if (!sourceCell) continue;
-
-      const sourceValue = sourceCell.v;
-      const sourceFormula = sourceCell.f;
-
-      for (let r = row[0] + 1; r <= row[1]; r += 1) {
-        if (sourceFormula) {
-          // Adjust formula for new row references
-          const newFormula = sourceFormula.replace(
-            /(\$?[A-Z]+)(\$?)(\d+)/g,
-            (match, colRef, dollar, rowNum) => {
-              return dollar
-                ? match
-                : `${colRef}${parseInt(rowNum, 10) + (r - row[0])}`;
-            }
-          );
-
-          updateCell(ctx, r, col, null, newFormula);
-        } else {
-          updateCell(ctx, r, col, null, sourceValue);
-        }
-      }
-    }
-
-    jfrefreshgrid(ctx, null, undefined);
-  } else if (e.code === "KeyR") {
-    if (
-      !ctx.luckysheet_select_save ||
-      ctx.luckysheet_select_save.length === 0
-    ) {
-      return;
-    }
-
-    e.preventDefault();
+    startEditingWith(
+      ctx,
+      cache,
+      cellInput,
+      fxInput,
+      currentDateOrTime(false),
+      e.keyCode
+    );
+  } else if (e.code === "Digit9" || e.code === "Digit0") {
+    // Ctrl + 9 / Ctrl + 0: hide rows / columns
+    if (!isAllowEdit(ctx)) return;
+    hideSelected(ctx, e.code === "Digit9" ? "row" : "column");
     e.stopPropagation();
-
-    const selectedRange = ctx.luckysheet_select_save[0];
-    const { row, column } = selectedRange;
-
-    if (!row || !column) return;
-    if (!isAllowEdit(ctx)) return;
-
-    // Loop through selected rows
-    for (let r = row[0]; r <= row[1]; r += 1) {
-      const sourceCell = flowdata?.[r]?.[column[0]];
-
-      if (!sourceCell) continue;
-
-      const sourceValue = sourceCell.v;
-      const sourceFormula = sourceCell.f;
-
-      for (let c = column[0] + 1; c <= column[1]; c += 1) {
-        if (sourceFormula) {
-          // Adjust formula for new column references
-          const newFormula = sourceFormula.replace(
-            /(\$?[A-Z]+)(\$?)(\d+)/g,
-            (match, colRef, dollar, rowNum) => {
-              if (dollar) return match; // Keep absolute column references unchanged
-              const colIndex = colRef.charCodeAt(0) - 65 + (c - column[0]); // Convert column to index (A=0, B=1, ...)
-              return `${String.fromCharCode(65 + colIndex)}${rowNum}`; // Convert index back to column letter
-            }
-          );
-
-          updateCell(ctx, r, c, null, newFormula);
-        } else {
-          updateCell(ctx, r, c, null, sourceValue);
-        }
-      }
-    }
-
-    jfrefreshgrid(ctx, null, undefined);
+  } else if (
+    e.key === "-" ||
+    e.key === "=" ||
+    e.key === "+" ||
+    e.code === "NumpadSubtract" ||
+    e.code === "NumpadAdd"
+  ) {
+    // delete/insert rows is handled by getRowColShortcutOp and the cells
+    // dialog by getInsertDeleteCellsShortcut; otherwise leave the key to the
+    // zoom handler
+    return;
   }
 
   e.preventDefault();
@@ -619,32 +607,10 @@ function handleShiftWithArrowKey(ctx: Context, e: KeyboardEvent) {
     ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1]
   );
   ctx.luckysheet_shiftkeydown = true;
-  /*
-  if (
-    $("#luckysheet-singleRange-dialog").is(":visible") ||
-    $("#luckysheet-multiRange-dialog").is(":visible")
-  ) {
-    return;
-  }
-  */
 
   // shift + 方向键 调整选区
-  switch (e.key) {
-    case "ArrowUp":
-      moveHighlightRange(ctx, "down", -1, "rangeOfSelect");
-      break;
-    case "ArrowDown":
-      moveHighlightRange(ctx, "down", 1, "rangeOfSelect");
-      break;
-    case "ArrowLeft":
-      moveHighlightRange(ctx, "right", -1, "rangeOfSelect");
-      break;
-    case "ArrowRight":
-      moveHighlightRange(ctx, "right", 1, "rangeOfSelect");
-      break;
-    default:
-      break;
-  }
+  const arrow = ARROW_DIRECTIONS[e.key];
+  if (arrow) nav.extendSelection(ctx, arrow);
 
   e.preventDefault();
 }
@@ -661,22 +627,286 @@ export function handleArrowKey(ctx: Context, e: KeyboardEvent) {
     return;
   }
 
-  const moveCount = hideCRCount(ctx, e.key);
-  switch (e.key) {
-    case "ArrowUp":
-      moveHighlightCell(ctx, "down", -moveCount, "rangeOfSelect");
-      break;
-    case "ArrowDown":
-      moveHighlightCell(ctx, "down", moveCount, "rangeOfSelect");
-      break;
-    case "ArrowLeft":
-      moveHighlightCell(ctx, "right", -moveCount, "rangeOfSelect");
-      break;
-    case "ArrowRight":
-      moveHighlightCell(ctx, "right", moveCount, "rangeOfSelect");
-      break;
-    default:
-      break;
+  const arrow = ARROW_DIRECTIONS[e.key];
+  if (arrow) nav.moveActiveCell(ctx, arrow);
+}
+
+export type RowColShortcutOp = {
+  insertRowColOp?: {
+    type: "row" | "column";
+    index: number;
+    count: number;
+    direction: "lefttop" | "rightbottom";
+    id: string;
+  };
+  deleteRowColOp?: {
+    type: "row" | "column";
+    start: number;
+    end: number;
+    id: string;
+  };
+};
+
+/**
+ * Ctrl+- ("delete") or Ctrl+Shift+= / Ctrl++ ("insert") on the sheet with a
+ * single selected range; null for any other key or state.
+ */
+function insertDeleteShortcut(
+  ctx: Context,
+  e: KeyboardEvent,
+  cellInput?: HTMLElement | null,
+  fxInput?: HTMLElement | null
+): { mode: "insert" | "delete"; sel: Selection } | null {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return null;
+  if (isKeyFromForeignControl(e, cellInput, fxInput)) return null;
+  if (ctx.luckysheetCellUpdate.length > 0 || !ctx.sheetFocused) return null;
+  if (!_.isEmpty(ctx.contextMenu) || ctx.filterContextMenu) return null;
+  const isMinus =
+    (!e.shiftKey && (e.key === "-" || e.code === "Minus")) ||
+    e.code === "NumpadSubtract";
+  const isPlus =
+    e.key === "+" ||
+    (e.shiftKey && e.code === "Equal") ||
+    e.code === "NumpadAdd";
+  if (!isMinus && !isPlus) return null;
+  const sels = ctx.luckysheet_select_save;
+  if (!sels || sels.length !== 1) return null;
+  return { mode: isMinus ? "delete" : "insert", sel: sels[0] };
+}
+
+/**
+ * Ctrl+- / Ctrl+Shift+= (Ctrl++) on a range that is not entire rows or
+ * columns: Excel asks how to shift the cells, so the UI opens its Delete /
+ * Insert dialog. Returns which one, or null.
+ */
+export function getInsertDeleteCellsShortcut(
+  ctx: Context,
+  e: KeyboardEvent,
+  cellInput?: HTMLElement | null,
+  fxInput?: HTMLElement | null
+): "insert" | "delete" | null {
+  const hit = insertDeleteShortcut(ctx, e, cellInput, fxInput);
+  if (!hit || !isAllowEdit(ctx)) return null;
+  const { sel } = hit;
+  if (!!sel.row_select !== !!sel.column_select) return null;
+  return hit.mode;
+}
+
+/**
+ * Ctrl+- / Ctrl+Shift+= (Ctrl++) with entire rows or columns selected:
+ * returns the delete/insert operation to run, or null. The React layer runs
+ * it with the op attached so undo and collaboration see a row/column change.
+ */
+export function getRowColShortcutOp(
+  ctx: Context,
+  e: KeyboardEvent,
+  cellInput?: HTMLElement | null,
+  fxInput?: HTMLElement | null
+): RowColShortcutOp | null {
+  const hit = insertDeleteShortcut(ctx, e, cellInput, fxInput);
+  if (!hit) return null;
+  const { sel } = hit;
+  const isMinus = hit.mode === "delete";
+  let type: "row" | "column" | null = null;
+  if (sel.row_select && !sel.column_select) type = "row";
+  else if (sel.column_select && !sel.row_select) type = "column";
+  if (!type) return null;
+  if (!isAllowEdit(ctx)) return null;
+
+  const [start, end] = type === "row" ? sel.row : sel.column;
+  if (isMinus) {
+    return {
+      deleteRowColOp: { type, start, end, id: ctx.currentSheetId },
+    };
+  }
+  return {
+    insertRowColOp: {
+      type,
+      index: start,
+      count: end - start + 1,
+      direction: "lefttop",
+      id: ctx.currentSheetId,
+    },
+  };
+}
+
+export function applyRowColShortcutOp(ctx: Context, op: RowColShortcutOp) {
+  try {
+    if (op.deleteRowColOp) deleteRowCol(ctx, op.deleteRowColOp);
+    else if (op.insertRowColOp) insertRowCol(ctx, op.insertRowColOp);
+  } catch (err) {
+    // read-only rows/columns or the size limit: nothing to do
+  }
+}
+
+/**
+ * Excel's End mode: End, then an arrow jumps like Ctrl+arrow (Shift extends
+ * the selection), End, Home goes to the last used cell and End, Enter to the
+ * last filled cell of the row. Any other key leaves End mode. Returns true
+ * when the key was consumed.
+ */
+export function handleEndModeKey(ctx: Context, e: KeyboardEvent): boolean {
+  if (MODIFIER_KEYS.has(e.key)) return false;
+  if (e.key === "End" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    ctx.endMode = !ctx.endMode;
+    e.preventDefault();
+    return true;
+  }
+  if (!ctx.endMode) return false;
+  ctx.endMode = false;
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  const arrow = ARROW_DIRECTIONS[e.key];
+  if (arrow) {
+    nav.moveToDataEdge(ctx, arrow, e.shiftKey);
+  } else if (e.key === "Home") {
+    nav.moveToLastUsedCell(ctx, e.shiftKey);
+  } else if (e.key === "Enter") {
+    nav.moveToRowEnd(ctx, e.shiftKey);
+  } else {
+    return false;
+  }
+  e.preventDefault();
+  return true;
+}
+
+/**
+ * React can run a state updater twice for one key event: when a
+ * lower-priority update was pending, the key's update is replayed on the
+ * rebased state after the first result was committed (and its DOM effects,
+ * like clearing the editor, happened). Whatever an editing key reads from the
+ * DOM is therefore captured once per event.
+ */
+const EVENT_MEMO = new WeakMap<Event, Record<string, any>>();
+
+function eventMemo(e: Event) {
+  let memo = EVENT_MEMO.get(e);
+  if (!memo) {
+    memo = {};
+    EVENT_MEMO.set(e, memo);
+  }
+  return memo;
+}
+
+/**
+ * The editor as it was when `e` was first handled (missing closing
+ * parentheses added), in the shape `updateCell` reads.
+ */
+function editorSnapshot(e: Event, editor: HTMLDivElement): HTMLDivElement {
+  const memo = eventMemo(e);
+  if (!memo.editor) {
+    closeFormulaParens(editor);
+    const clone = editor.cloneNode(true) as HTMLDivElement;
+    memo.editor = {
+      innerText: editor.innerText,
+      innerHTML: editor.innerHTML,
+      textContent: editor.textContent,
+      querySelectorAll: (selector: string) => clone.querySelectorAll(selector),
+    };
+  }
+  return memo.editor;
+}
+
+/**
+ * Keys while a cell is being edited, in the in-cell editor or the formula
+ * bar (other keys are left to the editor):
+ *
+ * - arrows: move the caret in Edit mode and in the formula bar, pick a
+ *   reference in Point mode (Shift extends, Ctrl jumps), otherwise commit
+ *   and move the active cell (Enter mode);
+ * - Enter / Shift+Enter / Tab / Shift+Tab: commit and move, wrapping inside
+ *   a multi-cell selection; Ctrl+Enter fills the selection;
+ * - F2 toggles Edit and Enter mode; Esc cancels.
+ */
+export function handleEditingKeyDown(
+  ctx: Context,
+  cellInput: HTMLDivElement,
+  fxInput: HTMLDivElement | null | undefined,
+  e: KeyboardEvent,
+  canvas?: CanvasRenderingContext2D
+) {
+  const { key } = e;
+  if (MODIFIER_KEYS.has(key)) return;
+  if (isKeyFromForeignControl(e, cellInput, fxInput)) return;
+  const target = e.target as Node | null;
+  const fromFx =
+    !!fxInput && !!target && (target === fxInput || fxInput.contains(target));
+  const editor = fromFx ? fxInput! : cellInput;
+  const mirror = fromFx ? cellInput : fxInput;
+  const allowEdit = isAllowEdit(ctx);
+  const arrow = ARROW_DIRECTIONS[key];
+
+  const memo = eventMemo(e);
+  if (arrow) {
+    memo.action ??= getEditorArrowAction(ctx, e, editor, fromFx);
+    if (memo.action === "point") {
+      if (memo.point === undefined) {
+        memo.point = movePointReference(
+          ctx,
+          editor,
+          mirror,
+          arrow,
+          e.shiftKey,
+          e.ctrlKey || e.metaKey
+        )
+          ? _.cloneDeep(ctx.editState)
+          : null;
+      } else if (memo.point) {
+        // replayed event: the editor already shows the reference
+        ctx.editState = _.cloneDeep(memo.point);
+      }
+      if (memo.point) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    } else if (memo.action === "commit" && allowEdit) {
+      commitEditAndMove(ctx, editorSnapshot(e, editor), arrow, "arrow", canvas);
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    return;
+  }
+
+  // anything typed after a picked reference ends Point mode
+  endPointMode(ctx);
+  // Point mode across sheets: commit or cancel on the edited cell's sheet
+  if (
+    (key === "Enter" && !e.altKey && !e.metaKey) ||
+    key === "Tab" ||
+    key === "Escape"
+  ) {
+    returnToEditSheet(ctx, editor);
+  }
+
+  if (key === "Enter") {
+    if (!allowEdit) return;
+    handleGlobalEnter(ctx, editorSnapshot(e, editor), e, canvas);
+    e.stopPropagation();
+    // after committing from the formula bar the grid takes the keys again
+    if (fromFx && ctx.luckysheetCellUpdate.length === 0) cellInput.focus();
+  } else if (key === "Tab") {
+    if (!allowEdit) return;
+    commitEditAndMove(
+      ctx,
+      editorSnapshot(e, editor),
+      e.shiftKey ? "left" : "right",
+      "enter",
+      canvas
+    );
+    e.preventDefault();
+    e.stopPropagation();
+    if (fromFx) cellInput.focus();
+  } else if (key === "F2" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    toggleEditMode(ctx);
+    e.preventDefault();
+    e.stopPropagation();
+  } else if (key === "F4") {
+    e.preventDefault();
+  } else if (key === "Escape") {
+    cancelNormalSelected(ctx);
+    clearEditMode(ctx);
+    moveHighlightCell(ctx, "down", 0, "rangeOfSelect");
+    e.preventDefault();
+    e.stopPropagation();
   }
 }
 
@@ -700,86 +930,25 @@ export function handleGlobalKeyDown(
   if (kstr === "Escape" && !!ctx.luckysheet_selection_range) {
     ctx.luckysheet_selection_range = [];
   }
+  if (kstr === "Escape" && ctx.luckysheetPaintModelOn) cancelPaintModel(ctx);
 
   const allowEdit = isAllowEdit(ctx);
 
   if (
-    // $("#luckysheet-modal-dialog-mask").is(":visible") ||
-    // $(event.target).hasClass("luckysheet-mousedown-cancel") ||
-    // $(event.target).hasClass("sp-input") ||
     ctx.luckysheetCellUpdate.length > 0 &&
-    kstr !== "Enter" &&
-    kstr !== "Tab" &&
-    kstr !== "ArrowUp" &&
-    kstr !== "ArrowDown" &&
-    kstr !== "ArrowLeft" &&
-    kstr !== "ArrowRight"
+    (e.ctrlKey || e.metaKey) &&
+    !e.altKey &&
+    handleEditModeShortcut(ctx, e, cellInput)
   ) {
-    // const anchor = $(window.getSelection().anchorNode);
-
-    // if (
-    //   anchor.parent().is("#luckysheet-helpbox-cell") ||
-    //   anchor.is("#luckysheet-helpbox-cell")
-    // ) {
-    //   if (kcode === keycode.ENTER) {
-    //     const helpboxValue = $("#luckysheet-helpbox-cell").text();
-
-    //     if (formula.iscelldata(helpboxValue)) {
-    //       const cellrange = formula.getcellrange(helpboxValue);
-
-    //       ctx.luckysheet_select_save = [
-    //         {
-    //           row: cellrange.row,
-    //           column: cellrange.column,
-    //           row_focus: cellrange.row[0],
-    //           column_focus: cellrange.column[0],
-    //         },
-    //       ];
-    //       selectHightlightShow();
-
-    //       $("#luckysheet-helpbox-cell").blur();
-
-    //       const scrollLeft = $("#luckysheet-cell-main").scrollLeft();
-    //       const scrollTop = $("#luckysheet-cell-main").scrollTop();
-    //       const winH = $("#luckysheet-cell-main").height();
-    //       const winW = $("#luckysheet-cell-main").width();
-
-    //       const row = ctx.visibledatarow[cellrange.row[1]];
-    //       const row_pre =
-    //         cellrange.row[0] - 1 === -1
-    //           ? 0
-    //           : ctx.visibledatarow[cellrange.row[0] - 1];
-    //       const col = ctx.visibledatacolumn[cellrange.column[1]];
-    //       const col_pre =
-    //         cellrange.column[0] - 1 === -1
-    //           ? 0
-    //           : ctx.visibledatacolumn[cellrange.column[0] - 1];
-
-    //       if (col - scrollLeft - winW + 20 > 0) {
-    //         $("#luckysheet-scrollbar-x").scrollLeft(col - winW + 20);
-    //       } else if (col_pre - scrollLeft - 20 < 0) {
-    //         $("#luckysheet-scrollbar-x").scrollLeft(col_pre - 20);
-    //       }
-
-    //       if (row - scrollTop - winH + 20 > 0) {
-    //         $("#luckysheet-scrollbar-y").scrollTop(row - winH + 20);
-    //       } else if (row_pre - scrollTop - 20 < 0) {
-    //         $("#luckysheet-scrollbar-y").scrollTop(row_pre - 20);
-    //       }
-    //     }
-    //   }
-    // }
-
+    e.stopPropagation();
     return;
   }
 
-  // if (
-  //   $("#luckysheet-modal-dialog-mask").is(":visible") ||
-  //   $(event.target).hasClass("luckysheet-mousedown-cancel") ||
-  //   $(event.target).hasClass("formulaInputFocus")
-  // ) {
-  //   return;
-  // }
+  if (ctx.luckysheetCellUpdate.length > 0) {
+    // Enter / Edit / Point mode keys of the cell editor and formula bar
+    handleEditingKeyDown(ctx, cellInput, fxInput, e, canvas);
+    return;
+  }
 
   // Toggle focus with Ctrl + Shift + F (independent of sheet focus state)
   if (e.ctrlKey && e.shiftKey && kstr === "F") {
@@ -812,22 +981,42 @@ export function handleGlobalKeyDown(
   if (!ctx.sheetFocused) {
     return;
   }
+  // Keys typed into toolbar buttons, menus or dialog controls are theirs
+  if (isKeyFromForeignControl(e, cellInput, fxInput)) {
+    return;
+  }
+  // shortcuts registered by features (modules/extensions.ts)
+  if (runShortcut(ctx, e, ctx.luckysheetCellUpdate.length > 0)) {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+  // Ctrl+F / Ctrl+H / Ctrl+G / F5: Find, Replace, Go To (navigation stream)
+  if (handleNavigationShortcut(ctx, e)) {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+  if (handleEndModeKey(ctx, e)) {
+    e.stopPropagation();
+    return;
+  }
   if (kstr === "Enter") {
-    if (!allowEdit) return;
+    if (!allowEdit && ctx.luckysheetCellUpdate.length > 0) return;
     handleGlobalEnter(ctx, cellInput, e, canvas);
   } else if (kstr === "Tab") {
     if (ctx.luckysheetCellUpdate.length > 0) {
       return;
     }
 
-    if (e.shiftKey) {
-      moveHighlightCell(ctx, "right", -1, "rangeOfSelect");
-    } else {
-      moveHighlightCell(ctx, "right", 1, "rangeOfSelect");
-    }
+    // Tab / Shift+Tab: move right / left, wrapping inside a selection
+    nav.moveAfterEnter(ctx, e.shiftKey ? "left" : "right");
     e.preventDefault();
   } else if (kstr === "F2") {
-    if (!allowEdit) return;
+    if (!allowEdit) {
+      checkProtection(ctx, "editCells");
+      return;
+    }
     if (ctx.luckysheetCellUpdate.length > 0) {
       return;
     }
@@ -840,13 +1029,8 @@ export function handleGlobalKeyDown(
     const col_index = last.column_focus;
 
     ctx.luckysheetCellUpdate = [row_index, col_index];
-    e.preventDefault();
-  } else if (kstr === "F4" && ctx.luckysheetCellUpdate.length > 0) {
-    // TODO formula.setfreezonFuc(event);
-    e.preventDefault();
-  } else if (kstr === "Escape" && ctx.luckysheetCellUpdate.length > 0) {
-    cancelNormalSelected(ctx);
-    moveHighlightCell(ctx, "down", 0, "rangeOfSelect");
+    // F2 edits in Edit mode: arrows move the caret
+    setEditMode(ctx, "edit");
     e.preventDefault();
   } else {
     if (e.ctrlKey || e.metaKey) {
@@ -861,7 +1045,11 @@ export function handleGlobalKeyDown(
       );
       return;
     }
-    if (
+    if (e.altKey && (kstr === "PageDown" || kstr === "PageUp")) {
+      // Alt + PageDown / PageUp: one screen right / left
+      nav.moveByPage(ctx, "col", kstr === "PageDown" ? 1 : -1, e.shiftKey);
+      e.preventDefault();
+    } else if (
       e.shiftKey &&
       (kstr === "ArrowUp" ||
         kstr === "ArrowDown" ||
@@ -869,6 +1057,16 @@ export function handleGlobalKeyDown(
         kstr === "ArrowRight")
     ) {
       handleShiftWithArrowKey(ctx, e);
+    } else if (e.shiftKey && e.code === "Space") {
+      // Shift + Space: select entire rows
+      nav.selectEntireRows(ctx);
+      e.preventDefault();
+    } else if (kstr === "PageDown" || kstr === "PageUp") {
+      nav.moveByPage(ctx, "row", kstr === "PageDown" ? 1 : -1, e.shiftKey);
+      e.preventDefault();
+    } else if (kstr === "Home") {
+      nav.moveHome(ctx, e.shiftKey);
+      e.preventDefault();
     } else if (kstr === "Escape") {
       ctx.contextMenu = {};
       // if (menuButton.luckysheetPaintModelOn) {
@@ -879,22 +1077,47 @@ export function handleGlobalKeyDown(
       // }
 
       // selectHightlightShow();
-    } else if (
-      kstr.toLowerCase() === "delete" ||
-      kstr.toLowerCase() === "backspace"
-    ) {
-      if (!allowEdit) return;
+    } else if (kstr === "Delete") {
+      // Delete: clear the contents of the selection (formats are kept)
+      if (!allowEdit) {
+        checkProtection(ctx, "editCells");
+        return;
+      }
       if (ctx.activeImg != null) {
         removeActiveImage(ctx);
-      } else {
-        deleteSelectedCellText(ctx);
+      } else if (deleteSelectedCellText(ctx) === "success") {
+        // grouped sheets: clear the same cells on each of them
+        clearGroupedSheetsContents(ctx);
       }
 
       jfrefreshgrid(ctx, null, undefined);
       e.preventDefault();
-      // } else if (kstr === "Backspace" && imageCtrl.currentImgId != null) {
-      //   imageCtrl.removeImgItem();
-      //   e.preventDefault();
+    } else if (kstr === "Backspace") {
+      // Backspace: clear the active cell and start editing it (Esc restores)
+      if (!allowEdit) {
+        checkProtection(ctx, "editCells");
+        return;
+      }
+      if (ctx.activeImg != null) {
+        removeActiveImage(ctx);
+        jfrefreshgrid(ctx, null, undefined);
+      } else {
+        const active = nav.getActiveCell(ctx);
+        if (active) {
+          ctx.luckysheetCellUpdate = [active[0], active[1]];
+          setEditMode(ctx, "enter");
+          const memo = eventMemo(e);
+          if (!memo.started) {
+            // not again when React replays the event (see eventMemo)
+            memo.started = true;
+            if (cache) cache.overwriteCell = true;
+            cellInput.innerText = "";
+            cellInput.innerHTML = "";
+            handleFormulaInput(ctx, fxInput, cellInput, kcode);
+          }
+        }
+      }
+      e.preventDefault();
     } else if (
       kstr === "ArrowUp" ||
       kstr === "ArrowDown" ||
@@ -919,7 +1142,10 @@ export function handleGlobalKeyDown(
       kcode === 0 ||
       (e.ctrlKey && kcode === 86)
     ) {
-      if (!allowEdit) return;
+      if (!allowEdit) {
+        checkProtection(ctx, "editCells");
+        return;
+      }
       if (
         String.fromCharCode(kcode) != null &&
         !_.isEmpty(ctx.luckysheet_select_save) && // $("#luckysheet-cell-selected").is(":visible") &&
@@ -935,17 +1161,16 @@ export function handleGlobalKeyDown(
         const col_index = last.column_focus;
 
         ctx.luckysheetCellUpdate = [row_index, col_index];
-        cache.overwriteCell = true;
-
-        // if (kstr === "Backspace") {
-        //   $("#luckysheet-rich-text-editor").html("<br/>");
-        // }
-        handleFormulaInput(ctx, fxInput, cellInput, kcode);
-        // formula.functionInputHanddler(
-        //   $("#luckysheet-functionbox-cell"),
-        //   $("#luckysheet-rich-text-editor"),
-        //   kcode
-        // );
+        // typing starts Enter mode: arrows commit and move
+        setEditMode(ctx, "enter");
+        const memo = eventMemo(e);
+        if (!memo.started) {
+          // a replayed event (see eventMemo) must not flag the next edit
+          // session to start empty
+          memo.started = true;
+          cache.overwriteCell = true;
+          handleFormulaInput(ctx, fxInput, cellInput, kcode);
+        }
       }
     }
   }

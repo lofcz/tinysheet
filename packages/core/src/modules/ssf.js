@@ -1,7 +1,6 @@
 /* eslint-disable */
 import numeral from "numeral";
 
-const JAN_1_1900 = 1;
 const DEC_31_9999 = 2958465;
 
 var SSF = {};
@@ -36,8 +35,21 @@ const make_ssf = function make_ssf(SSF) {
     return t.length >= d ? t : t + fill(" ", d - t.length);
   }
 
+  /* Excel rounds half away from zero, on the decimal representation */
+  function rround(val, d) {
+    d = d || 0;
+    var a = Math.abs(val),
+      r;
+    var str = "" + a;
+    if (str.indexOf("e") === -1)
+      r = Number(Math.round(Number(str + "e" + d)) + "e-" + d);
+    if (str.indexOf("e") !== -1 || isNaN(r))
+      r = Math.round(a * Math.pow(10, d)) / Math.pow(10, d);
+    return val < 0 ? -r : r;
+  }
+
   function pad0r1(v, d) {
-    var t = "" + Math.round(v);
+    var t = "" + rround(v);
     return t.length >= d ? t : fill("0", d - t.length) + t;
   }
 
@@ -49,7 +61,7 @@ const make_ssf = function make_ssf(SSF) {
 
   function pad0r(v, d) {
     if (v > p2_32 || v < -p2_32) return pad0r1(v, d);
-    var i = Math.round(v);
+    var i = rround(v);
     return pad0r2(i, d);
   }
 
@@ -170,6 +182,38 @@ const make_ssf = function make_ssf(SSF) {
     '_("$"* #,##0.00_);_("$"* \\(#,##0.00\\);_("$"* "-"??_);_(@_)';
 
   function frac(x, D, mixed) {
+    if (D <= 99999) return frac_best(x, D, mixed);
+    return frac_cf(x, D, mixed);
+  }
+
+  function frac_best(x, D, mixed) {
+    var sgn = x < 0 ? -1 : 1;
+    var ax = x * sgn;
+    var whole = mixed ? Math.floor(ax) : 0;
+    var B = ax - whole;
+    var bestP = 0,
+      bestQ = 1,
+      bestErr = Infinity;
+    for (var q = 1; q <= D; ++q) {
+      var p = Math.round(B * q);
+      var err = Math.abs(B - p / q);
+      if (err < bestErr - 1e-12) {
+        bestErr = err;
+        bestP = p;
+        bestQ = q;
+        if (err === 0) break;
+      }
+    }
+    if (mixed && bestP === bestQ) {
+      ++whole;
+      bestP = 0;
+    }
+    /* callers pass the absolute value; keep the sign convention anyway */
+    if (!mixed) return [0, sgn * bestP, bestQ];
+    return [sgn * whole, bestP, bestQ];
+  }
+
+  function frac_cf(x, D, mixed) {
     var sgn = x < 0 ? -1 : 1;
     var B = x * sgn;
     var P_2 = 0,
@@ -233,9 +277,12 @@ const make_ssf = function make_ssf(SSF) {
       minutes = minutePart;
 
       if (
-        isNaN(hours) || isNaN(minutes) ||
-        hours < 0 || hours > 23 ||
-        minutes < 0 || minutes >= 60
+        isNaN(hours) ||
+        isNaN(minutes) ||
+        hours < 0 ||
+        hours > 23 ||
+        minutes < 0 ||
+        minutes >= 60
       ) {
         return NaN;
       }
@@ -246,7 +293,7 @@ const make_ssf = function make_ssf(SSF) {
   }
 
   function parse_date_code(v, opts, b2) {
-    if (v > DEC_31_9999 || v < JAN_1_1900) return null;
+    if (v > DEC_31_9999 || v < 0) return null;
     var date = v | 0,
       time = Math.floor(86400 * (v - date)),
       dow = 0;
@@ -290,7 +337,7 @@ const make_ssf = function make_ssf(SSF) {
       if (b2) dow = fix_hijri(d, dout);
     }
 
-    if (v?.includes?.(':') && isNaN(time)) {
+    if (v?.includes?.(":") && isNaN(time)) {
       time = convert_to_seconds(v);
     }
 
@@ -368,8 +415,10 @@ const make_ssf = function make_ssf(SSF) {
         o;
       if (V >= -4 && V <= -1) o = v.toPrecision(10 + V);
       else if (Math.abs(V) <= 9) o = small_exp(v);
-      else if (V === 10) o = v.toFixed(10).substr(0, 12);
-      else o = large_exp(v);
+      else if (V === 10) {
+        o = "" + rround(v, 0);
+        if (o.length > (v < 0 ? 12 : 11)) o = large_exp(v);
+      } else o = large_exp(v);
       return strip_decimal(normalize_exp(o.toUpperCase()));
     }
     return general_fmt_num_base;
@@ -578,7 +627,8 @@ const make_ssf = function make_ssf(SSF) {
 
     function write_num_exp(fmt, val) {
       var o;
-      var idx = fmt.indexOf("E") - fmt.indexOf(".") - 1;
+      var idx =
+        fmt.indexOf(".") === -1 ? 0 : fmt.indexOf("E") - fmt.indexOf(".") - 1;
       if (fmt.match(/^#+0.0E\+0$/)) {
         if (val == 0) return "0.0E+0";
         else if (val < 0) return "-" + write_num_exp(fmt, -val);
@@ -621,7 +671,7 @@ const make_ssf = function make_ssf(SSF) {
 
     function write_num_f1(r, aval, sign) {
       var den = parseInt(r[4], 10),
-        rr = Math.round(aval * den),
+        rr = rround(aval * den),
         base = Math.floor(rr / den);
       var myn = rr - base * den,
         myd = den;
@@ -666,8 +716,7 @@ const make_ssf = function make_ssf(SSF) {
     }
 
     function rnd(val, d) {
-      var dd = Math.pow(10, d);
-      return "" + Math.round(val * dd) / dd;
+      return "" + rround(val, d);
     }
 
     function dec(val, d) {
@@ -746,11 +795,14 @@ const make_ssf = function make_ssf(SSF) {
       if ((r = fmt.match(/^#{1,3},##0(\.?)$/)))
         return sign + commaify(pad0r(aval, 0));
       if ((r = fmt.match(/^#,##0\.([#0]*0)$/))) {
-        return val < 0
-          ? "-" + write_num_flt(type, fmt, -val)
-          : commaify("" + (Math.floor(val) + carry(val, r[1].length))) +
-              "." +
-              pad0(dec(val, r[1].length), r[1].length);
+        if (val < 0) return "-" + write_num_flt(type, fmt, -val);
+        var rv = rround(val, r[1].length),
+          ip = Math.floor(rv);
+        return (
+          commaify("" + ip) +
+          "." +
+          pad0(Math.round((rv - ip) * Math.pow(10, r[1].length)), r[1].length)
+        );
       }
       if ((r = fmt.match(/^#,#*,#0/)))
         return write_num_flt(type, fmt.replace(/^#,#*,/, ""), val);
@@ -802,7 +854,9 @@ const make_ssf = function make_ssf(SSF) {
       if ((r = fmt.match(/^([#0?]+)\.([#0]+)$/))) {
         o =
           "" +
-          val.toFixed(Math.min(r[2].length, 10)).replace(/([^0])0+$/, "$1");
+          rround(val, Math.min(r[2].length, 10))
+            .toFixed(Math.min(r[2].length, 10))
+            .replace(/([^0])0+$/, "$1");
         ri = o.indexOf(".");
         var lres = fmt.indexOf(".") - ri,
           rres = fmt.length - o.length - lres;
@@ -859,7 +913,8 @@ const make_ssf = function make_ssf(SSF) {
 
     function write_num_exp2(fmt, val) {
       var o;
-      var idx = fmt.indexOf("E") - fmt.indexOf(".") - 1;
+      var idx =
+        fmt.indexOf(".") === -1 ? 0 : fmt.indexOf("E") - fmt.indexOf(".") - 1;
       if (fmt.match(/^#+0.0E\+0$/)) {
         if (val == 0) return "0.0E+0";
         else if (val < 0) return "-" + write_num_exp2(fmt, -val);
@@ -1081,7 +1136,7 @@ const make_ssf = function make_ssf(SSF) {
           i++;
           break;
         case '"':
-          for (; /*cc=*/ fmt.charCodeAt(++i) !== 34 && i < fmt.length; ) {
+          for (; /*cc=*/ fmt.charCodeAt(++i) !== 34 && i < fmt.length;) {
             /*empty*/
           }
           ++i;
@@ -1206,7 +1261,6 @@ const make_ssf = function make_ssf(SSF) {
           /* Literal text */ for (
             o = "";
             (cc = fmt.charCodeAt(++i)) !== 34 && i < fmt.length;
-
           )
             o += String.fromCharCode(cc);
           out[out.length] = {
@@ -1330,7 +1384,8 @@ const make_ssf = function make_ssf(SSF) {
             };
             lst = o.charAt(1);
           } else if (o.indexOf("$") > -1) {
-            o = (o.match(/\$([^-\[\]]*)/) || [])[1] || "$";
+            var cm = o.match(/\$([^-\[\]]*)/);
+            o = cm ? cm[1] : "$";
             if (!fmt_is_date(fmt))
               out[out.length] = {
                 t: "t",
@@ -1720,8 +1775,8 @@ const make_ssf = function make_ssf(SSF) {
       return chkcond(v, m1)
         ? [l, fmt[0]]
         : chkcond(v, m2)
-        ? [l, fmt[1]]
-        : [l, fmt[m1 != null && m2 != null ? 2 : 1]];
+          ? [l, fmt[1]]
+          : [l, fmt[m1 != null && m2 != null ? 2 : 1]];
     }
     return [l, ff];
   }
@@ -1872,6 +1927,8 @@ const make_ssf = function make_ssf(SSF) {
       }
     }
 
+    if (typeof v === "number" && isFinite(v) && v !== 0)
+      v = Number(v.toPrecision(15));
     if (isgeneral(sfmt, 0)) return general_fmt(v, o);
     if (v instanceof Date) v = datenum_local(v, o.date1904);
     var f = choose_fmt(sfmt, v);
@@ -1911,6 +1968,26 @@ const make_ssf = function make_ssf(SSF) {
   };
   SSF.init_table = init_table;
   SSF.format = format;
+  SSF._choose = choose_fmt;
+  /* Replace month / weekday names (e.g. for a locale). Each month entry is
+     [initial, short, long]; each day entry is [short, long]. */
+  SSF.set_names = function set_names(opts) {
+    var i;
+    if (opts && opts.months && opts.months.length === 12)
+      for (i = 0; i < 12; ++i) months[i] = opts.months[i].slice();
+    if (opts && opts.days && opts.days.length === 7)
+      for (i = 0; i < 7; ++i) days[i] = opts.days[i].slice();
+  };
+  SSF.get_names = function get_names() {
+    return {
+      months: months.map(function (m) {
+        return m.slice();
+      }),
+      days: days.map(function (d) {
+        return d.slice();
+      }),
+    };
+  };
 };
 make_ssf(SSF);
 

@@ -357,6 +357,16 @@ export interface IfortunesheetDataVerificationValue {
   prohibitInput: boolean;
   hintShow: boolean;
   hintText: string;
+  hintValue?: string;
+  hintTitle?: string;
+  errorStyle?: "stop" | "warning" | "information";
+  errorTitle?: string;
+  errorMessage?: string;
+  ignoreBlank?: boolean;
+  /** Top-left cell of the rule's range: relative references are relative to it. */
+  anchor?: { r: number; c: number };
+  /** Dropdown rules: false hides the in-cell arrow (xlsx showDropDown="1"). */
+  showDropdown?: boolean;
 }
 
 export type IfortunesheetDataVerificationType =

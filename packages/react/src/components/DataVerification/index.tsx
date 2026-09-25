@@ -1,667 +1,550 @@
 import _ from "lodash";
 import {
-  getDropdownList,
-  getFlowdata,
-  getRangeByTxt,
-  getRangetxt,
-  getSheetIndex,
-  locale,
-  setCellValue,
   confirmMessage,
+  clearDataVerificationDialog,
+  confirmDataVerification,
+  dataToolsLocale,
+  initDataVerificationDialog,
+  locale,
+  toAbsoluteReference,
 } from "@lofcz/tinysheet-core";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import SVGIcon from "../SVGIcon";
 import "./index.css";
+import "./dataTools.css";
+import DtCheck from "./DtCheck";
 
-const DataVerification: React.FC = () => {
+const NUMERIC_TYPES = [
+  "number",
+  "number_integer",
+  "number_decimal",
+  "date",
+  "time",
+  "text_length",
+];
+
+const OPERATORS = [
+  "between",
+  "notBetween",
+  "equal",
+  "notEqualTo",
+  "moreThanThe",
+  "lessThan",
+  "greaterOrEqualTo",
+  "lessThanOrEqualTo",
+];
+
+const DATE_ALIASES: Record<string, string> = {
+  earlierThan: "lessThan",
+  noEarlierThan: "greaterOrEqualTo",
+  laterThan: "moreThanThe",
+  noLaterThan: "lessThanOrEqualTo",
+};
+
+const ALLOW_TYPES = [
+  "any",
+  "number_integer",
+  "number_decimal",
+  "dropdown",
+  "date",
+  "time",
+  "text_length",
+  "custom",
+  "checkbox",
+  "text_content",
+  "validity",
+];
+
+type Field = "rangeTxt" | "value1" | "value2";
+
+/**
+ * Excel's Data Validation dialog: Settings, Input Message and Error Alert
+ * tabs over `ctx.dataVerification.dataRegulation`.
+ *
+ * `keepState` keeps the settings already in the context (the rules sidebar
+ * prepares them before opening the dialog).
+ */
+const DataVerification: React.FC<{ keepState?: boolean }> = ({ keepState }) => {
   const { context, setContext } = useContext(WorkbookContext);
-  const { showDialog, hideDialog } = useDialog();
-  const { dataVerification, toolbar, button, generalDialog } = locale(context);
-  const [numberCondition] = useState<string[]>([
-    "between",
-    "notBetween",
-    "equal",
-    "notEqualTo",
-    "moreThanThe",
-    "lessThan",
-    "greaterOrEqualTo",
-    "lessThanOrEqualTo",
-  ]);
+  const { hideDialog } = useDialog();
+  const { dataVerification: dvLocale, generalDialog } = locale(context);
+  const t = dataToolsLocale(context).dataValidation;
+  const [tab, setTab] = useState<"settings" | "input" | "error">("settings");
+  const [error, setError] = useState<string>("");
+  const reg = context.dataVerification?.dataRegulation as any;
 
-  const [dateCondition] = useState<string[]>([
-    "between",
-    "notBetween",
-    "equal",
-    "notEqualTo",
-    "earlierThan",
-    "noEarlierThan",
-    "laterThan",
-    "noLaterThan",
-  ]);
+  useEffect(() => {
+    setContext((ctx) => {
+      const pick = ctx.rangeDialog?.type ?? "";
+      const regulation = ctx.dataVerification?.dataRegulation as any;
+      if (pick.startsWith("dv:") && regulation) {
+        // back from the range picker: fill the field it was opened for
+        const field = pick.slice(3) as Field;
+        const picked = ctx.rangeDialog!.rangeTxt;
+        if (picked) {
+          regulation[field] =
+            field === "rangeTxt" ? picked : `=${toAbsoluteReference(picked)}`;
+        }
+        ctx.rangeDialog!.type = "";
+        ctx.rangeDialog!.rangeTxt = "";
+        return;
+      }
+      if (!keepState || !regulation) initDataVerificationDialog(ctx);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // 开启鼠标选区
-  const dataSelectRange = useCallback(
-    (type: string, value: string) => {
+  const update = useCallback(
+    (patch: Record<string, any>) => {
+      setError("");
+      setContext((ctx) => {
+        const regulation = ctx.dataVerification?.dataRegulation as any;
+        if (regulation) Object.assign(regulation, patch);
+      });
+    },
+    [setContext]
+  );
+
+  const pickRange = useCallback(
+    (field: Field) => {
       hideDialog();
       setContext((ctx) => {
-        ctx.rangeDialog!.show = true;
-        ctx.rangeDialog!.type = type;
-        ctx.rangeDialog!.rangeTxt = value;
+        ctx.rangeDialog = {
+          show: true,
+          type: `dv:${field}`,
+          rangeTxt: "",
+          singleSelect: false,
+        };
       });
     },
     [hideDialog, setContext]
   );
 
-  // 确定和取消按钮
-  const btn = useCallback(
-    (type: string) => {
-      if (type === "confirm") {
-        setContext((ctx) => {
-          const isPass = confirmMessage(ctx, generalDialog, dataVerification);
-          if (isPass) {
-            const range = getRangeByTxt(
-              ctx,
-              ctx.dataVerification?.dataRegulation?.rangeTxt as string
-            );
-            if (range.length === 0) {
-              return;
-            }
-            const regulation = ctx.dataVerification!.dataRegulation!;
-            const verifacationT = regulation?.type;
-            const { value1 } = regulation;
-            const item = {
-              ...regulation,
-              checked: false, // checkbox默认在单元格中false为未选中，true为选中
-            };
-            if (verifacationT === "dropdown") {
-              const list = getDropdownList(ctx, value1);
-              item.value1 = list.join(",");
-            }
-            const currentDataVerification =
-              ctx.luckysheetfile[
-                getSheetIndex(ctx, ctx.currentSheetId) as number
-              ].dataVerification ?? {};
+  const onOk = useCallback(() => {
+    // check on a copy first so errors show inline, keeping the dialog open
+    const probe = { ...context, warnDialog: undefined } as any;
+    if (!confirmMessage(probe, generalDialog, dvLocale)) {
+      setError(probe.warnDialog || t.invalidValue);
+      return;
+    }
+    setContext((ctx) => {
+      confirmDataVerification(ctx, generalDialog, dvLocale);
+    });
+    hideDialog();
+  }, [context, dvLocale, generalDialog, hideDialog, setContext, t]);
 
-            const str = range[range.length - 1]?.row[0];
-            const edr = range[range.length - 1]?.row[1];
-            const stc = range[range.length - 1]?.column[0];
-            const edc = range[range.length - 1]?.column[1];
-            const d = getFlowdata(ctx);
-            if (
-              !d ||
-              _.isNil(str) ||
-              _.isNil(stc) ||
-              _.isNil(edr) ||
-              _.isNil(edc)
-            )
-              return;
-            for (let r = str; r <= edr; r += 1) {
-              for (let c = stc; c <= edc; c += 1) {
-                const key = `${r}_${c}`;
-                currentDataVerification[key] = item;
-                if (regulation.type === "checkbox") {
-                  setCellValue(ctx, r, c, d, item.value2);
-                }
-              }
-            }
-            ctx.luckysheetfile[
-              getSheetIndex(ctx, ctx.currentSheetId) as number
-            ].dataVerification = currentDataVerification;
-          }
-        });
-      } else if (type === "delete") {
-        setContext((ctx) => {
-          const range = getRangeByTxt(
-            ctx,
-            ctx.dataVerification?.dataRegulation?.rangeTxt as string
-          );
-          if (range.length === 0) {
-            showDialog(generalDialog.noSeletionError, "ok");
-            return;
-          }
-          const currentDataVerification =
-            ctx.luckysheetfile[getSheetIndex(ctx, ctx.currentSheetId) as number]
-              .dataVerification ?? {};
-          const str = range[range.length - 1]?.row[0];
-          const edr = range[range.length - 1]?.row[1];
-          const stc = range[range.length - 1]?.column[0];
-          const edc = range[range.length - 1]?.column[1];
-          if (_.isNil(str) || _.isNil(stc) || _.isNil(edr) || _.isNil(edc))
-            return;
-          for (let r = str; r <= edr; r += 1) {
-            for (let c = stc; c <= edc; c += 1) {
-              delete currentDataVerification[`${r}_${c}`];
-            }
-          }
-        });
-      }
-      hideDialog();
-    },
-    [dataVerification, generalDialog, hideDialog, setContext, showDialog]
+  const onClearAll = useCallback(() => {
+    setContext((ctx) => {
+      clearDataVerificationDialog(ctx);
+    });
+    hideDialog();
+  }, [hideDialog, setContext]);
+
+  const onCancel = useCallback(() => {
+    setContext((ctx) => {
+      if (ctx.dataVerification) ctx.dataVerification.editingRuleId = undefined;
+    });
+    hideDialog();
+  }, [hideDialog, setContext]);
+
+  if (!reg) return null;
+
+  const type: string = reg.type ?? "any";
+  const op = DATE_ALIASES[reg.type2] ?? reg.type2;
+  const twoValues = op === "between" || op === "notBetween";
+
+  const rangeInput = (
+    field: Field,
+    value: string,
+    placeholder?: string,
+    id?: string
+  ) => (
+    <div className="fortune-dt-input-group">
+      <input
+        id={id}
+        className="fortune-dt-input"
+        spellCheck={false}
+        value={value ?? ""}
+        placeholder={placeholder}
+        onChange={(e) => update({ [field]: e.target.value })}
+      />
+      <div
+        className="fortune-dt-picker"
+        role="button"
+        tabIndex={0}
+        aria-label={dvLocale.selectCellRange}
+        title={dvLocale.selectCellRange}
+        onClick={() => pickRange(field)}
+      >
+        <SVGIcon name="tab" width={16} height={16} />
+      </div>
+    </div>
   );
 
-  // 初始化
-  useEffect(() => {
-    setContext((ctx) => {
-      let rangeT = "";
+  const boundLabels = (() => {
+    if (type === "date") return [t.startDate, t.endDate, t.date];
+    if (type === "time") return [t.startTime, t.endTime, t.time];
+    if (type === "text_length") return [t.minimum, t.maximum, t.length];
+    return [t.minimum, t.maximum, t.value];
+  })();
 
-      // 如果有选区得把选区转为字符形式然后进行显示
-      if (ctx.luckysheet_select_save) {
-        const range =
-          ctx.luckysheet_select_save[ctx.luckysheet_select_save.length - 1];
-        rangeT = getRangetxt(
-          context,
-          context.currentSheetId,
-          range,
-          context.currentSheetId
-        );
-      }
-
-      // 初始化值
-      const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-      const ctxDataVerification =
-        ctx.luckysheetfile[index].dataVerification || {};
-      if (!ctx.luckysheet_select_save) return;
-      const last =
-        ctx.luckysheet_select_save[ctx.luckysheet_select_save.length - 1];
-      const rowIndex = last.row_focus;
-      const colIndex = last.column_focus;
-      if (rowIndex == null || colIndex == null) return;
-      const item = ctxDataVerification[`${rowIndex}_${colIndex}`];
-      const defaultItem = item ?? {};
-      let rangValue = defaultItem.value1 ?? "";
-      // 选区赋值相关
-      if (
-        ctx.rangeDialog?.type === "dropDown" &&
-        ctx.dataVerification &&
-        ctx.dataVerification.dataRegulation &&
-        ctx.dataVerification.dataRegulation.rangeTxt
-      ) {
-        // 当是下拉列表选区的时候，则下拉选区赋值，范围保持不变
-        rangeT = ctx.dataVerification.dataRegulation.rangeTxt;
-        rangValue = ctx.rangeDialog.rangeTxt;
-      } else if (
-        ctx.rangeDialog?.type === "rangeTxt" &&
-        ctx.dataVerification &&
-        ctx.dataVerification.dataRegulation &&
-        ctx.dataVerification.dataRegulation.value1
-      ) {
-        // 当是选区范围的时候，则范围赋值，下拉选区不变
-        rangValue = ctx.dataVerification.dataRegulation.value1;
-        rangeT = ctx.rangeDialog.rangeTxt;
-      }
-      ctx.rangeDialog!.type = "";
-
-      if (item) {
-        ctx.dataVerification!.dataRegulation = {
-          ...item,
-          value1: rangValue,
-          rangeTxt: rangeT,
-        };
-      } else {
-        ctx.dataVerification!.dataRegulation! = {
-          type: "dropdown",
-          type2: "",
-          rangeTxt: rangeT,
-          value1: rangValue,
-          value2: "",
-          validity: "",
-          remote: false,
-          prohibitInput: false,
-          hintShow: false,
-          hintValue: "",
-        };
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <div id="fortune-data-verification">
-      <div className="title">{toolbar.dataVerification}</div>
-      <div className="box">
-        <div className="box-item" style={{ borderTop: "1px solid #E1E4E8" }}>
-          <div className="box-item-title">{dataVerification.cellRange}</div>
-          <div className="data-verification-range">
-            <input
-              className="formulaInputFocus"
-              spellCheck="false"
-              value={context.dataVerification!.dataRegulation?.rangeTxt}
-              onChange={(e) => {
-                const { value } = e.target;
-                setContext((ctx) => {
-                  ctx.dataVerification!.dataRegulation!.rangeTxt = value;
-                });
-              }}
-            />
-            <i
-              className="icon"
-              aria-hidden="true"
-              onClick={() => {
-                hideDialog();
-                dataSelectRange(
-                  "rangeTxt",
-                  context.dataVerification!.dataRegulation!.value1
-                );
-              }}
-              tabIndex={0}
-            >
-              <SVGIcon name="tab" width={18} />
-            </i>
-          </div>
-        </div>
-        <div className="box-item">
-          <div className="box-item-title">
-            {dataVerification.verificationCondition}
-          </div>
+  const settings = (
+    <>
+      <div className="fortune-dt-field">
+        <label className="fortune-dt-label" htmlFor="fortune-dv-range">
+          {t.appliesTo}
+        </label>
+        {rangeInput("rangeTxt", reg.rangeTxt, "A1:A10", "fortune-dv-range")}
+      </div>
+      <div className="fortune-dt-row">
+        <div className="fortune-dt-field">
+          <label className="fortune-dt-label" htmlFor="fortune-dv-allow">
+            {t.allow}
+          </label>
           <select
-            className="data-verification-type-select"
-            value={context.dataVerification!.dataRegulation!.type}
+            id="fortune-dv-allow"
+            className="fortune-dt-select"
+            value={type}
             onChange={(e) => {
-              const { value } = e.target;
-              setContext((ctx) => {
-                ctx.dataVerification!.dataRegulation!.type = value;
-                if (value === "dropdown" || value === "checkbox") {
-                  ctx.dataVerification!.dataRegulation!.type2 = "";
-                } else if (
-                  value === "number" ||
-                  value === "number_integer" ||
-                  value === "number_decimal" ||
-                  value === "text_length" ||
-                  value === "date"
-                ) {
-                  ctx.dataVerification!.dataRegulation!.type2 = "between";
-                } else if (value === "text_content") {
-                  ctx.dataVerification!.dataRegulation!.type2 = "include";
-                } else if (value === "validity") {
-                  ctx.dataVerification!.dataRegulation!.type2 =
-                    "identificationNumber";
-                }
-                ctx.dataVerification!.dataRegulation!.value1 = "";
-                ctx.dataVerification!.dataRegulation!.value2 = "";
-              });
+              const next = e.target.value;
+              let type2 = "";
+              if (NUMERIC_TYPES.includes(next)) type2 = "between";
+              else if (next === "text_content") type2 = "include";
+              else if (next === "validity") type2 = "identificationNumber";
+              update({ type: next, type2, value1: "", value2: "" });
             }}
           >
-            {[
-              "dropdown",
-              "checkbox",
-              "number",
-              "number_integer",
-              "number_decimal",
-              "text_content",
-              "text_length",
-              "date",
-              "validity",
-            ].map((v) => (
-              <option value={v} key={v}>
-                {(dataVerification as any)[v]}
+            {(ALLOW_TYPES.includes(type)
+              ? ALLOW_TYPES
+              : [...ALLOW_TYPES, type]
+            ).map((v) => (
+              <option key={v} value={v}>
+                {t.types[v] ?? (dvLocale as any)[v] ?? v}
               </option>
             ))}
           </select>
-
-          {context.dataVerification?.dataRegulation?.type === "dropdown" && (
-            <div className="show-box-item">
-              <div className="data-verification-range">
-                <input
-                  className="formulaInputFocus"
-                  spellCheck="false"
-                  value={context.dataVerification!.dataRegulation!.value1}
-                  placeholder={dataVerification.placeholder1}
-                  onChange={(e) => {
-                    const { value } = e.target;
-                    setContext((ctx) => {
-                      ctx.dataVerification!.dataRegulation!.value1 = value;
-                    });
-                  }}
-                />
-                <i
-                  className="icon"
-                  aria-hidden="true"
-                  onClick={() =>
-                    dataSelectRange(
-                      "dropDown",
-                      context.dataVerification!.dataRegulation!.value1
-                    )
-                  }
-                  tabIndex={0}
-                >
-                  <SVGIcon name="tab" width={18} />
-                </i>
-              </div>
-              <div className="check">
-                <input
-                  type="checkbox"
-                  checked={
-                    context.dataVerification!.dataRegulation!.type2 === "true"
-                  }
-                  id="mul"
-                  onChange={(e) => {
-                    const { checked } = e.target;
-                    setContext((ctx) => {
-                      ctx.dataVerification!.dataRegulation!.type2 = `${checked}`;
-                    });
-                  }}
-                />
-                <label htmlFor="mul">{dataVerification.allowMultiSelect}</label>
-              </div>
-            </div>
-          )}
-
-          {context.dataVerification?.dataRegulation?.type === "checkbox" && (
-            <div className="show-box-item">
-              <div className="check-box">
-                <span>{dataVerification.selected} —— </span>
-                <input
-                  type="text"
-                  className="data-verification-value1"
-                  placeholder={dataVerification.placeholder2}
-                  value={context.dataVerification?.dataRegulation?.value1}
-                  onChange={(e) => {
-                    const { value } = e.target;
-                    setContext((ctx) => {
-                      ctx.dataVerification!.dataRegulation!.value1 = value;
-                    });
-                  }}
-                />
-              </div>
-              <div className="check-box">
-                <span>{dataVerification.notSelected} —— </span>
-                <input
-                  type="text"
-                  className="data-verification-value2"
-                  placeholder={dataVerification.placeholder2}
-                  value={context.dataVerification?.dataRegulation?.value2}
-                  onChange={(e) => {
-                    const { value } = e.target;
-                    setContext((ctx) => {
-                      ctx.dataVerification!.dataRegulation!.value2 = value;
-                    });
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {(context.dataVerification?.dataRegulation?.type === "number" ||
-            context.dataVerification?.dataRegulation?.type ===
-              "number_integer" ||
-            context.dataVerification?.dataRegulation?.type ===
-              "number_decimal" ||
-            context.dataVerification?.dataRegulation?.type ===
-              "text_length") && (
-            <div className="show-box-item">
-              <select
-                className="data-verification-type-select"
-                value={context.dataVerification.dataRegulation.type2}
-                onChange={(e) => {
-                  const { value } = e.target;
-                  setContext((ctx) => {
-                    ctx.dataVerification!.dataRegulation!.type2 = value;
-                    ctx.dataVerification!.dataRegulation!.value1 = "";
-                    ctx.dataVerification!.dataRegulation!.value2 = "";
-                  });
-                }}
-              >
-                {numberCondition.map((v) => (
-                  <option value={v} key={v}>
-                    {(dataVerification as any)[v]}
-                  </option>
-                ))}
-              </select>
-              {context.dataVerification.dataRegulation.type2 === "between" ||
-              context.dataVerification.dataRegulation.type2 === "notBetween" ? (
-                <div className="input-box">
-                  <input
-                    type="number"
-                    placeholder="1"
-                    value={context.dataVerification.dataRegulation.value1}
-                    onChange={(e) => {
-                      const { value } = e.target;
-                      setContext((ctx) => {
-                        ctx.dataVerification!.dataRegulation!.value1 = value;
-                      });
-                    }}
-                  />
-                  <span>-</span>
-                  <input
-                    type="number"
-                    placeholder="100"
-                    value={context.dataVerification.dataRegulation.value2}
-                    onChange={(e) => {
-                      const { value } = e.target;
-                      setContext((ctx) => {
-                        ctx.dataVerification!.dataRegulation!.value2 = value;
-                      });
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="input-box">
-                  <input
-                    type="number"
-                    style={{ width: "100%" }}
-                    placeholder={dataVerification.placeholder3}
-                    value={context.dataVerification.dataRegulation.value1}
-                    onChange={(e) => {
-                      const { value } = e.target;
-                      setContext((ctx) => {
-                        ctx.dataVerification!.dataRegulation!.value1 = value;
-                      });
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {context.dataVerification?.dataRegulation?.type ===
-            "text_content" && (
-            <div className="show-box-item">
-              <select
-                className="data-verification-type-select"
-                value={context.dataVerification.dataRegulation.type2}
-                onChange={(e) => {
-                  const { value } = e.target;
-                  setContext((ctx) => {
-                    ctx.dataVerification!.dataRegulation!.type2 = value;
-                    ctx.dataVerification!.dataRegulation!.value1 = "";
-                    ctx.dataVerification!.dataRegulation!.value2 = "";
-                  });
-                }}
-              >
-                {["include", "exclude", "equal"].map((v) => (
-                  <option value={v} key={v}>
-                    {(dataVerification as any)[v]}
-                  </option>
-                ))}
-              </select>
-              <div className="input-box">
-                <input
-                  type="text"
-                  style={{ width: "100%" }}
-                  placeholder={dataVerification.placeholder4}
-                  value={context.dataVerification.dataRegulation.value1}
-                  onChange={(e) => {
-                    const { value } = e.target;
-                    setContext((ctx) => {
-                      ctx.dataVerification!.dataRegulation!.value1 = value;
-                    });
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {context.dataVerification?.dataRegulation?.type === "date" && (
-            <div className="show-box-item">
-              <select
-                className="data-verification-type-select"
-                value={context.dataVerification.dataRegulation.type2}
-                onChange={(e) => {
-                  const { value } = e.target;
-                  setContext((ctx) => {
-                    ctx.dataVerification!.dataRegulation!.type2 = value;
-                    ctx.dataVerification!.dataRegulation!.value1 = "";
-                    ctx.dataVerification!.dataRegulation!.value2 = "";
-                  });
-                }}
-              >
-                {dateCondition.map((v) => (
-                  <option value={v} key={v}>
-                    {(dataVerification as any)[v]}
-                  </option>
-                ))}
-              </select>
-              {context.dataVerification.dataRegulation.type2 === "between" ||
-              context.dataVerification.dataRegulation.type2 === "notBetween" ? (
-                <div className="input-box">
-                  <input
-                    type="date"
-                    placeholder="1"
-                    value={context.dataVerification.dataRegulation.value1}
-                    onChange={(e) => {
-                      const { value } = e.target;
-                      setContext((ctx) => {
-                        ctx.dataVerification!.dataRegulation!.value1 = value;
-                      });
-                    }}
-                  />
-                  <span>-</span>
-                  <input
-                    type="date"
-                    placeholder="100"
-                    value={context.dataVerification.dataRegulation.value2}
-                    onChange={(e) => {
-                      const { value } = e.target;
-                      setContext((ctx) => {
-                        ctx.dataVerification!.dataRegulation!.value2 = value;
-                      });
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="input-box">
-                  <input
-                    type="date"
-                    style={{ width: "100%" }}
-                    placeholder={dataVerification.placeholder3}
-                    value={context.dataVerification.dataRegulation.value1}
-                    onChange={(e) => {
-                      const { value } = e.target;
-                      setContext((ctx) => {
-                        ctx.dataVerification!.dataRegulation!.value1 = value;
-                      });
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {context.dataVerification?.dataRegulation?.type === "validity" && (
-            <div className="show-box-item">
-              <select
-                className="data-verification-type-select"
-                value={context.dataVerification.dataRegulation.type2}
-                onChange={(e) => {
-                  const { value } = e.target;
-                  setContext((ctx) => {
-                    ctx.dataVerification!.dataRegulation!.type2 = value;
-                    ctx.dataVerification!.dataRegulation!.value1 = "";
-                    ctx.dataVerification!.dataRegulation!.value2 = "";
-                  });
-                }}
-              >
-                {["identificationNumber", "phoneNumber"].map((v) => (
-                  <option value={v} key={v}>
-                    {(dataVerification as any)[v]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
+        {NUMERIC_TYPES.includes(type) && (
+          <div className="fortune-dt-field">
+            <label className="fortune-dt-label" htmlFor="fortune-dv-op">
+              {t.data}
+            </label>
+            <select
+              id="fortune-dv-op"
+              className="fortune-dt-select"
+              value={op}
+              onChange={(e) => update({ type2: e.target.value })}
+            >
+              {OPERATORS.map((v) => (
+                <option key={v} value={v}>
+                  {t.operators[v]}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+      {type !== "any" && type !== "checkbox" && (
+        <DtCheck
+          checked={reg.ignoreBlank !== false}
+          onChange={(v) => update({ ignoreBlank: v })}
+        >
+          {t.ignoreBlank}
+        </DtCheck>
+      )}
 
-        <div className="box-item">
-          {
-            // (["remote", "prohibitInput", "hintShow"] as const)
-            (["prohibitInput", "hintShow"] as const).map((v) => (
-              <div className="check" key={`div${v}`}>
-                <input
-                  type="checkbox"
-                  id={v}
-                  key={`input${v}`}
-                  checked={context.dataVerification!.dataRegulation![v]}
-                  onChange={() => {
-                    setContext((ctx) => {
-                      const dataRegulation =
-                        ctx.dataVerification?.dataRegulation;
-                      // if (v === "remote") {
-                      //   dataRegulation!.remote = !dataRegulation!.remote;
-                      // } else
-                      if (v === "prohibitInput") {
-                        dataRegulation!.prohibitInput =
-                          !dataRegulation!.prohibitInput;
-                      } else if (v === "hintShow") {
-                        dataRegulation!.hintShow = !dataRegulation!.hintShow;
-                      }
-                    });
-                  }}
-                />
-                <label htmlFor={v} key={`label${v}`}>
-                  {(dataVerification as any)[v]}
-                </label>
-              </div>
-            ))
-          }
-          {context.dataVerification?.dataRegulation?.hintShow && (
-            <div className="input-box">
-              <input
-                type="text"
-                style={{ width: "100%" }}
-                placeholder={dataVerification.placeholder5}
-                value={context.dataVerification!.dataRegulation!.hintValue}
-                onChange={(e) => {
-                  const { value } = e.target;
-                  setContext((ctx) => {
-                    ctx.dataVerification!.dataRegulation!.hintValue = value;
-                  });
-                }}
-              />
+      {NUMERIC_TYPES.includes(type) &&
+        (twoValues ? (
+          <div className="fortune-dt-row">
+            <div className="fortune-dt-field">
+              <span className="fortune-dt-label">{boundLabels[0]}</span>
+              {rangeInput("value1", reg.value1, t.valueHint)}
             </div>
-          )}
+            <div className="fortune-dt-field">
+              <span className="fortune-dt-label">{boundLabels[1]}</span>
+              {rangeInput("value2", reg.value2, t.valueHint)}
+            </div>
+          </div>
+        ) : (
+          <div className="fortune-dt-field">
+            <span className="fortune-dt-label">{boundLabels[2]}</span>
+            {rangeInput("value1", reg.value1, t.valueHint)}
+          </div>
+        ))}
+
+      {type === "dropdown" && (
+        <>
+          <div className="fortune-dt-field">
+            <span className="fortune-dt-label">{t.source}</span>
+            {rangeInput("value1", reg.value1, dvLocale.placeholder1)}
+            <span className="fortune-dt-hint">{t.sourceHint}</span>
+          </div>
+          <DtCheck
+            checked={reg.showDropdown !== false}
+            onChange={(v) => update({ showDropdown: v })}
+          >
+            {t.inCellDropdown}
+          </DtCheck>
+          <DtCheck
+            checked={reg.type2 === "true"}
+            onChange={(v) => update({ type2: `${v}` })}
+          >
+            {dvLocale.allowMultiSelect}
+          </DtCheck>
+        </>
+      )}
+
+      {type === "custom" && (
+        <div className="fortune-dt-field">
+          <span className="fortune-dt-label">{t.formula}</span>
+          <input
+            className="fortune-dt-input"
+            spellCheck={false}
+            value={reg.value1 ?? ""}
+            placeholder="=A1>0"
+            onChange={(e) => update({ value1: e.target.value })}
+          />
+          <span className="fortune-dt-hint">{t.formulaHint}</span>
+        </div>
+      )}
+
+      {type === "checkbox" && (
+        <div className="fortune-dt-row">
+          <div className="fortune-dt-field">
+            <span className="fortune-dt-label">{dvLocale.selected}</span>
+            <input
+              className="fortune-dt-input"
+              value={reg.value1 ?? ""}
+              placeholder={dvLocale.placeholder2}
+              onChange={(e) => update({ value1: e.target.value })}
+            />
+          </div>
+          <div className="fortune-dt-field">
+            <span className="fortune-dt-label">{dvLocale.notSelected}</span>
+            <input
+              className="fortune-dt-input"
+              value={reg.value2 ?? ""}
+              placeholder={dvLocale.placeholder2}
+              onChange={(e) => update({ value2: e.target.value })}
+            />
+          </div>
+        </div>
+      )}
+
+      {type === "text_content" && (
+        <div className="fortune-dt-row">
+          <div className="fortune-dt-field">
+            <span className="fortune-dt-label">{t.data}</span>
+            <select
+              className="fortune-dt-select"
+              value={reg.type2}
+              onChange={(e) => update({ type2: e.target.value })}
+            >
+              {["include", "exclude", "equal"].map((v) => (
+                <option key={v} value={v}>
+                  {(dvLocale as any)[v]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="fortune-dt-field">
+            <span className="fortune-dt-label">{t.value}</span>
+            <input
+              className="fortune-dt-input"
+              value={reg.value1 ?? ""}
+              placeholder={dvLocale.placeholder4}
+              onChange={(e) => update({ value1: e.target.value })}
+            />
+          </div>
+        </div>
+      )}
+
+      {type === "validity" && (
+        <div className="fortune-dt-field">
+          <span className="fortune-dt-label">{t.data}</span>
+          <select
+            className="fortune-dt-select"
+            value={reg.type2}
+            onChange={(e) => update({ type2: e.target.value })}
+          >
+            {["identificationNumber", "phoneNumber"].map((v) => (
+              <option key={v} value={v}>
+                {(dvLocale as any)[v]}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </>
+  );
+
+  const inputMessage = (
+    <>
+      <DtCheck
+        checked={!!reg.hintShow}
+        onChange={(v) => update({ hintShow: v })}
+      >
+        {t.showInputMessage}
+      </DtCheck>
+      <div className="fortune-dt-field">
+        <label className="fortune-dt-label" htmlFor="fortune-dv-hint-title">
+          {t.messageTitle}
+        </label>
+        <input
+          id="fortune-dv-hint-title"
+          className="fortune-dt-input"
+          value={reg.hintTitle ?? ""}
+          onChange={(e) => update({ hintTitle: e.target.value })}
+        />
+      </div>
+      <div className="fortune-dt-field">
+        <label className="fortune-dt-label" htmlFor="fortune-dv-hint">
+          {t.message}
+        </label>
+        <textarea
+          id="fortune-dv-hint"
+          className="fortune-dt-textarea"
+          value={reg.hintValue ?? ""}
+          placeholder={dvLocale.placeholder5}
+          onChange={(e) => update({ hintValue: e.target.value })}
+        />
+      </div>
+      <div className="fortune-dt-field">
+        <label className="fortune-dt-label" htmlFor="fortune-dv-placeholder">
+          {t.placeholder}
+        </label>
+        <input
+          id="fortune-dv-placeholder"
+          className="fortune-dt-input"
+          value={reg.placeholder ?? ""}
+          onChange={(e) => update({ placeholder: e.target.value })}
+        />
+      </div>
+    </>
+  );
+
+  const style = reg.errorStyle ?? "stop";
+  const errorAlert = (
+    <>
+      <DtCheck
+        checked={!!reg.prohibitInput}
+        onChange={(v) => update({ prohibitInput: v })}
+      >
+        {t.showErrorAlert}
+      </DtCheck>
+      <div className="fortune-dt-row" style={{ alignItems: "flex-start" }}>
+        <div className="fortune-dt-field" style={{ flex: "0 0 150px" }}>
+          <label className="fortune-dt-label" htmlFor="fortune-dv-style">
+            {t.style}
+          </label>
+          <select
+            id="fortune-dv-style"
+            className="fortune-dt-select"
+            value={style}
+            onChange={(e) => update({ errorStyle: e.target.value })}
+          >
+            {["stop", "warning", "information"].map((v) => (
+              <option key={v} value={v}>
+                {t.styles[v]}
+              </option>
+            ))}
+          </select>
+          <div
+            className={`fortune-dt-alert-icon ${style}`}
+            style={{ marginTop: 12, marginLeft: 8 }}
+            aria-hidden="true"
+          >
+            {{ stop: "×", warning: "!", information: "i" }[style as string]}
+          </div>
+        </div>
+        <div className="fortune-dt-field">
+          <label className="fortune-dt-label" htmlFor="fortune-dv-err-title">
+            {t.errorTitle}
+          </label>
+          <input
+            id="fortune-dv-err-title"
+            className="fortune-dt-input"
+            value={reg.errorTitle ?? ""}
+            onChange={(e) => update({ errorTitle: e.target.value })}
+          />
+          <label
+            className="fortune-dt-label"
+            htmlFor="fortune-dv-err-message"
+            style={{ marginTop: 8 }}
+          >
+            {t.errorMessage}
+          </label>
+          <textarea
+            id="fortune-dv-err-message"
+            className="fortune-dt-textarea"
+            value={reg.errorMessage ?? ""}
+            onChange={(e) => update({ errorMessage: e.target.value })}
+          />
         </div>
       </div>
+    </>
+  );
 
-      <div
-        className="button-basic button-primary"
-        onClick={() => {
-          // hideDialog();
-          btn("confirm");
-        }}
-        tabIndex={0}
-      >
-        {button.confirm}
+  return (
+    <div id="fortune-data-verification" className="fortune-dt-dialog">
+      <div className="fortune-dt-title">{t.title}</div>
+      <div className="fortune-dt-tabs" role="tablist">
+        {(
+          [
+            ["settings", t.settings],
+            ["input", t.inputMessage],
+            ["error", t.errorAlert],
+          ] as const
+        ).map(([key, label]) => (
+          <div
+            key={key}
+            role="tab"
+            tabIndex={0}
+            aria-selected={tab === key}
+            className={`fortune-dt-tab${tab === key ? " active" : ""}`}
+            onClick={() => setTab(key)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") setTab(key);
+            }}
+          >
+            {label}
+          </div>
+        ))}
       </div>
-      <div
-        className="button-basic button-close"
-        onClick={() => {
-          btn("delete");
-        }}
-        tabIndex={0}
-      >
-        {dataVerification.deleteVerification}
+      <div style={{ minHeight: 260 }}>
+        {tab === "settings" && settings}
+        {tab === "input" && inputMessage}
+        {tab === "error" && errorAlert}
       </div>
-      <div
-        className="button-basic button-close"
-        onClick={() => {
-          btn("close");
-        }}
-        tabIndex={0}
-      >
-        {button.cancel}
+      {!_.isEmpty(error) && <div className="fortune-dt-error">{error}</div>}
+      <div className="fortune-dt-buttons">
+        <div
+          className="button-basic button-default"
+          role="button"
+          tabIndex={0}
+          onClick={onClearAll}
+        >
+          {t.clearAll}
+        </div>
+        <div className="fortune-dt-spacer" />
+        <div
+          className="button-basic button-primary"
+          role="button"
+          tabIndex={0}
+          onClick={onOk}
+        >
+          {t.ok}
+        </div>
+        <div
+          className="button-basic button-default"
+          role="button"
+          tabIndex={0}
+          onClick={onCancel}
+        >
+          {t.cancel}
+        </div>
       </div>
     </div>
   );

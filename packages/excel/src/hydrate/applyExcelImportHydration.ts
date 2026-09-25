@@ -1,8 +1,4 @@
-import {
-  api,
-  Context,
-  Sheet,
-} from "@lofcz/tinysheet-core";
+import { api, Context, Sheet } from "@lofcz/tinysheet-core";
 import {
   ChartCellResolver,
   ChartCellValue,
@@ -72,8 +68,7 @@ export function createContextChartCellResolver(
     const targetIndex = ctx.luckysheetfile.findIndex(
       (item) => item.id === range.sheetIndex
     );
-    const target =
-      targetIndex >= 0 ? ctx.luckysheetfile[targetIndex] : sheet;
+    const target = targetIndex >= 0 ? ctx.luckysheetfile[targetIndex] : sheet;
     const data = target.data;
     const values: ChartCellValue[] = [];
 
@@ -113,7 +108,10 @@ export function applyExcelImportHydration(
     }
 
     const resolver = createContextChartCellResolver(ctx, sheet);
-    sheet.images = refreshSheetChartImages(sheet.images as any, resolver) as any;
+    sheet.images = refreshSheetChartImages(
+      sheet.images as any,
+      resolver
+    ) as any;
 
     if (sheet.id === ctx.currentSheetId) {
       ctx.insertedImgs = sheet.images as any;

@@ -2,7 +2,7 @@ import _ from "lodash";
 import { Context } from "../context";
 import { locale } from "../locale";
 import { Sheet } from "../types";
-import { checkCellIsLocked } from "../modules";
+import { canEditCells } from "../modules";
 
 export * from "./patch";
 
@@ -245,13 +245,21 @@ export function chatatABC(n: number) {
   return s.toUpperCase();
 }
 
+/**
+ * Can the range (default: the selection) be edited: editing allowed, no
+ * read-only rows / columns and, on a protected sheet, no locked cells (see
+ * modules/protection.ts). `ignoreLockedCells`: skip the locked-cell test
+ * (formatting, which protection allows separately).
+ */
 export function isAllowEdit(
   ctx: Context,
-  range?: Sheet["luckysheet_select_save"]
+  range?: Sheet["luckysheet_select_save"],
+  ignoreLockedCells = false
 ) {
   const cfg = ctx.config;
   const judgeRange = _.isUndefined(range) ? ctx.luckysheet_select_save : range;
   return (
+    (ignoreLockedCells || canEditCells(ctx, judgeRange ?? [])) &&
     _.every(judgeRange, (selection) => {
       for (let r = selection.row[0]; r <= selection.row[1]; r += 1) {
         if (cfg.rowReadOnly?.[r]) {
@@ -264,15 +272,8 @@ export function isAllowEdit(
         }
       }
 
-      for (let r = selection.row[0]; r <= selection.row[1]; r += 1) {
-        for (let c = selection.column[0]; c <= selection.column[1]; c += 1) {
-          if (checkCellIsLocked(ctx, r, c, ctx.currentSheetId)) {
-            return false;
-          }
-        }
-      }
-
       return true;
-    }) && (_.isUndefined(ctx.allowEdit) ? true : ctx.allowEdit)
+    }) &&
+    (_.isUndefined(ctx.allowEdit) ? true : ctx.allowEdit)
   );
 }
