@@ -495,7 +495,7 @@ export function groupSelection(
   const res = ungroup
     ? ungroupOutline(ctx, axis, a, b)
     : groupOutline(ctx, axis, a, b);
-  if (!res.ok) reportError(ctx, res.error);
+  if ("error" in res) reportError(ctx, res.error);
   return res.ok;
 }
 

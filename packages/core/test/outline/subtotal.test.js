@@ -315,4 +315,33 @@ describe("undo", () => {
     expect(val(host.ctx, "C10")).toBe(15);
     expect(host.ctx.config.rowOutlineLevel[1]).toBe(2);
   });
+
+  test("undo of an outline change, then of the Subtotal", () => {
+    const host = makeHost({ rows: 20, cols: 6 });
+    LIST.forEach((row, r) =>
+      row.forEach((v, c) => type(host, `${"ABC"[c]}${r + 1}`, v))
+    );
+    host.act((d) => {
+      applySubtotals(d, {
+        range: { row: [0, 5], column: [0, 2] },
+        groupBy: 0,
+        fn: "sum",
+        columns: [2],
+      });
+    });
+    host.act((d) => showOutlineLevel(d, "row", 2));
+    expect(Object.keys(host.ctx.config.rowhidden)).toEqual([
+      "1",
+      "2",
+      "4",
+      "6",
+      "7",
+    ]);
+    host.undo();
+    expect(host.ctx.config.rowhidden || {}).toEqual({});
+    expect(cellAt(host.ctx, "A4").v).toBe("East Total");
+    host.undo();
+    expect(cellAt(host.ctx, "A4").v).toBe("West");
+    expect(host.ctx.config.rowOutlineLevel).toBeUndefined();
+  });
 });
