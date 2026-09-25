@@ -13,12 +13,15 @@
     "build": "node ./scripts/build",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "tsc": "tsc --noEmit",
+    "tsc": "tsc -p tsconfig.json && tsc -p tsconfig.excel.json",
+    "typecheck": "bun run tsc",
     "lint": "eslint --cache --ext .js,.jsx,.ts,.tsx,.json ./packages",
+    "lint:formula-parser": "bun run --cwd packages/formula-parser lint",
     "postinstall": "bun run build",
     "test": "bun run test:formula-parser && bun run test:jest",
     "test:formula-parser": "bun run --cwd packages/formula-parser test",
     "test:jest": "jest",
+    "test:excel": "bun run --cwd packages/excel test",
     "coverage": "bun run --cwd packages/formula-parser coverage"
   },
   "devDependencies": {
