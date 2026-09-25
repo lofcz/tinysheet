@@ -298,7 +298,7 @@ export function handleGlobalEnter(
       // Ctrl+Enter: fill the whole selection with the entered value
       const lastCellUpdate = _.clone(ctx.luckysheetCellUpdate) as [
         number,
-        number
+        number,
       ];
       const prevSelection = _.cloneDeep(ctx.luckysheet_select_save);
       closeFormulaParens(cellInput);

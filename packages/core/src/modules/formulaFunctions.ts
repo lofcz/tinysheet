@@ -756,7 +756,7 @@ function toParserReference(frame: EvalFrame, ref: RefRange) {
     sheetName:
       ref.sheetId === frame.sheetId
         ? null
-        : getSheet(frame.ctx, ref.sheetId)?.name ?? null,
+        : (getSheet(frame.ctx, ref.sheetId)?.name ?? null),
     startRow: ref.r1,
     startColumn: ref.c1,
     endRow: ref.r2,
@@ -974,7 +974,7 @@ function errorAware(fn: (err: Error, args: any[]) => any): Fn {
 const allFunctions: Record<string, Fn> = {
   IFERROR: errorAware((_e, args) => args[1] ?? 0),
   IFNA: errorAware((e, args) =>
-    toErrorString(e) === ERR_NA ? args[1] ?? 0 : e
+    toErrorString(e) === ERR_NA ? (args[1] ?? 0) : e
   ),
   ISERROR: errorAware(() => true),
   ISERR: errorAware((e) => toErrorString(e) !== ERR_NA),
@@ -1091,7 +1091,7 @@ const allFunctions: Record<string, Fn> = {
     const [link, friendly] = args;
     if (link instanceof Error) return link;
     if (friendly instanceof Error) return friendly;
-    return friendly == null ? link ?? "" : friendly;
+    return friendly == null ? (link ?? "") : friendly;
   },
   CELL(args, frame) {
     const info = args[0];
@@ -1281,7 +1281,7 @@ function getPivotDataFn(args: any[], frame: EvalFrame) {
     ref.sheetId,
     ref.r1,
     ref.c1,
-    String(Array.isArray(dataField) ? dataField.flat()[0] : dataField ?? ""),
+    String(Array.isArray(dataField) ? dataField.flat()[0] : (dataField ?? "")),
     pairs
   );
   if (typeof res === "string" && /^#[A-Z0-9/!?]+$/.test(res)) {
@@ -1854,7 +1854,7 @@ function spillResult(
     if (!peeked?.spillFrom && !peeked?.spill) {
       if (!scalar) return value;
       const v = scalar[0][0];
-      return v instanceof Error ? toErrorString(v) : v ?? null;
+      return v instanceof Error ? toErrorString(v) : (v ?? null);
     }
   }
   const data = getFlowdata(ctx, id);
@@ -1874,7 +1874,7 @@ function spillResult(
     }
     if (matrix) {
       const v = matrix[0][0];
-      return v instanceof Error ? toErrorString(v) : v ?? null;
+      return v instanceof Error ? toErrorString(v) : (v ?? null);
     }
     return value;
   }

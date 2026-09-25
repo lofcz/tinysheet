@@ -33,7 +33,7 @@ export const CellToolsNotice: React.FC = () => {
   const range = notice.range ?? (sel && { row: sel.row, column: sel.column });
   if (!range) return null;
   const top =
-    range.row[0] === 0 ? 0 : context.visibledatarow[range.row[0] - 1] ?? 0;
+    range.row[0] === 0 ? 0 : (context.visibledatarow[range.row[0] - 1] ?? 0);
   const left = context.visibledatacolumn[range.column[1]] ?? 0;
 
   let text: string;

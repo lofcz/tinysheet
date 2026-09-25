@@ -23,7 +23,9 @@ const ALIGN_CSS: Record<ShapeTextAlign, React.CSSProperties["textAlign"]> = {
   just: "justify",
 };
 
-export function alignToCss(align: ShapeTextAlign | undefined) {
+export function alignToCss(
+  align: ShapeTextAlign | undefined
+): React.CSSProperties["textAlign"] {
   return align ? ALIGN_CSS[align] : undefined;
 }
 
@@ -215,7 +217,7 @@ export function htmlToShapeText(
   const newParagraph = (align?: ShapeTextAlign) => {
     current = {
       runs: [],
-      ...(align ?? rootAlign ? { align: align ?? rootAlign } : {}),
+      ...((align ?? rootAlign) ? { align: align ?? rootAlign } : {}),
     };
     paragraphs.push(current);
     return current;

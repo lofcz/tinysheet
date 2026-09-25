@@ -186,9 +186,9 @@ export function createFilterOptions(
   const c2 = luckysheet_filter_save.column[1];
 
   const row = ctx.visibledatarow[r2] ?? 0;
-  const row_pre = r1 - 1 === -1 ? 0 : ctx.visibledatarow[r1 - 1] ?? 0;
+  const row_pre = r1 - 1 === -1 ? 0 : (ctx.visibledatarow[r1 - 1] ?? 0);
   const col = ctx.visibledatacolumn[c2] ?? 0;
-  const col_pre = c1 - 1 === -1 ? 0 : ctx.visibledatacolumn[c1 - 1] ?? 0;
+  const col_pre = c1 - 1 === -1 ? 0 : (ctx.visibledatacolumn[c1 - 1] ?? 0);
   const options = {
     startRow: r1,
     endRow: r2,
@@ -490,7 +490,7 @@ export function getFilterColumnValues(
           value: m,
           text: zhDates
             ? m + filter.filiterMonthText
-            : monthNames[Number(m) - 1] ?? m,
+            : (monthNames[Number(m) - 1] ?? m),
           children: [],
           rows: [],
           dateValues: [],

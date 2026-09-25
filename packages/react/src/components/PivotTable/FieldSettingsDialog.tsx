@@ -265,7 +265,7 @@ export const FieldSettingsDialog: React.FC<{
     () => new Set(settings.hiddenItems ?? [])
   );
   const [sort, setSort] = useState<SortChoice>(
-    settings.sortByValue != null ? "value" : settings.sort ?? "asc"
+    settings.sortByValue != null ? "value" : (settings.sort ?? "asc")
   );
   const [sortDesc, setSortDesc] = useState(settings.sort === "desc");
   const [sortValue, setSortValue] = useState(settings.sortByValue ?? 0);

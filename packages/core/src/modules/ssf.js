@@ -1136,7 +1136,7 @@ const make_ssf = function make_ssf(SSF) {
           i++;
           break;
         case '"':
-          for (; /*cc=*/ fmt.charCodeAt(++i) !== 34 && i < fmt.length; ) {
+          for (; /*cc=*/ fmt.charCodeAt(++i) !== 34 && i < fmt.length;) {
             /*empty*/
           }
           ++i;
@@ -1261,7 +1261,6 @@ const make_ssf = function make_ssf(SSF) {
           /* Literal text */ for (
             o = "";
             (cc = fmt.charCodeAt(++i)) !== 34 && i < fmt.length;
-
           )
             o += String.fromCharCode(cc);
           out[out.length] = {
@@ -1776,8 +1775,8 @@ const make_ssf = function make_ssf(SSF) {
       return chkcond(v, m1)
         ? [l, fmt[0]]
         : chkcond(v, m2)
-        ? [l, fmt[1]]
-        : [l, fmt[m1 != null && m2 != null ? 2 : 1]];
+          ? [l, fmt[1]]
+          : [l, fmt[m1 != null && m2 != null ? 2 : 1]];
     }
     return [l, ff];
   }

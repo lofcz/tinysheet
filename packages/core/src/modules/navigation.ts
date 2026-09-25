@@ -670,7 +670,7 @@ export function moveToLastUsedCell(ctx: Context, extend = false) {
 }
 
 function offsetOf(sizes: number[], i: number) {
-  return i <= 0 ? 0 : sizes[i - 1] ?? 0;
+  return i <= 0 ? 0 : (sizes[i - 1] ?? 0);
 }
 
 /** First index whose cumulative end offset is greater than `px`. */

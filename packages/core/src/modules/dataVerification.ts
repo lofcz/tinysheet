@@ -1221,8 +1221,7 @@ export function getFailureText(ctx: Context, item: any) {
   } else if (lang === "hi") {
     const optionLabel_hi = ctx.dataVerification?.optionLabel_hi;
     if (type === "dropdown") {
-      failureText +=
-        "आपने जो चयन किया है वह ड्रॉप-डाउन सूची में एक विकल्प नहीं है";
+      failureText += "आपने जो चयन किया है वह ड्रॉप-डाउन सूची में एक विकल्प नहीं है";
     } else if (type === "checkbox") {
     } else if (
       type === "number" ||

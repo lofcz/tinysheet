@@ -67,7 +67,7 @@ const FieldsPane: React.FC<{ sheetId: string; pivot: PivotTable }> = ({
   const fieldName = (id: string) =>
     id === PIVOT_VALUES_FIELD
       ? t.valuesField
-      : fields.find((f) => f.id === id)?.name ?? id;
+      : (fields.find((f) => f.id === id)?.name ?? id);
   const visible = fields.filter((f) =>
     f.name.toLowerCase().includes(search.trim().toLowerCase())
   );

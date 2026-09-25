@@ -19,7 +19,7 @@ import WorkbookContext from "../../../context";
  */
 export function insertEditorLineBreak(el: HTMLElement | null | undefined) {
   const text = el?.textContent ?? "";
-  const caret = el ? getCaretOffset(el) ?? text.length : text.length;
+  const caret = el ? (getCaretOffset(el) ?? text.length) : text.length;
   const indent = text.startsWith("=") ? lineIndentAt(text, caret) : "";
   if (indent) {
     // (insertText would start a new block element instead)

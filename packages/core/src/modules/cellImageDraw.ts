@@ -261,7 +261,7 @@ function drawPlaceholder(
   if (size < 4) return;
   g.fillStyle = theme.headerBackground;
   g.fillRect(x + pad, y + pad, w - 2 * pad, h - 2 * pad);
-  const alt = broken ? img.alt ?? "" : "";
+  const alt = broken ? (img.alt ?? "") : "";
   const fontPx = Math.max(8, Math.round(11 * zoom));
   g.font = `${fontPx}px sans-serif`;
   const textW = alt ? g.measureText(alt).width : 0;

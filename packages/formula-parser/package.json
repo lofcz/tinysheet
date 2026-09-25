@@ -2,6 +2,24 @@
   "name": "@lofcz/tinysheet-formula-parser",
   "version": "1.0.3",
   "description": "Formula parser",
+  "keywords": [
+    "excel",
+    "formula",
+    "formula-parser",
+    "formulas",
+    "parser",
+    "spreadsheet"
+  ],
+  "license": "MIT",
+  "author": "Handsoncode <hello@handsontable.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lofcz/tinysheet.git",
+    "directory": "packages/formula-parser"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -12,45 +30,23 @@
       "import": "./dist/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "clean": "rimraf tmp coverage dist",
-    "lint": "eslint src test",
     "check": "npm run lint && npm run test",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage"
-  },
-  "keywords": [
-    "formula",
-    "formulas",
-    "parser",
-    "formula-parser",
-    "excel",
-    "spreadsheet"
-  ],
-  "author": "Handsoncode <hello@handsontable.com>",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/lofcz/tinysheet.git",
-    "directory": "packages/formula-parser"
-  },
-  "devDependencies": {
-    "eslint": "^8.31.0",
-    "eslint-config-airbnb-base": "^11.2.0",
-    "eslint-plugin-import": "^2.14.0",
-    "rimraf": "^3.0.2",
-    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@formulajs/formulajs": "4.6.0",
     "chevrotain": "^11.0.3",
     "tiny-emitter": "^2.1.0"
   },
-  "publishConfig": {
-    "access": "public"
+  "devDependencies": {
+    "rimraf": "^3.0.2",
+    "vitest": "^3.2.4"
   }
 }

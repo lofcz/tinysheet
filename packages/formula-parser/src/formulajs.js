@@ -5,7 +5,8 @@ function functionKeyCount(obj) {
     return 0;
   }
 
-  return Object.keys(obj).filter((key) => typeof obj[key] === "function").length;
+  return Object.keys(obj).filter((key) => typeof obj[key] === "function")
+    .length;
 }
 
 /**
@@ -14,8 +15,10 @@ function functionKeyCount(obj) {
  * Prefer whichever object exposes more formula functions.
  */
 const formulajs =
+  // oxlint-disable-next-line import/namespace -- CJS builds expose the functions under default
   functionKeyCount(formulajsNs.default) > functionKeyCount(formulajsNs)
-    ? formulajsNs.default
+    ? // oxlint-disable-next-line import/namespace -- CJS builds expose the functions under default
+      formulajsNs.default
     : formulajsNs;
 
 export default formulajs;

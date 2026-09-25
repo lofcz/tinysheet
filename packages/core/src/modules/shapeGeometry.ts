@@ -102,8 +102,8 @@ function calloutPath(w: number, h: number, tx: number, ty: number, r: number) {
     left: -tx / w,
     right: (tx - w) / w,
   };
-  const side = (Object.keys(beyond) as (keyof typeof beyond)[]).reduce((a, b) =>
-    beyond[b] > beyond[a] ? b : a
+  const side = (Object.keys(beyond) as (keyof typeof beyond)[]).reduce(
+    (a, b) => (beyond[b] > beyond[a] ? b : a)
   );
   const rr = Math.max(0, Math.min(r, w / 2, h / 2));
   const horizontal = side === "top" || side === "bottom";

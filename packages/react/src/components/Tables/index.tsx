@@ -160,7 +160,7 @@ export const TableStylePreview: React.FC<{
   // actual cell colours of the style (data, not theme colours)
   const rowColor = (row: number) => {
     if (row === 0) return style.header || "#FFFFFF";
-    return row % 2 === 1 ? style.band : style.fill ?? "#FFFFFF";
+    return row % 2 === 1 ? style.band : (style.fill ?? "#FFFFFF");
   };
   return (
     <div

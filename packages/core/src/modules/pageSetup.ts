@@ -252,7 +252,7 @@ function selectionRanges(ctx: Context): PrintRange[] {
     .map((s) => ({
       row: [Math.min(s.row[0], s.row[1]), Math.max(s.row[0], s.row[1])] as [
         number,
-        number
+        number,
       ],
       column: [
         Math.min(s.column[0], s.column[1]),
@@ -609,8 +609,8 @@ export function sheetPrintGeometry(
     config.colhidden,
     1
   ).positions;
-  const rowTop = (r: number) => (r <= 0 ? 0 : rowEnds[r - 1] ?? 0);
-  const colLeft = (c: number) => (c <= 0 ? 0 : colEnds[c - 1] ?? 0);
+  const rowTop = (r: number) => (r <= 0 ? 0 : (rowEnds[r - 1] ?? 0));
+  const colLeft = (c: number) => (c <= 0 ? 0 : (colEnds[c - 1] ?? 0));
   return {
     rowCount,
     colCount,

@@ -39,12 +39,10 @@ jobs:
           bun-version: canary
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
-      - name: ESLint (core, react, excel)
+      - name: oxlint
         run: bun run lint
-      - name: ESLint (formula-parser)
-        run: bun run lint:formula-parser
-      - name: Prettier (e2e, docs scripts)
-        run: bunx prettier --check e2e docs/scripts
+      - name: oxfmt
+        run: bun run format:check
 
   formula-parser:
     name: formula-parser tests (vitest)

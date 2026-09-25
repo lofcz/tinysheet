@@ -24,7 +24,7 @@ const config = {
       {
         test: /\.js$/,
         loaders: ["babel-loader"],
-        exclude: /node_modules|grammar\-parser\.js$/,
+        exclude: /node_modules|grammar-parser\.js$/,
       },
     ],
   },

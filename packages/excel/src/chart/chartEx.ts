@@ -408,6 +408,8 @@ export function importChartExXml(
     b: "bottom",
     r: "right",
   };
-  out.legend = legend ? legendMap[legend.attrs.pos ?? "r"] ?? "right" : "none";
+  out.legend = legend
+    ? (legendMap[legend.attrs.pos ?? "r"] ?? "right")
+    : "none";
   return out;
 }

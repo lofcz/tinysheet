@@ -57,13 +57,9 @@ const ZoomControl: React.FC = () => {
   const [radioMenuOpen, setRadioMenuOpen] = useState(false);
   const { info } = locale(context);
 
-  useOutsideClick(
-    menuRef,
-    () => {
-      setRadioMenuOpen(false);
-    },
-    []
-  );
+  useOutsideClick(menuRef, () => {
+    setRadioMenuOpen(false);
+  }, []);
 
   const zoomTo = useCallback(
     (val: number) => {

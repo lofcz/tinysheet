@@ -11,8 +11,7 @@
     "strictNullChecks": false,
     "noImplicitAny": false,
     "lib": ["es2020", "dom"],
-    "rootDir": "./src",
-    "baseUrl": "."
+    "rootDir": "./src"
   },
   "include": ["./src/**/*"],
   "exclude": [

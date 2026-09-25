@@ -413,7 +413,7 @@ function displayOf(v: unknown, fa: string) {
 function typeOf(v: unknown) {
   if (typeof v === "number") return "n";
   if (typeof v === "boolean") return "b";
-  if (typeof v === "string" && /^#/.test(v)) return "e";
+  if (typeof v === "string" && v.startsWith("#")) return "e";
   return "g";
 }
 

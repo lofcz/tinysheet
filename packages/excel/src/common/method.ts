@@ -347,7 +347,7 @@ function hslToRgb(h: number, s: number, l: number) {
  * @return  Array           HSL各值数组
  */
 function rgbToHsl(r: number, g: number, b: number) {
-  (r /= 255), (g /= 255), (b /= 255);
+  ((r /= 255), (g /= 255), (b /= 255));
   var max = Math.max(r, g, b),
     min = Math.min(r, g, b);
   var h,

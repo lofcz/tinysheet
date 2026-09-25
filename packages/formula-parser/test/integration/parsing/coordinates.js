@@ -13,11 +13,14 @@ describe(".parse() coordinates", () => {
       cellCoord = _cellCoord;
       done(55);
     });
-    parser.on("callRangeValue", (_startCellCoord, _endCellCoord, _options, done) => {
-      startCellCoord = _startCellCoord;
-      endCellCoord = _endCellCoord;
-      done([[3, 6, 10]]);
-    });
+    parser.on(
+      "callRangeValue",
+      (_startCellCoord, _endCellCoord, _options, done) => {
+        startCellCoord = _startCellCoord;
+        endCellCoord = _endCellCoord;
+        done([[3, 6, 10]]);
+      }
+    );
   });
   afterEach(() => {
     parser = null;

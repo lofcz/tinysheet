@@ -175,11 +175,13 @@ export function cfRuleToExcel(raw: CFRule): any | null {
       tsGradient: !!db.gradient,
       border: !!(db.border ?? db.gradient),
       borderColor: argb(db.borderColor ?? db.color),
-      negativeFillColor: argb(same ? db.color : db.negativeColor ?? "#FF0000"),
+      negativeFillColor: argb(
+        same ? db.color : (db.negativeColor ?? "#FF0000")
+      ),
       negativeBorderColor: argb(
         same
-          ? db.borderColor ?? db.color
-          : db.negativeBorderColor ?? db.negativeColor ?? "#FF0000"
+          ? (db.borderColor ?? db.color)
+          : (db.negativeBorderColor ?? db.negativeColor ?? "#FF0000")
       ),
       negativeBarColorSameAsPositive: same,
       negativeBarBorderColorSameAsPositive: same,

@@ -3,7 +3,7 @@ import { resolveChartSpecToSeries } from "./resolve";
 import type { ChartCellResolver, FortuneChartSpec } from "./types";
 
 export function refreshSheetChartImages<
-  T extends { src?: string; chartSpec?: FortuneChartSpec }
+  T extends { src?: string; chartSpec?: FortuneChartSpec },
 >(images: T[] | undefined, resolver: ChartCellResolver): T[] | undefined {
   if (images == null || images.length === 0) {
     return images;

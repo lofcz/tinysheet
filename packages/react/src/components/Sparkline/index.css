@@ -119,7 +119,8 @@
   color: var(--fortune-text);
   font-size: var(--fortune-font-size-sm);
   cursor: pointer;
-  transition: border-color var(--fortune-transition),
+  transition:
+    border-color var(--fortune-transition),
     background-color var(--fortune-transition);
 }
 

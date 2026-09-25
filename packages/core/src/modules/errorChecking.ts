@@ -169,7 +169,7 @@ export function formulaR1C1(
 type Grid = (Cell | null)[][];
 
 const at = (data: Grid, r: number, c: number) =>
-  r < 0 || c < 0 ? null : data[r]?.[c] ?? null;
+  r < 0 || c < 0 ? null : (data[r]?.[c] ?? null);
 
 function isNumberCell(cell: Cell | null) {
   return cell != null && typeof cell.v === "number";
@@ -289,7 +289,7 @@ function checkEmptyRefs(
 
 function sheetDataOf(ctx: Context, sheetId: string): Grid | null {
   const i = getSheetIndex(ctx, sheetId);
-  return i == null ? null : (ctx.luckysheetfile[i]?.data as Grid) ?? null;
+  return i == null ? null : ((ctx.luckysheetfile[i]?.data as Grid) ?? null);
 }
 
 function computeCellError(

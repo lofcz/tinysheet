@@ -164,7 +164,8 @@
 .fortune-ps-paper-cells {
   width: 50%;
   height: 50%;
-  background: repeating-linear-gradient(
+  background:
+    repeating-linear-gradient(
       0deg,
       var(--fortune-divider) 0 1px,
       transparent 1px 6px
@@ -510,7 +511,8 @@
 }
 
 .fortune-page-break.preview:not(.manual).fortune-page-break-column {
-  background: repeating-linear-gradient(
+  background:
+    repeating-linear-gradient(
       180deg,
       transparent 0 6px,
       var(--fortune-bg) 6px 10px
@@ -524,7 +526,8 @@
 }
 
 .fortune-page-break.preview:not(.manual).fortune-page-break-row {
-  background: repeating-linear-gradient(
+  background:
+    repeating-linear-gradient(
       90deg,
       transparent 0 6px,
       var(--fortune-bg) 6px 10px

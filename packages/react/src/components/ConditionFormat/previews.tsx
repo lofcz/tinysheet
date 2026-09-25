@@ -126,7 +126,7 @@ export const RuleFormatPreview: React.FC<{ rule: CFRule; text: CFText }> = ({
                 )})`
               : color,
             borderColor:
-              rule.dataBar.border ?? gradient ? color : "transparent",
+              (rule.dataBar.border ?? gradient) ? color : "transparent",
           }}
         />
       </span>

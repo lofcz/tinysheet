@@ -5,7 +5,8 @@ let s = fs.readFileSync(path, "utf8");
 
 const startMarker =
   "  private renderChartSvg(chartFile: string, width: number, height: number) {";
-const endMarker = "  private getChartSeriesColor(series: Element, index: number) {";
+const endMarker =
+  "  private getChartSeriesColor(series: Element, index: number) {";
 const start = s.indexOf(startMarker);
 const end = s.indexOf(endMarker);
 if (start < 0 || end < 0) {
@@ -13,8 +14,7 @@ if (start < 0 || end < 0) {
   process.exit(1);
 }
 
-const dollarRegexLine =
-  "    let normalized = reference.replace(/\\$/g, \"\");";
+const dollarRegexLine = '    let normalized = reference.replace(/\\$/g, "");';
 
 const replacement = `  private buildChartSpec(
     chartFile: string,

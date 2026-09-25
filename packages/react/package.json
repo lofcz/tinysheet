@@ -1,7 +1,33 @@
 {
   "name": "@lofcz/tinysheet-react",
   "version": "1.0.3",
+  "keywords": [
+    "collabration",
+    "collabrative",
+    "data grid",
+    "data table",
+    "excel",
+    "react",
+    "react component",
+    "reactjs",
+    "sheet",
+    "spreadsheet",
+    "table"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lofcz/tinysheet.git"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "sideEffects": [
+    "**/*.css",
+    "./src/index.ts",
+    "./dist/index.js"
+  ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,19 +39,9 @@
     "./dist/index.css": "./dist/index.css",
     "./style.css": "./dist/index.css"
   },
-  "files": [
-    "dist"
-  ],
-  "sideEffects": [
-    "**/*.css",
-    "./src/index.ts",
-    "./dist/index.js"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/lofcz/tinysheet.git"
+  "publishConfig": {
+    "access": "public"
   },
-  "license": "MIT",
   "dependencies": {
     "@lofcz/tinysheet-core": "^1.0.3",
     "@types/regenerator-runtime": "^0.13.6",
@@ -36,21 +52,5 @@
   "peerDependencies": {
     "react": ">= 19.3",
     "react-dom": ">= 19.3"
-  },
-  "keywords": [
-    "spreadsheet",
-    "sheet",
-    "excel",
-    "data table",
-    "table",
-    "data grid",
-    "react",
-    "reactjs",
-    "react component",
-    "collabration",
-    "collabrative"
-  ],
-  "publishConfig": {
-    "access": "public"
   }
 }

@@ -131,8 +131,8 @@ export function convertCellImageToFloating(
   const img = cell?.img;
   if (!cell || !img || !canEdit(ctx, r, c)) return null;
   const zoom = ctx.zoomRatio || 1;
-  const left = (c === 0 ? 0 : ctx.visibledatacolumn[c - 1] ?? 0) / zoom;
-  const top = (r === 0 ? 0 : ctx.visibledatarow[r - 1] ?? 0) / zoom;
+  const left = (c === 0 ? 0 : (ctx.visibledatacolumn[c - 1] ?? 0)) / zoom;
+  const top = (r === 0 ? 0 : (ctx.visibledatarow[r - 1] ?? 0)) / zoom;
   const cellW = (ctx.visibledatacolumn[c] ?? 0) / zoom - left;
   const cellH = (ctx.visibledatarow[r] ?? 0) / zoom - top;
   const { loaded } = getCellImage(img.src);

@@ -27,7 +27,7 @@ function currentSheetFile(ctx: Context): Sheet | null {
 
 /** Pixel start of row/column `index`. */
 function startPx(positions: number[], index: number) {
-  return index > 0 ? positions?.[index - 1] ?? 0 : 0;
+  return index > 0 ? (positions?.[index - 1] ?? 0) : 0;
 }
 
 /** First row and column shown by frozen panes (the window's top-left). */
@@ -137,7 +137,8 @@ function frozenTofreezen(ctx: Context, cache: GlobalCache, sheetId: string) {
 
   // transform to freezen
   if (type === "rangeRow" || type === "rangeBoth") {
-    const scrollTop = splitTop > 0 ? ctx.visibledatarow[splitTop - 1] ?? 0 : 0;
+    const scrollTop =
+      splitTop > 0 ? (ctx.visibledatarow[splitTop - 1] ?? 0) : 0;
     let row_st = _.sortedIndex(ctx.visibledatarow, scrollTop);
 
     const { row_focus } = range;
@@ -167,7 +168,7 @@ function frozenTofreezen(ctx: Context, cache: GlobalCache, sheetId: string) {
   }
   if (type === "rangeColumn" || type === "rangeBoth") {
     const scrollLeft =
-      splitLeft > 0 ? ctx.visibledatacolumn[splitLeft - 1] ?? 0 : 0;
+      splitLeft > 0 ? (ctx.visibledatacolumn[splitLeft - 1] ?? 0) : 0;
     let col_st = _.sortedIndex(ctx.visibledatacolumn, scrollLeft);
 
     const { column_focus } = range;
@@ -676,8 +677,8 @@ export function scrollSplitPane(
   if (!frozen?.split || !frozen.range || delta === 0) return false;
   const count =
     axis === "row"
-      ? ctx.visibledatarow?.length ?? 0
-      : ctx.visibledatacolumn?.length ?? 0;
+      ? (ctx.visibledatarow?.length ?? 0)
+      : (ctx.visibledatacolumn?.length ?? 0);
   const first = (axis === "row" ? frozen.top : frozen.left) ?? 0;
   const last =
     axis === "row" ? frozen.range.row_focus : frozen.range.column_focus;

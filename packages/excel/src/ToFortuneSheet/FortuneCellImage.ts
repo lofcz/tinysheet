@@ -157,7 +157,7 @@ function pictureTable(files: IuploadfileList): (CellPicture | null)[] {
     const rc = /<(?:\w+:)?rc\b([^>]*)\/?>/.exec(bk.body);
     const a = rc ? attrs(rc[1]) : {};
     const index =
-      Number(a.t) === richType ? richIndexes[Number(a.v)] ?? -1 : -1;
+      Number(a.t) === richType ? (richIndexes[Number(a.v)] ?? -1) : -1;
     table.push(index >= 0 ? pictureOf(index) : null);
   });
   return table;

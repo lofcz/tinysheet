@@ -329,11 +329,12 @@ class Parser extends Emitter {
   _callRangeValue(startLabel, endLabel) {
     const [startRow, startColumn, startSheetName] = extractLabel(startLabel);
     const [endRow, endColumn, endSheetName] = extractLabel(endLabel);
+    // oxlint-disable-next-line eqeqeq -- null and undefined sheet names are equal
     if (endSheetName != null && startSheetName != endSheetName) {
       throw Error(ERROR_VALUE);
     }
-    let startCell = {};
-    let endCell = {};
+    const startCell = {};
+    const endCell = {};
     startCell.sheetName = startSheetName;
 
     if (startRow.index <= endRow.index) {

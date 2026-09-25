@@ -87,7 +87,7 @@ function colorOf(fill: XmlNode | undefined): string | undefined {
 function shapeColor(spPr: XmlNode | undefined, preferLine: boolean) {
   const fill = colorOf(child(spPr, "solidFill"));
   const lineFill = colorOf(child(spPr, "ln", "solidFill"));
-  return preferLine ? lineFill ?? fill : fill ?? lineFill;
+  return preferLine ? (lineFill ?? fill) : (fill ?? lineFill);
 }
 
 function richText(node: XmlNode | undefined): string {

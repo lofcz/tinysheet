@@ -793,9 +793,11 @@ export function updateCell(
 
   // TODO window.luckysheet_getcelldata_cache = null;
 
+  // oxlint-disable-next-line no-unused-vars -- legacy flags, set but unread
   let isRunExecFunction = true;
 
   const d = flowdata; // TODO const d = editor.deepCopyFlowData(flowdata);
+  // oxlint-disable-next-line no-unused-vars -- legacy flags, set but unread
   let dynamicArrayItem = null; // 动态数组
 
   if (_.isPlainObject(curv)) {

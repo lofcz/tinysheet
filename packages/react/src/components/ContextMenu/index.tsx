@@ -216,8 +216,8 @@ const ContextMenu: React.FC = () => {
   const sel = context.luckysheet_select_save;
   const last = sel?.[sel.length - 1];
   const multi = (sel?.length ?? 0) > 1;
-  const activeR = last ? last.row_focus ?? last.row[0] : 0;
-  const activeC = last ? last.column_focus ?? last.column[0] : 0;
+  const activeR = last ? (last.row_focus ?? last.row[0]) : 0;
+  const activeC = last ? (last.column_focus ?? last.column[0]) : 0;
   const headerFlag = contextMenu.headerMenu as
     | boolean
     | "row"
@@ -266,7 +266,7 @@ const ContextMenu: React.FC = () => {
       const range = { row: last.row, column: last.column };
       if (mode === "delete") {
         const d = getFlowdata(context);
-        const total = type === "row" ? d?.length ?? 0 : d?.[0]?.length ?? 0;
+        const total = type === "row" ? (d?.length ?? 0) : (d?.[0]?.length ?? 0);
         const [a, b] = type === "row" ? last.row : last.column;
         if (b - a + 1 >= total) {
           close();
@@ -762,8 +762,8 @@ const ContextMenu: React.FC = () => {
         const sizes = _.uniq(
           targets.map((t) =>
             type === "row"
-              ? cfg.rowlen?.[t] ?? context.defaultrowlen
-              : cfg.columnlen?.[t] ?? context.defaultcollen
+              ? (cfg.rowlen?.[t] ?? context.defaultrowlen)
+              : (cfg.columnlen?.[t] ?? context.defaultcollen)
           )
         );
         return item({

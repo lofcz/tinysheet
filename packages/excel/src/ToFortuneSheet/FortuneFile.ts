@@ -222,7 +222,8 @@ export class FortuneFile {
     let sheetList: IattributeList = {};
     for (let key in sheets) {
       let sheet = sheets[key];
-      sheetList[escapeCharacter(sheet.attributeList.name)] = sheet.attributeList["sheetId"];
+      sheetList[escapeCharacter(sheet.attributeList.name)] =
+        sheet.attributeList["sheetId"];
     }
     this.sheets = [];
     let order = 0;
@@ -235,10 +236,7 @@ export class FortuneFile {
       let state = sheet.attributeList.state;
       let hide = state === "hidden" || state === "veryHidden" ? 1 : 0;
 
-      let drawing = this.readXml.getElementsByTagName(
-          "drawing",
-          sheetFile
-        ),
+      let drawing = this.readXml.getElementsByTagName("drawing", sheetFile),
         drawingFile,
         drawingRelsFile;
       if (drawing != null && drawing.length > 0) {
@@ -652,8 +650,7 @@ export class FortuneFile {
             let merge = merges.size ? merges.get(r + "_" + c) : undefined;
             if (merge == null && bigMerges.length) {
               const range = bigMerges.find(
-                (m) =>
-                  r >= m.r && r < m.r + m.rs && c >= m.c && c < m.c + m.cs
+                (m) => r >= m.r && r < m.r + m.rs && c >= m.c && c < m.c + m.cs
               );
               if (range) {
                 merge =
@@ -702,14 +699,16 @@ export class FortuneFile {
       }
 
       if (sheet.images != null) {
-        sheetout.images = Object.entries(sheet.images).map(([id, image]: any) => ({
-          ...image,
-          id,
-          left: image.default?.left ?? 0,
-          top: image.default?.top ?? 0,
-          width: image.default?.width ?? image.originWidth ?? 0,
-          height: image.default?.height ?? image.originHeight ?? 0,
-        }));
+        sheetout.images = Object.entries(sheet.images).map(
+          ([id, image]: any) => ({
+            ...image,
+            id,
+            left: image.default?.left ?? 0,
+            top: image.default?.top ?? 0,
+            width: image.default?.width ?? image.originWidth ?? 0,
+            height: image.default?.height ?? image.originHeight ?? 0,
+          })
+        );
       }
 
       let chartObjects = (sheet as any).chartObjects as any[] | undefined;

@@ -70,13 +70,9 @@ const getCell = (sheet, row, column) =>
   sheet.celldata.find((cell) => cell.r === row && cell.c === column);
 
 const loadWorkbookBufferIntoFortune = async (fileBuffer, fileName) => {
-  const file = new File(
-    [fileBuffer],
-    fileName,
-    {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }
-  );
+  const file = new File([fileBuffer], fileName, {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
 
   const setSheetsCalls = [];
   const setKeyCalls = [];
@@ -119,12 +115,8 @@ const loadFixtureIntoFortune = async () => {
 };
 
 test("transformExcelToFortune converts xls_preview.xlsx into Fortune sheets", async () => {
-  const {
-    setSheetsCalls,
-    setKeyCalls,
-    columnWidthCalls,
-    rowHeightCalls,
-  } = await loadFixtureIntoFortune();
+  const { setSheetsCalls, setKeyCalls, columnWidthCalls, rowHeightCalls } =
+    await loadFixtureIntoFortune();
 
   assert.equal(setSheetsCalls.length, 1);
   assert.equal(setKeyCalls.length, 1);
@@ -180,10 +172,16 @@ test("transformExcelToFortune converts xls_preview.xlsx into Fortune sheets", as
   assert.equal(images[0].toRow, 21);
 
   assert.equal(columnWidthCalls.length, 1);
-  assert.deepEqual(columnWidthCalls[0], [sheet.config.columnlen || {}, { id: sheet.id }]);
+  assert.deepEqual(columnWidthCalls[0], [
+    sheet.config.columnlen || {},
+    { id: sheet.id },
+  ]);
 
   assert.equal(rowHeightCalls.length, 1);
-  assert.deepEqual(rowHeightCalls[0], [sheet.config.rowlen || {}, { id: sheet.id }]);
+  assert.deepEqual(rowHeightCalls[0], [
+    sheet.config.rowlen || {},
+    { id: sheet.id },
+  ]);
 });
 
 test("transformExcelToFortune keeps one-cell anchored drawing objects visible", async () => {
@@ -243,8 +241,10 @@ test("transformExcelToFortune imports openpyxl default-namespace bar charts", as
   const images = Object.values(sheet.images || {});
   assert.ok(images.length >= 1, "expected at least one chart image");
 
-  const chartImage = images.find((image) =>
-    typeof image.src === "string" && image.src.startsWith("data:image/svg+xml")
+  const chartImage = images.find(
+    (image) =>
+      typeof image.src === "string" &&
+      image.src.startsWith("data:image/svg+xml")
   );
   assert.ok(chartImage, "expected chart SVG image");
   assert.ok(chartImage.width > 0);
@@ -339,8 +339,12 @@ test("converted xls_preview.xlsx sheets can be mounted in Workbook", async () =>
   global.HTMLElement = dom.window.HTMLElement;
   global.MutationObserver = dom.window.MutationObserver;
   global.getComputedStyle = dom.window.getComputedStyle;
-  global.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
-  global.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
+  global.requestAnimationFrame = dom.window.requestAnimationFrame.bind(
+    dom.window
+  );
+  global.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(
+    dom.window
+  );
   global.ResizeObserver = class {
     observe() {}
     unobserve() {}

@@ -402,7 +402,7 @@ export function readConditionalFormats(
         const hl = highlightOf(node);
         if (hl) {
           const { dxfId } = node.attrs;
-          const format = dxfId !== undefined ? dxfs[Number(dxfId)] ?? {} : {};
+          const format = dxfId !== undefined ? (dxfs[Number(dxfId)] ?? {}) : {};
           rule = {
             type: "default",
             cellrange: ranges,

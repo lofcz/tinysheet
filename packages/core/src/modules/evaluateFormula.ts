@@ -122,7 +122,7 @@ const BINARY_PRECEDENCE: Record<string, number> = {
 };
 
 function precedence(ast: Ast) {
-  return ast.type === "binary" ? BINARY_PRECEDENCE[ast.op] ?? 0 : 9;
+  return ast.type === "binary" ? (BINARY_PRECEDENCE[ast.op] ?? 0) : 9;
 }
 
 function isLiteral(ast: Ast) {

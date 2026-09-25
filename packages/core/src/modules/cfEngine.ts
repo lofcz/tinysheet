@@ -230,7 +230,7 @@ export function parseCFColor(color: string): [number, number, number] | null {
     return [0, 1, 2].map((i) => parseInt(m![1][i] + m![1][i], 16)) as [
       number,
       number,
-      number
+      number,
     ];
   }
   m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(s);

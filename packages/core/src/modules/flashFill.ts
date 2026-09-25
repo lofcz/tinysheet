@@ -315,7 +315,7 @@ const CLASS_COST: Record<string, number> = {
 };
 
 function classCost(cls: TokenClass) {
-  return cls.startsWith("sep:") ? 0.1 : CLASS_COST[cls] ?? 0.5;
+  return cls.startsWith("sep:") ? 0.1 : (CLASS_COST[cls] ?? 0.5);
 }
 
 function constCost(s: string) {

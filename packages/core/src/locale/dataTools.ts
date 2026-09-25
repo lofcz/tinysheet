@@ -285,8 +285,8 @@ type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends string[]
     ? string[]
     : T[K] extends object
-    ? DeepPartial<T[K]>
-    : T[K];
+      ? DeepPartial<T[K]>
+      : T[K];
 };
 
 const zh: DeepPartial<DataToolsLocale> = {
@@ -1596,8 +1596,7 @@ const hi: DeepPartial<DataToolsLocale> = {
     unselectAll: "सभी का चयन हटाएँ",
     hasHeaders: "मेरे डेटा में हेडर हैं",
     columns: "कॉलम",
-    result:
-      "{removed} डुप्लिकेट मान मिले और हटाए गए; {unique} अद्वितीय मान बचे हैं।",
+    result: "{removed} डुप्लिकेट मान मिले और हटाए गए; {unique} अद्वितीय मान बचे हैं।",
     none: "कोई डुप्लिकेट मान नहीं मिला।",
     noColumns: "कम से कम एक कॉलम चुनें।",
     ok: "ठीक है",

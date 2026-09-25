@@ -509,6 +509,7 @@ export function insertRowCol(
     });
   }
 
+  // oxlint-disable-next-line no-unused-vars -- legacy, kept for the commented-out rc payload
   let type1;
   if (type === "row") {
     type1 = "r";
@@ -1553,6 +1554,7 @@ export function deleteRowCol(
   }
 
   // 主逻辑
+  // oxlint-disable-next-line no-unused-vars -- legacy, kept for the commented-out rc payload
   let type1;
   if (type === "row") {
     type1 = "r";

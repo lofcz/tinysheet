@@ -513,8 +513,8 @@ function detailGroup(ctx: Context, show: boolean): OutlineGroup | null {
     const axis = axes[k];
     const at =
       axis === "row"
-        ? sel.row_focus ?? sel.row[0]
-        : sel.column_focus ?? sel.column[0];
+        ? (sel.row_focus ?? sel.row[0])
+        : (sel.column_focus ?? sel.column[0]);
     const groups = getOutlineGroups(cfg, axis);
     if (show) {
       // the outermost collapsed group summarised by (or containing) the cell

@@ -221,7 +221,10 @@ export async function showNotes(zip: JSZip, info: XlsxPostProcessInfo) {
   );
 }
 
-export async function applySheetXmlFixups(zip: JSZip, info: XlsxPostProcessInfo) {
+export async function applySheetXmlFixups(
+  zip: JSZip,
+  info: XlsxPostProcessInfo
+) {
   await Promise.all(
     Object.entries(info.sheetXmlFixups ?? {}).map(async ([id, fixups]) => {
       const path = `xl/worksheets/sheet${id}.xml`;

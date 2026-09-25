@@ -55,9 +55,9 @@ const TOTAL_FUNCTIONS: [TableTotalFunction, string][] = [
 type Geometry = Pick<Context, "visibledatarow" | "visibledatacolumn">;
 
 const rowTop = (g: Geometry, r: number) =>
-  r <= 0 ? 0 : g.visibledatarow[r - 1] ?? 0;
+  r <= 0 ? 0 : (g.visibledatarow[r - 1] ?? 0);
 const colLeft = (g: Geometry, c: number) =>
-  c <= 0 ? 0 : g.visibledatacolumn[c - 1] ?? 0;
+  c <= 0 ? 0 : (g.visibledatacolumn[c - 1] ?? 0);
 
 /** Closes a popup when the mouse goes down outside `ref`. */
 function useOutsideClose(

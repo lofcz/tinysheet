@@ -894,7 +894,7 @@ export function applyTableFormatting(
         let banded = false;
         if (table.bandedRows) banded = (r - dataStart) % 2 === 0;
         if (table.bandedColumns) banded = banded || (c - c1) % 2 === 0;
-        setBg(cell, banded ? style.band : style.fill ?? null);
+        setBg(cell, banded ? style.band : (style.fill ?? null));
         setFc(cell, style.text);
         if (c === c1 || c === c2) {
           const bold =

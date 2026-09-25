@@ -51,7 +51,7 @@ export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
   if (r >= 0) {
     const row_focus = sheet?.frozen?.range?.row_focus || 0;
     // the frozen pane's visible height (it may start below row 1)
-    const hiddenH = frozen?.top ? ctx.visibledatarow[frozen.top - 1] ?? 0 : 0;
+    const hiddenH = frozen?.top ? (ctx.visibledatarow[frozen.top - 1] ?? 0) : 0;
     const freezeH =
       frozen && r > row_focus ? ctx.visibledatarow[row_focus] - hiddenH : 0;
     const row = ctx.visibledatarow[r];
@@ -68,7 +68,7 @@ export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
   if (c >= 0) {
     const column_focus = sheet?.frozen?.range?.column_focus || 0;
     const hiddenW = frozen?.left
-      ? ctx.visibledatacolumn[frozen.left - 1] ?? 0
+      ? (ctx.visibledatacolumn[frozen.left - 1] ?? 0)
       : 0;
     const freezeW =
       frozen && c > column_focus

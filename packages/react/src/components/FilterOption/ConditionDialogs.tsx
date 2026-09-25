@@ -91,14 +91,14 @@ export const CustomFilterDialog: React.FC<Props> = ({
   const [first, setFirst] = useState<FilterOperator>(
     op1 ?? existing?.op1 ?? "equals"
   );
-  const [value1, setValue1] = useState(op1 ? "" : existing?.value1 ?? "");
+  const [value1, setValue1] = useState(op1 ? "" : (existing?.value1 ?? ""));
   const [join, setJoin] = useState<"and" | "or">(
-    op1 ? "and" : existing?.join ?? "and"
+    op1 ? "and" : (existing?.join ?? "and")
   );
   const [second, setSecond] = useState<FilterOperator | "">(
-    op2 ?? (op1 ? "" : existing?.op2 ?? "")
+    op2 ?? (op1 ? "" : (existing?.op2 ?? ""))
   );
-  const [value2, setValue2] = useState(op1 ? "" : existing?.value2 ?? "");
+  const [value2, setValue2] = useState(op1 ? "" : (existing?.value2 ?? ""));
 
   const operators = kind === "date" ? DATE_OPERATORS : TEXT_OPERATORS;
   const labels = kind === "date" ? t.dateOperators : t.operators;

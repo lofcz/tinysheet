@@ -119,9 +119,10 @@ export function scrollSelectionIntoCorner(ctx: Context) {
   const sel =
     ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
   if (!sel) return;
-  ctx.scrollTop = sel.row[0] > 0 ? ctx.visibledatarow[sel.row[0] - 1] ?? 0 : 0;
+  ctx.scrollTop =
+    sel.row[0] > 0 ? (ctx.visibledatarow[sel.row[0] - 1] ?? 0) : 0;
   ctx.scrollLeft =
-    sel.column[0] > 0 ? ctx.visibledatacolumn[sel.column[0] - 1] ?? 0 : 0;
+    sel.column[0] > 0 ? (ctx.visibledatacolumn[sel.column[0] - 1] ?? 0) : 0;
 }
 
 /**

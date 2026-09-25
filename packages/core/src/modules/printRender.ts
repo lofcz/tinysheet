@@ -278,10 +278,10 @@ function printContext(
     theme: "light",
     defaultrowlen: current
       ? ctx.defaultrowlen
-      : sheet.defaultRowHeight ?? ctx.defaultrowlen,
+      : (sheet.defaultRowHeight ?? ctx.defaultrowlen),
     defaultcollen: current
       ? ctx.defaultcollen
-      : sheet.defaultColWidth ?? ctx.defaultcollen,
+      : (sheet.defaultColWidth ?? ctx.defaultcollen),
     luckysheetTableContentHW: [g.colEnds[g.colEnds.length - 1] ?? 0, 0],
     luckysheet_select_save: [],
     luckysheetcurrentisPivotTable: false,

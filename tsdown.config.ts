@@ -7,16 +7,9 @@ const shared = {
   // Browser consumers (Vite/sciobot). Avoid "neutral" so package "main" resolves.
   platform: "browser" as const,
   target: "es2020",
-  deps: {
-    skipNodeModulesBundle: true,
-    neverBundle: [
-      "@lofcz/tinysheet-core",
-      "@lofcz/tinysheet-react",
-      "@lofcz/tinysheet-excel",
-      // Workspace package — must stay external (not path-bundled from packages/).
-      "@lofcz/tinysheet-formula-parser",
-    ],
-  },
+  // every bare import stays external: dependencies and the workspace
+  // packages (@lofcz/tinysheet-*), which must not be path-bundled
+  deps: { neverBundle: true },
 };
 
 export default defineConfig([

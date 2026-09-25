@@ -144,17 +144,13 @@ export class FortuneConfig implements IfortuneSheetConfig {
   customWidth: IfortuneSheetRowAndColumnHidden;
 }
 
-export class FortuneSheetborderInfoCellForImp
-  implements IfortuneSheetborderInfoCellForImp
-{
+export class FortuneSheetborderInfoCellForImp implements IfortuneSheetborderInfoCellForImp {
   rangeType: string;
   // cells:string[]
   value: IfortuneSheetborderInfoCellValue;
 }
 
-export class FortuneSheetborderInfoCellValue
-  implements IfortuneSheetborderInfoCellValue
-{
+export class FortuneSheetborderInfoCellValue implements IfortuneSheetborderInfoCellValue {
   row_index: number;
   col_index: number;
   l: IfortuneSheetborderInfoCellValueStyle;
@@ -163,9 +159,7 @@ export class FortuneSheetborderInfoCellValue
   b: IfortuneSheetborderInfoCellValueStyle;
 }
 
-export class FortuneSheetborderInfoCellValueStyle
-  implements IfortuneSheetborderInfoCellValueStyle
-{
+export class FortuneSheetborderInfoCellValueStyle implements IfortuneSheetborderInfoCellValueStyle {
   "style": number;
   "color": string;
 }

@@ -109,9 +109,7 @@ test.describe("shapes", () => {
     await expect(rect).toBeFocused();
     await expect
       .poll(async () =>
-        (
-          await shapes(page)
-        )
+        (await shapes(page))
           .find((s) => s.id === "rect")
           .text.paragraphs[0].runs.map((r) => r.text)
           .join("")

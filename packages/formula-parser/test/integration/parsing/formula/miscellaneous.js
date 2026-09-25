@@ -14,23 +14,33 @@ describe(".parse() miscellaneous formulas", () => {
   // src/functions/lookup-array.js (tested in formula/lookup-array.js).
   it("UNIQUE", () => {
     parser.setVariable("list", [[1], [2], [2], [3]]);
-    expect(
-      parser.parse("UNIQUE()")
-    ).toMatchObject({ error: "#VALUE!", result: null });
-    expect(
-      parser.parse("UNIQUE(list)")
-    ).toMatchObject({ error: null, result: [[1], [2], [3]] });
-    expect(parser.parse('UNIQUE("foo")')).toMatchObject({ error: null, result: "foo" });
+    expect(parser.parse("UNIQUE()")).toMatchObject({
+      error: "#VALUE!",
+      result: null,
+    });
+    expect(parser.parse("UNIQUE(list)")).toMatchObject({
+      error: null,
+      result: [[1], [2], [3]],
+    });
+    expect(parser.parse('UNIQUE("foo")')).toMatchObject({
+      error: null,
+      result: "foo",
+    });
   });
 
   it("ARGS2ARRAY", () => {
-    expect(
-      parser.parse("ARGS2ARRAY()")
-    ).toMatchObject({ error: "#NAME?", result: null });
-    expect(
-      parser.parse("ARGS2ARRAY(1, 4, 4, 3)")
-    ).toMatchObject({ error: "#NAME?", result: null });
-    expect(parser.parse('ARGS2ARRAY("foo", "bar", "foo")')).toMatchObject({ error: "#NAME?", result: null });
+    expect(parser.parse("ARGS2ARRAY()")).toMatchObject({
+      error: "#NAME?",
+      result: null,
+    });
+    expect(parser.parse("ARGS2ARRAY(1, 4, 4, 3)")).toMatchObject({
+      error: "#NAME?",
+      result: null,
+    });
+    expect(parser.parse('ARGS2ARRAY("foo", "bar", "foo")')).toMatchObject({
+      error: "#NAME?",
+      result: null,
+    });
   });
 
   // Removed in @formulajs/formulajs v4 (was a Google Sheets helper).
@@ -62,13 +72,18 @@ describe(".parse() miscellaneous formulas", () => {
   });
 
   it("NUMBERS", () => {
-    expect(
-      parser.parse("NUMBERS()")
-    ).toMatchObject({ error: "#NAME?", result: null });
-    expect(
-      parser.parse('NUMBERS(1, "4", "4", 3)')
-    ).toMatchObject({ error: "#NAME?", result: null });
-    expect(parser.parse('NUMBERS("foo", 2, "bar", "foo")')).toMatchObject({ error: "#NAME?", result: null });
+    expect(parser.parse("NUMBERS()")).toMatchObject({
+      error: "#NAME?",
+      result: null,
+    });
+    expect(parser.parse('NUMBERS(1, "4", "4", 3)')).toMatchObject({
+      error: "#NAME?",
+      result: null,
+    });
+    expect(parser.parse('NUMBERS("foo", 2, "bar", "foo")')).toMatchObject({
+      error: "#NAME?",
+      result: null,
+    });
   });
 
   it("REFERENCE", () => {
@@ -78,8 +93,9 @@ describe(".parse() miscellaneous formulas", () => {
       }
     });
 
-    expect(
-      parser.parse('REFERENCE(A1, "name.firstName")')
-    ).toMatchObject({ error: "#NAME?", result: null });
+    expect(parser.parse('REFERENCE(A1, "name.firstName")')).toMatchObject({
+      error: "#NAME?",
+      result: null,
+    });
   });
 });

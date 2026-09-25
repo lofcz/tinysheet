@@ -490,8 +490,8 @@ export function adjacentThreadedComment(
       ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
     origin = {
       sheetId: ctx.currentSheetId,
-      r: sel ? sel.row_focus ?? sel.row[0] : 0,
-      c: sel ? sel.column_focus ?? sel.column[0] : 0,
+      r: sel ? (sel.row_focus ?? sel.row[0]) : 0,
+      c: sel ? (sel.column_focus ?? sel.column[0]) : 0,
     };
   }
   const sheetOrder = new Map<string, number>();

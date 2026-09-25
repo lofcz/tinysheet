@@ -525,8 +525,8 @@ function defaultBox(ctx: Context, item: ShapeGalleryItem): ShapeBox {
   const geo = contextGeometry(ctx, ctx.currentSheetId);
   const sel =
     ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
-  const r = sel ? sel.row_focus ?? sel.row[0] : 1;
-  const c = sel ? sel.column_focus ?? sel.column[0] : 1;
+  const r = sel ? (sel.row_focus ?? sel.row[0]) : 1;
+  const c = sel ? (sel.column_focus ?? sel.column[0]) : 1;
   const left = geo.colLeft(c) + 8;
   const top = geo.rowTop(r) + 8;
   if (item.category === "lines") return { left, top, width: 144, height: 0 };
@@ -602,7 +602,7 @@ export function insertShape(
     top: Math.max(0, box.top),
   });
   const shapes = sheet.shapes ?? [];
-  const base = item.textBox ? "TextBox" : OBJECT_NAMES[item.prst] ?? "Shape";
+  const base = item.textBox ? "TextBox" : (OBJECT_NAMES[item.prst] ?? "Shape");
   const shape = createShape(item, from, to, nextName(shapes, base));
   if (options.flipH) shape.flipH = true;
   if (options.flipV) shape.flipV = true;

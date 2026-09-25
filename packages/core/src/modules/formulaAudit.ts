@@ -45,7 +45,7 @@ export function isErrorValue(v: unknown) {
 
 function sheetData(ctx: Context, sheetId: string) {
   const i = getSheetIndex(ctx, sheetId);
-  return i == null ? null : ctx.luckysheetfile[i]?.data ?? null;
+  return i == null ? null : (ctx.luckysheetfile[i]?.data ?? null);
 }
 
 function cellAt(ctx: Context, sheetId: string, r: number, c: number) {

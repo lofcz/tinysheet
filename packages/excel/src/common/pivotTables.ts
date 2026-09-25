@@ -304,8 +304,8 @@ function compareVals(a: Val, b: Val) {
     return a.toLowerCase() < b.toLowerCase()
       ? -1
       : a.toLowerCase() > b.toLowerCase()
-      ? 1
-      : 0;
+        ? 1
+        : 0;
   }
   return Number(a) - Number(b);
 }
@@ -1032,7 +1032,7 @@ export function parsePivotTableXml(
   const output = {
     row: [loc.row[0] - (pageCount ? pageCount + 1 : 0), loc.row[1]] as [
       number,
-      number
+      number,
     ],
     column: [
       loc.column[0],
@@ -1058,7 +1058,7 @@ export function parsePivotTableXml(
       ? { table: cache.tableName }
       : {
           sheetId: resolveSheet(cache.sheet),
-          range: cache.ref ? parseRef(cache.ref) ?? undefined : undefined,
+          range: cache.ref ? (parseRef(cache.ref) ?? undefined) : undefined,
         },
     anchor: { r: loc.row[0], c: loc.column[0] },
     rows,

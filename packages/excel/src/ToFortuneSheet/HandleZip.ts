@@ -20,7 +20,7 @@ const REL_TYPES: [RegExp, string][] = [
 function relationshipTargets(xml: string | undefined) {
   const out: { type: string; target: string }[] = [];
   (typeof xml === "string"
-    ? xml.match(/<Relationship\b[^>]*>/g) ?? []
+    ? (xml.match(/<Relationship\b[^>]*>/g) ?? [])
     : []
   ).forEach((tag) => {
     const type = /\bType\s*=\s*["']([^"']*)["']/.exec(tag)?.[1];

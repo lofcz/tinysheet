@@ -302,7 +302,9 @@
 
 .fortune-slicer-active {
   border-color: var(--fortune-slicer-accent);
-  box-shadow: 0 0 0 1px var(--fortune-slicer-accent), var(--fortune-shadow);
+  box-shadow:
+    0 0 0 1px var(--fortune-slicer-accent),
+    var(--fortune-shadow);
 }
 
 .fortune-slicer:focus-visible {

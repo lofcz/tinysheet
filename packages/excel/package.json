@@ -2,7 +2,23 @@
   "name": "@lofcz/tinysheet-excel",
   "version": "1.0.3",
   "description": "Excel import/export for TinySheet",
+  "keywords": [
+    "excel",
+    "export",
+    "import",
+    "spreadsheet",
+    "tinysheet"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lofcz/tinysheet.git"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,15 +28,9 @@
       "import": "./dist/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
-  "sideEffects": false,
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/lofcz/tinysheet.git"
+  "publishConfig": {
+    "access": "public"
   },
-  "license": "MIT",
   "scripts": {
     "test": "node --test test/*.test.mjs"
   },
@@ -44,15 +54,5 @@
     "react-dom": {
       "optional": true
     }
-  },
-  "keywords": [
-    "spreadsheet",
-    "excel",
-    "tinysheet",
-    "import",
-    "export"
-  ],
-  "publishConfig": {
-    "access": "public"
   }
 }

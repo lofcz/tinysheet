@@ -111,9 +111,9 @@ type Box = { left: number; top: number; width: number; height: number };
 type DragMode = "move" | "lt" | "rt" | "lb" | "rb" | "l" | "r" | "t" | "b";
 
 const rowTop = (ctx: Context, r: number) =>
-  r <= 0 ? 0 : ctx.visibledatarow[r - 1] ?? 0;
+  r <= 0 ? 0 : (ctx.visibledatarow[r - 1] ?? 0);
 const colLeft = (ctx: Context, c: number) =>
-  c <= 0 ? 0 : ctx.visibledatacolumn[c - 1] ?? 0;
+  c <= 0 ? 0 : (ctx.visibledatacolumn[c - 1] ?? 0);
 
 /** The slicer's box in sheet pixels (zoomed). */
 function slicerBox(ctx: Context, s: TableSlicer): Box {

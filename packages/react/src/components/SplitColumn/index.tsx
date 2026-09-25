@@ -190,6 +190,7 @@ export const SplitColumn: React.FC<{}> = () => {
             ["fixed", t.fixedWidth, t.fixedWidthDesc],
           ] as const
         ).map(([value, label, desc]) => (
+          // oxlint-disable-next-line jsx-a11y/label-has-associated-control -- text is rendered by children
           <label
             key={value}
             className="fortune-dt-check"

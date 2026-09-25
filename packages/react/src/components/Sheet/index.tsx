@@ -436,7 +436,7 @@ function freezeMergeSpan(
   Object.values(merge).forEach((m) => {
     const [start, span] = axis === "y" ? [m.r, m.rs] : [m.c, m.cs];
     if (!(start < frozenCount && start + span > frozenCount)) return;
-    const first = start > 0 ? along[start - 1] ?? 0 : 0;
+    const first = start > 0 ? (along[start - 1] ?? 0) : 0;
     const last = along[Math.min(start + span, along.length) - 1] ?? first;
     // the frozen pane: from its top (left) edge to its far end, fixed
     hi = Math.max(hi, last - paneScroll + header);

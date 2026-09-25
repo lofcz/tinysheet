@@ -476,7 +476,7 @@ function findSymbol(section: string): { symbol: string; after: boolean } {
       const symbol = t.text.slice(1, -1).trim();
       if (symbol) return { symbol, after: seenPh };
     }
-    if (t.kind === "lit" && /^\[\$/.test(t.text)) {
+    if (t.kind === "lit" && t.text.startsWith("[$")) {
       const symbol = t.text.slice(2, -1).split("-")[0];
       if (symbol) return { symbol, after: seenPh };
     }

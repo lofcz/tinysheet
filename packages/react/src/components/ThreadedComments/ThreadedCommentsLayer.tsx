@@ -29,13 +29,13 @@ type Cell = { r: number; c: number };
 function cardPosition(ctx: Context, r: number, c: number, height: number) {
   const flowdata = getFlowdata(ctx);
   let right = ctx.visibledatacolumn[c] ?? 0;
-  let top = r === 0 ? 0 : ctx.visibledatarow[r - 1] ?? 0;
+  let top = r === 0 ? 0 : (ctx.visibledatarow[r - 1] ?? 0);
   if (flowdata) {
     const pos = getCellTopRightPostion(ctx, flowdata, r, c);
     right = pos.toX;
     top = pos.toY;
   }
-  const colStart = c === 0 ? 0 : ctx.visibledatacolumn[c - 1] ?? 0;
+  const colStart = c === 0 ? 0 : (ctx.visibledatacolumn[c - 1] ?? 0);
   const viewLeft = ctx.scrollLeft;
   const viewRight = ctx.scrollLeft + ctx.cellmainWidth;
   const viewBottom = ctx.scrollTop + ctx.cellmainHeight;
@@ -133,8 +133,8 @@ const ThreadedCommentsLayer: React.FC = () => {
 
   // moving the active cell away (keyboard) closes the card
   const sel = context.luckysheet_select_save?.[0];
-  const activeR = sel ? sel.row_focus ?? sel.row[0] : -1;
-  const activeC = sel ? sel.column_focus ?? sel.column[0] : -1;
+  const activeR = sel ? (sel.row_focus ?? sel.row[0]) : -1;
+  const activeC = sel ? (sel.column_focus ?? sel.column[0]) : -1;
   const cardKey = openCell ? `${openCell.r}_${openCell.c}` : "";
   const lastActive = useRef(`${activeR}_${activeC}`);
   useEffect(() => {

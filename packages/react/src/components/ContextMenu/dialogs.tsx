@@ -110,10 +110,13 @@ export function useInsertDeleteRunner() {
     range: Range
   ) => {
     let error: string | null = null;
-    setContext((draftCtx) => {
-      error = runInsertDelete(draftCtx, mode, choice, range);
-      draftCtx.contextMenu = {};
-    }, insertDeleteOptions(context, mode, choice, range));
+    setContext(
+      (draftCtx) => {
+        error = runInsertDelete(draftCtx, mode, choice, range);
+        draftCtx.contextMenu = {};
+      },
+      insertDeleteOptions(context, mode, choice, range)
+    );
     // setContext runs the recipe synchronously in event handlers; report
     // refusals once it has
     window.setTimeout(() => {

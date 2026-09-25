@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "trailingComma": "es5",
+  "ignorePatterns": [
+    "**/dist/**",
+    "storybook-static/**",
+    "**/*.md",
+    "bun.lock",
+    "docs/**/node_modules/**",
+    "docs/yarn.lock",
+    "docs/.vitepress/cache/**",
+    "docs/.vitepress/dist/**"
+  ],
+  "printWidth": 80
+}

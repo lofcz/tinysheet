@@ -1,4 +1,8 @@
-import { IuploadfileList, IattributeList, stringToNum } from "../common/ICommon";
+import {
+  IuploadfileList,
+  IattributeList,
+  stringToNum,
+} from "../common/ICommon";
 import { indexedColors } from "../common/constant";
 import { LightenDarkenColor } from "../common/method";
 

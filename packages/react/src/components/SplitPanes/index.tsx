@@ -37,11 +37,11 @@ const SplitPanes: React.FC = () => {
   // pane sizes in px (without headers)
   const paneHeight = hasRows
     ? (rows[split!.range?.row_focus ?? 0] ?? 0) -
-      ((split!.top ?? 0) > 0 ? rows[(split!.top ?? 0) - 1] ?? 0 : 0)
+      ((split!.top ?? 0) > 0 ? (rows[(split!.top ?? 0) - 1] ?? 0) : 0)
     : 0;
   const paneWidth = hasCols
     ? (cols[split!.range?.column_focus ?? 0] ?? 0) -
-      ((split!.left ?? 0) > 0 ? cols[(split!.left ?? 0) - 1] ?? 0 : 0)
+      ((split!.left ?? 0) > 0 ? (cols[(split!.left ?? 0) - 1] ?? 0) : 0)
     : 0;
 
   // wheel over the top / left pane scrolls that pane only

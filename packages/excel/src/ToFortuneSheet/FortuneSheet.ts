@@ -20,10 +20,7 @@
   IfortunesheetDataVerification,
   IfortunesheetDataVerificationValue,
 } from "./IFortune";
-import {
-  FortuneSheetCelldata,
-  FortuneCellWorkbookInfo,
-} from "./FortuneCell";
+import { FortuneSheetCelldata, FortuneCellWorkbookInfo } from "./FortuneCell";
 import { shiftFormula } from "../common/formulaText";
 import { IattributeList } from "../common/ICommon";
 import {
@@ -130,15 +127,23 @@ export function frozenFromPane(panes: Element[] | null) {
   const attrList = panes[0].attributeList;
   const state = getXmlAttibute(attrList, "state", "split");
   if (state != "frozen" && state != "frozenSplit") return undefined;
-  const xSplit = Math.round(parseFloat(getXmlAttibute(attrList, "xSplit", "0")));
-  const ySplit = Math.round(parseFloat(getXmlAttibute(attrList, "ySplit", "0")));
+  const xSplit = Math.round(
+    parseFloat(getXmlAttibute(attrList, "xSplit", "0"))
+  );
+  const ySplit = Math.round(
+    parseFloat(getXmlAttibute(attrList, "ySplit", "0"))
+  );
   if (!(xSplit > 0) && !(ySplit > 0)) return undefined;
   const range = {
     row_focus: ySplit > 0 ? ySplit - 1 : 0,
     column_focus: xSplit > 0 ? xSplit - 1 : 0,
   };
   const type: "rangeRow" | "rangeColumn" | "rangeBoth" =
-    xSplit > 0 && ySplit > 0 ? "rangeBoth" : ySplit > 0 ? "rangeRow" : "rangeColumn";
+    xSplit > 0 && ySplit > 0
+      ? "rangeBoth"
+      : ySplit > 0
+        ? "rangeRow"
+        : "rangeColumn";
   return { type, range };
 }
 
@@ -406,7 +411,9 @@ export class FortuneSheet extends FortuneSheetBase {
     //There may be formulas that do not appear in calcChain
     for (const formulaListItem of (cellOtherInfo as any)
       .formulaCells as IformulaListItem[]) {
-      if (!formulaListExist.has(formulaListItem.r * 16384 + formulaListItem.c)) {
+      if (
+        !formulaListExist.has(formulaListItem.r * 16384 + formulaListItem.c)
+      ) {
         let chain = new FortunesheetCalcChain();
         chain.r = formulaListItem.r;
         chain.c = formulaListItem.c;
@@ -609,12 +616,17 @@ export class FortuneSheet extends FortuneSheetBase {
         chartSpec,
         this.createParseCellResolver()
       );
-      let svg = renderChartSvgFromSeries(series, chartSpec.width, chartSpec.height, {
-        title: chartSpec.title,
-        categoryAxisTitle: chartSpec.categoryAxisTitle,
-        valueAxisTitle: chartSpec.valueAxisTitle,
-        valueAxis: chartSpec.valueAxis,
-      });
+      let svg = renderChartSvgFromSeries(
+        series,
+        chartSpec.width,
+        chartSpec.height,
+        {
+          title: chartSpec.title,
+          categoryAxisTitle: chartSpec.categoryAxisTitle,
+          valueAxisTitle: chartSpec.valueAxisTitle,
+          valueAxis: chartSpec.valueAxis,
+        }
+      );
 
       this.addDrawingImage(anchor, {
         src: chartSvgToDataUri(svg),
@@ -680,7 +692,12 @@ export class FortuneSheet extends FortuneSheetBase {
       toRowOff: rect.toRowOff,
       originWidth: rect.width,
       originHeight: rect.height,
-      crop: { height: rect.height, width: rect.width, offsetLeft: 0, offsetTop: 0 },
+      crop: {
+        height: rect.height,
+        width: rect.width,
+        offsetLeft: 0,
+        offsetTop: 0,
+      },
       default: { height: rect.height, width: rect.width, left: 0, top: 0 },
     });
   }
@@ -953,7 +970,10 @@ export class FortuneSheet extends FortuneSheetBase {
     };
   }
 
-  private getAxisAnchorByOffset(offset: number, axis: string): DrawingCellAnchor {
+  private getAxisAnchorByOffset(
+    offset: number,
+    axis: string
+  ): DrawingCellAnchor {
     let current = 0;
     let remaining = offset;
     let guard = 0;
@@ -1078,7 +1098,8 @@ export class FortuneSheet extends FortuneSheetBase {
     let items: ShapeRenderItem[] = [];
     let groupTransform = this.getGroupTransform(group);
     let scaleX = groupTransform.width == 0 ? 1 : width / groupTransform.width;
-    let scaleY = groupTransform.height == 0 ? 1 : height / groupTransform.height;
+    let scaleY =
+      groupTransform.height == 0 ? 1 : height / groupTransform.height;
     let shapes = group.getInnerElements("xdr:sp");
 
     if (shapes == null) {
@@ -1103,7 +1124,8 @@ export class FortuneSheet extends FortuneSheetBase {
 
   private getGroupTransform(group: Element) {
     let transforms = group.getInnerElements("a:xfrm");
-    let transform = transforms != null && transforms.length > 0 ? transforms[0] : null;
+    let transform =
+      transforms != null && transforms.length > 0 ? transforms[0] : null;
     let x = 0,
       y = 0,
       width = 1,
@@ -1112,8 +1134,10 @@ export class FortuneSheet extends FortuneSheetBase {
     if (transform != null) {
       let childOff = transform.getInnerElements("a:chOff");
       let childExt = transform.getInnerElements("a:chExt");
-      let off = childOff != null ? childOff : transform.getInnerElements("a:off");
-      let ext = childExt != null ? childExt : transform.getInnerElements("a:ext");
+      let off =
+        childOff != null ? childOff : transform.getInnerElements("a:off");
+      let ext =
+        childExt != null ? childExt : transform.getInnerElements("a:ext");
 
       if (off != null && off.length > 0) {
         x = parseInt(getXmlAttibute(off[0].attributeList, "x", "0"));
@@ -1277,7 +1301,9 @@ export class FortuneSheet extends FortuneSheetBase {
       return 14;
     }
 
-    let size = parseInt(getXmlAttibute(runProperties[0].attributeList, "sz", "1400"));
+    let size = parseInt(
+      getXmlAttibute(runProperties[0].attributeList, "sz", "1400")
+    );
     if (isNaN(size)) {
       return 14;
     }
@@ -1373,7 +1399,10 @@ export class FortuneSheet extends FortuneSheetBase {
     width: number,
     height: number
   ): FortuneChartSpec {
-    let charts = this.readXml.getElementsByTagName("c:chartSpace/c:chart", chartFile);
+    let charts = this.readXml.getElementsByTagName(
+      "c:chartSpace/c:chart",
+      chartFile
+    );
     if (charts == null || charts.length == 0) {
       return null;
     }
@@ -1614,7 +1643,8 @@ export class FortuneSheet extends FortuneSheetBase {
       return 0;
     }
     return (
-      (range.row[1] - range.row[0] + 1) * (range.column[1] - range.column[0] + 1)
+      (range.row[1] - range.row[0] + 1) *
+      (range.column[1] - range.column[0] + 1)
     );
   }
 
@@ -2328,7 +2358,9 @@ export class FortuneSheet extends FortuneSheetBase {
         // Custom formulas generated for "contains / excludes / equals" rules.
         const text = String(_value1);
         const include =
-          /^ISNUMBER\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(text);
+          /^ISNUMBER\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(
+            text
+          );
         const exclude =
           /^ISERROR\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(text);
         const equal = /^\$?[A-Z]+\$?\d+="((?:[^"]|"")*)"$/i.exec(text);
@@ -2420,9 +2452,7 @@ export class FortuneSheet extends FortuneSheetBase {
 
         if (findRid) {
           _address = escapeCharacter(findRid.attributeList["Target"]);
-          const type = findRid.attributeList[
-            "TargetMode"
-          ]?.toLocaleLowerCase();
+          const type = findRid.attributeList["TargetMode"]?.toLocaleLowerCase();
           if (type === "external") {
             _type = "webpage";
           }

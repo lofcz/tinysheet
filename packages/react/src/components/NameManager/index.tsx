@@ -270,7 +270,7 @@ export const NameManager: React.FC<{
 
   const rows = useMemo(() => {
     const sheetName = (id: string | null) =>
-      id == null ? t.scopeWorkbook : sheetNameById(context, id) ?? "";
+      id == null ? t.scopeWorkbook : (sheetNameById(context, id) ?? "");
     return getDefinedNames(context)
       .filter((e) => !e.hidden)
       .map((e) => ({

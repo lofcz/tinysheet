@@ -654,7 +654,7 @@ export function parseBorder(
     const pt = toPt(lower);
     if (pt != null) {
       if (pt <= 0) zero = true;
-      if (/px$/.test(lower)) {
+      if (lower.endsWith("px")) {
         const px = pt / 0.75;
         if (px >= 3) weight = 2;
         else if (px >= 2) weight = 1;

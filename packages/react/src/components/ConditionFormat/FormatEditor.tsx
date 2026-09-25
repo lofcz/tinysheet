@@ -111,8 +111,8 @@ const FormatEditor: React.FC<{
                     f.key === "underline"
                       ? "underline"
                       : f.key === "strikethrough"
-                      ? "line-through"
-                      : undefined,
+                        ? "line-through"
+                        : undefined,
                 }}
               >
                 {text[f.label]}

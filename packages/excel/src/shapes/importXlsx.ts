@@ -76,7 +76,7 @@ export function readThemeColors(themeXml: string | undefined): ThemeColors {
   scheme?.children.forEach((slot) => {
     const c = slot.children[0];
     const value =
-      c?.name === "sysClr" ? c.attrs.lastClr : c?.attrs.val ?? undefined;
+      c?.name === "sysClr" ? c.attrs.lastClr : (c?.attrs.val ?? undefined);
     if (value && /^[0-9a-f]{6}$/i.test(value))
       colors[slot.name] = value.toUpperCase();
   });
@@ -288,8 +288,8 @@ function readText(
       algn === "l" || algn === "ctr" || algn === "r"
         ? algn
         : algn === "just" || algn === "dist"
-        ? "just"
-        : undefined;
+          ? "just"
+          : undefined;
     const runs: ShapeTextRun[] = [];
     p.children.forEach((node) => {
       if (node.name === "r" || node.name === "fld") {
@@ -387,8 +387,8 @@ function readShapeNode(
         Number.isFinite(w) && w > 0
           ? Math.round((w / EMU_PER_PX) * 100) / 100
           : ln
-          ? 1
-          : 1.33,
+            ? 1
+            : 1.33,
     };
     const dash = child(ln, "prstDash")?.attrs.val;
     const d = (dash &&

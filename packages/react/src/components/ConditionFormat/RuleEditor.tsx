@@ -389,7 +389,7 @@ const DataBarEditor: React.FC<{
           <select
             id={`${id}-border`}
             className="fortune-cf-select"
-            value={bar.border ?? bar.gradient ? "solid" : "none"}
+            value={(bar.border ?? bar.gradient) ? "solid" : "none"}
             onChange={(e) => set({ border: e.target.value === "solid" })}
           >
             <option value="none">{text.noBorder}</option>
@@ -590,7 +590,7 @@ const IconSetEditor: React.FC<{
                       update(k, {
                         ...vo,
                         type: t,
-                        value: t === "formula" ? "" : vo.value ?? 0,
+                        value: t === "formula" ? "" : (vo.value ?? 0),
                       })
                     }
                   />

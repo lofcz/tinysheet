@@ -357,7 +357,7 @@ export type Context = {
   recalcProgress?: number;
   formulaCache: FormulaCache;
   hooks: Hooks;
-  showSheetList?: Boolean;
+  showSheetList?: boolean;
   /** Grouped sheets (Ctrl/Shift+click on tabs); edits apply to all of them. */
   groupedSheetIds?: string[];
   /** Go To dialog (Ctrl+G / F5) visibility. */
@@ -377,7 +377,7 @@ export type Context = {
    */
   outlinePrompt?: "group" | "ungroup";
   // 只读模式公式被引用单元格强制高光
-  forceFormulaRef?: Boolean;
+  forceFormulaRef?: boolean;
 
   sheetFocused: boolean; // property to track sheet focus for keyboard navigation
 

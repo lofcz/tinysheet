@@ -263,7 +263,6 @@ export const borderTypes: stringToNum = {
   thick: 13,
 };
 
-
 export const fontFamilys: IattributeList = {
   "0": "defualt",
   "1": "Roman",
@@ -291,7 +290,7 @@ export const DATA_VERIFICATION_REV_MAP: any = {
   number_integer: "decimal",
   number_decimal: "decimal",
   text_length: "textLength",
-  date: "date"
+  date: "date",
 };
 
 export const OPERATOR_MAP: any = {
@@ -302,7 +301,7 @@ export const OPERATOR_MAP: any = {
   moreThanThe: "greaterThan",
   lessThan: "lessThan",
   greaterOrEqualTo: "greaterThanOrEqual",
-  lessThanOrEqualTo: "lessThanOrEqual"
+  lessThanOrEqualTo: "lessThanOrEqual",
 };
 
 export const COMMON_TYPE2: string[] = [

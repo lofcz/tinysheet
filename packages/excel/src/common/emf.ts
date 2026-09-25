@@ -1364,7 +1364,7 @@ ToContext2D.prototype._concat = function (m: any, w: any) {
   m[4] = tx * w[0] + ty * w[2] + w[4];
   m[5] = tx * w[1] + ty * w[3] + w[5];
 };
-(ToContext2D.prototype._multPoint = function (m: any, p: any) {
+((ToContext2D.prototype._multPoint = function (m: any, p: any) {
   var x = p[0],
     y = p[1];
   return [x * m[0] + y * m[2] + m[4], x * m[1] + y * m[3] + m[5]];
@@ -1397,4 +1397,4 @@ ToContext2D.prototype._concat = function (m: any, w: any) {
         ctx.closePath();
       }
     }
-  });
+  }));

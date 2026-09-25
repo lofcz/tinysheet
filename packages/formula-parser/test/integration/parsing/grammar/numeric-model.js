@@ -47,6 +47,7 @@ describe(".parse() numeric model", () => {
       expect(value("2/3")).toBe(2 / 3);
       expect(value("PI()/2")).toBe(Math.PI / 2);
       expect(value("2^53")).toBe(2 ** 53);
+      // oxlint-disable-next-line no-loss-of-precision -- tests the rounding
       expect(value("123456789012345678")).toBe(123456789012345678);
     });
 

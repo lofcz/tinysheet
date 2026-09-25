@@ -209,7 +209,7 @@ export function findSubtotalRows(
 
 /** Delete rows (sorted ascending) bottom-up, in consecutive blocks. */
 function deleteRows(ctx: Context, sheetId: string, rows: number[]) {
-  for (let k = rows.length - 1; k >= 0; ) {
+  for (let k = rows.length - 1; k >= 0;) {
     const end = rows[k];
     let start = end;
     while (k - 1 >= 0 && rows[k - 1] === start - 1) {

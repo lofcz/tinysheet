@@ -1,7 +1,6 @@
 export default {
   generalDialog: {
-    partiallyError:
-      "आंशिक रूप से विलय किए गए सेल पर यह कार्य नहीं किया जा सकता",
+    partiallyError: "आंशिक रूप से विलय किए गए सेल पर यह कार्य नहीं किया जा सकता",
     readOnlyError: "पठन मोड में यह कार्य नहीं किया जा सकता",
     dataNullError: "डेटा जो मौजूद नहीं है उस पर यह कार्य नहीं किया जा सकता",
     noSeletionError: "चयन कार्य अभी तक नहीं किया गया है",
@@ -104,8 +103,7 @@ export default {
 
     tipSelectRange: "कृपया वैकल्पिक रंगों की रेंज चुनें",
     errorNoRange: "कोई रेंज चयनित नहीं है",
-    errorExistColors:
-      "वैकल्पिक रंग पहले से मौजूद हैं और संपादित नहीं किए जा सकते",
+    errorExistColors: "वैकल्पिक रंग पहले से मौजूद हैं और संपादित नहीं किए जा सकते",
   },
   button: {
     confirm: "ठीक है",
@@ -599,8 +597,7 @@ export default {
     filterDateFormatTip: "दिनांक प्रारूप",
 
     valueBlank: "(रिक्त)",
-    mergeError:
-      "फ़िल्टर चयन में मर्ज किए गए सेल हैं, यह कार्य नहीं किया जा सकता!",
+    mergeError: "फ़िल्टर चयन में मर्ज किए गए सेल हैं, यह कार्य नहीं किया जा सकता!",
   },
   rightclick: {
     copy: "कॉपी",
@@ -665,15 +662,13 @@ export default {
     byRow: "पंक्ति द्वारा",
     byCol: "स्तंभ द्वारा",
     generateNewMatrix: "नया मैट्रिक्स बनाएं",
-    noMulti:
-      "कई चयन क्षेत्रों पर यह ऑपरेशन नहीं कर सकते, कृपया एकल क्षेत्र का चयन करें",
+    noMulti: "कई चयन क्षेत्रों पर यह ऑपरेशन नहीं कर सकते, कृपया एकल क्षेत्र का चयन करें",
     cannotDeleteAllRow: "सभी पंक्तियाँ नहीं हटा सकते",
     cannotDeleteAllColumn: "सभी स्तंभ नहीं हटा सकते",
     cannotDeleteRowReadOnly: "पंक्ति केवल-पढ़ने के लिए हटाई नहीं जा सकती",
     cannotDeleteColumnReadOnly: "स्तंभ केवल-पढ़ने के लिए हटाई नहीं जा सकती",
     cannotInsertOnRowReadOnly: "केवल-पढ़ने की पंक्ति पर सम्मिलित नहीं कर सकते",
-    cannotInsertOnColumnReadOnly:
-      "केवल-पढ़ने के स्तंभ पर सम्मिलित नहीं कर सकते",
+    cannotInsertOnColumnReadOnly: "केवल-पढ़ने के स्तंभ पर सम्मिलित नहीं कर सकते",
     rowOverLimit: "10000 पंक्ति सीमा पार हो गई",
     columnOverLimit: "1000 स्तंभ सीमा पार हो गई",
   },
@@ -964,8 +959,7 @@ export default {
     conditionformat_lessThan: "Conditionformat-LessThan",
     conditionformat_lessThan_title: "से छोटी कोशिकाओं को प्रारूपित करें",
     conditionformat_between: "Conditionformat-Betweenness",
-    conditionformat_between_title:
-      "के बीच में मान वाली कोशिकाओं को प्रारूपित करें",
+    conditionformat_between_title: "के बीच में मान वाली कोशिकाओं को प्रारूपित करें",
     conditionformat_equal: "Conditionformat-Equal",
     conditionformat_equal_title: "के बराबर कोशिकाओं को प्रारूपित करें",
     conditionformat_textContains: "Conditionformat-TextContains",
@@ -979,18 +973,14 @@ export default {
       "निम्नलिखित प्रकार के मान वाली कोशिकाओं को प्रारूपित करें",
     conditionformat_top10: "Conditionformat-Top10",
     conditionformat_top10_percent: "Conditionformat-Top10%",
-    conditionformat_top10_title:
-      "सबसे ऊंचे मान वाली कोशिकाओं को प्रारूपित करें",
+    conditionformat_top10_title: "सबसे ऊंचे मान वाली कोशिकाओं को प्रारूपित करें",
     conditionformat_last10: "Conditionformat-Last10",
     conditionformat_last10_percent: "Conditionformat-Last10%",
-    conditionformat_last10_title:
-      "सबसे छोटे मान वाली कोशिकाओं को प्रारूपित करें",
+    conditionformat_last10_title: "सबसे छोटे मान वाली कोशिकाओं को प्रारूपित करें",
     conditionformat_aboveAverage: "Conditionformat-AboveAverage",
-    conditionformat_aboveAverage_title:
-      "औसत से ऊपर वाली कोशिकाओं को प्रारूपित करें",
+    conditionformat_aboveAverage_title: "औसत से ऊपर वाली कोशिकाओं को प्रारूपित करें",
     conditionformat_belowAverage: "Conditionformat-SubAverage",
-    conditionformat_belowAverage_title:
-      "औसत से नीचे वाली कोशिकाओं को प्रारूपित करें",
+    conditionformat_belowAverage_title: "औसत से नीचे वाली कोशिकाओं को प्रारूपित करें",
     rule: "नियम",
     newRule: "नया नियम",
     editRule: "नियम संपादित करें",
@@ -1019,11 +1009,9 @@ export default {
     pleaseEnterInteger: "कृपया 1 और 1000 के बीच एक पूर्णांक दर्ज करें",
     onlySingleCell: "केवल एकल कोशिका संदर्भित की जा सकती है",
     conditionValueCanOnly: "शर्त मान केवल एक संख्या या एकल कोशिका हो सकता है",
-    ruleTypeItem1:
-      "उनके संबंधित मूल्यों के आधार पर सभी कोशिकाओं को प्रारूपित करें",
+    ruleTypeItem1: "उनके संबंधित मूल्यों के आधार पर सभी कोशिकाओं को प्रारूपित करें",
     ruleTypeItem2: "केवल उन कोशिकाओं को प्रारूपित करें जिनमें",
-    ruleTypeItem2_title:
-      "केवल उन कोशिकाओं के लिए जो निम्नलिखित शर्तों को पूरा करती हैं",
+    ruleTypeItem2_title: "केवल उन कोशिकाओं के लिए जो निम्नलिखित शर्तों को पूरा करती हैं",
     ruleTypeItem3: "केवल शीर्ष या निचले नंबरों को प्रारूपित करें",
     ruleTypeItem3_title: "निम्न रैंकिंग में मान है",
     ruleTypeItem4: "केवल औसत से ऊपर या नीचे के मानों को प्रारूपित करें",
@@ -1345,8 +1333,7 @@ export default {
     linkCell: "सेल रेंज",
     linkTooltip: "टूलटिप",
     selectCellRange: "सेल रेंज चुनें",
-    cellRangePlaceholder:
-      "कर्सर का उपयोग करके या सीधे दर्ज करके कोशिकाएँ चुनें",
+    cellRangePlaceholder: "कर्सर का उपयोग करके या सीधे दर्ज करके कोशिकाएँ चुनें",
     placeholder1: "कृपया वेब लिंक पता दर्ज करें",
     placeholder2: "कृपया उद्धृत करने के लिए सेल दर्ज करें, उदाहरण A1",
     placeholder3: "कृपया संकेत सामग्री दर्ज करें",
@@ -1375,13 +1362,11 @@ export default {
     text_length: "पाठ-लंबाई",
     date: "तिथि",
     validity: "प्रभावशीलता",
-    placeholder1:
-      "कृपया विकल्प दर्ज करें, अल्पविराम से अलग करें, जैसे 1,2,3,4,5",
+    placeholder1: "कृपया विकल्प दर्ज करें, अल्पविराम से अलग करें, जैसे 1,2,3,4,5",
     placeholder2: "कृपया सामग्री दर्ज करें",
     placeholder3: "संख्यात्मक मान, जैसे 10",
     placeholder4: "कृपया निर्दिष्ट पाठ दर्ज करें",
-    placeholder5:
-      "कृपया वह संकेत दर्ज करें जो सेल चुने जाने पर प्रदर्शित होता है",
+    placeholder5: "कृपया वह संकेत दर्ज करें जो सेल चुने जाने पर प्रदर्शित होता है",
     selected: "चयनित",
     notSelected: "चयनित नहीं",
     between: "के बीच",
@@ -1606,8 +1591,7 @@ export default {
   },
   spill: {
     notBlank: "स्पिल श्रेणी रिक्त नहीं है",
-    notBlankDetail:
-      "सूत्र के परिणाम स्पिल नहीं हो सकते क्योंकि रास्ते के सेल खाली नहीं हैं।",
+    notBlankDetail: "सूत्र के परिणाम स्पिल नहीं हो सकते क्योंकि रास्ते के सेल खाली नहीं हैं।",
     selectObstructing: "बाधक सेल चुनें",
   },
   pasteSpecial: {
@@ -1640,12 +1624,10 @@ export default {
     noMerge: "मर्ज किए गए सेल्स पर यह ऑपरेशन नहीं किया जा सकता",
     affectPivot:
       "इस चयनित सेल पर यह परिवर्तन नहीं किया जा सकता क्योंकि यह पिवट तालिका को प्रभावित करेगा!",
-    noMulti:
-      "कई चयन क्षेत्रों पर यह ऑपरेशन नहीं किया जा सकता, कृपया एकल क्षेत्र चुनें",
+    noMulti: "कई चयन क्षेत्रों पर यह ऑपरेशन नहीं किया जा सकता, कृपया एकल क्षेत्र चुनें",
     noPaste:
       "यह सामग्री यहाँ चिपकाई नहीं जा सकती, कृपया पेस्ट क्षेत्र में एक सेल चुनें और पुनः प्रयास करें",
-    noPartMerge:
-      "आंशिक रूप से मर्ज किए गए सेल्स पर यह ऑपरेशन नहीं किया जा सकता",
+    noPartMerge: "आंशिक रूप से मर्ज किए गए सेल्स पर यह ऑपरेशन नहीं किया जा सकता",
 
     inputCorrect: "कृपया सही मान दर्ज करें",
     notLessOne: "पंक्तियों और स्तंभों की संख्या 1 से कम नहीं हो सकती",
@@ -1696,8 +1678,7 @@ export default {
       "कई चयन क्षेत्रों पर यह ऑपरेशन नहीं किया जा सकता, कृपया एकल रेंज चुनें और पुनः प्रयास करें",
     errorSelectRange: "कृपया नई पिवट टेबल की रेंज का चयन करें",
     errorIsDamage: "इस पिवट टेबल का स्रोत डेटा क्षतिग्रस्त है!",
-    errorNotAllowPivotData:
-      "स्रोत डेटा के रूप में पिवट टेबल का चयन नहीं कर सकते!",
+    errorNotAllowPivotData: "स्रोत डेटा के रूप में पिवट टेबल का चयन नहीं कर सकते!",
     errorSelectionRange: "चयन विफल, गलत इनपुट रेंज!",
     errorIncreaseRange: "कृपया चयनित रेंज का विस्तार करें!",
 
@@ -1812,8 +1793,7 @@ export default {
       custom: "कस्टम",
     },
     descriptions: {
-      general:
-        "सामान्य स्वरूप वाले कक्षों का कोई विशिष्ट संख्या स्वरूप नहीं होता।",
+      general: "सामान्य स्वरूप वाले कक्षों का कोई विशिष्ट संख्या स्वरूप नहीं होता।",
       number:
         "संख्या का उपयोग संख्याओं के सामान्य प्रदर्शन के लिए होता है। मुद्रा और लेखांकन मौद्रिक मानों के लिए विशेष स्वरूपण देते हैं।",
       currency:
@@ -1825,12 +1805,10 @@ export default {
       percentage:
         "प्रतिशत स्वरूप कक्ष मान को 100 से गुणा करके परिणाम को प्रतिशत चिह्न के साथ दिखाते हैं।",
       fraction: "भिन्न स्वरूप संख्याओं को भिन्न के रूप में दिखाते हैं।",
-      scientific:
-        "वैज्ञानिक स्वरूप संख्याओं को घातांकीय संकेतन में दिखाते हैं।",
+      scientific: "वैज्ञानिक स्वरूप संख्याओं को घातांकीय संकेतन में दिखाते हैं।",
       text: "पाठ स्वरूप वाले कक्षों में संख्या होने पर भी उसे पाठ माना जाता है। कक्ष ठीक वैसा ही दिखता है जैसा दर्ज किया गया।",
       special: "विशेष स्वरूप सूची और डेटाबेस मानों के लिए उपयोगी हैं।",
-      custom:
-        "मौजूदा कोड में से किसी एक को आधार बनाकर संख्या स्वरूप कोड टाइप करें।",
+      custom: "मौजूदा कोड में से किसी एक को आधार बनाकर संख्या स्वरूप कोड टाइप करें।",
     },
     sample: "नमूना",
     decimalPlaces: "दशमलव स्थान",
@@ -1850,12 +1828,7 @@ export default {
       "दसवें के रूप में (3/10)",
       "सौवें के रूप में (30/100)",
     ],
-    specialTypes: [
-      "ज़िप कोड",
-      "ज़िप कोड + 4",
-      "फ़ोन नंबर",
-      "सामाजिक सुरक्षा संख्या",
-    ],
+    specialTypes: ["ज़िप कोड", "ज़िप कोड + 4", "फ़ोन नंबर", "सामाजिक सुरक्षा संख्या"],
     invalidFormat: "यह संख्या स्वरूप मान्य नहीं है।",
     textAlignment: "पाठ संरेखण",
     horizontal: "क्षैतिज",

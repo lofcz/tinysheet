@@ -514,7 +514,7 @@ export function onSpillStructureChange(
     else indexes.delete(id);
   }
   const idx = getSheetIndex(ctx, id);
-  const name = (idx == null ? "" : ctx.luckysheetfile[idx].name ?? "")
+  const name = (idx == null ? "" : (ctx.luckysheetfile[idx].name ?? ""))
     .toLowerCase()
     .replace(/'/g, "''");
   if (!name) return;

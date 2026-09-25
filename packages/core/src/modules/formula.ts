@@ -257,6 +257,7 @@ export class FormulaCache {
   }
 
   constructor() {
+    // oxlint-disable-next-line typescript/no-this-alias -- used by nested function callbacks
     const that = this;
     this.data_parm_index = 0;
     this.selectingRangeIndex = -1;
@@ -737,6 +738,7 @@ export function isFunctionRange(
   const cal1: any[] = [];
   const cal2: any[] = [];
   const bracket: any[] = [];
+  // oxlint-disable-next-line no-unused-vars -- legacy quote tracking
   let firstSQ = -1;
   while (i < funcstack.length) {
     const s = funcstack[i];

@@ -536,8 +536,8 @@ export function pasteSpecial(
           // merges are rebuilt below
           if (parts.merges) delete n.mc;
           if (parts.merges && s?.mc?.rs != null) {
-            const rs = options.transpose ? s.mc.cs ?? 1 : s.mc.rs;
-            const cs = options.transpose ? s.mc.rs : s.mc.cs ?? 1;
+            const rs = options.transpose ? (s.mc.cs ?? 1) : s.mc.rs;
+            const cs = options.transpose ? s.mc.rs : (s.mc.cs ?? 1);
             if (!cfg.merge) cfg.merge = {};
             cfg.merge[`${R}_${C}`] = { r: R, c: C, rs, cs };
           }

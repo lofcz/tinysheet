@@ -98,7 +98,7 @@ describe("insert / delete cells with a shift direction", () => {
     const ids = { S: "s", OTHER: "o" };
     const lookup = {
       idOf: (name) => ids[String(name).toUpperCase()],
-      nameOf: (id) => ({ s: "S", o: "Other" }[id]),
+      nameOf: (id) => ({ s: "S", o: "Other" })[id],
     };
     expect(
       rewriteFormula('=CONCAT("B1",B1,LOG10(B2),Other!B1)', change, "s", lookup)

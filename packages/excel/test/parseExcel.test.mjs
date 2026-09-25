@@ -100,7 +100,10 @@ test("parseExcel imports openpyxl default-namespace bar charts as live charts", 
   );
   const [sheet] = result.sheets;
   // Supported chart types become chart objects, not images.
-  assert.equal((sheet.images || []).filter((image) => image.chartSpec).length, 0);
+  assert.equal(
+    (sheet.images || []).filter((image) => image.chartSpec).length,
+    0
+  );
   const charts = sheet.charts || [];
   assert.equal(charts.length, 1);
   const [chart] = charts;
@@ -184,7 +187,10 @@ test("applyExcelImportHydration calculates formulas feeding live charts", async 
   assert.match(chartSvg, /<svg /);
   assert.match(chartSvg, /Anna Nov/);
   assert.match(chartSvg, /#4472C4/);
-  assert.match(chartSvg, new RegExp(chart.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(
+    chartSvg,
+    new RegExp(chart.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  );
 });
 
 test("chart axis uses Excel-like 1-2-5 step ticks", () => {
@@ -295,7 +301,14 @@ test("parseExcel imports value-axis scaling overrides from chart XML", async () 
 
   const chartSvg = core.renderChartToSvg(
     { luckysheetfile: result.sheets },
-    { ...chart, series: chart.series.map((s) => ({ ...s, values: null, cache: { values: [1, 2, 3] } })) }
+    {
+      ...chart,
+      series: chart.series.map((s) => ({
+        ...s,
+        values: null,
+        cache: { values: [1, 2, 3] },
+      })),
+    }
   );
   assert.match(chartSvg, />5<\/text>/);
   assert.match(chartSvg, />1<\/text>/);
