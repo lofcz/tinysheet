@@ -1,0 +1,180 @@
+/*
+ * Strings of threaded comments (the Comments card, pane and menus). Kept
+ * apart from the main locale files; a language without a translation falls
+ * back to English key by key.
+ */
+
+const en = {
+  newComment: "New Comment",
+  newReply: "New Reply",
+  deleteComment: "Delete Comment",
+  previousComment: "Previous Comment",
+  nextComment: "Next Comment",
+  showComments: "Show Comments",
+  toolbar: "Comments",
+  paneTitle: "Comments",
+  filterAll: "All",
+  filterActive: "Active",
+  filterResolved: "Resolved",
+  filterLabel: "Show",
+  noComments: "No comments yet. Right-click a cell and choose New Comment.",
+  noMatching: "No comments to show",
+  placeholderNew: "Start a conversation. Use @ to mention someone.",
+  placeholderReply: "Reply…",
+  post: "Post",
+  cancel: "Cancel",
+  save: "Save",
+  edit: "Edit",
+  delete: "Delete",
+  deleteThread: "Delete thread",
+  resolve: "Resolve thread",
+  reopen: "Reopen",
+  resolved: "Resolved",
+  edited: "Edited",
+  justNow: "Just now",
+  close: "Close",
+  moreActions: "More thread actions",
+  replies: "{count} replies",
+  oneReply: "1 reply",
+  guest: "Guest",
+  postHint: "Ctrl+Enter to post",
+  noPeople: "No matching people",
+  thread: "Comment thread on {cell}",
+};
+
+export type ThreadedCommentsLocale = typeof en;
+
+const zh: Partial<ThreadedCommentsLocale> = {
+  newComment: "新建批注",
+  newReply: "新建回复",
+  deleteComment: "删除批注",
+  previousComment: "上一条批注",
+  nextComment: "下一条批注",
+  showComments: "显示批注",
+  toolbar: "批注",
+  paneTitle: "批注",
+  filterAll: "全部",
+  filterActive: "活动",
+  filterResolved: "已解决",
+  filterLabel: "显示",
+  noComments: "还没有批注。右键单击单元格并选择“新建批注”。",
+  noMatching: "没有可显示的批注",
+  placeholderNew: "开始对话。使用 @ 提及某人。",
+  placeholderReply: "回复…",
+  post: "发布",
+  cancel: "取消",
+  save: "保存",
+  edit: "编辑",
+  delete: "删除",
+  deleteThread: "删除线程",
+  resolve: "解决线程",
+  reopen: "重新打开",
+  resolved: "已解决",
+  edited: "已编辑",
+  justNow: "刚刚",
+  close: "关闭",
+  moreActions: "更多线程操作",
+  replies: "{count} 条回复",
+  oneReply: "1 条回复",
+  guest: "访客",
+  postHint: "按 Ctrl+Enter 发布",
+  noPeople: "没有匹配的人员",
+  thread: "{cell} 上的批注线程",
+};
+
+const es: Partial<ThreadedCommentsLocale> = {
+  newComment: "Nuevo comentario",
+  newReply: "Nueva respuesta",
+  deleteComment: "Eliminar comentario",
+  previousComment: "Comentario anterior",
+  nextComment: "Comentario siguiente",
+  showComments: "Mostrar comentarios",
+  toolbar: "Comentarios",
+  paneTitle: "Comentarios",
+  filterAll: "Todos",
+  filterActive: "Activos",
+  filterResolved: "Resueltos",
+  filterLabel: "Mostrar",
+  noComments:
+    "Aún no hay comentarios. Haga clic derecho en una celda y elija Nuevo comentario.",
+  noMatching: "No hay comentarios que mostrar",
+  placeholderNew: "Inicie una conversación. Use @ para mencionar a alguien.",
+  placeholderReply: "Responder…",
+  post: "Publicar",
+  cancel: "Cancelar",
+  save: "Guardar",
+  edit: "Editar",
+  delete: "Eliminar",
+  deleteThread: "Eliminar conversación",
+  resolve: "Resolver conversación",
+  reopen: "Volver a abrir",
+  resolved: "Resuelto",
+  edited: "Editado",
+  justNow: "Ahora mismo",
+  close: "Cerrar",
+  moreActions: "Más acciones",
+  replies: "{count} respuestas",
+  oneReply: "1 respuesta",
+  guest: "Invitado",
+  postHint: "Ctrl+Entrar para publicar",
+  noPeople: "No hay personas coincidentes",
+  thread: "Conversación en {cell}",
+};
+
+const ru: Partial<ThreadedCommentsLocale> = {
+  newComment: "Новое обсуждение",
+  newReply: "Ответить",
+  deleteComment: "Удалить обсуждение",
+  previousComment: "Предыдущее обсуждение",
+  nextComment: "Следующее обсуждение",
+  showComments: "Показать обсуждения",
+  toolbar: "Обсуждения",
+  paneTitle: "Обсуждения",
+  filterAll: "Все",
+  filterActive: "Активные",
+  filterResolved: "Решённые",
+  filterLabel: "Показать",
+  noComments: "Обсуждений пока нет.",
+  noMatching: "Нет обсуждений",
+  placeholderNew: "Начните обсуждение. Используйте @, чтобы упомянуть кого-то.",
+  placeholderReply: "Ответ…",
+  post: "Отправить",
+  cancel: "Отмена",
+  save: "Сохранить",
+  edit: "Изменить",
+  delete: "Удалить",
+  deleteThread: "Удалить обсуждение",
+  resolve: "Решить обсуждение",
+  reopen: "Открыть снова",
+  resolved: "Решено",
+  edited: "Изменено",
+  justNow: "Только что",
+  close: "Закрыть",
+  moreActions: "Другие действия",
+  replies: "Ответов: {count}",
+  oneReply: "1 ответ",
+  guest: "Гость",
+  postHint: "Ctrl+Enter — отправить",
+  noPeople: "Никого не найдено",
+  thread: "Обсуждение в {cell}",
+};
+
+const translations: Record<string, Partial<ThreadedCommentsLocale>> = {
+  en,
+  zh,
+  "zh-CN": zh,
+  es,
+  ru,
+};
+
+const cache: Record<string, ThreadedCommentsLocale> = {};
+
+/** The threaded comment strings for a context's language (English fallback). */
+export function threadedCommentsLocale(ctx: {
+  lang?: string | null;
+}): ThreadedCommentsLocale {
+  const lang = ctx?.lang || "en";
+  const key = [lang, lang.split("-")[0]].find((l) => l in translations) ?? "en";
+  if (!cache[key]) cache[key] = { ...en, ...translations[key] };
+  return cache[key];
+}

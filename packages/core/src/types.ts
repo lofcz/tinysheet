@@ -174,6 +174,44 @@ export type Sheet = {
   /** Excel-style tables ("Format as Table") of this sheet, see modules/tables.ts */
   // eslint-disable-next-line no-use-before-define
   tables?: SheetTable[];
+  /**
+   * Threaded comments (Excel "Comments", distinct from notes stored in
+   * `cell.ps`), see modules/threadedComments.ts.
+   */
+  // eslint-disable-next-line no-use-before-define
+  threadedComments?: ThreadedComment[];
+};
+
+/** A person who writes or is @mentioned in threaded comments. */
+export type CommentUser = {
+  id: string;
+  name: string;
+  /** Picture URL shown next to the user's posts. */
+  avatar?: string;
+  email?: string;
+};
+
+/** One post of a threaded comment (the first one or a reply). */
+export type ThreadedCommentPost = {
+  id: string;
+  author: CommentUser;
+  /** ISO 8601 creation time. */
+  created: string;
+  /** ISO 8601 time of the last edit. */
+  edited?: string;
+  /**
+   * The text; @mentions are stored as `@[Display Name](userId)` tokens
+   * (see `parseCommentText`).
+   */
+  text: string;
+};
+
+/** A comment thread anchored to cell (r, c); its first post is the thread. */
+export type ThreadedComment = ThreadedCommentPost & {
+  r: number;
+  c: number;
+  replies: ThreadedCommentPost[];
+  resolved?: boolean;
 };
 
 /** A defined name (Excel Name Manager entry). */
