@@ -8,11 +8,14 @@ import {
   handleGlobalWheel,
   initFreeze,
   getSheetIndex,
+  getOutlineGutterSize,
   Sheet as SheetType,
 } from "@lofcz/tinysheet-core";
 import "./index.css";
 import WorkbookContext from "../../context";
 import SheetOverlay from "../SheetOverlay";
+// also registers the outline toolbar item and prompt (extension registries)
+import { OutlineGutter } from "../Outline";
 import { TrackedScope } from "../../context/store";
 
 // The overlay re-renders for the context fields it reads, not with the Sheet
@@ -605,6 +608,10 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     setContext,
   ]);
 
+  // Outline (Data › Group) gutters left of the row headers and above the
+  // column headers: the sheet area shrinks by their size.
+  const outline = getOutlineGutterSize(context);
+
   /**
    * Init canvas
    */
@@ -622,6 +629,8 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     context.rowHeaderWidth,
     context.columnHeaderHeight,
     context.devicePixelRatio,
+    outline.left,
+    outline.top,
   ]);
 
   /**
@@ -757,7 +766,19 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
   }, [onWheel]);
 
   return (
-    <div ref={containerRef} className="fortune-sheet-container">
+    <div
+      ref={containerRef}
+      className="fortune-sheet-container"
+      style={
+        outline.left > 0 || outline.top > 0
+          ? {
+              position: "relative",
+              paddingLeft: outline.left,
+              paddingTop: outline.top,
+            }
+          : undefined
+      }
+    >
       {/* this is a placeholder div to help measure the empty space between toolbar and footer, directly measuring the canvas element is inaccurate, don't know why */}
       <div ref={placeholderRef} className="fortune-sheet-canvas-placeholder" />
       <canvas
@@ -766,6 +787,11 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
         aria-hidden="true"
       />
       <TrackedScope>{SHEET_OVERLAY}</TrackedScope>
+      {(outline.left > 0 || outline.top > 0) && (
+        <TrackedScope>
+          <OutlineGutter />
+        </TrackedScope>
+      )}
     </div>
   );
 };

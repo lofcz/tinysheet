@@ -248,6 +248,7 @@ export const defaultSettings: Required<Settings> = {
     "nameManager",
     "dataVerification",
     "splitColumn",
+    "outline", // Group / Ungroup, Subtotal, Auto Outline (Data › Outline)
     "locationCondition",
     "screenshot",
   ], // 自定义工具栏
