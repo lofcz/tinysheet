@@ -12,6 +12,11 @@ import {
 import "./index.css";
 import WorkbookContext from "../../context";
 import SheetOverlay from "../SheetOverlay";
+import { TrackedScope } from "../../context/store";
+
+// The overlay re-renders for the context fields it reads, not with the Sheet
+// (which sees every context change to schedule canvas redraws).
+const SHEET_OVERLAY = <SheetOverlay />;
 
 type Props = {
   sheet: SheetType;
@@ -592,7 +597,7 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
         ref={refs.canvas}
         aria-hidden="true"
       />
-      <SheetOverlay />
+      <TrackedScope>{SHEET_OVERLAY}</TrackedScope>
     </div>
   );
 };

@@ -43,7 +43,13 @@ import produce, {
 } from "immer";
 import _ from "lodash";
 import Sheet from "../Sheet";
-import WorkbookContext, { RefValues, SetContextOptions } from "../../context";
+import { RefValues, SetContextOptions } from "../../context";
+import {
+  TrackedScope,
+  WorkbookApi,
+  WorkbookProvider,
+  WorkbookStore,
+} from "../../context/store";
 import Toolbar from "../Toolbar";
 import FxEditor from "../FxEditor";
 import SheetTab from "../SheetTab";
@@ -58,6 +64,16 @@ import SheetList from "../SheetList";
 import { useResolvedTheme } from "../../hooks/useResolvedTheme";
 
 enablePatches();
+
+// Prop-less children as constant elements: React skips them when the
+// Workbook re-renders, and the TrackedScope around each re-renders them only
+// for the context fields they read.
+const FX_EDITOR = <FxEditor />;
+const SHEET_TAB = <SheetTab />;
+const SHEET_LIST = <SheetList />;
+const CONTEXT_MENU = <ContextMenu />;
+const FILTER_MENU = <FilterMenu />;
+const SHEET_TAB_CONTEXT_MENU = <SheetTabContextMenu />;
 
 export type WorkbookInstance = ReturnType<typeof generateAPIs>;
 
@@ -460,24 +476,33 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       );
     }, [mergedSettings.hooks, setContextWithProduce]);
 
-    const providerValue = useMemo(
+    const workbookApi: WorkbookApi = useMemo(
       () => ({
-        context,
         setContext: setContextWithProduce,
         settings: mergedSettings,
         handleUndo,
         handleRedo,
         refs,
       }),
-      [
-        context,
-        handleRedo,
-        handleUndo,
-        mergedSettings,
-        refs,
-        setContextWithProduce,
-      ]
+      [handleRedo, handleUndo, mergedSettings, refs, setContextWithProduce]
     );
+    const providerValue = useMemo(
+      () => ({ context, ...workbookApi }),
+      [context, workbookApi]
+    );
+
+    // Components below a TrackedScope subscribe to this store and re-render
+    // only for the context fields they read (the Workbook itself, the Sheet
+    // canvas and unscoped consumers still see every update).
+    const storeRef = useRef<WorkbookStore | null>(null);
+    if (storeRef.current == null) {
+      storeRef.current = new WorkbookStore(context, workbookApi);
+    }
+    const store = storeRef.current;
+    store.update(context, workbookApi);
+    useLayoutEffect(() => {
+      store.emit();
+    });
 
     useEffect(() => {
       if (!_.isEmpty(context.luckysheetfile)) {
@@ -836,6 +861,29 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       [mergedSettings.currency]
     );
 
+    // Stable elements, each in its own TrackedScope: a Workbook render (on
+    // every context change) skips them, and each re-renders only when the
+    // context fields it reads change.
+    const moreItemsOpen = moreToolbarItems !== null;
+    const toolbar = useMemo(
+      () => (
+        <Toolbar
+          moreItemsOpen={moreItemsOpen}
+          setMoreItems={setMoreToolbarItems}
+        />
+      ),
+      [moreItemsOpen]
+    );
+    const moreItems = useMemo(
+      () =>
+        moreToolbarItems && (
+          <MoreItemsContaier onClose={onMoreToolbarItemsClose}>
+            {moreToolbarItems}
+          </MoreItemsContaier>
+        ),
+      [moreToolbarItems, onMoreToolbarItemsClose]
+    );
+
     const i = getSheetIndex(context, context.currentSheetId);
     if (i == null) {
       return null;
@@ -846,7 +894,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     }
 
     return (
-      <WorkbookContext.Provider value={providerValue}>
+      <WorkbookProvider store={store} value={providerValue}>
         <ModalProvider>
           <div
             className="fortune-container"
@@ -881,24 +929,21 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             {svgDefines}
             <div className="fortune-workarea">
               {mergedSettings.showToolbar && (
-                <Toolbar
-                  moreItemsOpen={moreToolbarItems !== null}
-                  setMoreItems={setMoreToolbarItems}
-                />
+                <TrackedScope>{toolbar}</TrackedScope>
               )}
-              {mergedSettings.showFormulaBar && <FxEditor />}
+              {mergedSettings.showFormulaBar && (
+                <TrackedScope>{FX_EDITOR}</TrackedScope>
+              )}
             </div>
             <Sheet sheet={sheet} />
-            {mergedSettings.showSheetTabs && <SheetTab />}
-            <ContextMenu />
-            <FilterMenu />
-            <SheetTabContextMenu />
-            {context.showSheetList && <SheetList />}
-            {moreToolbarItems && (
-              <MoreItemsContaier onClose={onMoreToolbarItemsClose}>
-                {moreToolbarItems}
-              </MoreItemsContaier>
+            {mergedSettings.showSheetTabs && (
+              <TrackedScope>{SHEET_TAB}</TrackedScope>
             )}
+            <TrackedScope>{CONTEXT_MENU}</TrackedScope>
+            <TrackedScope>{FILTER_MENU}</TrackedScope>
+            <TrackedScope>{SHEET_TAB_CONTEXT_MENU}</TrackedScope>
+            {context.showSheetList && <TrackedScope>{SHEET_LIST}</TrackedScope>}
+            {moreItems && <TrackedScope>{moreItems}</TrackedScope>}
             {!_.isEmpty(context.contextMenu) && (
               <div
                 onMouseDown={() => {
@@ -950,7 +995,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             )}
           </div>
         </ModalProvider>
-      </WorkbookContext.Provider>
+      </WorkbookProvider>
     );
   }
 );
