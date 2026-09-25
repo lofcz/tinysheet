@@ -15,6 +15,7 @@ import {
   getSpilledCellFormula,
   setEditMode,
   FORMULA_BAR_COLLAPSED_HEIGHT,
+  returnToEditSheet,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -50,6 +51,7 @@ const FxEditor: React.FC = () => {
   const firstSelection = context.luckysheet_select_save?.[0];
   const prevFirstSelection = usePrevious(firstSelection);
   const prevSheetId = usePrevious(context.currentSheetId);
+  const prevEditOrigin = usePrevious(context.formulaEditOrigin);
   const recentText = useRef("");
   const { info, formulaMore } = locale(context);
   const bar = useFormulaBarSize();
@@ -62,9 +64,12 @@ const FxEditor: React.FC = () => {
     // 当选中行列是处于隐藏状态的话则不允许编辑
     setIsHidenRC(isShowHidenCR(context));
     if (
-      _.isEqual(prevFirstSelection, firstSelection) &&
-      context.currentSheetId === prevSheetId &&
-      context.luckysheetCellUpdate.length > 0
+      context.luckysheetCellUpdate.length > 0 &&
+      ((_.isEqual(prevFirstSelection, firstSelection) &&
+        context.currentSheetId === prevSheetId) ||
+        // Point mode across sheets shows another sheet: the edit goes on
+        context.formulaEditOrigin ||
+        prevEditOrigin)
     ) {
       // a data change (collaboration, undo) must not overwrite the text
       // being edited; outside editing the bar follows the cell
@@ -169,6 +174,8 @@ const FxEditor: React.FC = () => {
         e.preventDefault();
       } else if (key === "Escape") {
         setContext((draftCtx) => {
+          // Point mode across sheets: back to the edited cell's sheet
+          returnToEditSheet(draftCtx, refs.fxInput.current);
           cancelNormalSelected(draftCtx);
           moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
         });
@@ -290,12 +297,6 @@ const FxEditor: React.FC = () => {
             </>
           )}
         </div>
-      </div>
-    </aside>
-  );
-};
-
-export default FxEditor;
         <button
           type="button"
           className="fortune-fx-toggle"
@@ -316,6 +317,7 @@ export default FxEditor;
         >
           <SVGIcon name="downArrow" width={12} height={12} />
         </button>
+      </div>
       {/* a focusable separator is a window splitter (interactive) */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
@@ -331,3 +333,8 @@ export default FxEditor;
         onKeyDown={bar.onResizeKey}
         onDoubleClick={bar.toggle}
       />
+    </aside>
+  );
+};
+
+export default FxEditor;

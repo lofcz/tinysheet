@@ -19,9 +19,10 @@
  */
 import type { Context } from "../context";
 import { getRangetxt } from "./cell";
-import { handleFormulaInput } from "./formula";
+import { createRangeHightlight, handleFormulaInput } from "./formula";
 import {
   getCaretOffset,
+  parseReference,
   setCaretOffset,
   tokenizeFormula,
 } from "./formulaEditor";
@@ -58,13 +59,21 @@ export type EditState = {
   point?: PointState;
 };
 
+/**
+ * The sheet of the cell being edited: the current sheet, except in Point
+ * mode across sheets (another sheet is shown to pick references on).
+ */
+export function getEditingSheetId(ctx: Context) {
+  return ctx.formulaEditOrigin?.sheetId ?? ctx.currentSheetId;
+}
+
 function sessionState(ctx: Context): EditState | undefined {
   const [r, c] = ctx.luckysheetCellUpdate ?? [];
   const s = ctx.editState;
   if (
     r == null ||
     !s ||
-    s.sheetId !== ctx.currentSheetId ||
+    s.sheetId !== getEditingSheetId(ctx) ||
     s.cell[0] !== r ||
     s.cell[1] !== c
   ) {
@@ -91,7 +100,7 @@ export function getEditMode(ctx: Context): EditMode {
 export function setEditMode(ctx: Context, mode: "enter" | "edit") {
   const [r, c] = ctx.luckysheetCellUpdate ?? [];
   if (r == null || c == null) return;
-  ctx.editState = { mode, cell: [r, c], sheetId: ctx.currentSheetId };
+  ctx.editState = { mode, cell: [r, c], sheetId: getEditingSheetId(ctx) };
 }
 
 /** Forgets the mode (the session ended). */
@@ -138,9 +147,12 @@ function editorText(editor: HTMLElement) {
   return editor.textContent ?? "";
 }
 
-/** The reference text for `range` on the current sheet (`A1`, `B2:C5`). */
+/**
+ * The reference text for `range` on the current sheet (`A1`, `B2:C5`; with
+ * the sheet name, `Sheet2!A1`, when the formula is on another sheet).
+ */
 function referenceText(ctx: Context, range: SimpleRange) {
-  return getRangetxt(ctx, ctx.currentSheetId, range, ctx.currentSheetId);
+  return getRangetxt(ctx, ctx.currentSheetId, range, getEditingSheetId(ctx));
 }
 
 function stepCell(
@@ -186,6 +198,40 @@ function livePoint(
 }
 
 /**
+ * A reference just picked with the mouse (it ends at the caret): arrow keys
+ * move it on, like Excel's Point mode.
+ */
+function pickedReferencePoint(
+  ctx: Context,
+  text: string,
+  caret: number
+): PointState | undefined {
+  if (!ctx.formulaCache?.rangestart) return undefined;
+  const token = tokenizeFormula(text).find(
+    (t) => t.end === caret && t.type === "reference"
+  );
+  const ref = token ? parseReference(token.text) : null;
+  if (!token || !ref?.row || !ref.column) return undefined;
+  return {
+    start: token.start,
+    end: token.end,
+    text: token.text,
+    anchor: [ref.row[0], ref.column[0]],
+    focus: [ref.row[1], ref.column[1]],
+  };
+}
+
+/** The active cell of the current sheet. */
+function activeCellOf(ctx: Context): [number, number] {
+  const last =
+    ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
+  return [
+    last?.row_focus ?? last?.row?.[0] ?? 0,
+    last?.column_focus ?? last?.column?.[0] ?? 0,
+  ];
+}
+
+/**
  * Whether an arrow key in `editor` would pick a reference (Point mode)
  * rather than commit or move the caret.
  */
@@ -194,7 +240,9 @@ export function canPointAt(ctx: Context, editor: HTMLElement) {
   if (!text.startsWith("=")) return false;
   const caret = getCaretOffset(editor) ?? text.length;
   return (
-    !!livePoint(ctx, text, caret) || isReferenceInsertPosition(text, caret)
+    !!livePoint(ctx, text, caret) ||
+    !!pickedReferencePoint(ctx, text, caret) ||
+    isReferenceInsertPosition(text, caret)
   );
 }
 
@@ -215,11 +263,16 @@ export function movePointReference(
   const text = editorText(editor);
   if (!text.startsWith("=")) return false;
   const caret = getCaretOffset(editor) ?? text.length;
-  let point = livePoint(ctx, text, caret);
+  let point =
+    livePoint(ctx, text, caret) ?? pickedReferencePoint(ctx, text, caret);
   if (!point) {
     if (!isReferenceInsertPosition(text, caret)) return false;
-    const [r, c] = ctx.luckysheetCellUpdate;
-    // the first reference starts from the cell being edited
+    // the first reference starts from the cell being edited, or from the
+    // active cell of the other sheet shown in Point mode across sheets
+    const [r, c] =
+      getEditingSheetId(ctx) === ctx.currentSheetId
+        ? ctx.luckysheetCellUpdate
+        : activeCellOf(ctx);
     point = {
       start: caret,
       end: caret,
@@ -286,5 +339,115 @@ export function getEditorArrowAction(
   if (mode === "ready" || mode === "edit") return "caret";
   if (canPointAt(ctx, editor)) return "point";
   if (e.ctrlKey || e.shiftKey) return "caret";
+  // on another sheet (Point mode across sheets) arrows never commit
+  if (ctx.formulaEditOrigin) return "caret";
   return "commit";
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         Point mode across sheets                           */
+/* -------------------------------------------------------------------------- */
+
+/** Whether a formula is being edited (Point mode can show another sheet). */
+export function isEditingFormula(
+  ctx: Context,
+  editor: HTMLElement | null | undefined
+) {
+  return (
+    (ctx.luckysheetCellUpdate?.length ?? 0) > 0 &&
+    !!editor &&
+    editorText(editor).startsWith("=")
+  );
+}
+
+/** Remembers the current sheet's scroll and selection (like a tab switch). */
+function recordSheetView(ctx: Context) {
+  if (!ctx.sheetScrollRecord) ctx.sheetScrollRecord = {};
+  ctx.sheetScrollRecord[ctx.currentSheetId] = {
+    scrollLeft: ctx.scrollLeft,
+    scrollTop: ctx.scrollTop,
+    luckysheet_select_status: ctx.luckysheet_select_status,
+    luckysheet_select_save: ctx.luckysheet_select_save,
+    luckysheet_selection_range: ctx.luckysheet_selection_range,
+  };
+}
+
+function showSheet(ctx: Context, sheetId: string) {
+  const file = ctx.luckysheetfile.find((f) => f.id === sheetId);
+  if (!file) return false;
+  recordSheetView(ctx);
+  ctx.currentSheetId = sheetId;
+  ctx.zoomRatio = file.zoomRatio || 1;
+  ctx.dataVerificationDropDownList = false;
+  // the reference boxes of the other sheet
+  ctx.formulaRangeSelect = undefined;
+  return true;
+}
+
+/** Colour boxes of the formula's references that are on the shown sheet. */
+function refreshReferenceBoxes(
+  ctx: Context,
+  editor: HTMLElement | null | undefined
+) {
+  if (editor) createRangeHightlight(ctx, editor.innerHTML);
+}
+
+/**
+ * Leaves Point mode across sheets: shows the edited cell's sheet again with
+ * its selection and scroll position (before Enter commits there, or Esc
+ * cancels). Returns false when no other sheet is shown.
+ */
+export function returnToEditSheet(ctx: Context, editor?: HTMLElement | null) {
+  const origin = ctx.formulaEditOrigin;
+  if (!origin) return false;
+  ctx.formulaEditOrigin = undefined;
+  ctx.formulaCache.rangetosheet = undefined;
+  if (origin.sheetId !== ctx.currentSheetId) {
+    if (!showSheet(ctx, origin.sheetId)) return false;
+    const record = ctx.sheetScrollRecord?.[origin.sheetId];
+    if (record) {
+      ctx.scrollLeft = record.scrollLeft ?? 0;
+      ctx.scrollTop = record.scrollTop ?? 0;
+      ctx.luckysheet_select_status = record.luckysheet_select_status ?? false;
+      ctx.luckysheet_select_save = record.luckysheet_select_save;
+      ctx.luckysheet_selection_range = record.luckysheet_selection_range ?? [];
+    }
+    // restored here: the tab bar must not restore it again after a commit
+    // moved the selection
+    ctx.sheetScrollRestoredFor = origin.sheetId;
+  }
+  refreshReferenceBoxes(ctx, editor);
+  return true;
+}
+
+/**
+ * Point mode across sheets: clicking another sheet's tab while a formula is
+ * edited shows that sheet and keeps editing; clicking or dragging cells (or
+ * the arrow keys) there insert references with the sheet name
+ * (`Sheet2!A1:B3`). Clicking the tab of the edited cell's sheet goes back.
+ * Returns false when this is not a formula edit (the caller switches
+ * normally).
+ */
+export function switchSheetWhileEditing(
+  ctx: Context,
+  sheetId: string,
+  editor: HTMLElement | null | undefined
+) {
+  if (!isEditingFormula(ctx, editor)) return false;
+  if (sheetId === ctx.currentSheetId) return true;
+  const home = getEditingSheetId(ctx);
+  if (sheetId === home) return returnToEditSheet(ctx, editor);
+  if (!sessionState(ctx)) setEditMode(ctx, "enter");
+  const point = sessionState(ctx)?.point;
+  if (!showSheet(ctx, sheetId)) return false;
+  ctx.formulaEditOrigin = { sheetId: home };
+  // references picked here are written with the sheet name
+  ctx.formulaCache.rangetosheet = home;
+  // a reference picked with the keyboard starts over on this sheet
+  if (point) {
+    const s = sessionState(ctx);
+    if (s) s.point = undefined;
+  }
+  refreshReferenceBoxes(ctx, editor);
+  return true;
 }

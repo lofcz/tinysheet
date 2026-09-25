@@ -18,6 +18,7 @@ import {
   getEditorArrowAction,
   getEditMode,
   setEditMode,
+  returnToEditSheet,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -45,6 +46,7 @@ const InputBox: React.FC = () => {
   const lastKeyDownEventRef = useRef<KeyboardEvent | null>(null);
   const prevCellUpdate = usePrevious<any[]>(context.luckysheetCellUpdate);
   const prevSheetId = usePrevious<string>(context.currentSheetId);
+  const prevEditOrigin = usePrevious(context.formulaEditOrigin);
   const [isHidenRC, setIsHidenRC] = useState<boolean>(false);
   const firstSelection = context.luckysheet_select_save?.[0];
   const row_index = firstSelection?.row_focus!;
@@ -90,7 +92,10 @@ const InputBox: React.FC = () => {
       }
       if (
         _.isEqual(prevCellUpdate, context.luckysheetCellUpdate) &&
-        prevSheetId === context.currentSheetId
+        (prevSheetId === context.currentSheetId ||
+          // Point mode across sheets: the edit goes on
+          context.formulaEditOrigin ||
+          prevEditOrigin)
       ) {
         // data change by a collabrative update should not trigger this effect
         return;
@@ -140,6 +145,16 @@ const InputBox: React.FC = () => {
     }
   }, [context.luckysheetCellUpdate]);
 
+  // an edit that ended on another sheet (Point mode across sheets) goes
+  // back to the edited cell's sheet
+  useEffect(() => {
+    if (context.formulaEditOrigin && _.isEmpty(context.luckysheetCellUpdate)) {
+      setContext((draftCtx) => {
+        returnToEditSheet(draftCtx);
+      });
+    }
+  }, [context.formulaEditOrigin, context.luckysheetCellUpdate, setContext]);
+
   // 当选中行列是处于隐藏状态的话则不允许编辑
   useEffect(() => {
     setIsHidenRC(isShowHidenCR(context));
@@ -167,6 +182,8 @@ const InputBox: React.FC = () => {
 
       if (e.key === "Escape" && context.luckysheetCellUpdate.length > 0) {
         setContext((draftCtx) => {
+          // Point mode across sheets: back to the edited cell's sheet
+          returnToEditSheet(draftCtx, inputRef.current);
           cancelNormalSelected(draftCtx);
           moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
         });
@@ -300,7 +317,11 @@ const InputBox: React.FC = () => {
     <div
       className="luckysheet-input-box"
       style={
-        firstSelection && !context.rangeDialog?.show
+        // on another sheet (Point mode across sheets) the formula is edited
+        // in the formula bar only, like Excel
+        firstSelection &&
+        !context.rangeDialog?.show &&
+        !context.formulaEditOrigin
           ? {
               left: firstSelection.left,
               top: firstSelection.top,

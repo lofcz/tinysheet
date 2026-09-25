@@ -587,6 +587,12 @@ export function handleCellAreaMouseDown(
       // ctx.luckysheet_select_status = true;
       return; // skip ctx.luckysheet_select_save to prevent clearing cellInput
     }
+    // Point mode across sheets: a click that inserts no reference keeps
+    // editing (the cell is on another sheet)
+    if (ctx.formulaEditOrigin) {
+      e.preventDefault();
+      return;
+    }
     updateCell(
       ctx,
       ctx.luckysheetCellUpdate[0],
