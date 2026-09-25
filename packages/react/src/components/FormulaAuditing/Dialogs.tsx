@@ -18,7 +18,7 @@ import {
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import { activateOnKey } from "../Toolbar/Button";
+import { Button, DialogShell } from "../ui";
 
 const TextButton: React.FC<{
   onClick: () => void;
@@ -26,18 +26,13 @@ const TextButton: React.FC<{
   disabled?: boolean;
   children: React.ReactNode;
 }> = ({ onClick, primary, disabled, children }) => (
-  <div
-    className={`button-basic ${primary ? "button-primary" : "button-default"}`}
-    role="button"
-    tabIndex={disabled ? -1 : 0}
-    aria-disabled={disabled || undefined}
-    onClick={() => {
-      if (!disabled) onClick();
-    }}
-    onKeyDown={activateOnKey}
+  <Button
+    variant={primary ? "primary" : "secondary"}
+    disabled={disabled}
+    onClick={onClick}
   >
     {children}
-  </div>
+  </Button>
 );
 
 /** Formulas > Calculation Options (mode and iterative calculation). */
@@ -74,8 +69,18 @@ export const CalcOptionsDialog: React.FC = () => {
     hideDialog();
   };
   return (
-    <div className="fortune-audit-dialog fortune-calc-options">
-      <div className="fortune-audit-dialog-title">{t.options}</div>
+    <DialogShell
+      title={t.options}
+      className="fortune-audit-dialog fortune-calc-options"
+      footer={
+        <>
+          <TextButton onClick={hideDialog}>{t.cancel}</TextButton>
+          <TextButton primary onClick={save}>
+            {t.ok}
+          </TextButton>
+        </>
+      }
+    >
       <fieldset className="fortune-audit-fieldset">
         <legend>{t.workbookCalculation}</legend>
         {modes.map(([value, label]) => (
@@ -128,13 +133,7 @@ export const CalcOptionsDialog: React.FC = () => {
           onChange={(e) => setMaxChange(e.target.value)}
         />
       </div>
-      <div className="fortune-audit-footer">
-        <TextButton primary onClick={save}>
-          {t.ok}
-        </TextButton>
-        <TextButton onClick={hideDialog}>{t.cancel}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -158,8 +157,26 @@ export const ErrorCheckingOptionsDialog: React.FC = () => {
     hideDialog();
   };
   return (
-    <div className="fortune-audit-dialog fortune-error-options">
-      <div className="fortune-audit-dialog-title">{t.checking}</div>
+    <DialogShell
+      title={t.checking}
+      className="fortune-audit-dialog fortune-error-options"
+      footer={
+        <>
+          <TextButton
+            onClick={() => {
+              setContext((ctx) => resetIgnoredErrors(ctx));
+            }}
+          >
+            {t.resetIgnored}
+          </TextButton>
+          <span className="fortune-audit-spacer" />
+          <TextButton onClick={hideDialog}>{all.calc.cancel}</TextButton>
+          <TextButton primary onClick={save}>
+            {all.calc.ok}
+          </TextButton>
+        </>
+      }
+    >
       <label className="fortune-audit-check" htmlFor={`${uid}-enabled`}>
         <input
           id={`${uid}-enabled`}
@@ -190,21 +207,7 @@ export const ErrorCheckingOptionsDialog: React.FC = () => {
           </label>
         ))}
       </fieldset>
-      <div className="fortune-audit-footer">
-        <TextButton
-          onClick={() => {
-            setContext((ctx) => resetIgnoredErrors(ctx));
-          }}
-        >
-          {t.resetIgnored}
-        </TextButton>
-        <span className="fortune-audit-spacer" />
-        <TextButton primary onClick={save}>
-          {all.calc.ok}
-        </TextButton>
-        <TextButton onClick={hideDialog}>{all.calc.cancel}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -224,13 +227,17 @@ export const EvaluateFormulaDialog: React.FC<{
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   if (!session) {
     return (
-      <div className="fortune-audit-dialog">
-        <div className="fortune-audit-dialog-title">{t.title}</div>
+      <DialogShell
+        title={t.title}
+        className="fortune-audit-dialog"
+        footer={
+          <>
+            <TextButton onClick={hideDialog}>{t.close}</TextButton>
+          </>
+        }
+      >
         <p>{t.noFormula}</p>
-        <div className="fortune-audit-footer">
-          <TextButton onClick={hideDialog}>{t.close}</TextButton>
-        </div>
-      </div>
+      </DialogShell>
     );
   }
   const view = getEvaluationView(context, session);
@@ -239,8 +246,41 @@ export const EvaluateFormulaDialog: React.FC<{
     rerender();
   };
   return (
-    <div className="fortune-audit-dialog fortune-evaluate" role="document">
-      <div className="fortune-audit-dialog-title">{t.title}</div>
+    <DialogShell
+      title={t.title}
+      className="fortune-audit-dialog fortune-evaluate"
+      footer={
+        <>
+          <TextButton
+            primary
+            onClick={() =>
+              act(() =>
+                view.finished
+                  ? restartEvaluation(context, session)
+                  : evaluateNextStep(context, session)
+              )
+            }
+            disabled={!view.finished && !view.canEvaluate}
+          >
+            {view.finished ? t.restart : t.evaluate}
+          </TextButton>
+          <TextButton
+            disabled={!view.canStepIn}
+            onClick={() => act(() => stepIn(context, session))}
+          >
+            {t.stepIn}
+          </TextButton>
+          <TextButton
+            disabled={!view.canStepOut}
+            onClick={() => act(() => stepOut(context, session))}
+          >
+            {t.stepOut}
+          </TextButton>
+          <span className="fortune-audit-spacer" />
+          <TextButton onClick={hideDialog}>{t.close}</TextButton>
+        </>
+      }
+    >
       <div className="fortune-evaluate-head">
         <span>{t.reference}</span>
         <span>{t.evaluation}</span>
@@ -271,35 +311,6 @@ export const EvaluateFormulaDialog: React.FC<{
         </div>
       ))}
       <p className="fortune-evaluate-hint">{t.hint}</p>
-      <div className="fortune-audit-footer">
-        <TextButton
-          primary
-          onClick={() =>
-            act(() =>
-              view.finished
-                ? restartEvaluation(context, session)
-                : evaluateNextStep(context, session)
-            )
-          }
-          disabled={!view.finished && !view.canEvaluate}
-        >
-          {view.finished ? t.restart : t.evaluate}
-        </TextButton>
-        <TextButton
-          disabled={!view.canStepIn}
-          onClick={() => act(() => stepIn(context, session))}
-        >
-          {t.stepIn}
-        </TextButton>
-        <TextButton
-          disabled={!view.canStepOut}
-          onClick={() => act(() => stepOut(context, session))}
-        >
-          {t.stepOut}
-        </TextButton>
-        <span className="fortune-audit-spacer" />
-        <TextButton onClick={hideDialog}>{t.close}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };

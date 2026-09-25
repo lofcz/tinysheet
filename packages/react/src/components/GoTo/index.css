@@ -1,98 +1,63 @@
-/* Go To dialog */
-.fortune-goto-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 1003;
+/* Go To (Ctrl+G / F5), a ui Dialog */
+.fortune-goto {
+  width: 380px;
+}
+
+.fortune-goto .ts-dialog-body {
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 60px;
+  flex-direction: column;
+  gap: 8px;
 }
 
-#fortune-goto {
-  width: 340px;
-  max-width: calc(100% - 16px);
-  padding: var(--fortune-space-3) var(--fortune-space-4) var(--fortune-space-4);
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size);
+.fortune-goto .goto-label,
+.fortune-goto .goto-field > span {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
-#fortune-goto .goto-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--fortune-space-2);
-}
-
-#fortune-goto .goto-list {
-  height: 150px;
+.fortune-goto .goto-list {
+  height: 168px;
+  padding: 4px;
   overflow-y: auto;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg-input);
-  padding: var(--fortune-space-1) 0;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
+  background: var(--ts-pane);
 }
 
-#fortune-goto .goto-list > div {
-  padding: 0 var(--fortune-space-2);
-  line-height: 24px;
+.fortune-goto .goto-list > div {
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--ts-text);
+  line-height: 28px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: pointer;
-}
-
-#fortune-goto .goto-list > div:hover {
-  background: var(--fortune-bg-hover);
-}
-
-#fortune-goto .goto-list > div.on {
-  background: var(--fortune-accent-soft);
-  color: var(--fortune-accent-text);
-}
-
-#fortune-goto .goto-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--fortune-space-1);
-  margin-top: var(--fortune-space-3);
-  color: var(--fortune-text-muted);
-}
-
-#fortune-goto .goto-field input {
-  height: var(--fortune-control-height);
-  box-sizing: border-box;
-  padding: 0 var(--fortune-space-2);
-  font: inherit;
-  color: var(--fortune-text);
-  background: var(--fortune-bg-input);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
+  cursor: default;
   outline: none;
 }
 
-#fortune-goto .goto-field input:focus {
-  border-color: var(--fortune-accent);
-  box-shadow: var(--fortune-focus-ring);
+.fortune-goto .goto-list > div:hover {
+  background: var(--ts-hover);
 }
 
-#fortune-goto .goto-field input[aria-invalid="true"] {
-  border-color: var(--fortune-danger);
+.fortune-goto .goto-list > div:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ts-ring);
 }
 
-#fortune-goto .goto-error {
-  min-height: 18px;
-  margin-top: var(--fortune-space-1);
-  color: var(--fortune-danger);
-  font-size: var(--fortune-font-size-sm);
+.fortune-goto .goto-list > div.on {
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
 }
 
-#fortune-goto .goto-buttons {
+.fortune-goto .goto-field {
   display: flex;
-  gap: var(--fortune-space-2);
-  margin-top: var(--fortune-space-2);
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
 }
 
-#fortune-goto .goto-buttons .spacer {
-  flex: 1;
+.fortune-goto .goto-error {
+  min-height: 16px;
+  color: var(--ts-danger);
+  font-size: var(--ts-font-size-sm);
 }

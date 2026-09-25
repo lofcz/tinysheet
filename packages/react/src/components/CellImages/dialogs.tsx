@@ -75,13 +75,12 @@ export const InsertPictureDialog: React.FC<{ r: number; c: number }> = ({
   const onKeyDown = fieldKeys(submit, close);
 
   return (
-    <Dialog type="yesno" onOk={submit} onCancel={close}>
+    <Dialog type="yesno" title={t.insertTitle} onOk={submit} onCancel={close}>
       <div className="fortune-cellmenu-dialog fortune-cell-image-dialog">
-        <div className="title">{t.insertTitle}</div>
         <div className="fortune-cell-image-dialog-source">
           <button
             type="button"
-            className="fortune-cell-image-dialog-button"
+            className="ts-btn ts-btn--secondary ts-btn--sm fortune-cell-image-dialog-button"
             onClick={() => fileRef.current?.click()}
           >
             {t.fromFile}
@@ -182,9 +181,8 @@ export const AltTextDialog: React.FC<{
     });
   };
   return (
-    <Dialog type="yesno" onOk={submit} onCancel={close}>
+    <Dialog type="yesno" title={t.altTextTitle} onOk={submit} onCancel={close}>
       <div className="fortune-cellmenu-dialog fortune-cell-image-dialog">
-        <div className="title">{t.altTextTitle}</div>
         <label
           className="fortune-cell-image-dialog-field"
           htmlFor="fortune-cell-image-alt-text"

@@ -11,8 +11,7 @@
  * - context-menu items "pivot-refresh", "pivot-field-list" and
  *   "pivot-value-settings".
  */
-import React, { useContext, useEffect, useRef, useState } from "react";
-import ReactDOM from "react-dom";
+import React, { useContext, useEffect, useRef } from "react";
 import _ from "lodash";
 import {
   checkPivotUpdate,
@@ -24,6 +23,7 @@ import {
   pivotCellInfo,
   pivotDrillDown,
   pivotInRange,
+  dialogsLocale,
   pivotLocale,
   pivotSourceSignature,
   refreshPivotTable,
@@ -38,10 +38,12 @@ import { registerContextMenuItem } from "../ContextMenu/actions";
 import Button from "../Toolbar/Button";
 import CreatePivotDialog, { PivotButton } from "./CreatePivotDialog";
 import FieldsPane from "./FieldsPane";
+import { SidePane } from "../SidePane";
 import { ValueFieldSettingsDialog } from "./FieldSettingsDialog";
 import ReportDropdowns from "./ReportDropdowns";
 import { pivotErrorText } from "./usePivotUpdate";
 import "./index.css";
+import { DialogShell } from "../ui";
 
 export const PIVOT_TOOLBAR_ICON = "fortune-insert-pivot";
 
@@ -112,23 +114,28 @@ const ConfirmRefresh: React.FC<{ sheetId: string; id: string }> = ({
   const { hideDialog } = useDialog();
   const t = pivotLocale(context);
   return (
-    <div className="fortune-pivot-dialog">
+    <DialogShell
+      title={dialogsLocale(context).appName}
+      className="fortune-pivot-dialog"
+      footer={
+        <>
+          <PivotButton onClick={hideDialog}>{t.cancel}</PivotButton>
+          <PivotButton
+            primary
+            onClick={() => {
+              setContext((ctx) => {
+                refreshPivotTable(ctx, sheetId, id, { force: true });
+              });
+              hideDialog();
+            }}
+          >
+            {t.ok}
+          </PivotButton>
+        </>
+      }
+    >
       <div>{t.confirmReplace}</div>
-      <div className="fortune-pivot-dialog-footer">
-        <PivotButton
-          primary
-          onClick={() => {
-            setContext((ctx) => {
-              refreshPivotTable(ctx, sheetId, id, { force: true });
-            });
-            hideDialog();
-          }}
-        >
-          {t.ok}
-        </PivotButton>
-        <PivotButton onClick={hideDialog}>{t.cancel}</PivotButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -320,17 +327,8 @@ function usePivotGuards() {
 }
 
 const PivotOverlay: React.FC = () => {
-  const { context, refs } = useContext(WorkbookContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
   usePivotGuards();
-  const [host, setHost] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    setHost(
-      (refs.cellArea.current?.closest(".fortune-sheet-overlay") as
-        | HTMLElement
-        | null
-        | undefined) ?? null
-    );
-  }, [refs.cellArea]);
   const active = activePivot(context);
   const pivots = getPivotTables(context, context.currentSheetId);
   const freeze = refs.globalCache.freezen?.[context.currentSheetId];
@@ -350,13 +348,27 @@ const PivotOverlay: React.FC = () => {
           }
         />
       ))}
-      {active &&
-        !context.pivotFieldListHidden &&
-        host &&
-        ReactDOM.createPortal(
-          <FieldsPane sheetId={active.sheetId} pivot={active.pivot} />,
-          host
+      <SidePane
+        id="pivot-fields"
+        title={pivotLocale(context).fieldsTitle}
+        open={!!active && !context.pivotFieldListHidden}
+        onClose={() =>
+          setContext(
+            (ctx) => {
+              ctx.pivotFieldListHidden = true;
+            },
+            { noHistory: true }
+          )
+        }
+      >
+        {active && (
+          <FieldsPane
+            key={active.pivot.id}
+            sheetId={active.sheetId}
+            pivot={active.pivot}
+          />
         )}
+      </SidePane>
     </>
   );
 };
@@ -386,9 +398,7 @@ export function registerPivotTableFeatures() {
         return;
       }
       if (error) {
-        showDialog(
-          <div className="fortune-pivot-dialog">{pivotErrorText(t, error)}</div>
-        );
+        showDialog(pivotErrorText(t, error));
         return;
       }
       setContext((ctx) => {

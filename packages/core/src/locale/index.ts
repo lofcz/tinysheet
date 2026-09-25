@@ -92,6 +92,8 @@ export { excelIoLocale } from "./excelIo";
 export type { ExcelIoLocale } from "./excelIo";
 export { cellToolsLocale } from "./cellTools";
 export { ribbonLocale } from "./ribbon";
+export { dialogsLocale } from "./dialogs";
+export type { DialogsLocale } from "./dialogs";
 export type { RibbonLocale } from "./ribbon";
 export { ribbonFormulasDataReviewLocale } from "./ribbonFormulasDataReview";
 export type { RibbonFormulasDataReviewLocale } from "./ribbonFormulasDataReview";

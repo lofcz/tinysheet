@@ -7,6 +7,7 @@ import React, {
   useLayoutEffect,
 } from "react";
 import {
+  dialogsLocale,
   locale,
   saveHyperlink,
   LinkCardProps,
@@ -22,6 +23,9 @@ import "./index.css";
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
+import { SquareDashedMousePointer, X } from "lucide-react";
+import { Button, ICON_STROKE } from "../ui";
+import "../ui/form.css";
 
 export const LinkEditCard: React.FC<LinkCardProps> = ({
   r,
@@ -39,6 +43,7 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
   const [linkAddress, setLinkAddress] = useState<string>(originAddress);
   const [linkType, setLinkType] = useState<string>(originType);
   const { insertLink, linkTypeList, button } = locale(context);
+  const dt = dialogsLocale(context).titles;
   const lastCell = useRef(
     normalizeSelection(context, [{ row: [r, r], column: [c, c] }])
   );
@@ -86,21 +91,13 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
 
   const renderBottomButton = useCallback(
     (onOk: () => void, onCancel: () => void) => (
-      <div className="button-group">
-        <div
-          className="button-basic button-default"
-          onClick={onCancel}
-          tabIndex={0}
-        >
+      <div className="ts-dialog-footer">
+        <Button variant="secondary" onClick={onCancel}>
           {button.cancel}
-        </div>
-        <div
-          className="button-basic button-primary"
-          onClick={onOk}
-          tabIndex={0}
-        >
+        </Button>
+        <Button variant="primary" onClick={onOk}>
           {button.confirm}
-        </div>
+        </Button>
       </div>
     ),
     [button]
@@ -207,7 +204,9 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
 
   return selectingCellRange ? (
     <div
-      className="fortune-link-modify-modal range-selection-modal"
+      className="ts-dialog fortune-link-modify-modal range-selection-modal"
+      role="dialog"
+      aria-label={insertLink.selectCellRange}
       style={{ left: position.cellLeft, top: position.cellBottom + 5 }}
       {..._.omit(containerEvent, ["onMouseDown", "onMouseMove", "onMouseUp"])}
       onMouseDown={(e) => {
@@ -216,14 +215,20 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
         e.stopPropagation();
       }}
     >
-      <div
-        className="modal-icon-close"
-        onClick={() => setRangeModalVisible(false)}
-        tabIndex={0}
-      >
-        <SVGIcon name="close" />
+      <div className="ts-dialog-header">
+        <h2 className="ts-dialog-title modal-title">
+          {insertLink.selectCellRange}
+        </h2>
+        <button
+          type="button"
+          className="ts-dialog-close"
+          aria-label={button.close}
+          title={button.close}
+          onClick={() => setRangeModalVisible(false)}
+        >
+          <X size={16} strokeWidth={ICON_STROKE} aria-hidden />
+        </button>
       </div>
-      <div className="modal-title">{insertLink.selectCellRange}</div>
       <input
         {...containerEvent}
         className={`range-selection-input ${
@@ -248,13 +253,36 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
     </div>
   ) : (
     <div
-      className="fortune-link-modify-modal"
+      className="ts-dialog fortune-link-modify-modal fortune-link-dialog"
+      role="dialog"
+      aria-labelledby="fortune-link-dialog-title"
       style={{
         left: position.cellLeft + 20,
         top: position.cellBottom,
       }}
       {...containerEvent}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Escape") {
+          e.preventDefault();
+          hideLinkCard();
+        }
+      }}
     >
+      <div className="ts-dialog-header">
+        <h2 className="ts-dialog-title" id="fortune-link-dialog-title">
+          {originAddress ? dt.editHyperlink : dt.hyperlink}
+        </h2>
+        <button
+          type="button"
+          className="ts-dialog-close"
+          aria-label={button.close}
+          title={button.close}
+          onClick={hideLinkCard}
+        >
+          <X size={16} strokeWidth={ICON_STROKE} aria-hidden />
+        </button>
+      </div>
       <div className="fortune-link-modify-line">
         <div className="fortune-link-modify-title">{insertLink.linkText}</div>
         <input
@@ -321,13 +349,19 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
               value={linkAddress}
               onChange={(e) => setLinkAddress(e.target.value)}
             />
-            <div
+            <button
+              type="button"
               className="fortune-link-modify-cell-selector"
+              aria-label={insertLink.selectCellRange}
+              title={insertLink.selectCellRange}
               onClick={() => setRangeModalVisible(true)}
-              tabIndex={0}
             >
-              <SVGIcon name="border-all" />
-            </div>
+              <SquareDashedMousePointer
+                size={16}
+                strokeWidth={ICON_STROKE}
+                aria-hidden
+              />
+            </button>
             {tooltip}
           </>
         )}

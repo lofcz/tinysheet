@@ -9,6 +9,7 @@ import _ from "lodash";
 import WorkbookContext from "../../context";
 import "./index.css";
 import { useDialog } from "../../hooks/useDialog";
+import { Button, DialogShell } from "../ui";
 
 export const FormatSearch: React.FC<{
   type: "currency" | "date" | "number";
@@ -107,61 +108,54 @@ export const FormatSearch: React.FC<{
   }, [_onCancel, cellInput, setContext]);
 
   return (
-    <div id="luckysheet-search-format">
-      <div className="listbox" style={{ height: 200 }}>
-        <div style={{ marginBottom: 16 }}>
-          {tips}
-          {format.format}：
-        </div>
-        <div className="inpbox" style={{ display: "block" }}>
-          {format.decimalPlaces}：
-          <input
-            className="decimal-places-input"
-            id="decimal-places-input"
-            min={0}
-            max={9}
-            defaultValue={2}
-            type="number"
-            onChange={(e) => {
-              setDecimalPlace(parseInt(e.target.value, 10));
+    <DialogShell
+      id="luckysheet-search-format"
+      title={`${tips}${format.format}`}
+      className="fortune-format-search"
+      onClose={onCancel}
+      onConfirm={onConfirm}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel}>
+            {button.cancel}
+          </Button>
+          <Button variant="primary" onClick={onConfirm}>
+            {button.confirm}
+          </Button>
+        </>
+      }
+    >
+      <label className="inpbox" htmlFor="decimal-places-input">
+        <span>{format.decimalPlaces}</span>
+        <input
+          className="decimal-places-input"
+          id="decimal-places-input"
+          min={0}
+          max={9}
+          defaultValue={2}
+          type="number"
+          onChange={(e) => {
+            setDecimalPlace(parseInt(e.target.value, 10));
+          }}
+        />
+      </label>
+      <div className="format-list" role="listbox" aria-label={format.format}>
+        {toolbarFormat.map((v: any, index: number) => (
+          <div
+            className={`listBox${index === selectedFormatIndex ? " on" : ""}`}
+            key={v.name}
+            role="option"
+            aria-selected={index === selectedFormatIndex}
+            onClick={() => {
+              setSelectedFormatIndex(index);
             }}
-          />
-        </div>
-        <div className="format-list">
-          {toolbarFormat.map((v: any, index: number) => (
-            <div
-              className={`listBox${index === selectedFormatIndex ? " on" : ""}`}
-              key={v.name}
-              onClick={() => {
-                setSelectedFormatIndex(index);
-              }}
-              tabIndex={0}
-            >
-              <div>{v.name}</div>
-              <div>{v.value}</div>
-            </div>
-          ))}
-        </div>
+            tabIndex={0}
+          >
+            <div>{v.name}</div>
+            <div>{v.value}</div>
+          </div>
+        ))}
       </div>
-      <div
-        className="fortune-dialog-box-button-container"
-        style={{ marginTop: 40 }}
-      >
-        <div
-          className="fortune-message-box-button button-primary"
-          onClick={onConfirm}
-          tabIndex={0}
-        >
-          {button.confirm}
-        </div>
-        <div
-          className="fortune-message-box-button button-default"
-          onClick={onCancel}
-          tabIndex={0}
-        >
-          {button.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };

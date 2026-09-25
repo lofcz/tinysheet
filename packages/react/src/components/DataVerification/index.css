@@ -14,47 +14,28 @@
   color: var(--fortune-danger);
 }
 
-#range-dialog {
-  box-shadow: var(--fortune-shadow-lg);
-  background: var(--fortune-bg-elevated);
-  border-radius: var(--fortune-radius-lg);
-  background-clip: padding-box;
-  border: 1px solid var(--fortune-border);
-  outline: 0;
+/* the collapsed range picker (modeless, top of the grid like Excel's) */
+#range-dialog.fortune-range-dialog {
   position: fixed;
-  color: var(--fortune-text);
-  padding: 30px 42px;
-  z-index: 100003;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -90%);
+  top: 96px;
+  z-index: 100003;
+  width: 400px;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  transform: translateX(-50%);
   user-select: none;
+  animation: none;
 }
 
-#range-dialog .dialog-title {
-  background-color: transparent;
-  color: var(--fortune-text);
-  cursor: default;
-  font-size: 16px;
-  font-weight: normal;
-  line-height: 24px;
-  margin: 0 0 16px;
+.fortune-range-dialog-row {
+  display: flex;
+  gap: 8px;
 }
 
-#range-dialog input {
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--fortune-border);
-  outline-style: none;
-  user-select: none;
-}
-
-#range-dialog .button-primary {
-  margin-right: 10px;
-}
-
-#range-dialog .button-close {
-  margin-right: 10px;
+.fortune-range-dialog-row input {
+  flex: 1;
+  min-width: 0;
 }
 
 #luckysheet-dataVerification-dropdown-List {
@@ -84,7 +65,6 @@
   background-color: var(--fortune-bg-hover);
 }
 
-#fortune-data-verification {
-  width: 520px;
-  max-width: none;
+.fortune-dv-dialog {
+  width: 540px;
 }

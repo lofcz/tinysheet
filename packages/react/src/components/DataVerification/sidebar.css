@@ -1,81 +1,46 @@
+/* Data validation rules pane (docked in the side pane) */
 .fortune-dv-sidebar {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 280px;
-  z-index: 1003;
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
-  background: var(--fortune-bg-elevated);
-  color: var(--fortune-text);
-  border-left: 1px solid var(--fortune-border);
-  box-shadow: var(--fortune-shadow);
-  font-size: var(--fortune-font-size);
-}
-
-.fortune-dv-sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--fortune-space-3) var(--fortune-space-3) var(--fortune-space-2);
-}
-
-.fortune-dv-sidebar-title {
-  font-weight: 500;
-  font-size: var(--fortune-font-size-lg, 15px);
-}
-
-.fortune-dv-sidebar-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.fortune-dv-sidebar-close:hover {
-  background: var(--fortune-bg-hover);
+  gap: 12px;
 }
 
 .fortune-dv-sidebar-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--fortune-space-3) var(--fortune-space-3);
-  border-bottom: 1px solid var(--fortune-divider, var(--fortune-border));
+  gap: 8px;
 }
 
 .fortune-dv-sidebar-list {
-  flex: 1;
-  overflow: auto;
-  padding: var(--fortune-space-2);
-}
-
-.fortune-dv-sidebar-empty {
-  padding: var(--fortune-space-3);
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .fortune-dv-rule {
-  padding: var(--fortune-space-2) var(--fortune-space-3);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius);
-  margin-bottom: var(--fortune-space-2);
+  position: relative;
+  padding: 10px 12px;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius-cluster);
   cursor: pointer;
-  background: var(--fortune-bg);
+  background: var(--ts-pane);
+  transition: background-color var(--ts-fast);
 }
 
 .fortune-dv-rule:hover {
-  background: var(--fortune-bg-hover);
-  border-color: var(--fortune-border-strong, var(--fortune-border));
+  background: var(--ts-surface);
+}
+
+.fortune-dv-rule:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ts-ring);
 }
 
 .fortune-dv-rule-range {
+  padding-right: 60px;
   font-weight: 600;
-  color: var(--fortune-accent-text, var(--fortune-accent));
+  color: var(--ts-text-strong);
   word-break: break-all;
 }
 
@@ -92,7 +57,16 @@
 }
 
 .fortune-dv-rule-buttons {
+  position: absolute;
+  top: 5px;
+  right: 5px;
   display: flex;
-  gap: var(--fortune-space-1);
-  margin-top: var(--fortune-space-2);
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--ts-fast);
+}
+
+.fortune-dv-rule:hover .fortune-dv-rule-buttons,
+.fortune-dv-rule:focus-within .fortune-dv-rule-buttons {
+  opacity: 1;
 }

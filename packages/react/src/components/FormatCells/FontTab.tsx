@@ -141,7 +141,7 @@ const FontTab: React.FC<Props> = ({ state, onChange }) => {
           </fieldset>
         </div>
         <div className="fortune-fc-column">
-          <div className="fortune-fc-label">{formatCells.color}:</div>
+          <div className="fortune-fc-label">{formatCells.color}</div>
           <ColorPalette
             idPrefix="fortune-fc-font-color"
             label={formatCells.color}

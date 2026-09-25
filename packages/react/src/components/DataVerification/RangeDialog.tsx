@@ -5,6 +5,9 @@ import DataVerification from ".";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import ConditionRules from "../ConditionFormat/ConditionRules";
+import { X } from "lucide-react";
+import { Button, ICON_STROKE } from "../ui";
+import "../ui/form.css";
 import "./index.css";
 
 const RangeDialog: React.FC = () => {
@@ -64,43 +67,58 @@ const RangeDialog: React.FC = () => {
     });
   }, [context, context.luckysheet_select_save]);
 
+  const confirm = () => {
+    setContext((ctx) => {
+      ctx.rangeDialog!.rangeTxt = rangeTxt2;
+    });
+    close();
+  };
+
+  // Excel's collapsed dialog: a small modeless bar while cells are picked
   return (
     <div
       id="range-dialog"
+      className="ts-dialog fortune-range-dialog"
+      role="dialog"
+      aria-label={dataVerification.selectCellRange}
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") {
+          e.preventDefault();
+          confirm();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          close();
+        }
+      }}
       onMouseDown={(e) => e.stopPropagation()}
       onMouseUp={(e) => e.stopPropagation()}
-      tabIndex={0}
+      tabIndex={-1}
     >
-      <div className="dialog-title">{dataVerification.selectCellRange}</div>
-      <input
-        readOnly
-        placeholder={dataVerification.selectCellRange2}
-        value={rangeTxt2}
-      />
-      <div
-        className="button-basic button-primary"
-        style={{ marginLeft: "6px" }}
-        onClick={() => {
-          setContext((ctx) => {
-            ctx.rangeDialog!.rangeTxt = rangeTxt2;
-          });
-          close();
-        }}
-        tabIndex={0}
-      >
-        {button.confirm}
+      <div className="ts-dialog-header">
+        <h2 className="ts-dialog-title">{dataVerification.selectCellRange}</h2>
+        <button
+          type="button"
+          className="ts-dialog-close"
+          aria-label={button.close}
+          title={button.close}
+          onClick={close}
+        >
+          <X size={16} strokeWidth={ICON_STROKE} aria-hidden />
+        </button>
       </div>
-      <div
-        className="button-basic button-close"
-        onClick={() => {
-          close();
-        }}
-        tabIndex={0}
-      >
-        {button.close}
+      <div className="fortune-range-dialog-row">
+        <input
+          readOnly
+          aria-label={dataVerification.selectCellRange2}
+          placeholder={dataVerification.selectCellRange2}
+          value={rangeTxt2}
+        />
+        <Button variant="primary" onClick={confirm}>
+          {button.confirm}
+        </Button>
       </div>
     </div>
   );

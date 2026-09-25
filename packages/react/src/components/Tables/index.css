@@ -70,49 +70,52 @@
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
+/* Create Table, Table Design, Insert Slicers, Slicer Settings (DialogShells) */
 .fortune-table-dialog {
   width: 420px;
-  max-width: 100%;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+}
+
+.fortune-table-dialog .ts-dialog-body {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-3, 12px);
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size);
+  gap: 12px;
 }
 
 .fortune-table-design {
-  width: 480px;
+  width: 500px;
 }
 
 .fortune-table-dialog-title {
-  font-size: var(--fortune-font-size-lg);
-  font-weight: 500;
+  color: var(--ts-text-strong);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .fortune-table-dialog-field {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-1, 4px);
+  gap: 6px;
 }
 
 .fortune-table-dialog-field > label {
-  color: var(--fortune-text-muted);
   overflow: hidden;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .fortune-table-dialog-field input,
 .fortune-table-dialog-field select {
-  box-sizing: border-box;
   width: 100%;
-  height: var(--fortune-control-height);
-  padding: 0 var(--fortune-space-2, 8px);
+  box-sizing: border-box;
 }
 
 .fortune-table-dialog-inline {
   display: flex;
-  gap: var(--fortune-space-2, 8px);
+  gap: 8px;
 }
 
 .fortune-table-dialog-inline input {
@@ -122,30 +125,28 @@
 .fortune-table-design-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--fortune-space-3, 12px);
+  gap: 12px;
 }
 
 .fortune-table-dialog-check {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2, 8px);
+  gap: 8px;
   user-select: none;
 }
 
 .fortune-table-dialog-group {
-  margin: 0;
-  padding: var(--fortune-space-2, 8px) var(--fortune-space-3, 12px)
-    var(--fortune-space-3, 12px);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
   display: flex;
   flex-wrap: wrap;
-  gap: var(--fortune-space-2, 8px) var(--fortune-space-4, 16px);
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.fortune-table-dialog-group legend {
-  padding: 0 var(--fortune-space-1, 4px);
-  color: var(--fortune-text-muted);
+.fortune-table-dialog-group + .fortune-table-dialog-group {
+  padding-top: 14px;
+  border-top: 1px solid var(--ts-border);
 }
 
 .fortune-table-totals {
@@ -156,7 +157,8 @@
 }
 
 .fortune-table-dialog-error {
-  color: var(--fortune-danger);
+  color: var(--ts-danger);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-table-dialog-footer {
@@ -535,7 +537,8 @@
 
 /* Slicer dialogs */
 .fortune-slicer-dialog-hint {
-  color: var(--fortune-text-muted);
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-slicer-insert {
@@ -547,10 +550,10 @@
   flex-direction: column;
   gap: var(--fortune-space-1, 4px);
   max-height: 260px;
-  padding: var(--fortune-space-2, 8px);
+  padding: 8px 10px;
   overflow: auto;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
 }
 
 .fortune-slicer-settings {

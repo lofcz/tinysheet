@@ -1,23 +1,32 @@
-.fortune-sort-title {
-  background-color: transparent;
-  color: var(--fortune-text);
-  cursor: default;
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 24px;
-  margin: 0 0 16px;
+/* Sort dialog (a DialogShell, see ../DataVerification/dataTools.css) */
+.fortune-sort-dialog {
+  width: 640px;
 }
 
-.fortune-sort-modal > div {
-  margin-bottom: 10px;
+.fortune-sort-toolbar {
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.fortune-sort-tablec td {
-  padding: 5px;
-  white-space: nowrap;
+.fortune-sort-dialog .fortune-dt-scroll {
+  min-height: 160px;
+  margin-top: 12px;
 }
 
-.fortune-sort-button {
-  margin-top: 10px;
-  margin-bottom: 25px;
+.fortune-sort-dialog .fortune-dt-table td {
+  vertical-align: middle;
+}
+
+.fortune-sort-dialog .fortune-dt-table td:first-child {
+  width: 1%;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+}
+
+.fortune-sort-color-select {
+  flex: 1;
+}
+
+.fortune-rd-columns {
+  padding: 10px 12px 4px;
 }

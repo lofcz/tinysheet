@@ -6,7 +6,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import ReactDOM from "react-dom";
 import {
   colLocation,
   Context,
@@ -14,10 +13,12 @@ import {
   getFlowdata,
   getThreadedCommentAt,
   rowLocation,
+  threadedCommentsLocale,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import CommentCard from "./CommentCard";
 import CommentsPane from "./CommentsPane";
+import { SidePane } from "../SidePane";
 
 const CARD_WIDTH = 300;
 const GAP = 10;
@@ -88,6 +89,16 @@ const ThreadedCommentsLayer: React.FC = () => {
     setContext(
       (ctx) => {
         ctx.threadedCommentCard = null;
+      },
+      { noHistory: true }
+    );
+    refs.cellInput.current?.focus({ preventScroll: true });
+  }, [refs.cellInput, setContext]);
+
+  const closePane = useCallback(() => {
+    setContext(
+      (ctx) => {
+        ctx.threadedCommentsPane = false;
       },
       { noHistory: true }
     );
@@ -203,24 +214,6 @@ const ThreadedCommentsLayer: React.FC = () => {
     };
   }, [refs.cellArea]);
 
-  // the pane sits over the right edge of the grid
-  const container = refs.workbookContainer.current;
-  const [paneBox, setPaneBox] = useState<{ top: number; bottom: number }>();
-  // measured after every render (toolbar and formula bar may resize)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => {
-    if (!context.threadedCommentsPane) return;
-    const area = refs.cellArea.current;
-    if (!container || !area) return;
-    const outer = container.getBoundingClientRect();
-    const inner = area.getBoundingClientRect();
-    const top = Math.round(inner.top - outer.top - context.columnHeaderHeight);
-    const bottom = Math.round(outer.bottom - inner.bottom);
-    if (paneBox?.top !== top || paneBox?.bottom !== bottom) {
-      setPaneBox({ top, bottom });
-    }
-  });
-
   return (
     <>
       {openCell && (
@@ -264,9 +257,14 @@ const ThreadedCommentsLayer: React.FC = () => {
           }}
         />
       )}
-      {context.threadedCommentsPane &&
-        container &&
-        ReactDOM.createPortal(<CommentsPane style={paneBox} />, container)}
+      <SidePane
+        id="comments"
+        title={threadedCommentsLocale(context).paneTitle}
+        open={!!context.threadedCommentsPane}
+        onClose={closePane}
+      >
+        <CommentsPane />
+      </SidePane>
     </>
   );
 };

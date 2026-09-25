@@ -119,7 +119,9 @@ test.describe("shapes", () => {
     await page.getByRole("menuitem", { name: /Format shape/ }).click();
     const pane = page.getByRole("complementary", { name: "Format shape" });
     await expect(pane).toBeVisible();
+    await pane.getByRole("button", { name: "Text Options" }).click();
     await pane.getByRole("button", { name: "Bold" }).click();
+    await pane.getByRole("button", { name: "Shape Options" }).click();
     await pane.getByLabel("Shadow").uncheck();
     await expect
       .poll(async () => {

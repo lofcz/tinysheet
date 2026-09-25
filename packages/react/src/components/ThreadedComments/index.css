@@ -311,109 +311,70 @@
   padding: var(--fortune-space-1) var(--fortune-space-2);
 }
 
-/* Comments pane */
+/* Comments pane (docked in the side pane, see SidePane/index.css) */
 .fortune-comments-pane {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: 300px;
-  max-width: 100%;
-  border-left: 1px solid var(--fortune-border);
-  background: var(--fortune-bg);
-  box-shadow: var(--fortune-shadow);
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size);
-}
-
-.fortune-comments-pane-header {
-  display: flex;
-  align-items: center;
-  padding: var(--fortune-space-2) var(--fortune-space-2) var(--fortune-space-2)
-    var(--fortune-space-4);
-  border-bottom: 1px solid var(--fortune-divider);
-}
-
-.fortune-comments-pane-title {
-  flex: 1;
-  margin: 0;
-  font-size: var(--fortune-font-size-lg);
-  font-weight: 600;
+  min-height: 100%;
+  box-sizing: border-box;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
 }
 
 .fortune-comments-pane-filter {
-  display: flex;
-  gap: var(--fortune-space-1);
-  padding: var(--fortune-space-2) var(--fortune-space-4);
-}
-
-.fortune-comments-filter {
-  padding: var(--fortune-space-1) var(--fortune-space-3);
-  border: 1px solid var(--fortune-border);
-  border-radius: 999px;
-  background: var(--fortune-bg);
-  color: var(--fortune-text-muted);
-  font: inherit;
-  font-size: var(--fortune-font-size-sm);
-  cursor: pointer;
-}
-
-.fortune-comments-filter:hover {
-  background: var(--fortune-bg-hover);
-}
-
-.fortune-comments-filter-active,
-.fortune-comments-filter-active:hover {
-  border-color: var(--fortune-accent);
-  background: var(--fortune-accent-soft);
-  color: var(--fortune-accent-text);
+  margin: 12px 14px 4px;
 }
 
 .fortune-comments-pane-list {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--fortune-space-2);
-  padding: var(--fortune-space-2) var(--fortune-space-3) var(--fortune-space-3);
-  overflow-y: auto;
-}
-
-.fortune-comments-pane-empty {
-  margin: var(--fortune-space-4) var(--fortune-space-2);
-  color: var(--fortune-text-muted);
-  text-align: center;
+  gap: 8px;
+  padding: 8px 14px 16px;
 }
 
 .fortune-comments-item {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-1);
-  padding: var(--fortune-space-2) var(--fortune-space-3);
-  border: 1px solid var(--fortune-border);
-  border-left: 3px solid var(--fortune-thread-accent);
-  border-radius: var(--fortune-radius);
-  background: var(--fortune-bg-elevated);
-  color: var(--fortune-text);
+  gap: 6px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius-cluster);
+  background: var(--ts-pane);
+  color: var(--ts-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition:
+    background-color var(--ts-fast),
+    border-color var(--ts-fast);
+}
+
+/* the thread colour as a 3px rounded bar at the left edge */
+.fortune-comments-item::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--fortune-thread-accent);
 }
 
 .fortune-comments-item:hover {
-  background: var(--fortune-bg-hover);
+  background: var(--ts-surface);
 }
 
-.fortune-comments-item-selected {
-  border-color: var(--fortune-accent);
-  border-left-color: var(--fortune-thread-accent);
+.fortune-comments-item-selected,
+.fortune-comments-item-selected:hover {
+  border-color: var(--ts-ink);
+  box-shadow: inset 0 0 0 1px var(--ts-ink);
 }
 
-.fortune-comments-item-resolved {
-  border-left-color: var(--fortune-text-subtle);
+.fortune-comments-item-resolved::before {
+  background: var(--ts-subtle);
 }
 
 .fortune-comments-item-resolved .fortune-comments-item-text {

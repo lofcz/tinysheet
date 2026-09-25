@@ -1,15 +1,16 @@
 import React, { useContext, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import _ from "lodash";
 import {
   formulaAuditLocale,
   getCalcSettings,
+  openWatchWindow,
   getCircularReferences,
 } from "@lofcz/tinysheet-core";
 import type { Context } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import WatchWindow from "./WatchWindow";
+import { SidePane } from "../SidePane";
 
 /** Circular references to report (none while iterative calculation is on). */
 export function reportedCircularReferences(context: Context) {
@@ -64,9 +65,19 @@ const FormulaAuditingHost: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasCircular]);
 
-  const container = refs.workbookContainer.current;
-  if (!context.watchWindow?.open || !container) return null;
-  return createPortal(<WatchWindow />, container);
+  return (
+    <SidePane
+      id="watch-window"
+      title={formulaAuditLocale(context).watch.title}
+      open={!!context.watchWindow?.open}
+      onClose={() => {
+        setContext((ctx) => openWatchWindow(ctx, false), { noHistory: true });
+        refs.cellInput.current?.focus({ preventScroll: true });
+      }}
+    >
+      <WatchWindow />
+    </SidePane>
+  );
 };
 
 export default FormulaAuditingHost;

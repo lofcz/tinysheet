@@ -31,6 +31,7 @@ import { X } from "lucide-react";
 import { ribbonLocale } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { ICON_STROKE, Tabs, Tooltip } from "../ui";
+import "../ui/form.css";
 import "./index.css";
 
 export const SIDE_PANE_MIN = 260;
@@ -310,6 +311,8 @@ export const SidePaneSlot: React.FC = () => {
           else if (e.key === "ArrowRight") setWidth(width - 16);
           else return;
           e.preventDefault();
+          // the grid must not take the arrow keys
+          e.stopPropagation();
         }}
         onPointerDown={(e) => {
           if (e.button !== 0) return;
@@ -334,18 +337,39 @@ export const SidePaneSlot: React.FC = () => {
           setDragging(false);
         }}
       />
+      {/* the pane keeps its keys and clicks from the grid's handlers */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <aside
         className="fortune-pane fortune-side-pane"
         aria-label={typeof active.title === "string" ? active.title : undefined}
+        onKeyDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseUp={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.stopPropagation()}
+        onPaste={(e) => e.stopPropagation()}
+        onCopy={(e) => e.stopPropagation()}
+        onCut={(e) => e.stopPropagation()}
       >
         <header className="fortune-side-pane-header">
           {ordered.length > 1 ? (
             <Tabs
               size="sm"
-              tabs={ordered.map((e) => ({ id: e.id, label: e.title }))}
+              tabs={ordered.map((e) => ({
+                id: e.id,
+                label: (
+                  <span
+                    className="fortune-side-pane-tab-label"
+                    title={typeof e.title === "string" ? e.title : undefined}
+                  >
+                    {e.title}
+                  </span>
+                ),
+              }))}
               value={active.id}
               onChange={activate}
               className="fortune-side-pane-tabs"
+              fill
             />
           ) : (
             <h2 className="fortune-side-pane-title">{active.title}</h2>

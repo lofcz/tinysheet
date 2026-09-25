@@ -83,9 +83,110 @@
   overflow: hidden;
 }
 
+.fortune-side-pane-tabs .ts-tab {
+  min-width: 0;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ts-font-size-sm);
+}
+
 .fortune-side-pane-body {
   flex: 1;
   min-height: 0;
   overflow: auto;
   position: relative;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+}
+
+/* ---------- pane content (Fika's right pane) ---------- */
+
+/* the standard body: 16px / 14px padding, sections stacked */
+.ts-pane-content {
+  box-sizing: border-box;
+  min-height: 100%;
+}
+
+.ts-pane-padded {
+  padding: 16px 14px;
+}
+
+/* a segmented switch of buttons (aria-pressed): Fika's ink pill */
+.ts-segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--ts-radius-cluster);
+  background: var(--ts-surface);
+}
+
+.ts-segmented-item {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ts-muted);
+  font: inherit;
+  font-size: var(--ts-font-size-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition:
+    background-color var(--ts-fast),
+    color var(--ts-fast);
+}
+
+.ts-segmented-item:hover:not([aria-pressed="true"], :disabled) {
+  color: var(--ts-text-strong);
+  background: var(--ts-hover);
+}
+
+.ts-segmented-item[aria-pressed="true"] {
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+}
+
+.ts-segmented-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+/* an empty pane: a muted icon over a line of text */
+.ts-pane-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 16px;
+  color: var(--ts-subtle);
+  text-align: center;
+}
+
+.ts-pane-empty p {
+  margin: 0;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  line-height: 1.5;
+}
+
+/* a row of pane actions (Add Watch, Delete Watch) */
+.ts-pane-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fortune-side-pane-tab-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

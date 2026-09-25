@@ -17,6 +17,15 @@ import _ from "lodash";
 import React, { useCallback, useContext, useMemo, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
+import {
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Plus,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
+import { Button, DialogShell, IconButton } from "../ui";
 import "../DataVerification/dataTools.css";
 import "./index.css";
 import DtCheck from "../DataVerification/DtCheck";
@@ -235,50 +244,89 @@ const CustomSort: React.FC = () => {
     setSelected(to);
   };
 
-  const toolButton = (label: string, onClick: () => void, disabled = false) => (
-    <div
+  const toolButton = (
+    label: string,
+    onClick: () => void,
+    disabled = false,
+    icon?: LucideIcon
+  ) => (
+    <Button
+      size="sm"
       className="fortune-dt-icon-button"
-      role="button"
-      tabIndex={0}
-      aria-disabled={disabled}
-      onClick={() => {
-        if (!disabled) onClick();
-      }}
+      icon={icon}
+      disabled={disabled}
+      onClick={onClick}
     >
       {label}
-    </div>
+    </Button>
   );
 
   return (
-    <div className="fortune-dt-dialog fortune-sort-dialog">
-      <div className="fortune-dt-title">{t.title}</div>
-      <div className="fortune-dt-row" style={{ flexWrap: "wrap" }}>
-        {toolButton(`+ ${t.addLevel}`, () => {
-          setLevels((prev) => [...prev, newLevel()]);
-          setSelected(levels.length);
-        })}
+    <DialogShell
+      title={t.title}
+      className="fortune-dt-dialog fortune-sort-dialog"
+      onClose={hideDialog}
+      onConfirm={onOk}
+      footer={
+        <>
+          <Button variant="secondary" onClick={hideDialog}>
+            {t.cancel}
+          </Button>
+          <Button variant="primary" onClick={onOk}>
+            {t.ok}
+          </Button>
+        </>
+      }
+    >
+      <div className="fortune-dt-row fortune-sort-toolbar">
+        {toolButton(
+          t.addLevel,
+          () => {
+            setLevels((prev) => [...prev, newLevel()]);
+            setSelected(levels.length);
+          },
+          false,
+          Plus
+        )}
         {toolButton(
           t.deleteLevel,
           () => {
             setLevels((prev) => prev.filter((_l, i) => i !== selected));
             setSelected(Math.max(0, selected - 1));
           },
-          levels.length <= 1
+          levels.length <= 1,
+          Trash2
         )}
-        {toolButton(t.copyLevel, () => {
-          setLevels((prev) => {
-            const next = prev.slice();
-            next.splice(selected + 1, 0, { ...prev[selected], id: newId() });
-            return next;
-          });
-          setSelected(selected + 1);
-        })}
-        {toolButton("▲", () => move(selected, selected - 1), selected === 0)}
         {toolButton(
-          "▼",
-          () => move(selected, selected + 1),
-          selected >= levels.length - 1
+          t.copyLevel,
+          () => {
+            setLevels((prev) => {
+              const next = prev.slice();
+              next.splice(selected + 1, 0, {
+                ...prev[selected],
+                id: newId(),
+              });
+              return next;
+            });
+            setSelected(selected + 1);
+          },
+          false,
+          Copy
         )}
+        <IconButton
+          size="sm"
+          icon={ChevronUp}
+          label={t.moveUp ?? "Move Up"}
+          disabled={selected === 0}
+          onClick={() => move(selected, selected - 1)}
+        />
+        <IconButton
+          size="sm"
+          icon={ChevronDown}
+          label={t.moveDown ?? "Move Down"}
+          disabled={selected >= levels.length - 1}
+          onClick={() => move(selected, selected + 1)}
+        />
         <div style={{ flex: 1 }} />
         <DtCheck
           style={{ margin: 0 }}
@@ -452,28 +500,7 @@ const CustomSort: React.FC = () => {
           {error}
         </div>
       )}
-      <div
-        className="fortune-dt-buttons"
-        style={{ justifyContent: "flex-end" }}
-      >
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onClick={onOk}
-        >
-          {t.ok}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onClick={hideDialog}
-        >
-          {t.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

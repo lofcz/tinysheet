@@ -19,6 +19,7 @@ import type {
   CFStyle,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
+import { Button, DialogShell } from "../ui";
 import FormatEditor from "./FormatEditor";
 import { CFText, DATE_PERIODS, IconCanvas, datePeriodText } from "./previews";
 
@@ -739,14 +740,22 @@ const RuleEditor: React.FC<{
     )?.key ?? "avgAbove";
 
   return (
-    <div
-      className="fortune-cf-editor"
-      role="group"
-      aria-label={text.newFormatRule}
+    <DialogShell
+      title={isNew ? text.newFormatRule : text.editFormatRule}
+      className="fortune-cf-dialog fortune-cf-editor"
+      onClose={onCancel}
+      onConfirm={confirm}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel}>
+            {buttons.cancel}
+          </Button>
+          <Button variant="primary" onClick={confirm}>
+            {buttons.confirm}
+          </Button>
+        </>
+      }
     >
-      <div className="fortune-cf-title">
-        {isNew ? text.newFormatRule : text.editFormatRule}
-      </div>
       <div className="fortune-cf-section-title">{text.selectRuleType}</div>
       <div
         className="fortune-cf-kinds"
@@ -1060,37 +1069,7 @@ const RuleEditor: React.FC<{
           {error}
         </div>
       )}
-      <div className="fortune-cf-buttons">
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onClick={confirm}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              confirm();
-            }
-          }}
-        >
-          {buttons.confirm}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onClick={onCancel}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onCancel();
-            }
-          }}
-        >
-          {buttons.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

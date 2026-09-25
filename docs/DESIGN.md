@@ -236,3 +236,21 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
   DPR. Reference colours: `referenceColors` (`core/src/modules/color.ts`).
   Fonts: `core/src/modules/fonts.ts` (`defaultFontFamily(ctx)`,
   `cellFontName(ctx, cell)` for font boxes). Tests: e2e `gridVisuals.spec.js`.
+- **Dialogs**: every dialog renders a `DialogShell` (title, close, body,
+  footer: secondary buttons first, the primary ink button last; `footerStart`
+  for Excel's left-hand buttons). Shown with `showDialog(<X />)` the generic
+  frame (`components/Dialog`) lets the shell take over; Enter presses the
+  primary button unless `onConfirm` is given. Self-contained dialogs use
+  `<Dialog open>` (own backdrop, `closeOnBackdrop`, `modal={false}`). Form
+  pieces: `ui/Form.tsx` (`Radio`, `Field`, `Section` = Fika small-caps
+  section, `SwatchRow`); `ui/form.css` gives native inputs, selects, check
+  boxes, radios and fieldsets (as sections) the Fika look inside `.ts-dialog`
+  and side panes. New strings: `dialogsLocale` (core `locale/dialogs.ts`).
+  Harness: story `E2E/Dialogs` (`window.__tinysheetDialogs.open(name)`), e2e
+  `e2e/tests/dialogsPanes.spec.js`.
+- **Side panes in use**: Comments (`comments`), Watch Window
+  (`watch-window`), Format Shape (`format-shape`), PivotTable Fields
+  (`pivot-fields`), Chart editor (`format-chart`), Data Validation rules
+  (`data-validation`); each is a declarative `<SidePane>` driven by its
+  context flag. Pane content: `.ts-pane-content`, `.ts-pane-padded`,
+  `.ts-segmented` (buttons with aria-pressed), `.ts-pane-empty`, `Section`.

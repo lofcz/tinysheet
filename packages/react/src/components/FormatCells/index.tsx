@@ -22,8 +22,7 @@ import type {
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
-import SVGIcon from "../SVGIcon";
-import { useDialogBehavior } from "../../hooks/useDialogBehavior";
+import { Button, Dialog, Tabs } from "../ui";
 import NumberTab, { NumberState, numberStateCode } from "./NumberTab";
 import AlignmentTab, { AlignmentState } from "./AlignmentTab";
 import FontTab, { FontState } from "./FontTab";
@@ -124,7 +123,6 @@ const FormatCells: React.FC = () => {
   });
   const [invalid, setInvalid] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
   const currency = context.currency || "$";
 
   useEffect(() => {
@@ -132,13 +130,6 @@ const FormatCells: React.FC = () => {
       ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
       ?.focus();
   }, []);
-  // keyboard stays in the dialog (Ctrl+1 opens it while the sheet still
-  // holds the focus); the title bar drags it. Escape is handled below.
-  useDialogBehavior(backdropRef, {
-    modal: true,
-    getDragTarget: () => dialogRef.current,
-  });
-
   const close = useCallback(() => {
     setContext((ctx) => closeFormatCells(ctx), { noHistory: true });
     setTimeout(() => refs.cellInput.current?.focus());
@@ -215,7 +206,7 @@ const FormatCells: React.FC = () => {
     body = (
       <div className="fortune-fc-fill">
         <div className="fortune-fc-column">
-          <div className="fortune-fc-label">{formatCells.backgroundColor}:</div>
+          <div className="fortune-fc-label">{formatCells.backgroundColor}</div>
           <ColorPalette
             idPrefix="fortune-fc-fill-color"
             label={formatCells.backgroundColor}
@@ -261,112 +252,46 @@ const FormatCells: React.FC = () => {
   }
 
   return (
-    <div
-      ref={backdropRef}
-      className="fortune-popover-backdrop fortune-modal-container"
-      data-theme={context.theme || "light"}
-      onMouseDown={(e) => e.stopPropagation()}
-      onMouseMove={(e) => e.stopPropagation()}
-      onMouseUp={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        // the grid must not see keys typed in the dialog
-        e.stopPropagation();
-        if (e.key === "Escape") {
-          e.preventDefault();
-          close();
-        } else if (
-          e.key === "Enter" &&
-          !(e.target instanceof HTMLTextAreaElement) &&
-          !(e.target instanceof HTMLButtonElement) &&
-          (e.target as HTMLElement).getAttribute?.("role") !== "button"
-        ) {
-          e.preventDefault();
-          onOk();
-        }
-      }}
+    <Dialog
+      open
+      title={formatCells.title}
+      titleId="fortune-format-cells-title"
+      className="fortune-format-cells"
+      bodyClassName="fortune-fc-body"
+      width={660}
+      onClose={close}
+      onConfirm={onOk}
+      footer={
+        <>
+          <Button variant="secondary" onClick={close}>
+            {button.cancel}
+          </Button>
+          <Button variant="primary" onClick={onOk}>
+            {button.confirm}
+          </Button>
+        </>
+      }
     >
-      <div
-        ref={dialogRef}
-        className="fortune-dialog fortune-format-cells"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="fortune-format-cells-title"
-      >
-        <div className="fortune-fc-header">
-          <div id="fortune-format-cells-title" className="dialog-title">
-            {formatCells.title}
-          </div>
-          <button
-            type="button"
-            className="fortune-fc-close"
-            aria-label={button.close}
-            title={button.close}
-            onClick={close}
-          >
-            <SVGIcon name="close" />
-          </button>
-        </div>
-        <div
-          className="fortune-fc-tabs"
-          role="tablist"
+      <div ref={dialogRef} className="fortune-fc-frame">
+        <Tabs
+          fill
+          idPrefix="fortune-fc"
           aria-label={formatCells.title}
-          onKeyDown={(e) => {
-            const i = TABS.indexOf(tab);
-            let next = -1;
-            if (e.key === "ArrowRight") next = (i + 1) % TABS.length;
-            if (e.key === "ArrowLeft")
-              next = (i + TABS.length - 1) % TABS.length;
-            if (next >= 0) {
-              e.preventDefault();
-              setTab(TABS[next]);
-              const el = e.currentTarget.children[next] as HTMLElement;
-              el?.focus();
-            }
-          }}
-        >
-          {TABS.map((t) => (
-            <button
-              type="button"
-              key={t}
-              role="tab"
-              id={`fortune-fc-tab-${t}`}
-              aria-selected={t === tab}
-              aria-controls="fortune-fc-panel"
-              tabIndex={t === tab ? 0 : -1}
-              className={`fortune-fc-tab${t === tab ? " active" : ""}`}
-              onClick={() => setTab(t)}
-            >
-              {formatCells.tabs[t]}
-            </button>
-          ))}
-        </div>
+          className="fortune-fc-tabs ts-dialog-tabs"
+          tabs={TABS.map((id) => ({ id, label: formatCells.tabs[id] }))}
+          value={tab}
+          onChange={(id) => setTab(id as FormatCellsTab)}
+        />
         <div
-          id="fortune-fc-panel"
-          className="fortune-fc-panel"
+          id={`fortune-fc-panel-${tab}`}
+          className="fortune-fc-panel ts-dialog-panel"
           role="tabpanel"
           aria-labelledby={`fortune-fc-tab-${tab}`}
         >
           {body}
         </div>
-        <div className="fortune-dialog-box-button-container">
-          <button
-            type="button"
-            className="fortune-message-box-button button-basic button-primary"
-            onClick={onOk}
-          >
-            {button.confirm}
-          </button>
-          <button
-            type="button"
-            className="fortune-message-box-button button-basic button-default"
-            onClick={close}
-          >
-            {button.cancel}
-          </button>
-        </div>
       </div>
-    </div>
+    </Dialog>
   );
 };
 

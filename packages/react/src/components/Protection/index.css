@@ -1,15 +1,16 @@
 /* Protection and View options (dialogs reuse the data tools layout). */
 
 .fortune-protection-dialog {
-  min-width: 380px;
-  max-width: 460px;
+  width: 440px;
 }
 
 .fortune-protection-actions {
   max-height: 300px;
-  padding: 6px 10px;
+  padding: 8px 12px;
   margin: 6px 0 0;
-  background: var(--fortune-bg-input, var(--fortune-bg));
+  border: 0;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
 }
 
 .fortune-protection-actions .fortune-dt-check {

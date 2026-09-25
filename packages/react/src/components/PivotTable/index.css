@@ -1,150 +1,109 @@
-/* PivotTable Fields pane */
+/* PivotTable Fields pane (docked in the side pane) */
 .fortune-pivot-pane {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1003;
   display: flex;
   flex-direction: column;
-  width: 280px;
-  max-width: 100%;
-  box-sizing: border-box;
-  color: var(--fortune-text);
-  font-family: var(--fortune-font-family);
-  font-size: var(--fortune-font-size);
-  background: var(--fortune-bg-elevated);
-  border-left: 1px solid var(--fortune-border);
-  box-shadow: var(--fortune-shadow);
-}
-
-.fortune-pivot-pane-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--fortune-space-2) var(--fortune-space-3);
-  font-size: var(--fortune-font-size-lg);
-  font-weight: 500;
-  border-bottom: 1px solid var(--fortune-divider);
-}
-
-.fortune-pivot-pane-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  color: var(--fortune-icon);
-  background: transparent;
-  border: none;
-  border-radius: var(--fortune-radius-sm);
-  cursor: pointer;
-}
-
-.fortune-pivot-pane-close:hover {
-  background: var(--fortune-bg-hover);
+  min-height: 100%;
 }
 
 .fortune-pivot-pane-body {
   flex: 1;
-  overflow-y: auto;
-  padding: var(--fortune-space-2) var(--fortune-space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--fortune-space-2);
-}
-
-/* the body scrolls; its sections keep their size */
-.fortune-pivot-pane-body > * {
-  flex-shrink: 0;
-}
-
-.fortune-pivot-pane-hint {
-  color: var(--fortune-text-muted);
-  font-size: var(--fortune-font-size-sm);
+  padding: 16px 14px;
 }
 
 .fortune-pivot-pane-search {
-  box-sizing: border-box;
   width: 100%;
-  height: var(--fortune-control-height);
-  padding: 0 var(--fortune-space-2);
-  color: var(--fortune-text);
-  background: var(--fortune-bg-input);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
 }
 
 .fortune-pivot-field-list {
+  max-height: 200px;
   margin: 0;
-  padding: var(--fortune-space-1) 0;
+  padding: 4px;
+  overflow: auto;
   list-style: none;
-  max-height: 180px;
-  min-height: 60px;
-  overflow-y: auto;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg);
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
 }
 
 .fortune-pivot-field {
-  padding: 2px var(--fortune-space-2);
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
   cursor: grab;
 }
 
 .fortune-pivot-field:hover {
-  background: var(--fortune-bg-hover);
+  background: var(--ts-hover);
 }
 
 .fortune-pivot-field label {
   display: flex;
+  flex: 1;
   align-items: center;
-  gap: var(--fortune-space-2);
-  cursor: inherit;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 6px;
+  cursor: pointer;
 }
 
+.fortune-pivot-field label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fortune-pivot-field-grip {
+  flex: none;
+  margin-right: 4px;
+  color: var(--ts-subtle);
+  opacity: 0;
+}
+
+.fortune-pivot-field:hover .fortune-pivot-field-grip {
+  opacity: 1;
+}
+
+/* Excel's four areas, 2 x 2 */
 .fortune-pivot-areas {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--fortune-space-2);
+  gap: 8px;
 }
 
 .fortune-pivot-area {
   display: flex;
   flex-direction: column;
-  min-height: 84px;
   min-width: 0;
-  padding: var(--fortune-space-1);
-  background: var(--fortune-bg);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  transition: border-color var(--fortune-transition);
+  min-height: 96px;
+  box-sizing: border-box;
+  padding: 6px;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: box-shadow var(--ts-fast);
 }
 
 .fortune-pivot-area-over {
-  border-color: var(--fortune-accent);
-  background: var(--fortune-accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--ts-ink);
 }
 
 .fortune-pivot-area-title {
-  padding: 0 var(--fortune-space-1) var(--fortune-space-1);
-  color: var(--fortune-text-muted);
-  font-size: var(--fortune-font-size-sm);
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 2px 6px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  font-weight: 500;
 }
 
 .fortune-pivot-area-list {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 .fortune-pivot-chip {
@@ -154,22 +113,23 @@
 .fortune-pivot-chip-button {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-1);
+  gap: 4px;
   width: 100%;
+  height: 26px;
   box-sizing: border-box;
-  padding: 2px var(--fortune-space-1);
-  color: var(--fortune-text);
+  padding: 0 4px 0 8px;
+  color: var(--ts-text);
   font: inherit;
-  font-size: var(--fortune-font-size-sm);
+  font-size: var(--ts-font-size-sm);
   text-align: left;
-  background: var(--fortune-bg-subtle);
-  border: 1px solid var(--fortune-divider);
-  border-radius: var(--fortune-radius-sm);
+  background: var(--ts-pane);
+  border: 1px solid var(--ts-border);
+  border-radius: 6px;
   cursor: grab;
 }
 
 .fortune-pivot-chip-button:hover {
-  background: var(--fortune-bg-hover);
+  border-color: var(--ts-ring);
 }
 
 .fortune-pivot-chip-label {
@@ -181,33 +141,42 @@
 }
 
 .fortune-pivot-chip-arrow {
-  color: var(--fortune-icon);
+  flex: none;
+  color: var(--ts-muted);
 }
 
 .fortune-pivot-chip-menu,
 .fortune-pivot-popover {
   z-index: 1004;
-  padding: var(--fortune-space-1) 0;
-  color: var(--fortune-text);
-  font-family: var(--fortune-font-family);
-  font-size: var(--fortune-font-size);
-  background: var(--fortune-bg-elevated);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius);
-  box-shadow: var(--fortune-shadow-lg);
+  padding: 4px;
+  color: var(--ts-text);
+  font-family: var(--ts-font);
+  font-size: var(--ts-font-size);
+  background: var(--ts-pane);
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
+  box-shadow: var(--ts-shadow);
 }
 
 .fortune-pivot-chip-menu {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 4px);
   left: 0;
+  min-width: 180px;
+}
+
+.fortune-pivot-area:nth-child(even) .fortune-pivot-chip-menu {
+  left: auto;
   right: 0;
-  min-width: 170px;
 }
 
 .fortune-pivot-chip-menu-item,
 .fortune-pivot-popover-item {
-  padding: 4px var(--fortune-space-3);
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--ts-radius);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -216,129 +185,125 @@
 .fortune-pivot-chip-menu-item:focus,
 .fortune-pivot-popover-item:hover,
 .fortune-pivot-popover-item:focus {
-  background: var(--fortune-bg-hover);
+  background: var(--ts-hover);
   outline: none;
 }
 
 .fortune-pivot-options summary {
-  cursor: pointer;
-  color: var(--fortune-text-muted);
-  font-weight: 600;
-}
-
-.fortune-pivot-options[open] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--fortune-space-1);
-}
-
-.fortune-pivot-pane-field {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.fortune-pivot-pane-field > span {
-  color: var(--fortune-text-muted);
-  font-size: var(--fortune-font-size-sm);
-}
-
-.fortune-pivot-pane-field select,
-.fortune-pivot-pane-field input {
-  box-sizing: border-box;
-  height: var(--fortune-control-height);
-  padding: 0 var(--fortune-space-2);
-}
-
-.fortune-pivot-pane-check {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2);
+  gap: 4px;
+  list-style: none;
   cursor: pointer;
+  user-select: none;
+}
+
+.fortune-pivot-options summary::-webkit-details-marker {
+  display: none;
+}
+
+.fortune-pivot-options-chevron {
+  transition: transform var(--ts-fast);
+}
+
+.fortune-pivot-options[open] .fortune-pivot-options-chevron {
+  transform: rotate(90deg);
+}
+
+.fortune-pivot-options-body {
+  margin-top: 8px;
 }
 
 .fortune-pivot-pane-footer {
+  position: sticky;
+  bottom: 0;
   display: flex;
   justify-content: flex-end;
-  padding: var(--fortune-space-2) var(--fortune-space-3);
-  border-top: 1px solid var(--fortune-divider);
+  padding: 10px 14px;
+  border-top: 1px solid var(--ts-border);
+  background: var(--ts-pane);
 }
 
-/* Dialogs */
+/* Dialogs (DialogShells): Create PivotTable, (Value) Field Settings */
 .fortune-pivot-dialog {
-  width: 400px;
-  max-width: 100%;
+  width: 420px;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+}
+
+.fortune-pivot-dialog .ts-dialog-body {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-3);
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size);
+  gap: 12px;
 }
 
 .fortune-pivot-field-dialog {
-  width: 560px;
+  width: 580px;
 }
 
 .fortune-pivot-dialog-title {
-  font-size: var(--fortune-font-size-lg);
-  font-weight: 500;
-}
-
-.fortune-pivot-dialog-subtitle {
-  margin: var(--fortune-space-2) 0 var(--fortune-space-1);
-  color: var(--fortune-text-muted);
-  font-size: var(--fortune-font-size-sm);
+  color: var(--ts-text-strong);
+  font-size: 15px;
   font-weight: 600;
 }
 
+.fortune-pivot-dialog-subtitle {
+  margin: 8px 0 6px;
+  color: var(--ts-section-label);
+  font-size: var(--ts-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .fortune-pivot-dialog-muted {
-  margin-top: calc(-1 * var(--fortune-space-2));
-  color: var(--fortune-text-muted);
+  margin-top: -6px;
+  color: var(--ts-muted);
 }
 
 .fortune-pivot-dialog-group {
-  margin: 0;
-  padding: var(--fortune-space-2) var(--fortune-space-3) var(--fortune-space-3);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-2);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.fortune-pivot-dialog-group legend {
-  padding: 0 var(--fortune-space-1);
-  color: var(--fortune-text-muted);
+.fortune-pivot-dialog-group + .fortune-pivot-dialog-group {
+  padding-top: 14px;
+  border-top: 1px solid var(--ts-border);
 }
 
 .fortune-pivot-dialog-field {
   display: flex;
-  flex-direction: column;
-  gap: var(--fortune-space-1);
   flex: 1;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
 }
 
 .fortune-pivot-dialog-field > span {
-  color: var(--fortune-text-muted);
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-pivot-dialog-field input,
 .fortune-pivot-dialog-field select:not([size]) {
-  box-sizing: border-box;
   width: 100%;
-  height: var(--fortune-control-height);
-  padding: 0 var(--fortune-space-2);
+  box-sizing: border-box;
 }
 
 .fortune-pivot-dialog-field select[size] {
   width: 100%;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
 }
 
 .fortune-pivot-dialog-check {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2);
+  gap: 8px;
   user-select: none;
   cursor: pointer;
 }
@@ -347,40 +312,39 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--fortune-space-2);
+  gap: 8px;
 }
 
 .fortune-pivot-dialog-inline input[type="text"],
 .fortune-pivot-dialog-inline input[type="number"] {
-  width: 90px;
-  height: var(--fortune-control-height);
-  box-sizing: border-box;
+  width: 96px;
 }
 
 .fortune-pivot-dialog-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--fortune-space-4);
+  gap: 20px;
 }
 
 .fortune-pivot-items {
   max-height: 200px;
+  padding: 6px 8px;
   overflow-y: auto;
-  padding: var(--fortune-space-1) var(--fortune-space-2);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg);
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
+  background: var(--ts-pane);
 }
 
 .fortune-pivot-dialog-error {
-  color: var(--fortune-danger);
+  color: var(--ts-danger);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-pivot-dialog-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--fortune-space-2);
+  gap: 8px;
 }
 
 /* Report drop-down buttons and their popover (in the cell area) */

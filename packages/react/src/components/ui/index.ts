@@ -72,8 +72,23 @@ export { Input, NumberInput } from "./Input";
 export type { InputProps, NumberInputProps } from "./Input";
 export { Checkbox, Switch, Separator } from "./Controls";
 export type { CheckboxProps, SwitchProps } from "./Controls";
-export { DialogShell, Dialog } from "./Dialog";
+export { DialogShell, Dialog, DialogFrameContext } from "./Dialog";
 export type { DialogShellProps, DialogProps } from "./Dialog";
+export {
+  Radio,
+  Field,
+  Section,
+  Swatch,
+  SwatchRow,
+  THEME_SWATCHES,
+} from "./Form";
+export type {
+  RadioProps,
+  FieldProps,
+  SectionProps,
+  SwatchProps,
+  SwatchRowProps,
+} from "./Form";
 export {
   Icon,
   registerIcon,

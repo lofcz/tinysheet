@@ -10,7 +10,7 @@ import {
 import React, { useCallback, useContext, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import { activateOnKey } from "../Toolbar/Button";
+import { Button, DialogShell } from "../ui";
 import { RefField, startRefPick } from "./refPick";
 
 type Fields = { setCell: string; toValue: string; changingCell: string };
@@ -53,8 +53,24 @@ export const GoalSeekStatus: React.FC = () => {
   else if (status.error) error = t.errValue;
 
   return (
-    <div className="fortune-dt-dialog fortune-goal-seek-status">
-      <div className="fortune-dt-title">{t.statusTitle}</div>
+    <DialogShell
+      title={t.statusTitle}
+      className="fortune-dt-dialog fortune-goal-seek-status"
+      onClose={() => close(false)}
+      onConfirm={() => close(!error)}
+      footer={
+        <>
+          {!error && (
+            <Button variant="secondary" onClick={() => close(false)}>
+              {t.cancel}
+            </Button>
+          )}
+          <Button variant="primary" autoFocus onClick={() => close(!error)}>
+            {t.ok}
+          </Button>
+        </>
+      }
+    >
       {error ? (
         <div className="fortune-dt-error">{error}</div>
       ) : (
@@ -78,32 +94,7 @@ export const GoalSeekStatus: React.FC = () => {
           </table>
         </>
       )}
-      <div
-        className="fortune-dt-buttons"
-        style={{ justifyContent: "flex-end" }}
-      >
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onKeyDown={activateOnKey}
-          onClick={() => close(!error)}
-        >
-          {t.ok}
-        </div>
-        {!error && (
-          <div
-            className="button-basic button-default"
-            role="button"
-            tabIndex={0}
-            onKeyDown={activateOnKey}
-            onClick={() => close(false)}
-          >
-            {t.cancel}
-          </div>
-        )}
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -202,13 +193,22 @@ const GoalSeek: React.FC<{ initial?: Fields }> = ({ initial }) => {
   };
 
   return (
-    <div
+    <DialogShell
+      title={t.title}
       className="fortune-dt-dialog fortune-goal-seek"
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onOk();
-      }}
+      onClose={hideDialog}
+      onConfirm={onOk}
+      footer={
+        <>
+          <Button variant="secondary" onClick={hideDialog}>
+            {t.cancel}
+          </Button>
+          <Button variant="primary" onClick={onOk}>
+            {t.ok}
+          </Button>
+        </>
+      }
     >
-      <div className="fortune-dt-title">{t.title}</div>
       <RefField
         id="fortune-goal-seek-set"
         label={t.setCell}
@@ -236,30 +236,7 @@ const GoalSeek: React.FC<{ initial?: Fields }> = ({ initial }) => {
         onPick={() => pick("changingCell", t.changingCell)}
       />
       {error && <div className="fortune-dt-error">{error}</div>}
-      <div
-        className="fortune-dt-buttons"
-        style={{ justifyContent: "flex-end" }}
-      >
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onKeyDown={activateOnKey}
-          onClick={onOk}
-        >
-          {t.ok}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onKeyDown={activateOnKey}
-          onClick={hideDialog}
-        >
-          {t.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

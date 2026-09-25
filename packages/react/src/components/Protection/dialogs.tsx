@@ -23,6 +23,7 @@ import { useDialog } from "../../hooks/useDialog";
 import "../DataVerification/dataTools.css";
 import DtCheck from "../DataVerification/DtCheck";
 import "./index.css";
+import { Button, DialogShell } from "../ui";
 
 /** Protect / unprotect cannot be undone (Excel clears the undo list). */
 export function useClearUndo() {
@@ -52,21 +53,22 @@ const Field: React.FC<{
   );
 };
 
+/** Footer of the protection dialogs: [extra] … Cancel, OK. */
 const Buttons: React.FC<{
   onOk: () => void;
   onCancel: () => void;
   okText: string;
   cancelText: string;
   busy?: boolean;
-  children?: React.ReactNode;
-}> = ({ onOk, onCancel, okText, cancelText, busy, children }) => (
-  <div className="fortune-dt-buttons">
-    {children}
-    <div className="fortune-dt-spacer" />
-    <div
-      className="button-basic button-primary"
-      role="button"
-      tabIndex={0}
+  extra?: React.ReactNode;
+}> = ({ onOk, onCancel, okText, cancelText, busy, extra }) => (
+  <>
+    {extra != null && <div className="ts-dialog-footer-start">{extra}</div>}
+    <Button variant="secondary" onClick={onCancel}>
+      {cancelText}
+    </Button>
+    <Button
+      variant="primary"
       aria-disabled={busy}
       data-testid="protection-ok"
       onClick={() => {
@@ -74,16 +76,8 @@ const Buttons: React.FC<{
       }}
     >
       {okText}
-    </div>
-    <div
-      className="button-basic button-default"
-      role="button"
-      tabIndex={0}
-      onClick={onCancel}
-    >
-      {cancelText}
-    </div>
-  </div>
+    </Button>
+  </>
 );
 
 function onEnter(fn: () => void) {
@@ -133,8 +127,20 @@ export const PasswordPrompt: React.FC<{
   };
 
   return (
-    <div className="fortune-dt-dialog fortune-protection-dialog">
-      <div className="fortune-dt-title">{title}</div>
+    <DialogShell
+      title={title}
+      className="fortune-dt-dialog fortune-protection-dialog"
+      onClose={cancel}
+      footer={
+        <Buttons
+          onOk={submit}
+          onCancel={cancel}
+          okText={t.ok}
+          cancelText={t.cancel}
+          busy={busy}
+        />
+      }
+    >
       <Field label={prompt}>
         {(id) => (
           <input
@@ -156,14 +162,7 @@ export const PasswordPrompt: React.FC<{
           {error}
         </div>
       )}
-      <Buttons
-        onOk={submit}
-        onCancel={cancel}
-        okText={t.ok}
-        cancelText={t.cancel}
-        busy={busy}
-      />
-    </div>
+    </DialogShell>
   );
 };
 
@@ -192,8 +191,20 @@ const ConfirmPassword: React.FC<{
     onDone(hash);
   };
   return (
-    <div className="fortune-dt-dialog fortune-protection-dialog">
-      <div className="fortune-dt-title">{t.confirmPasswordTitle}</div>
+    <DialogShell
+      title={t.confirmPasswordTitle}
+      className="fortune-dt-dialog fortune-protection-dialog"
+      onClose={onBack}
+      footer={
+        <Buttons
+          onOk={submit}
+          onCancel={onBack}
+          okText={t.ok}
+          cancelText={t.cancel}
+          busy={busy}
+        />
+      }
+    >
       <Field label={t.reenterPassword}>
         {(id) => (
           <input
@@ -221,14 +232,7 @@ const ConfirmPassword: React.FC<{
           {error}
         </div>
       )}
-      <Buttons
-        onOk={submit}
-        onCancel={onBack}
-        okText={t.ok}
-        cancelText={t.cancel}
-        busy={busy}
-      />
-    </div>
+    </DialogShell>
   );
 };
 
@@ -284,11 +288,20 @@ export const ProtectSheetDialog: React.FC = () => {
   };
 
   return (
-    <div
+    <DialogShell
+      title={t.protectSheetTitle}
       className="fortune-dt-dialog fortune-protection-dialog"
+      onClose={hideDialog}
       data-testid="protect-sheet-dialog"
+      footer={
+        <Buttons
+          onOk={ok}
+          onCancel={hideDialog}
+          okText={t.ok}
+          cancelText={t.cancel}
+        />
+      }
     >
-      <div className="fortune-dt-title">{t.protectSheetTitle}</div>
       <DtCheck checked={protect} onChange={setProtect}>
         {t.protectSheetCheckbox}
       </DtCheck>
@@ -321,13 +334,7 @@ export const ProtectSheetDialog: React.FC = () => {
           </DtCheck>
         ))}
       </div>
-      <Buttons
-        onOk={ok}
-        onCancel={hideDialog}
-        okText={t.ok}
-        cancelText={t.cancel}
-      />
-    </div>
+    </DialogShell>
   );
 };
 
@@ -371,11 +378,20 @@ export const ProtectWorkbookDialog: React.FC = () => {
   };
 
   return (
-    <div
+    <DialogShell
+      title={t.protectWorkbookTitle}
       className="fortune-dt-dialog fortune-protection-dialog"
+      onClose={hideDialog}
       data-testid="protect-workbook-dialog"
+      footer={
+        <Buttons
+          onOk={ok}
+          onCancel={hideDialog}
+          okText={t.ok}
+          cancelText={t.cancel}
+        />
+      }
     >
-      <div className="fortune-dt-title">{t.protectWorkbookTitle}</div>
       <Field label={t.passwordOptional}>
         {(id) => (
           <input
@@ -397,13 +413,7 @@ export const ProtectWorkbookDialog: React.FC = () => {
           {t.structure}
         </DtCheck>
       </div>
-      <Buttons
-        onOk={ok}
-        onCancel={hideDialog}
-        okText={t.ok}
-        cancelText={t.cancel}
-      />
-    </div>
+    </DialogShell>
   );
 };
 
@@ -521,13 +531,20 @@ export const AllowEditRangesDialog: React.FC<{
 
   if (edit) {
     return (
-      <div
+      <DialogShell
+        title={edit.index == null ? t.newRangeTitle : t.modifyRangeTitle}
         className="fortune-dt-dialog fortune-protection-dialog"
         data-testid="edit-range-dialog"
+        footer={
+          <Buttons
+            onOk={commitEdit}
+            onCancel={() => setEdit(null)}
+            okText={t.ok}
+            cancelText={t.cancel}
+            busy={busy}
+          />
+        }
       >
-        <div className="fortune-dt-title">
-          {edit.index == null ? t.newRangeTitle : t.modifyRangeTitle}
-        </div>
         <Field label={t.rangeTitle}>
           {(id) => (
             <input
@@ -575,14 +592,7 @@ export const AllowEditRangesDialog: React.FC<{
             {edit.error}
           </div>
         )}
-        <Buttons
-          onOk={commitEdit}
-          onCancel={() => setEdit(null)}
-          okText={t.ok}
-          cancelText={t.cancel}
-          busy={busy}
-        />
-      </div>
+      </DialogShell>
     );
   }
 
@@ -595,11 +605,27 @@ export const AllowEditRangesDialog: React.FC<{
   };
 
   return (
-    <div
+    <DialogShell
+      title={t.allowEditRangesTitle}
       className="fortune-dt-dialog fortune-protection-dialog"
+      onClose={hideDialog}
       data-testid="allow-edit-ranges-dialog"
+      footer={
+        <Buttons
+          onOk={hideDialog}
+          onCancel={hideDialog}
+          okText={t.ok}
+          cancelText={t.cancel}
+          extra={
+            !locked && onProtectSheet ? (
+              <Button variant="ghost" onClick={onProtectSheet}>
+                {t.protectSheet}
+              </Button>
+            ) : undefined
+          }
+        />
+      }
     >
-      <div className="fortune-dt-title">{t.allowEditRangesTitle}</div>
       <div className="fortune-dt-label">{t.rangesUnlocked}</div>
       <div className="fortune-protection-ranges">
         <div className="fortune-dt-scroll">
@@ -648,39 +674,19 @@ export const AllowEditRangesDialog: React.FC<{
               off: locked || !ranges[selected],
             },
           ].map((b) => (
-            <div
+            <Button
               key={b.text}
+              size="sm"
               className="fortune-dt-icon-button"
-              role="button"
-              tabIndex={0}
-              aria-disabled={b.off}
-              onClick={() => {
-                if (!b.off) b.run();
-              }}
+              disabled={b.off}
+              onClick={b.run}
             >
               {b.text}
-            </div>
+            </Button>
           ))}
         </div>
       </div>
       {locked && <div className="fortune-dt-hint">{t.sheetIsProtected}</div>}
-      <Buttons
-        onOk={hideDialog}
-        onCancel={hideDialog}
-        okText={t.ok}
-        cancelText={t.cancel}
-      >
-        {!locked && onProtectSheet && (
-          <div
-            className="button-basic button-default"
-            role="button"
-            tabIndex={0}
-            onClick={onProtectSheet}
-          >
-            {t.protectSheet}
-          </div>
-        )}
-      </Buttons>
-    </div>
+    </DialogShell>
   );
 };

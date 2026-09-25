@@ -26,3 +26,7 @@ export {
   DataTable,
   GoalSeek,
 } from "./CellTools";
+
+// dialogs other features open (ribbon: View > Zoom, Formulas > Insert Function)
+export { ZoomDialog } from "./ZoomControl/ZoomDialog";
+export { InsertFunctionDialog } from "./FormulaSearch";

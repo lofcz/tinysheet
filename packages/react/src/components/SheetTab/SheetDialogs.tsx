@@ -11,6 +11,7 @@ import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import { activateOnKey } from "../Toolbar/Button";
 import { activateSheetTab } from "./activate";
+import { Button, DialogShell } from "../ui";
 
 const END = "__end__";
 
@@ -21,26 +22,14 @@ const DialogButtons: React.FC<{
   const { context } = useContext(WorkbookContext);
   const { button } = locale(context);
   return (
-    <div className="fortune-sheet-dialog-buttons">
-      <div
-        className="button-basic button-primary"
-        onClick={onOk}
-        onKeyDown={activateOnKey}
-        role="button"
-        tabIndex={0}
-      >
-        {button.confirm}
-      </div>
-      <div
-        className="button-basic button-default"
-        onClick={onCancel}
-        onKeyDown={activateOnKey}
-        role="button"
-        tabIndex={0}
-      >
+    <>
+      <Button variant="secondary" onClick={onCancel}>
         {button.cancel}
-      </div>
-    </div>
+      </Button>
+      <Button variant="primary" onClick={onOk}>
+        {button.confirm}
+      </Button>
+    </>
   );
 };
 
@@ -85,8 +74,13 @@ export const MoveOrCopyDialog: React.FC<{ sheet: Sheet }> = ({ sheet }) => {
   };
 
   return (
-    <div className="fortune-sheet-dialog" id="fortune-move-copy-dialog">
-      <div className="title">{sheetconfig.moveOrCopyTitle}</div>
+    <DialogShell
+      title={sheetconfig.moveOrCopyTitle}
+      className="fortune-sheet-dialog"
+      onClose={hideDialog}
+      id="fortune-move-copy-dialog"
+      footer={<DialogButtons onOk={onOk} onCancel={hideDialog} />}
+    >
       <div className="fortune-sheet-dialog-label">
         {sheetconfig.beforeSheet}
       </div>
@@ -120,8 +114,7 @@ export const MoveOrCopyDialog: React.FC<{ sheet: Sheet }> = ({ sheet }) => {
         />
         {sheetconfig.createCopy}
       </label>
-      <DialogButtons onOk={onOk} onCancel={hideDialog} />
-    </div>
+    </DialogShell>
   );
 };
 
@@ -158,8 +151,13 @@ export const UnhideDialog: React.FC = () => {
   };
 
   return (
-    <div className="fortune-sheet-dialog" id="fortune-unhide-dialog">
-      <div className="title">{sheetconfig.unhideTitle}</div>
+    <DialogShell
+      title={sheetconfig.unhideTitle}
+      className="fortune-sheet-dialog"
+      onClose={hideDialog}
+      id="fortune-unhide-dialog"
+      footer={<DialogButtons onOk={onOk} onCancel={hideDialog} />}
+    >
       <div className="fortune-sheet-dialog-label">
         {sheetconfig.unhideSheets}
       </div>
@@ -207,7 +205,6 @@ export const UnhideDialog: React.FC = () => {
           </div>
         ))}
       </div>
-      <DialogButtons onOk={onOk} onCancel={hideDialog} />
-    </div>
+    </DialogShell>
   );
 };

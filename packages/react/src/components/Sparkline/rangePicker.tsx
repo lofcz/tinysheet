@@ -7,7 +7,8 @@ import {
 } from "@lofcz/tinysheet-core";
 import type { Context } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
-import { activateOnKey } from "../Toolbar/Button";
+import { X } from "lucide-react";
+import { Button, IconButton } from "../ui";
 
 /**
  * Range picking for the sparkline dialogs (Excel's collapsed "RefEdit"
@@ -117,24 +118,15 @@ export const SparklineRangePicker: React.FC = () => {
         className="fortune-sparkline-input"
         value={text}
       />
-      <div
-        className="button-basic button-primary"
-        role="button"
-        tabIndex={0}
-        onClick={() => finish(text)}
-        onKeyDown={activateOnKey}
-      >
+      <Button size="sm" variant="primary" onClick={() => finish(text)}>
         {button.confirm}
-      </div>
-      <div
-        className="button-basic button-default"
-        role="button"
-        tabIndex={0}
+      </Button>
+      <IconButton
+        size="sm"
+        icon={X}
+        label={button.cancel}
         onClick={() => finish(null)}
-        onKeyDown={activateOnKey}
-      >
-        {button.cancel}
-      </div>
+      />
     </div>,
     host
   );

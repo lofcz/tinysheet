@@ -52,21 +52,19 @@ const NewRuleDialog: React.FC<{ rule: CFRule }> = ({ rule }) => {
   const { hideDialog } = useDialog();
   const loc = locale(context);
   return (
-    <div className="fortune-cf-dialog">
-      <RuleEditor
-        rule={rule}
-        isNew
-        text={loc.conditionformat as unknown as CFText}
-        buttons={{ confirm: loc.button.confirm, cancel: loc.button.cancel }}
-        onCancel={hideDialog}
-        onOk={(r) => {
-          setContext((ctx) => {
-            addCFRule(ctx, r);
-          });
-          hideDialog();
-        }}
-      />
-    </div>
+    <RuleEditor
+      rule={rule}
+      isNew
+      text={loc.conditionformat as unknown as CFText}
+      buttons={{ confirm: loc.button.confirm, cancel: loc.button.cancel }}
+      onCancel={hideDialog}
+      onOk={(r) => {
+        setContext((ctx) => {
+          addCFRule(ctx, r);
+        });
+        hideDialog();
+      }}
+    />
   );
 };
 

@@ -142,7 +142,7 @@ describe("protection UI", () => {
     fireEvent.click(ribbonButton(container, "allow-edit-ranges"));
     const dialog = getByTestId("allow-edit-ranges-dialog");
     fireEvent.click(
-      Array.from(dialog.querySelectorAll<HTMLElement>("[role=button]")).find(
+      Array.from(dialog.querySelectorAll<HTMLElement>("button")).find(
         (b) => b.textContent === t.newRange
       )!
     );

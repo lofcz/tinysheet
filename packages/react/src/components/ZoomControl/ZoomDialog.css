@@ -1,0 +1,17 @@
+/* View > Zoom dialog (a DialogShell) */
+.fortune-zoom-dialog {
+  width: 260px;
+}
+
+.fortune-zoom-dialog-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fortune-zoom-dialog-custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}

@@ -4,12 +4,15 @@ import {
   FUNCTION_CATEGORIES,
   functionHTMLGenerate,
   getFunctionListMap,
+  dialogsLocale,
   locale,
   rankFunctions,
   setCaretOffset,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
+import { Search } from "lucide-react";
+import { Button, DialogShell, ICON_STROKE, Input } from "../ui";
 import "./index.css";
 
 export const FormulaSearch: React.FC<{ onCancel: () => void }> = ({
@@ -121,22 +124,69 @@ export const FormulaSearch: React.FC<{ onCancel: () => void }> = ({
     _onCancel();
   }, [_onCancel, cellInput, setContext]);
 
+  const current = filteredFunctionList[selectedFuncIndex];
+  const signature = current
+    ? `${current.n}(${current.p
+        .map((p) => (p.require === "o" ? `[${p.name}]` : p.name))
+        .join(", ")})`
+    : "";
+
   return (
-    <div id="luckysheet-search-formula">
+    <DialogShell
+      title={dialogsLocale(context).titles.insertFunction}
+      className="fortune-insert-function"
+      id="luckysheet-search-formula"
+      onClose={onCancel}
+      onConfirm={() => current && onConfirm()}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel}>
+            {button.cancel}
+          </Button>
+          <Button variant="primary" disabled={!current} onClick={onConfirm}>
+            {button.confirm}
+          </Button>
+        </>
+      }
+    >
       <div className="inpbox">
-        <div>{formulaMore.findFunctionTitle}：</div>
-        <input
+        <label htmlFor="searchFormulaListInput">
+          {formulaMore.findFunctionTitle}
+        </label>
+        <Input
           className="formulaInputFocus"
           id="searchFormulaListInput"
+          prefix={<Search size={14} strokeWidth={ICON_STROKE} aria-hidden />}
           placeholder={formulaMore.tipInputFunctionName}
           spellCheck="false"
-          onChange={(e) => setSearchText(e.target.value)}
+          autoComplete="off"
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          onChange={(e) => {
+            setSearchText(e.target.value);
+            setSelectedFuncIndex(0);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              setSelectedFuncIndex((i) =>
+                Math.max(
+                  0,
+                  Math.min(
+                    filteredFunctionList.length - 1,
+                    i + (e.key === "ArrowDown" ? 1 : -1)
+                  )
+                )
+              );
+            }
+          }}
         />
       </div>
       <div className="selbox">
-        <span>{formulaMore.selectCategory}：</span>
+        <label htmlFor="formulaTypeSelect">{formulaMore.selectCategory}</label>
         <select
           id="formulaTypeSelect"
+          disabled={!!searchText}
           onChange={(e) => {
             setSelectedType(parseInt(e.target.value, 10));
             setSelectedFuncIndex(0);
@@ -149,38 +199,48 @@ export const FormulaSearch: React.FC<{ onCancel: () => void }> = ({
           ))}
         </select>
       </div>
-      <div className="listbox" style={{ height: 200 }}>
-        <div>{formulaMore.selectFunctionTitle}：</div>
-        <div className="formulaList">
+      <div className="listbox">
+        <div className="fortune-insert-function-label">
+          {formulaMore.selectFunctionTitle}
+        </div>
+        <div
+          className="formulaList"
+          role="listbox"
+          aria-label={formulaMore.selectFunctionTitle}
+        >
           {filteredFunctionList.map((v, index) => (
             <div
               className={`listBox${index === selectedFuncIndex ? " on" : ""}`}
               key={v.n}
+              role="option"
+              aria-selected={index === selectedFuncIndex}
               onClick={() => setSelectedFuncIndex(index)}
-              tabIndex={0}
+              onDoubleClick={() => {
+                setSelectedFuncIndex(index);
+                onConfirm();
+              }}
+              ref={(el) => {
+                if (el && index === selectedFuncIndex)
+                  el.scrollIntoView?.({ block: "nearest" });
+              }}
+              tabIndex={index === selectedFuncIndex ? 0 : -1}
             >
-              <div>{v.n}</div>
-              <div>{v.a}</div>
+              {v.n}
             </div>
           ))}
         </div>
       </div>
-      <div className="fortune-dialog-box-button-container">
-        <div
-          className="fortune-message-box-button button-primary"
-          onClick={onConfirm}
-          tabIndex={0}
-        >
-          {button.confirm}
+      {current && (
+        <div className="fortune-insert-function-info" aria-live="polite">
+          <div className="fortune-insert-function-signature">{signature}</div>
+          <div className="fortune-insert-function-desc">
+            {current.d || current.a}
+          </div>
         </div>
-        <div
-          className="fortune-message-box-button button-default"
-          onClick={onCancel}
-          tabIndex={0}
-        >
-          {button.cancel}
-        </div>
-      </div>
-    </div>
+      )}
+    </DialogShell>
   );
 };
+
+/** Excel's Insert Function dialog (Shift+F3): the same component. */
+export const InsertFunctionDialog = FormulaSearch;

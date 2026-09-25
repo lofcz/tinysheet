@@ -117,7 +117,7 @@
 /* dialogs */
 
 .fortune-outline-dialog {
-  min-width: 320px;
+  width: 380px;
 }
 
 .fortune-outline-dialog .fortune-dt-scroll {
@@ -127,8 +127,8 @@
 .fortune-outline-radios {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-2);
-  margin: var(--fortune-space-2) 0 var(--fortune-space-3);
+  gap: 10px;
+  margin: 4px 0 8px;
 }
 
 .fortune-outline-radios label {

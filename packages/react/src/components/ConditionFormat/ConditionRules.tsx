@@ -6,6 +6,7 @@ import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import FormatEditor, { FORMAT_PRESETS } from "./FormatEditor";
 import { CFText, DATE_PERIODS, datePeriodText } from "./previews";
+import { Button, DialogShell } from "../ui";
 
 /** Quick rules of the Highlight Cells and Top/Bottom menus. */
 export const QUICK_RULES = [
@@ -23,15 +24,6 @@ export const QUICK_RULES = [
   "aboveAverage",
   "belowAverage",
 ] as const;
-
-function activate(fn: () => void) {
-  return (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      fn();
-    }
-  };
-}
 
 function initialValues(type: string): string[] {
   if (type === "between") return ["", ""];
@@ -99,8 +91,22 @@ const ConditionRules: React.FC<{ type: string }> = ({ type }) => {
   const rank = type.startsWith("top10") || type.startsWith("last10");
 
   return (
-    <div className="fortune-cf-dialog fortune-cf-quick">
-      <div className="fortune-cf-title">{text[`qt_${type}`]}</div>
+    <DialogShell
+      title={text[`qt_${type}`]}
+      className="fortune-cf-dialog fortune-cf-quick"
+      onClose={hideDialog}
+      onConfirm={confirm}
+      footer={
+        <>
+          <Button variant="secondary" onClick={hideDialog}>
+            {button.cancel}
+          </Button>
+          <Button variant="primary" onClick={confirm}>
+            {button.confirm}
+          </Button>
+        </>
+      }
+    >
       <div className="fortune-cf-section-title">{text[`qd_${type}`]}</div>
       <div className="fortune-cf-inline fortune-cf-wrap">
         {(type === "greaterThan" ||
@@ -205,27 +211,7 @@ const ConditionRules: React.FC<{ type: string }> = ({ type }) => {
           {error}
         </div>
       )}
-      <div className="fortune-cf-buttons">
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onClick={confirm}
-          onKeyDown={activate(confirm)}
-        >
-          {button.confirm}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onClick={hideDialog}
-          onKeyDown={activate(hideDialog)}
-        >
-          {button.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

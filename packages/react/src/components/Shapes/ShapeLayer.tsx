@@ -7,7 +7,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
 import {
   clearShapeSelection,
   copyShapes,
@@ -40,6 +39,7 @@ import {
 import WorkbookContext from "../../context";
 import ShapeView from "./ShapeView";
 import ShapeFormatPane from "./ShapeFormatPane";
+import { SidePane } from "../SidePane";
 import ShapeTextEditor from "./ShapeTextEditor";
 import { placeInPanes } from "./panes";
 import {
@@ -92,7 +92,7 @@ const RUN_KEYS: Record<string, "b" | "i" | "u"> = {
 
 /** Clicks on these keep the shape selection. */
 const OUTSIDE_SELECTORS =
-  ".fortune-shape, .fortune-shape-frame, .fortune-shape-format, .fortune-shape-menu, .fortune-toolbar, .fortune-toolbar-combo-popup";
+  ".fortune-shape, .fortune-shape-frame, .fortune-shape-format, .fortune-shape-menu, .fortune-toolbar, .fortune-toolbar-combo-popup, .fortune-side-slot";
 
 /** Icons of the shape menu entries (ContextMenu/icons names). */
 const SHAPE_MENU_ICONS: Record<string, string> = {
@@ -930,9 +930,11 @@ const ShapeLayer: React.FC = () => {
       ]
     : [];
 
-  const overlayRoot =
-    refs.cellArea.current?.closest<HTMLElement>(".fortune-sheet-overlay") ??
-    null;
+  const closeFormatPane = () => {
+    setContext((ctx) => {
+      ctx.shapeFormatOpen = false;
+    });
+  };
 
   if (shapes.length === 0 && !drawKind) return null;
 
@@ -1100,10 +1102,14 @@ const ShapeLayer: React.FC = () => {
           }}
         />
       )}
-      {formatOpen &&
-        selected.length > 0 &&
-        overlayRoot &&
-        createPortal(<ShapeFormatPane />, overlayRoot)}
+      <SidePane
+        id="format-shape"
+        title={t.formatShape}
+        open={formatOpen && selected.length > 0}
+        onClose={closeFormatPane}
+      >
+        <ShapeFormatPane />
+      </SidePane>
     </div>
   );
 };

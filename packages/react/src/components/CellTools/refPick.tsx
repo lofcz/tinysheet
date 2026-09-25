@@ -7,7 +7,8 @@ import {
 import React, { useContext, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import WorkbookContext from "../../context";
-import SVGIcon from "../SVGIcon";
+import { SquareDashedMousePointer, X } from "lucide-react";
+import { Button, IconButton, ICON_STROKE } from "../ui";
 import { activateOnKey } from "../Toolbar/Button";
 
 /*
@@ -85,26 +86,16 @@ export const RefPickBar: React.FC = () => {
       <span className="fortune-cell-tools-pick-ref" aria-live="polite">
         {ref}
       </span>
-      <div
-        className="button-basic button-primary"
-        role="button"
-        tabIndex={0}
-        onKeyDown={activateOnKey}
-        onClick={() => endRefPick(ref)}
-      >
+      <Button size="sm" variant="primary" onClick={() => endRefPick(ref)}>
         {t.goalSeek.ok}
-      </div>
-      <div
+      </Button>
+      <IconButton
+        size="sm"
+        icon={X}
+        label={button.cancel}
         className="fortune-cell-tools-pick-close"
-        role="button"
-        tabIndex={0}
-        aria-label={button.cancel}
-        title={button.cancel}
-        onKeyDown={activateOnKey}
         onClick={() => endRefPick(null)}
-      >
-        <SVGIcon name="close" width={16} height={16} />
-      </div>
+      />
     </div>,
     container
   );
@@ -144,7 +135,7 @@ export const RefField: React.FC<{
           onKeyDown={activateOnKey}
           onClick={onPick}
         >
-          <SVGIcon name="tab" width={16} height={16} />
+          <SquareDashedMousePointer size={16} strokeWidth={ICON_STROKE} />
         </div>
       )}
     </div>

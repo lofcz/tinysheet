@@ -158,7 +158,11 @@ test.describe("PivotTables", () => {
       pivotSheet
     );
     // close the pane; the menu brings it back
-    await pane.getByRole("button", { name: "Close" }).click();
+    // the pane is docked: the dock's header closes it
+    await page
+      .locator(".fortune-side-slot")
+      .getByRole("button", { name: "Close pane" })
+      .click();
     await expect(pane).toBeHidden();
     await page.mouse.click(x, y, { button: "right" });
     await page.getByRole("menuitem", { name: "Show Field List" }).click();

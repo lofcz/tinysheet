@@ -20,6 +20,7 @@ import { outlineStep } from "./history";
 import { useDialog } from "../../hooks/useDialog";
 import DtCheck from "../DataVerification/DtCheck";
 import "../DataVerification/dataTools.css";
+import { Button, DialogShell } from "../ui";
 
 /** Close the dialog and give the keyboard back to the grid. */
 export function useCloseDialog() {
@@ -31,6 +32,7 @@ export function useCloseDialog() {
   }, [hideDialog, refs.cellInput]);
 }
 
+/** Footer of the outline dialogs: [extra] … Cancel, OK. */
 const Buttons: React.FC<{
   ok: string;
   cancel: string;
@@ -38,28 +40,15 @@ const Buttons: React.FC<{
   onCancel: () => void;
   extra?: React.ReactNode;
 }> = ({ ok, cancel, onOk, onCancel, extra }) => (
-  <div className="fortune-dt-buttons">
-    {extra}
-    <div className="fortune-dt-spacer" />
-    <div
-      className="button-basic button-primary"
-      role="button"
-      tabIndex={0}
-      onClick={onOk}
-      onKeyDown={(e) => e.key === "Enter" && onOk()}
-    >
-      {ok}
-    </div>
-    <div
-      className="button-basic button-default"
-      role="button"
-      tabIndex={0}
-      onClick={onCancel}
-      onKeyDown={(e) => e.key === "Enter" && onCancel()}
-    >
+  <>
+    {extra != null && <div className="ts-dialog-footer-start">{extra}</div>}
+    <Button variant="secondary" onClick={onCancel}>
       {cancel}
-    </div>
-  </div>
+    </Button>
+    <Button variant="primary" onClick={onOk}>
+      {ok}
+    </Button>
+  </>
 );
 
 /** Group / Ungroup for a range that is neither whole rows nor columns. */
@@ -76,13 +65,20 @@ export const GroupDialog: React.FC<{ ungroup?: boolean }> = ({ ungroup }) => {
     }, outlineStep());
   };
   return (
-    <div
+    <DialogShell
+      title={ungroup ? t.groupDialog.ungroup : t.groupDialog.group}
       className="fortune-dt-dialog fortune-outline-dialog"
+      onClose={hideDialog}
       data-testid="outline-group-dialog"
+      footer={
+        <Buttons
+          ok={t.settings.ok}
+          cancel={t.settings.cancel}
+          onOk={onOk}
+          onCancel={hideDialog}
+        />
+      }
     >
-      <div className="fortune-dt-title">
-        {ungroup ? t.groupDialog.ungroup : t.groupDialog.group}
-      </div>
       <div className="fortune-outline-radios" role="radiogroup">
         {(["row", "column"] as const).map((a) => (
           <label key={a} htmlFor={`${name}-${a}`}>
@@ -97,13 +93,7 @@ export const GroupDialog: React.FC<{ ungroup?: boolean }> = ({ ungroup }) => {
           </label>
         ))}
       </div>
-      <Buttons
-        ok={t.settings.ok}
-        cancel={t.settings.cancel}
-        onOk={onOk}
-        onCancel={hideDialog}
-      />
-    </div>
+    </DialogShell>
   );
 };
 
@@ -119,11 +109,30 @@ export const OutlineSettingsDialog: React.FC = () => {
     isSummaryAfter(context.config, "column")
   );
   return (
-    <div
+    <DialogShell
+      title={t.title}
       className="fortune-dt-dialog fortune-outline-dialog"
+      onClose={hideDialog}
       data-testid="outline-settings-dialog"
+      footer={
+        <Buttons
+          ok={t.ok}
+          cancel={t.cancel}
+          onOk={() => {
+            hideDialog();
+            setContext(
+              (ctx) =>
+                setOutlineSettings(ctx, {
+                  summaryBelow: below,
+                  summaryRight: right,
+                }),
+              outlineStep()
+            );
+          }}
+          onCancel={hideDialog}
+        />
+      }
     >
-      <div className="fortune-dt-title">{t.title}</div>
       <div className="fortune-dt-label" style={{ marginBottom: 8 }}>
         {t.direction}
       </div>
@@ -133,23 +142,7 @@ export const OutlineSettingsDialog: React.FC = () => {
       <DtCheck checked={right} onChange={setRight}>
         {t.summaryRight}
       </DtCheck>
-      <Buttons
-        ok={t.ok}
-        cancel={t.cancel}
-        onOk={() => {
-          hideDialog();
-          setContext(
-            (ctx) =>
-              setOutlineSettings(ctx, {
-                summaryBelow: below,
-                summaryRight: right,
-              }),
-            outlineStep()
-          );
-        }}
-        onCancel={hideDialog}
-      />
-    </div>
+    </DialogShell>
   );
 };
 
@@ -185,16 +178,21 @@ export const SubtotalDialog: React.FC = () => {
 
   if (!range || !data) {
     return (
-      <div className="fortune-dt-dialog fortune-outline-dialog">
-        <div className="fortune-dt-title">{t.title}</div>
+      <DialogShell
+        title={t.title}
+        className="fortune-dt-dialog fortune-outline-dialog"
+        onClose={hideDialog}
+        footer={
+          <Buttons
+            ok={t.ok}
+            cancel={t.cancel}
+            onOk={hideDialog}
+            onCancel={hideDialog}
+          />
+        }
+      >
         <div className="fortune-dt-error">{t.noData}</div>
-        <Buttons
-          ok={t.ok}
-          cancel={t.cancel}
-          onOk={hideDialog}
-          onCancel={hideDialog}
-        />
-      </div>
+      </DialogShell>
     );
   }
 
@@ -231,11 +229,25 @@ export const SubtotalDialog: React.FC = () => {
   };
 
   return (
-    <div
+    <DialogShell
+      title={t.title}
       className="fortune-dt-dialog fortune-outline-dialog"
+      onClose={hideDialog}
       data-testid="subtotal-dialog"
+      footer={
+        <Buttons
+          ok={t.ok}
+          cancel={t.cancel}
+          onOk={onOk}
+          onCancel={hideDialog}
+          extra={
+            <Button variant="ghost" onClick={onRemoveAll}>
+              {t.removeAll}
+            </Button>
+          }
+        />
+      }
     >
-      <div className="fortune-dt-title">{t.title}</div>
       <div className="fortune-dt-field">
         <label className="fortune-dt-label" htmlFor="fortune-subtotal-by">
           {t.atEachChange}
@@ -306,23 +318,6 @@ export const SubtotalDialog: React.FC = () => {
         {t.summaryBelow}
       </DtCheck>
       {error && <div className="fortune-dt-error">{error}</div>}
-      <Buttons
-        ok={t.ok}
-        cancel={t.cancel}
-        onOk={onOk}
-        onCancel={hideDialog}
-        extra={
-          <div
-            className="button-basic button-default"
-            role="button"
-            tabIndex={0}
-            onClick={onRemoveAll}
-            onKeyDown={(e) => e.key === "Enter" && onRemoveAll()}
-          >
-            {t.removeAll}
-          </div>
-        }
-      />
-    </div>
+    </DialogShell>
   );
 };

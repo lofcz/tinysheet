@@ -57,8 +57,9 @@ test.describe("tables", () => {
     await (await toolbarButton(page, "Format as Table")).click();
     await page.getByText("Table Design…", { exact: true }).click();
     await page.getByLabel("Total row").check();
+    // the footer's Close (the title bar has a close button too)
     await page
-      .locator(".fortune-table-design")
+      .locator(".fortune-table-design .ts-dialog-footer")
       .getByRole("button", { name: "Close", exact: true })
       .click();
     await sheet.click(5, 1);

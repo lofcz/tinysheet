@@ -69,7 +69,7 @@ describe("cell menu entries backed by other features", () => {
     fireEvent.click(menu.querySelector('[data-key="copy"]')!);
     clickEntry(container, "paste-special");
     await waitFor(() =>
-      expect(container.querySelector(".fortune-paste-special")).toBeTruthy()
+      expect(document.querySelector(".fortune-paste-special")).toBeTruthy()
     );
   });
 

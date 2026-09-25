@@ -41,6 +41,7 @@ import type {
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import { activateOnKey } from "../Toolbar/Button";
+import { Button as UiButton, DialogShell } from "../ui";
 import SVGIcon from "../SVGIcon";
 import { FunnelX, Settings2, Trash2 } from "lucide-react";
 import { ContextMenuPopup, MenuItem } from "../ui";
@@ -482,15 +483,9 @@ const TextButton: React.FC<{
   primary?: boolean;
   children: React.ReactNode;
 }> = ({ onClick, primary, children }) => (
-  <div
-    className={`button-basic ${primary ? "button-primary" : "button-default"}`}
-    role="button"
-    tabIndex={0}
-    onClick={onClick}
-    onKeyDown={activateOnKey}
-  >
+  <UiButton variant={primary ? "primary" : "secondary"} onClick={onClick}>
     {children}
-  </div>
+  </UiButton>
 );
 
 /** Insert Slicers: pick the columns of the table to create slicers for. */
@@ -523,8 +518,18 @@ export const InsertSlicerDialog: React.FC<{ tableName: string }> = ({
     hideDialog();
   };
   return (
-    <div className="fortune-table-dialog fortune-slicer-insert">
-      <div className="fortune-table-dialog-title">{tt.insertSlicer}</div>
+    <DialogShell
+      title={tt.insertSlicer}
+      className="fortune-table-dialog fortune-slicer-insert"
+      footer={
+        <>
+          <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
+          <TextButton primary onClick={ok}>
+            {button.confirm}
+          </TextButton>
+        </>
+      }
+    >
       <div className="fortune-slicer-dialog-hint">{tt.insertSlicerHint}</div>
       <div className="fortune-slicer-insert-list" role="group">
         {table.columns.map((col, i) => (
@@ -545,13 +550,7 @@ export const InsertSlicerDialog: React.FC<{ tableName: string }> = ({
           </div>
         ))}
       </div>
-      <div className="fortune-table-dialog-footer">
-        <TextButton primary onClick={ok}>
-          {button.confirm}
-        </TextButton>
-        <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -624,8 +623,18 @@ export const SlicerSettingsDialog: React.FC<{ name: string }> = ({ name }) => {
     (k) => SLICER_STYLES[k].group
   );
   return (
-    <div className="fortune-table-dialog fortune-slicer-settings">
-      <div className="fortune-table-dialog-title">{tt.slicerSettingsTitle}</div>
+    <DialogShell
+      title={tt.slicerSettingsTitle}
+      className="fortune-table-dialog fortune-slicer-settings"
+      footer={
+        <>
+          <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
+          <TextButton primary onClick={ok}>
+            {button.confirm}
+          </TextButton>
+        </>
+      }
+    >
       <div className="fortune-table-design-grid">
         <div className="fortune-table-dialog-field">
           <label htmlFor={`${uid}-name`}>{tt.name}</label>
@@ -760,13 +769,7 @@ export const SlicerSettingsDialog: React.FC<{ name: string }> = ({ name }) => {
           {error}
         </div>
       )}
-      <div className="fortune-table-dialog-footer">
-        <TextButton primary onClick={ok}>
-          {button.confirm}
-        </TextButton>
-        <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

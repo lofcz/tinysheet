@@ -11,9 +11,9 @@ import {
 import React, { useContext, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import { activateOnKey } from "../Toolbar/Button";
 import DtCheck from "../DataVerification/DtCheck";
 import { RefField, startRefPick } from "./refPick";
+import { Button, DialogShell } from "../ui";
 
 type Fields = {
   action: "inPlace" | "copy";
@@ -140,13 +140,22 @@ const AdvancedFilter: React.FC<{ initial?: Fields }> = ({ initial }) => {
   );
 
   return (
-    <div
+    <DialogShell
+      title={t.title}
       className="fortune-dt-dialog fortune-advanced-filter"
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onOk();
-      }}
+      onClose={hideDialog}
+      onConfirm={onOk}
+      footer={
+        <>
+          <Button variant="secondary" onClick={hideDialog}>
+            {t.cancel}
+          </Button>
+          <Button variant="primary" onClick={onOk}>
+            {t.ok}
+          </Button>
+        </>
+      }
     >
-      <div className="fortune-dt-title">{t.title}</div>
       <div className="fortune-dt-section">
         <div className="fortune-dt-section-title">{t.action}</div>
         {radio("inPlace", t.inPlace)}
@@ -178,30 +187,7 @@ const AdvancedFilter: React.FC<{ initial?: Fields }> = ({ initial }) => {
         {t.unique}
       </DtCheck>
       {error && <div className="fortune-dt-error">{error}</div>}
-      <div
-        className="fortune-dt-buttons"
-        style={{ justifyContent: "flex-end" }}
-      >
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onKeyDown={activateOnKey}
-          onClick={onOk}
-        >
-          {t.ok}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onKeyDown={activateOnKey}
-          onClick={hideDialog}
-        >
-          {t.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

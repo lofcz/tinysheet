@@ -1,5 +1,6 @@
 import React, { useId } from "react";
 import "./ui.css";
+import "./form.css";
 
 export type CheckboxProps = {
   checked: boolean | "mixed";

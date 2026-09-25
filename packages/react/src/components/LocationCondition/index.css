@@ -1,56 +1,38 @@
-/* Go To Special dialog */
+/* Go To Special (a DialogShell): two columns of choices, like Excel */
 #fortune-location-condition {
-  min-width: 460px;
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size);
-}
-
-#fortune-location-condition .title {
-  margin-bottom: var(--fortune-space-3);
+  width: 500px;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
 }
 
 #fortune-location-condition .listbox {
   display: flex;
-  gap: var(--fortune-space-5);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  padding: var(--fortune-space-3) var(--fortune-space-4);
+  gap: 24px;
 }
 
 #fortune-location-condition .column {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: var(--fortune-space-1);
+  gap: 4px;
 }
 
 #fortune-location-condition label {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2);
-  line-height: 24px;
+  gap: 8px;
+  line-height: 26px;
   cursor: pointer;
-}
-
-#fortune-location-condition input {
-  margin: 0;
-  accent-color: var(--fortune-accent);
 }
 
 #fortune-location-condition .subbox {
   display: flex;
   flex-direction: column;
-  padding-left: var(--fortune-space-5);
+  padding-left: 24px;
+  color: var(--ts-muted);
 }
 
 #fortune-location-condition label[aria-disabled="true"] {
-  color: var(--fortune-text-disabled);
+  color: var(--ts-disabled);
   cursor: default;
-}
-
-#fortune-location-condition .buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--fortune-space-2);
-  margin-top: var(--fortune-space-4);
 }

@@ -128,62 +128,22 @@
 }
 
 /* Chart editor side panel */
+/* Format Chart pane (docked in the side pane) */
 .fortune-chart-editor {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1003;
   display: flex;
   flex-direction: column;
-  width: 300px;
-  max-width: 100%;
-  box-sizing: border-box;
-  color: var(--fortune-text);
-  font-family: var(--fortune-font-family);
-  font-size: var(--fortune-font-size);
-  background: var(--fortune-bg-elevated);
-  border-left: 1px solid var(--fortune-border);
-  box-shadow: var(--fortune-shadow);
-}
-
-.fortune-chart-editor-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--fortune-space-2) var(--fortune-space-3);
-  font-size: var(--fortune-font-size-lg);
-  font-weight: 500;
-  border-bottom: 1px solid var(--fortune-divider);
-}
-
-.fortune-chart-editor-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  color: var(--fortune-icon);
-  background: transparent;
-  border: none;
-  border-radius: var(--fortune-radius-sm);
-  cursor: pointer;
-}
-
-.fortune-chart-editor-close:hover {
-  background: var(--fortune-bg-hover);
+  color: var(--ts-text);
+  font-family: var(--ts-font);
+  font-size: var(--ts-font-size);
 }
 
 .fortune-chart-editor-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--fortune-space-2) var(--fortune-space-3) var(--fortune-space-4);
+  padding: 4px 14px 16px;
 }
 
 .fortune-chart-editor-section {
-  padding: var(--fortune-space-2) 0;
-  border-bottom: 1px solid var(--fortune-divider);
+  padding: 14px 0;
+  border-bottom: 1px solid var(--ts-border);
 }
 
 .fortune-chart-editor-section:last-child {
@@ -191,12 +151,13 @@
 }
 
 .fortune-chart-editor-section h3 {
-  margin: 0 0 var(--fortune-space-2);
-  color: var(--fortune-text-muted);
-  font-size: var(--fortune-font-size-sm);
+  margin: 0 0 8px;
+  color: var(--ts-section-label);
+  font-size: var(--ts-font-size-xs);
   font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 16px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .fortune-chart-editor-field {

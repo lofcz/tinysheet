@@ -39,7 +39,7 @@ import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import Combo from "../Toolbar/Combo";
 import { Gallery, GalleryItem, MenuItem } from "../ui";
-import { activateOnKey } from "../Toolbar/Button";
+import { Button as UiButton, DialogShell } from "../ui";
 import { registerSheetOverlay, registerToolbarItem } from "../../extensions";
 import TableOverlay from "./TableOverlay";
 import {
@@ -139,15 +139,9 @@ const TextButton: React.FC<{
   primary?: boolean;
   children: React.ReactNode;
 }> = ({ onClick, primary, children }) => (
-  <div
-    className={`button-basic ${primary ? "button-primary" : "button-default"}`}
-    role="button"
-    tabIndex={0}
-    onClick={onClick}
-    onKeyDown={activateOnKey}
-  >
+  <UiButton variant={primary ? "primary" : "secondary"} onClick={onClick}>
     {children}
-  </div>
+  </UiButton>
 );
 
 /**
@@ -334,8 +328,18 @@ export const CreateTableDialog: React.FC<{ styleKey: string }> = ({
   };
 
   return (
-    <div className="fortune-table-dialog">
-      <div className="fortune-table-dialog-title">{t.createTable}</div>
+    <DialogShell
+      title={t.createTable}
+      className="fortune-table-dialog"
+      footer={
+        <>
+          <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
+          <TextButton primary onClick={ok}>
+            {button.confirm}
+          </TextButton>
+        </>
+      }
+    >
       <div className="fortune-table-dialog-field">
         <label htmlFor={`${uid}-range`}>{t.tableRange}</label>
         <input
@@ -367,13 +371,7 @@ export const CreateTableDialog: React.FC<{ styleKey: string }> = ({
           {error}
         </div>
       )}
-      <div className="fortune-table-dialog-footer">
-        <TextButton primary onClick={ok}>
-          {button.confirm}
-        </TextButton>
-        <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -425,9 +423,9 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
 
   if (!ref || !table) {
     return (
-      <div className="fortune-table-dialog">
+      <DialogShell title={t.tableDesignTitle} className="fortune-table-dialog">
         <div className="fortune-table-dialog-error">{t.errorNotFound}</div>
-      </div>
+      </DialogShell>
     );
   }
 
@@ -511,8 +509,37 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
   };
 
   return (
-    <div className="fortune-table-dialog fortune-table-design">
-      <div className="fortune-table-dialog-title">{t.tableDesignTitle}</div>
+    <DialogShell
+      title={t.tableDesignTitle}
+      className="fortune-table-dialog fortune-table-design"
+      footer={
+        <>
+          <TextButton
+            onClick={() =>
+              showDialog(t.convertConfirm, "yesno", () => {
+                setContext((ctx) => {
+                  convertTableToRange(ctx, table.name);
+                });
+                hideDialog();
+              })
+            }
+          >
+            {t.convertToRange}
+          </TextButton>
+          <TextButton
+            onClick={() =>
+              showDialog(<InsertSlicerDialog tableName={table.name} />)
+            }
+          >
+            {tt.insertSlicer}
+          </TextButton>
+          <div className="fortune-table-dialog-spacer" />
+          <TextButton primary onClick={hideDialog}>
+            {button.close}
+          </TextButton>
+        </>
+      }
+    >
       <div className="fortune-table-design-grid">
         <div className="fortune-table-dialog-field">
           <label htmlFor={`${uid}-name`}>{t.tableName}</label>
@@ -613,32 +640,7 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
           {error}
         </div>
       )}
-      <div className="fortune-table-dialog-footer">
-        <TextButton
-          onClick={() =>
-            showDialog(t.convertConfirm, "yesno", () => {
-              setContext((ctx) => {
-                convertTableToRange(ctx, table.name);
-              });
-              hideDialog();
-            })
-          }
-        >
-          {t.convertToRange}
-        </TextButton>
-        <TextButton
-          onClick={() =>
-            showDialog(<InsertSlicerDialog tableName={table.name} />)
-          }
-        >
-          {tt.insertSlicer}
-        </TextButton>
-        <div className="fortune-table-dialog-spacer" />
-        <TextButton primary onClick={hideDialog}>
-          {button.close}
-        </TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
