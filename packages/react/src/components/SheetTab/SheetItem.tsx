@@ -21,7 +21,8 @@ import React, {
 } from "react";
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
-import SVGIcon from "../SVGIcon";
+import { ChevronDown } from "lucide-react";
+import { Icon } from "../ui/icons";
 import { activateOnKey } from "../Toolbar/Button";
 import { activateSheetTab } from "./activate";
 
@@ -161,6 +162,8 @@ const SheetItem: React.FC<Props> = ({ sheet, dragging }) => {
         isActive ? " luckysheet-sheets-item-active" : ""
       }${isGrouped ? " luckysheet-sheets-item-grouped" : ""}${
         dragging ? " luckysheet-sheets-item-dragging" : ""
+      }${sheet.color ? " luckysheet-sheets-item-colored" : ""}${
+        editing ? " luckysheet-sheets-item-editing" : ""
       }`}
       onMouseDown={(e) => {
         // Point mode across sheets: the formula keeps the focus
@@ -214,9 +217,13 @@ const SheetItem: React.FC<Props> = ({ sheet, dragging }) => {
         if (editing) return;
         openMenu(e);
       }}
-      style={{
-        display: sheet.hide === 1 ? "none" : "",
-      }}
+      style={
+        {
+          display: sheet.hide === 1 ? "none" : "",
+          // the tab colour: a stripe under the name and a light tint
+          "--ts-tab-color": sheet.color || undefined,
+        } as React.CSSProperties
+      }
     >
       <span
         key={nameKey}
@@ -252,12 +259,13 @@ const SheetItem: React.FC<Props> = ({ sheet, dragging }) => {
         aria-label={info.sheetOptions}
         aria-haspopup="menu"
       >
-        <SVGIcon name="downArrow" width={12} />
+        <Icon icon={ChevronDown} size={12} strokeWidth={2} />
       </span>
       {!!sheet.color && (
         <div
           className="luckysheet-sheets-item-color"
           style={{ background: sheet.color }}
+          aria-hidden="true"
         />
       )}
     </div>

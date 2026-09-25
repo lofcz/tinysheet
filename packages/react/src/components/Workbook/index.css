@@ -448,25 +448,9 @@
   overflow: hidden;
 }
 
+/* the bottom bar's layout: StatusBar/index.css */
 .fortune-bottom-pane {
   flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-}
-
-/* the sheet tabs and the status bar are rows of the bottom pane */
-.fortune-container .fortune-bottom-pane > .luckysheet-sheet-area,
-.fortune-container .fortune-bottom-pane > .fortune-status-bar {
-  background-color: transparent;
-  border-top: 0;
-}
-
-.fortune-container .fortune-bottom-pane > .luckysheet-sheet-area {
-  padding-left: 8px;
-}
-
-.fortune-container .fortune-bottom-pane > * + .fortune-status-bar {
-  border-top: 1px solid var(--ts-border);
 }
 
 .fortune-popover-backdrop {

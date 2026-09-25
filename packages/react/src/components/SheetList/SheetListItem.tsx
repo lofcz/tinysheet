@@ -1,9 +1,10 @@
 import { Sheet, unhideSheets } from "@lofcz/tinysheet-core";
 import React, { useContext } from "react";
+import { Check } from "lucide-react";
 import WorkbookContext from "../../context";
 import "./index.css";
 import SheetHiddenButton from "./SheetHiddenButton";
-import SVGIcon from "../SVGIcon";
+import { Icon } from "../ui/icons";
 import { activateSheetTab } from "../SheetTab/activate";
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
 
 const SheetListItem: React.FC<Props> = ({ sheet }) => {
   const { context, setContext, refs } = useContext(WorkbookContext);
+  const current = sheet.id === context.currentSheetId;
 
   const activate = () => {
     setContext((draftCtx) => {
@@ -34,9 +36,11 @@ const SheetListItem: React.FC<Props> = ({ sheet }) => {
 
   return (
     <div
-      className="fortune-sheet-list-item"
+      className={`ts-menu-item fortune-sheet-list-item${
+        sheet.hide === 1 ? " fortune-sheet-list-item-hidden" : ""
+      }`}
       role="menuitemradio"
-      aria-checked={sheet.id === context.currentSheetId}
+      aria-checked={current}
       onClick={activate}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -46,26 +50,18 @@ const SheetListItem: React.FC<Props> = ({ sheet }) => {
       }}
       tabIndex={0}
     >
-      <span className="fortune-sheet-selected-check-sapce">
-        {sheet.id === context.currentSheetId && (
-          <SVGIcon
-            name="check"
-            width={16}
-            height={16}
-            style={{ lineHeight: 30, verticalAlign: "middle" }}
-          />
-        )}
+      <span className="ts-menu-icon fortune-sheet-selected-check-sapce">
+        {current && <Icon icon={Check} size={16} />}
       </span>
       <span
-        className="luckysheet-sheets-item-name fortune-sheet-list-item-name"
+        className="fortune-sheet-list-item-color"
+        style={{ background: sheet.color || undefined }}
+        aria-hidden="true"
+      />
+      <span
+        className="ts-menu-label luckysheet-sheets-item-name fortune-sheet-list-item-name"
         spellCheck="false"
       >
-        {!!sheet.color && (
-          <div
-            className="luckysheet-sheets-list-item-color"
-            style={{ background: sheet.color }}
-          />
-        )}
         {sheet.name}
       </span>
       {sheet.hide === 1 && <SheetHiddenButton sheet={sheet} />}

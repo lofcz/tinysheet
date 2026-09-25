@@ -1,126 +1,246 @@
+/*
+ * The bottom bar (docs/DESIGN.md): one row in the bottom pane —
+ *
+ *   [≡ ‹ ›][ sheet tabs … ][+]      Ready  Average Count Sum  [▦ ▭ ▤]  − ━●━ + 100%
+ *
+ * The tabs take the free width; the aggregates drop out (first ones first)
+ * when there is too little of it. Below 1200px the pane is two rows, as in
+ * Excel: the tabs on top, the status bar under them.
+ */
+.fortune-container .fortune-bottom-pane {
+  container: ts-bottom-bar / inline-size;
+  padding: 5px 8px;
+  color: var(--ts-muted);
+  font-family: var(--ts-font);
+  font-size: var(--ts-font-size);
+}
+
+.fortune-container[data-chrome="compact"] .fortune-bottom-pane {
+  padding: 3px 6px;
+}
+
+.fortune-bottom-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 30px;
+}
+
+.fortune-bottom-bar > .luckysheet-sheet-area {
+  flex: 1 1 0;
+  min-width: min(440px, 50%);
+}
+
+.fortune-bottom-bar > .fortune-status-bar {
+  flex: 0 1 auto;
+}
+
+.fortune-bottom-bar > .fortune-view-controls {
+  flex: none;
+  margin-left: auto;
+}
+
+/* only the status bar: it spans the row */
+.fortune-bottom-bar > .fortune-status-bar:first-child {
+  flex: 1 1 auto;
+}
+
+@container ts-bottom-bar (max-width: 1199px) {
+  .fortune-bottom-bar {
+    flex-wrap: wrap;
+  }
+
+  .fortune-bottom-bar > .luckysheet-sheet-area {
+    flex: 1 0 100%;
+    min-width: 0;
+  }
+
+  .fortune-container .fortune-bottom-bar > .fortune-status-bar {
+    flex: 1 1 0;
+    justify-content: space-between;
+  }
+}
+
+@container ts-bottom-bar (max-width: 559px) {
+  .fortune-zoom-container .fortune-zoom-slider {
+    display: none;
+  }
+}
+
+/* ---- status bar: mode and aggregates ------------------------------ */
+
 .fortune-container .fortune-status-bar {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  min-height: 24px;
-  padding: 0 var(--fortune-space-2);
-  font-size: var(--fortune-font-size-sm);
-  color: var(--fortune-text-muted);
-  background-color: var(--fortune-bg-subtle);
-  border-top: 1px solid var(--fortune-divider);
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
   box-sizing: border-box;
   user-select: none;
 }
 
 .fortune-status-bar-left {
   display: flex;
+  flex: none;
   align-items: center;
+  gap: 4px;
   min-width: 0;
 }
 
+.fortune-status-bar .fortune-edit-mode {
+  height: 26px;
+  margin-right: 0;
+  padding: 0 6px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  font-weight: 500;
+}
+
+.fortune-status-bar .fortune-edit-mode[data-mode="edit"],
+.fortune-status-bar .fortune-edit-mode[data-mode="enter"],
+.fortune-status-bar .fortune-edit-mode[data-mode="point"] {
+  color: var(--ts-text-strong);
+}
+
+/*
+ * The aggregates, laid out right to left (`order` set by the component):
+ * the ones that do not fit wrap onto a second, clipped line.
+ */
 .fortune-status-bar-stats {
   display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  align-content: flex-start;
   align-items: center;
-  gap: var(--fortune-space-1);
+  gap: 0 2px;
   min-width: 0;
+  height: 26px;
   overflow: hidden;
 }
 
 .fortune-status-bar-item {
-  position: relative;
   display: inline-flex;
   align-items: baseline;
-  gap: 3px;
-  padding: 2px var(--fortune-space-2);
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  box-sizing: border-box;
   border: none;
-  border-radius: var(--fortune-radius-sm);
+  border-radius: 6px;
   background: transparent;
   color: inherit;
   font: inherit;
+  line-height: 26px;
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color var(--fortune-transition);
+  transition:
+    background-color var(--ts-fast),
+    color var(--ts-fast);
 }
 
 .fortune-status-bar-item:hover {
-  background-color: var(--fortune-bg-hover);
-  color: var(--fortune-text);
+  background-color: var(--ts-hover);
 }
 
 .fortune-status-bar-item:focus-visible {
   outline: none;
-  box-shadow: var(--fortune-focus-ring);
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.fortune-status-bar-label {
+  color: var(--ts-muted);
 }
 
 .fortune-status-bar-value {
-  color: var(--fortune-text);
+  color: var(--ts-text-strong);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
 .fortune-status-bar-calculating {
-  padding: 2px var(--fortune-space-2);
+  padding: 0 8px;
   font-style: italic;
+  white-space: nowrap;
 }
 
 .fortune-status-bar-recalc {
-  padding: 2px var(--fortune-space-2);
+  padding: 0 8px;
   white-space: nowrap;
 }
 
 .fortune-status-bar-copied {
   position: absolute;
-  right: 0;
-  bottom: calc(100% + 4px);
-  padding: 2px var(--fortune-space-2);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-tooltip-bg);
-  color: var(--fortune-tooltip-text);
-  pointer-events: none;
+  bottom: calc(100% + 8px);
   z-index: 1005;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+  font-size: var(--ts-font-size-sm);
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+  box-shadow: var(--ts-shadow);
 }
+
+/* ---- Customize Status Bar (right-click) --------------------------- */
 
 .fortune-status-bar-menu {
   position: fixed;
-  z-index: 1004;
-  min-width: 240px;
-  padding: var(--fortune-space-1) 0;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius);
-  background: var(--fortune-bg-elevated);
-  color: var(--fortune-text);
-  box-shadow: var(--fortune-shadow);
-  font-size: var(--fortune-font-size);
+  z-index: 1010;
+  min-width: 260px;
+  padding: 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
+  background: var(--ts-pane);
+  color: var(--ts-text);
+  box-shadow: var(--ts-shadow);
+  font-family: var(--ts-font);
+  font-size: var(--ts-font-size);
 }
 
 .fortune-status-bar-menu-title {
-  padding: 6px var(--fortune-space-3);
-  color: var(--fortune-text-muted);
-  font-size: var(--fortune-font-size-sm);
+  padding: 8px 8px 4px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-xs);
   font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .fortune-status-bar-menu-item {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2);
-  padding: 5px var(--fortune-space-3);
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--ts-radius);
   cursor: pointer;
   outline: none;
 }
 
 .fortune-status-bar-menu-item:hover,
 .fortune-status-bar-menu-item:focus-visible {
-  background: var(--fortune-bg-hover);
-}
-
-.fortune-status-bar-menu-item:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--fortune-accent);
+  background: var(--ts-hover);
+  color: var(--ts-text-strong);
 }
 
 .fortune-status-bar-check {
-  width: 14px;
-  color: var(--fortune-accent);
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex: 0 0 16px;
+  color: var(--ts-text-strong);
 }
 
 .fortune-status-bar-menu-label {
@@ -128,6 +248,66 @@
 }
 
 .fortune-status-bar-menu-value {
-  color: var(--fortune-text-muted);
+  margin-left: 16px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---- view buttons ------------------------------------------------- */
+
+.fortune-view-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* a small Fika segmented track; the current view is the raised chip */
+.fortune-view-buttons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 30px;
+  padding: 2px;
+  box-sizing: border-box;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+}
+
+.fortune-view-buttons .fortune-view-button {
+  border-radius: 6px;
+  color: var(--ts-muted);
+}
+
+.fortune-view-buttons
+  .fortune-view-button:hover:not(.fortune-view-button-active) {
+  background: var(--ts-hover);
+  color: var(--ts-text-strong);
+}
+
+.fortune-view-buttons .fortune-view-button.fortune-view-button-active {
+  background: var(--ts-pane);
+  color: var(--ts-text-strong);
+  box-shadow:
+    0 1px 2px rgba(24, 24, 27, 0.08),
+    0 0 0 1px var(--ts-border);
+}
+
+[data-theme="dark"]
+  .fortune-view-buttons
+  .fortune-view-button:hover:not(.fortune-view-button-active) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"]
+  .fortune-view-buttons
+  .fortune-view-button.fortune-view-button-active {
+  background: var(--ts-hover);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.fortune-view-buttons .fortune-view-button:focus-visible {
+  box-shadow: 0 0 0 2px var(--ts-ring);
 }

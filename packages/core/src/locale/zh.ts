@@ -740,6 +740,13 @@ export default {
     customize: "自定义状态栏",
     copied: "已复制到剪贴板",
     clickToCopy: "点击复制",
+    views: "工作簿视图",
+    normalView: "普通",
+    pageLayoutView: "页面布局",
+    pageBreakPreview: "分页预览",
+    zoom: "缩放",
+    zoomToSelection: "缩放到选定区域",
+    tabNavHint: "按住 Ctrl 单击滚动到末端；右键单击显示所有工作表",
   },
   cellMenu: {
     cut: "剪切",

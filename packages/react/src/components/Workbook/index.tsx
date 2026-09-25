@@ -69,6 +69,7 @@ import FilterMenu from "../ContextMenu/FilterMenu";
 import FormatCells from "../FormatCells";
 import SheetList from "../SheetList";
 import StatusBar from "../StatusBar";
+import ViewControls from "../StatusBar/ViewControls";
 import { useResolvedTheme } from "../../hooks/useResolvedTheme";
 
 enablePatches();
@@ -86,6 +87,7 @@ const SHEET_TAB_CONTEXT_MENU = <SheetTabContextMenu />;
 const DATA_TOOLS_LAYER = <DataToolsLayer />;
 const FORMAT_CELLS = <FormatCells />;
 const STATUS_BAR = <StatusBar />;
+const VIEW_CONTROLS = <ViewControls />;
 
 export type WorkbookInstance = ReturnType<typeof generateAPIs>;
 
@@ -891,12 +893,15 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               {(mergedSettings.showSheetTabs ||
                 mergedSettings.showStatsBar) && (
                 <div className="fortune-pane fortune-bottom-pane">
-                  {mergedSettings.showSheetTabs && (
-                    <TrackedScope>{SHEET_TAB}</TrackedScope>
-                  )}
-                  {mergedSettings.showStatsBar && (
-                    <TrackedScope>{STATUS_BAR}</TrackedScope>
-                  )}
+                  <div className="fortune-bottom-bar">
+                    {mergedSettings.showSheetTabs && (
+                      <TrackedScope>{SHEET_TAB}</TrackedScope>
+                    )}
+                    {mergedSettings.showStatsBar && (
+                      <TrackedScope>{STATUS_BAR}</TrackedScope>
+                    )}
+                    <TrackedScope>{VIEW_CONTROLS}</TrackedScope>
+                  </div>
                 </div>
               )}
               <TrackedScope>{CONTEXT_MENU}</TrackedScope>

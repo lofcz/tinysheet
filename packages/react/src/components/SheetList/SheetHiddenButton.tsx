@@ -1,6 +1,7 @@
 import { Sheet, api } from "@lofcz/tinysheet-core";
 import React, { CSSProperties, useCallback, useContext } from "react";
-import SVGIcon from "../SVGIcon";
+import { EyeOff } from "lucide-react";
+import { Icon } from "../ui/icons";
 import WorkbookContext from "../../context";
 
 type Props = {
@@ -8,6 +9,7 @@ type Props = {
   sheet?: Sheet;
 };
 
+/** The eye of a hidden sheet in the sheet list: a click unhides it. */
 const SheetHiddenButton: React.FC<Props> = ({ style, sheet }) => {
   const { context, setContext } = useContext(WorkbookContext);
   const showSheet = useCallback(() => {
@@ -18,29 +20,19 @@ const SheetHiddenButton: React.FC<Props> = ({ style, sheet }) => {
     });
   }, [context.allowEdit, setContext, sheet]);
 
+  if (sheet?.hide !== 1) return null;
   return (
-    <div
+    <span
       style={style}
       onClick={(e) => {
         e.stopPropagation();
         showSheet();
       }}
-      tabIndex={0}
       className="fortune-sheet-hidden-button"
+      aria-hidden="true"
     >
-      {sheet?.hide === 1 ? (
-        <SVGIcon
-          name="hidden"
-          width={16}
-          height={16}
-          style={{
-            marginTop: "7px",
-          }}
-        />
-      ) : (
-        ""
-      )}
-    </div>
+      <Icon icon={EyeOff} size={14} />
+    </span>
   );
 };
 

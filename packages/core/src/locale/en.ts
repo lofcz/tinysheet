@@ -698,6 +698,13 @@ export default {
     customize: "Customize Status Bar",
     copied: "Copied to clipboard",
     clickToCopy: "Click to copy",
+    views: "Workbook views",
+    normalView: "Normal",
+    pageLayoutView: "Page Layout",
+    pageBreakPreview: "Page Break Preview",
+    zoom: "Zoom",
+    zoomToSelection: "Zoom to Selection",
+    tabNavHint: "Ctrl+click to scroll to the end; right-click for all sheets",
   },
   cellMenu: {
     cut: "Cut",

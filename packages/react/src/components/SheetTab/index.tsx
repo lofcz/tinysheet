@@ -20,11 +20,10 @@ import {
 } from "@lofcz/tinysheet-core";
 // @ts-ignore
 import WorkbookContext from "../../context";
-import SVGIcon from "../SVGIcon";
+import { ChevronLeft, ChevronRight, List, Plus } from "lucide-react";
 import "./index.css";
 import SheetItem from "./SheetItem";
-import ZoomControl from "../ZoomControl";
-import { activateOnKey } from "../Toolbar/Button";
+import { IconButton } from "../ui/Button";
 import { registerProtectionFeatures } from "../Protection";
 import { activateSheetTab, restoreSheetView } from "./activate";
 
@@ -91,8 +90,6 @@ const SheetTab: React.FC = () => {
   const latest = useRef({ context, setContext, refs });
   latest.current = { context, setContext, refs };
 
-  const scrollDelta = 150;
-
   const updateScrollState = useCallback(() => {
     const el = tabContainerRef.current;
     if (!el) return;
@@ -111,12 +108,32 @@ const SheetTab: React.FC = () => {
     );
   }, []);
 
-  const scrollBy = useCallback((amount: number) => {
-    tabContainerRef.current?.scrollBy({
-      left: amount,
+  /**
+   * The ‹ › buttons: a page of tabs to the left / right; with Ctrl (Cmd)
+   * all the way to the first / last tab (Excel).
+   */
+  const scrollTabs = useCallback((dir: -1 | 1, toEnd: boolean) => {
+    const el = tabContainerRef.current;
+    if (!el) return;
+    if (toEnd) {
+      el.scrollTo({
+        left: dir < 0 ? 0 : el.scrollWidth,
+        behavior: "smooth",
+      });
+      return;
+    }
+    el.scrollBy({
+      left: dir * Math.max(80, Math.round(el.clientWidth * 0.6)),
       behavior: "smooth",
     });
   }, []);
+
+  const toggleSheetList = useCallback(() => {
+    setContext((ctx) => {
+      ctx.showSheetList = !ctx.showSheetList;
+      ctx.sheetTabContextMenu = {};
+    });
+  }, [setContext]);
 
   // the view (scroll, selection) of the sheet being shown comes back
   const restoredFor = useRef<string | undefined>(undefined);
@@ -426,6 +443,7 @@ const SheetTab: React.FC = () => {
   );
 
   const { overflow, atStart, atEnd } = scrollState;
+  const { statusBar } = locale(context);
 
   return (
     <div
@@ -434,56 +452,85 @@ const SheetTab: React.FC = () => {
       id="luckysheet-sheet-area"
     >
       <div id="luckysheet-sheet-content">
-        {context.allowEdit && (
-          <div
-            className="fortune-sheettab-button"
-            onClick={onAddSheetClick}
-            onKeyDown={activateOnKey}
-            tabIndex={0}
-            aria-label={info.newSheet}
-            title={info.newSheet}
-            role="button"
-          >
-            <SVGIcon name="plus" width={16} height={16} />
-          </div>
-        )}
-        {context.allowEdit && (
-          <div className="sheet-list-container">
-            <div
-              id="all-sheets"
-              className="fortune-sheettab-button"
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                setContext((ctx) => {
-                  ctx.showSheetList = !ctx.showSheetList;
-                  ctx.sheetTabContextMenu = {};
-                });
-              }}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" && e.key !== " ") return;
-                e.preventDefault();
-                e.stopPropagation();
-                setContext((ctx) => {
-                  ctx.showSheetList = !ctx.showSheetList;
-                  ctx.sheetTabContextMenu = {};
-                });
-              }}
-              tabIndex={0}
-              role="button"
-              aria-label={info.allSheets}
-              title={info.allSheets}
-              aria-haspopup="menu"
-              aria-expanded={!!context.showSheetList}
-            >
-              <SVGIcon name="all-sheets" width={16} height={16} />
-            </div>
+        {/* Excel: sheet list and the ‹ › scroll buttons left of the tabs */}
+        {(context.allowEdit || overflow) && (
+          <div className="fortune-sheettab-nav">
+            {context.allowEdit && (
+              <div className="sheet-list-container">
+                <IconButton
+                  id="all-sheets"
+                  size="sm"
+                  icon={List}
+                  label={info.allSheets}
+                  className="fortune-sheettab-nav-button"
+                  aria-haspopup="menu"
+                  aria-expanded={!!context.showSheetList}
+                  // (on mousedown: the open list closes on an outside
+                  // mousedown, which must not reopen it)
+                  onMouseDown={(e) => {
+                    if (e.button !== 0) return;
+                    e.stopPropagation();
+                    toggleSheetList();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleSheetList();
+                  }}
+                />
+              </div>
+            )}
+            {overflow && (
+              <>
+                <IconButton
+                  id="fortune-sheettab-leftscroll"
+                  size="sm"
+                  icon={ChevronLeft}
+                  label={info.scrollTabsLeft}
+                  description={statusBar.tabNavHint}
+                  className={`fortune-sheettab-scroll fortune-sheettab-nav-button${
+                    atStart ? " disabled" : ""
+                  }`}
+                  aria-disabled={atStart}
+                  onClick={(e) => scrollTabs(-1, e.ctrlKey || e.metaKey)}
+                  onContextMenu={(e) => {
+                    // Excel: right-click on the arrows lists every sheet
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (context.allowEdit) toggleSheetList();
+                  }}
+                />
+                <IconButton
+                  id="fortune-sheettab-rightscroll"
+                  size="sm"
+                  icon={ChevronRight}
+                  label={info.scrollTabsRight}
+                  description={statusBar.tabNavHint}
+                  className={`fortune-sheettab-scroll fortune-sheettab-nav-button${
+                    atEnd ? " disabled" : ""
+                  }`}
+                  aria-disabled={atEnd}
+                  onClick={(e) => scrollTabs(1, e.ctrlKey || e.metaKey)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (context.allowEdit) toggleSheetList();
+                  }}
+                />
+              </>
+            )}
           </div>
         )}
         <div
-          className="fortune-sheettab-container"
+          className={`fortune-sheettab-container${
+            overflow ? " fortune-sheettab-overflow" : ""
+          }`}
           id="fortune-sheettab-container"
         >
-          {overflow && !atStart && <div className="boundary boundary-left" />}
+          {overflow && !atStart && (
+            <div className="boundary boundary-left" aria-hidden="true" />
+          )}
           <div
             className={`fortune-sheettab-container-c${
               drag ? " fortune-sheettab-dragging" : ""
@@ -519,45 +566,19 @@ const SheetTab: React.FC = () => {
               />
             )}
           </div>
-          {overflow && !atEnd && <div className="boundary boundary-right" />}
+          {overflow && !atEnd && (
+            <div className="boundary boundary-right" aria-hidden="true" />
+          )}
         </div>
-        {overflow && (
-          <div
-            id="fortune-sheettab-leftscroll"
-            className={`fortune-sheettab-scroll${atStart ? " disabled" : ""}`}
-            onClick={() => {
-              scrollBy(-scrollDelta);
-            }}
-            onKeyDown={activateOnKey}
-            tabIndex={0}
-            role="button"
-            aria-label={info.scrollTabsLeft}
-            aria-disabled={atStart}
-            title={info.scrollTabsLeft}
-          >
-            <SVGIcon name="arrow-doubleleft" width={12} height={12} />
-          </div>
+        {context.allowEdit && (
+          <IconButton
+            size="sm"
+            icon={Plus}
+            label={info.newSheet}
+            className="fortune-sheettab-button fortune-sheettab-add"
+            onClick={onAddSheetClick}
+          />
         )}
-        {overflow && (
-          <div
-            id="fortune-sheettab-rightscroll"
-            className={`fortune-sheettab-scroll${atEnd ? " disabled" : ""}`}
-            onClick={() => {
-              scrollBy(scrollDelta);
-            }}
-            onKeyDown={activateOnKey}
-            tabIndex={0}
-            role="button"
-            aria-label={info.scrollTabsRight}
-            aria-disabled={atEnd}
-            title={info.scrollTabsRight}
-          >
-            <SVGIcon name="arrow-doubleright" width={12} height={12} />
-          </div>
-        )}
-      </div>
-      <div className="fortune-sheet-area-right">
-        <ZoomControl />
       </div>
     </div>
   );

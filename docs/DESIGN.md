@@ -47,7 +47,7 @@ Arial fallback) 11pt, not Times New Roman.
 │ [ribbon pane: tabs row (pill segmented) + command row]                    │
 │ [grid pane: name box | fx | formula bar ─────────────────────────────── ] │
 │ [           column headers / grid / scrollbars                ] [side pane]│
-│ [bottom pane: + ≡ | sheet tabs … | status stats | − zoom + ]              │
+│ [bottom pane: ≡ ‹ › | sheet tabs … + | Ready  stats | views | − ━●━ + %]  │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 Panes: `--ts-pane` bg, 1px `--ts-border`, 12px radius, `--ts-pane-shadow`.
@@ -156,3 +156,10 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
   editor }) => …)` (return false to fall back to the function list);
   `editor` is the element being edited (insert at its caret) or null.
   Reference colours: `REFERENCE_COLORS` in core `formulaEditor.ts`.
+- **Bottom bar**: `.fortune-bottom-pane > .fortune-bottom-bar` (layout in
+  `StatusBar/index.css`): `SheetTab` (≡ list, ‹ › scroll — Ctrl+click to the
+  end, right-click lists sheets — the tab track, +), `StatusBar` (mode,
+  aggregates; they drop out first-to-last when narrow) and
+  `StatusBar/ViewControls` (Normal / Page Layout / Page Break Preview and
+  `ZoomControl`: slider with Excel's scale in `ZoomControl/slider.ts`). One
+  row; below 1200px of pane width two rows (tabs above the status bar).
