@@ -845,13 +845,13 @@ const Toolbar: React.FC<{
         const items = [
           "highlightCellRules",
           "itemSelectionRules",
-          // "dataBar",
-          // "colorGradation",
-          // "icons",
+          "dataBar",
+          "colorGradation",
+          "icons",
           "-",
-          // "newFormatRule",
+          "newFormatRule",
           "deleteRule",
-          // "manageRules",
+          "manageRules",
         ];
         return (
           <Combo
