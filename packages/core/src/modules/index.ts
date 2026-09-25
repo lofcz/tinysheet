@@ -34,3 +34,5 @@ export * from "./dataVerification";
 export * from "./ConditionFormat";
 export * from "./zoom";
 export * from "./refresh";
+export * from "./formatCells";
+export { inferFormulaFormat } from "./formatInference";
