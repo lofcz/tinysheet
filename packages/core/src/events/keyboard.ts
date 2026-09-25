@@ -35,6 +35,7 @@ import {
 import * as nav from "../modules/navigation";
 import { openFormatCells } from "../modules/formatCells";
 import { handleNavigationShortcut } from "../modules/goTo";
+import { runShortcut } from "../modules/extensions";
 import {
   clearEditMode,
   endPointMode,
@@ -972,6 +973,12 @@ export function handleGlobalKeyDown(
   }
   // Keys typed into toolbar buttons, menus or dialog controls are theirs
   if (isKeyFromForeignControl(e, cellInput, fxInput)) {
+    return;
+  }
+  // shortcuts registered by features (modules/extensions.ts)
+  if (runShortcut(ctx, e, ctx.luckysheetCellUpdate.length > 0)) {
+    e.preventDefault();
+    e.stopPropagation();
     return;
   }
   // Ctrl+F / Ctrl+H / Ctrl+G / F5: Find, Replace, Go To (navigation stream)

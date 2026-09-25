@@ -17,6 +17,13 @@ import {
   getComputeMap,
 } from "./modules";
 import { cfTextCell, drawCFDecorations } from "./modules/cfDraw";
+import {
+  CellDecoratorArgs,
+  drawCellBackgroundDecorators,
+  drawCellContentDecorators,
+  drawCellForegroundDecorators,
+  hasCellDecorators,
+} from "./modules/extensions";
 import { getCanvasTheme, resolveCellTextColor } from "./theme";
 import {
   fitCellToWidth,
@@ -1748,6 +1755,33 @@ export class Canvas {
   }
 
   // 空白单元格渲染
+  /** Arguments for registered cell decorators (modules/extensions.ts). */
+  decoratorArgs(
+    renderCtx: CanvasRenderingContext2D,
+    r: number,
+    c: number,
+    cell: any,
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    offsetLeft: number,
+    offsetTop: number
+  ): CellDecoratorArgs {
+    return {
+      ctx: this.sheetCtx,
+      renderCtx,
+      r,
+      c,
+      cell,
+      x: startX + offsetLeft,
+      y: startY + offsetTop,
+      w: endX - startX,
+      h: endY - startY,
+      zoom: this.sheetCtx.zoomRatio,
+    };
+  }
+
   nullCellRender(
     r: number,
     c: number,
@@ -1835,6 +1869,24 @@ export class Canvas {
       endY - startY,
       this.sheetCtx.zoomRatio
     );
+    const decor = hasCellDecorators()
+      ? this.decoratorArgs(
+          renderCtx,
+          r,
+          c,
+          flowdata[r]?.[c],
+          startX,
+          startY,
+          endX,
+          endY,
+          offsetLeft,
+          offsetTop
+        )
+      : null;
+    if (decor) {
+      drawCellBackgroundDecorators(decor);
+      drawCellContentDecorators(decor);
+    }
 
     if (`${r}_${c}` in dynamicArrayCompute) {
       const value = dynamicArrayCompute[`${r}_${c}`].v;
@@ -1968,6 +2020,8 @@ export class Canvas {
         endY + offsetTop - 2 + bodrder05
       );
     }
+
+    if (decor) drawCellForegroundDecorators(decor);
 
     // 单元格渲染后
     this.sheetCtx.hooks.afterRenderCell?.(
@@ -2135,6 +2189,10 @@ export class Canvas {
       colEnd
     );
 
+    // set in the plain-text branch below: registered decorators and the
+    // cell's text are drawn only there
+    let cellDecor: CellDecoratorArgs | null = null;
+    let textPending = false;
     if (cell?.tb === "1" && cellOverflow_colInObj.colIn) {
       // 此单元格 为 溢出单元格渲染范围最后一列，绘制溢出单元格内容
       if (
@@ -2254,7 +2312,28 @@ export class Canvas {
         endY - startY,
         this.sheetCtx.zoomRatio
       );
-
+      cellDecor = hasCellDecorators()
+        ? this.decoratorArgs(
+            renderCtx,
+            r,
+            c,
+            cell,
+            startX,
+            startY,
+            endX,
+            endY,
+            offsetLeft,
+            offsetTop
+          )
+        : null;
+      if (cellDecor) drawCellBackgroundDecorators(cellDecor);
+      textPending = true;
+    }
+    // a registered decorator (image in cell, checkbox, sparkline, ...) may
+    // draw the content instead of the text
+    if (cellDecor && drawCellContentDecorators(cellDecor)) {
+      // content drawn by the decorator
+    } else if (textPending) {
       const pos_x = startX + offsetLeft;
       const pos_y = startY + offsetTop + 1;
 
@@ -2358,6 +2437,8 @@ export class Canvas {
         endY + offsetTop - 2 + bodrder05
       );
     }
+
+    if (cellDecor) drawCellForegroundDecorators(cellDecor);
 
     // 单元格渲染后
     this.sheetCtx.hooks.afterRenderCell?.(

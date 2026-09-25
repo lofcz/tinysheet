@@ -42,6 +42,7 @@ import {
   startFormatPainter,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
+import { getToolbarItemRenderer } from "../../extensions";
 import WorkbookContext from "../../context";
 import "./index.css";
 import Button from "./Button";
@@ -197,6 +198,15 @@ const Toolbar: React.FC<{
       const tooltip: string = toolbar[tooltipKey] ?? "";
       if (name === "|") {
         return <Divider key={i} />;
+      }
+      // items registered by features (extensions.tsx)
+      const registered = getToolbarItemRenderer(name);
+      if (registered) {
+        return (
+          <React.Fragment key={name}>
+            {registered({ name, tooltip })}
+          </React.Fragment>
+        );
       }
       if (["font-color", "background"].includes(name)) {
         const pick = (color: string | undefined) => {

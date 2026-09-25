@@ -54,3 +54,4 @@ export * from "./chartRender";
 export * from "./modelSync";
 export * from "./formatCells";
 export { inferFormulaFormat } from "./formatInference";
+export * from "./extensions";

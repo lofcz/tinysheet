@@ -59,6 +59,7 @@ import DropDownList from "../DataVerification/DropdownList";
 import AutocompleteList from "./AutocompleteList";
 import SpillRange from "./SpillRange";
 import { TrackedScope } from "../../context/store";
+import { getSheetOverlays } from "../../extensions";
 
 // Children as constant elements, each rendered in its own TrackedScope: they
 // re-render for the context fields they read, not with the overlay.
@@ -649,6 +650,11 @@ const SheetOverlay: React.FC = () => {
             onMouseDown={(e) => e.preventDefault()}
           />
           <TrackedScope>{SPILL_RANGE}</TrackedScope>
+          {getSheetOverlays().map(({ key, Component }) => (
+            <TrackedScope key={key}>
+              <Component />
+            </TrackedScope>
+          ))}
           {(context.luckysheet_selection_range?.length ?? 0) > 0 && (
             <div id="fortune-selection-copy">
               {context.luckysheet_selection_range!.map((range) => {
