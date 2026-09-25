@@ -1,3 +1,4 @@
+const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
@@ -16,6 +17,10 @@ module.exports = ({ config }) => {
     "@lofcz/tinysheet-excel$": pkg("excel"),
     "@lofcz/tinysheet-formula-parser$": pkg("formula-parser", "src/index.js"),
     uuid$: require.resolve("uuid", { paths: [pkg("core", "")] }),
+    // one React for the stories, the packages and Storybook's renderer (the
+    // react-webpack5 preset resolves these to @types/* in bun's layout)
+    react: fs.realpathSync(path.join(root, "node_modules/react")),
+    "react-dom": fs.realpathSync(path.join(root, "node_modules/react-dom")),
   };
   return config;
 };

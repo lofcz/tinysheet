@@ -1,10 +1,10 @@
+const webpackConfig = require("./webpack.config");
+
 module.exports = {
-  stories: [
-    "../stories/**/*.stories.mdx",
-    "../stories/**/*.stories.@(js|jsx|ts|tsx)",
-  ],
+  stories: ["../stories/**/*.stories.@(js|jsx|ts|tsx)"],
 
   addons: [
+    "@storybook/addon-webpack5-compiler-babel",
     "@storybook/addon-links",
     "@storybook/addon-essentials",
     "@storybook/addon-interactions",
@@ -12,11 +12,10 @@ module.exports = {
 
   framework: {
     name: "@storybook/react-webpack5",
-    options: {}
+    options: {},
   },
 
-  docs: {
-    autodocs: "tag"
-  }
-};
+  core: { disableTelemetry: true },
 
+  webpackFinal: (config) => webpackConfig({ config }),
+};
