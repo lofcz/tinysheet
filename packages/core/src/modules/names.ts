@@ -20,9 +20,16 @@
  * target cells change; changing a definition invalidates the graph and
  * recalculates the workbook (`recalculateWorkbook`).
  *
- * Relative references in a definition are made absolute when the name is
- * saved (Excel keeps them relative to the active cell; TinySheet does not
- * support that).
+ * Relative references (Excel semantics). A reference without `$` in a
+ * definition is relative to the cell that uses the name: `=Sheet1!A1`
+ * defined while B2 is active means "the cell one row up and one column
+ * left" (see `saveDefinedName`). Definitions are stored as seen from cell
+ * A1, which is also how xlsx files store them (Excel writes that name as
+ * `Sheet1!XFD1048576`: offsets wrap around the grid), and are shifted to
+ * the using cell when a formula is expanded (`offsetRelativeReferences`).
+ * The Name Manager shows them as seen from the active cell
+ * (`refersToForActiveCell`). Structural changes move only the absolute
+ * parts of name references; relative parts are offsets and stay.
  */
 import _ from "lodash";
 import { Context, getFlowdata } from "../context";
@@ -37,6 +44,7 @@ import type { StructuredRefEnv } from "./tables";
 import { resolveStructuredReference, tableIndexOf } from "./tables";
 import {
   formatRef,
+  getFormulaReferences,
   parseRef,
   ParsedRef,
   ReferenceAdjusterApi,
@@ -54,6 +62,8 @@ export type DefinedNameEntry = DefinedName & {
   sheetId: string;
   /** scope: the sheet id for sheet-scoped names, null for workbook names */
   scope: string | null;
+  /** the definition has references relative to the using cell */
+  relative?: boolean;
 };
 
 export type NameValidationError =
@@ -127,6 +137,8 @@ type NameIndex = {
   entries: DefinedNameEntry[];
   /** true when the workbook has neither names nor tables */
   empty: boolean;
+  /** some name has references relative to the using cell */
+  relative: boolean;
   /** memo of expanded formulas */
   expanded: Map<string, string>;
   deps: Map<string, FormulaDependency[]>;
@@ -159,6 +171,7 @@ export function getNameIndex(ctx: Context): NameIndex {
   const local = new Map<string, Map<string, DefinedNameEntry>>();
   const entries: DefinedNameEntry[] = [];
   let hasTables = false;
+  let relative = false;
   const files = sheetsOf(ctx);
   for (let i = 0; i < files.length; i += 1) {
     const f = peek(files[i]);
@@ -173,6 +186,11 @@ export function getNameIndex(ctx: Context): NameIndex {
         sheetId: f.id,
         scope: d.local ? f.id : null,
       };
+      // eslint-disable-next-line no-use-before-define
+      if (hasRelativeReferences(d.refersTo)) {
+        entry.relative = true;
+        relative = true;
+      }
       const upper = d.name.toUpperCase();
       if (d.local) {
         let m = local.get(f.id);
@@ -196,6 +214,7 @@ export function getNameIndex(ctx: Context): NameIndex {
     local,
     entries,
     empty: entries.length === 0 && !hasTables,
+    relative,
     expanded: new Map(),
     deps: new Map(),
   };
@@ -395,6 +414,11 @@ function expandEntry(entry: DefinedNameEntry, env: ScanEnv): string {
   let body = entry.refersTo.trim();
   if (body.startsWith("=")) body = body.slice(1).trim();
   if (!body) return NAME_ERROR;
+  // relative references are offsets from the cell using the name
+  if (entry.relative && (env.r || env.c)) {
+    // eslint-disable-next-line no-use-before-define
+    body = offsetRelativeReferences(body, env.r ?? 0, env.c ?? 0);
+  }
   if (isPureReference(body)) return body;
   env.stack.add(entry);
   try {
@@ -607,8 +631,11 @@ export function expandFormulaNames(
   if (!expr) return expr;
   const index = getNameIndex(ctx);
   if (index.empty) return expr;
-  const thisRow = expr.indexOf("[") > -1;
-  const key = thisRow ? `${sheetId}|${r}|${c}|${expr}` : `${sheetId}|${expr}`;
+  // [@Col] and relative names depend on the formula's cell
+  const positional = index.relative || expr.indexOf("[") > -1;
+  const key = positional
+    ? `${sheetId}|${r}|${c}|${expr}`
+    : `${sheetId}|${expr}`;
   const hit = index.expanded.get(key);
   if (hit != null) return hit;
   const out = scan(expr, {
@@ -669,29 +696,111 @@ export function getNameDependencies(
 /* Definitions                                                              */
 /* ------------------------------------------------------------------------ */
 
-function makeAbsolute(ref: string) {
-  return ref
-    .split(":")
-    .map((part) =>
-      part.replace(
-        /^\$?([A-Za-z]{1,3})?\$?(\d+)?$/,
-        (_m, col?: string, row?: string) =>
-          `${col ? `$${col.toUpperCase()}` : ""}${row ? `$${row}` : ""}`
-      )
-    )
-    .join(":");
+/** Whether a reference has a part without `$`. */
+function isRelativeRef(ref: ParsedRef) {
+  const rowsRelative = ref.kind !== "cols" && (!ref.ar1 || !ref.ar2);
+  const colsRelative = ref.kind !== "rows" && (!ref.ac1 || !ref.ac2);
+  return rowsRelative || colsRelative;
+}
+
+/** Whether a definition has references relative to the using cell. */
+export function hasRelativeReferences(refersTo: string) {
+  if (typeof refersTo !== "string" || !/[A-Za-z]|\d:\d/.test(refersTo)) {
+    return false;
+  }
+  return getFormulaReferences(refersTo).some(isRelativeRef);
+}
+
+function wrap(v: number, size: number) {
+  return ((v % size) + size) % size;
 }
 
 /**
- * Normalises a definition typed by the user: adds the leading "=", and makes
- * unqualified references absolute and qualified with the sheet `sheetId`
- * (`=A1:B2` on Sheet1 -> `=Sheet1!$A$1:$B$2`). Plain text that is not a
- * formula becomes a constant (`abc` -> `="abc"`, `12` -> `=12`).
+ * Moves the relative parts of every reference of `formula` by (dr, dc),
+ * wrapping around the grid like Excel's relative names (a reference one
+ * row above A1 is row 1048576). Absolute parts are kept.
+ */
+export function offsetRelativeReferences(
+  formula: string,
+  dr: number,
+  dc: number
+): string {
+  if (!formula || (!dr && !dc)) return formula;
+  return transformReferences(formula, (ref) => {
+    if (!isRelativeRef(ref)) return null;
+    const next = { ...ref };
+    if (ref.kind !== "cols") {
+      if (!ref.ar1) next.r1 = wrap(ref.r1 + dr, MAX_ROWS);
+      if (!ref.ar2) next.r2 = wrap(ref.r2 + dr, MAX_ROWS);
+    }
+    if (ref.kind !== "rows") {
+      if (!ref.ac1) next.c1 = wrap(ref.c1 + dc, MAX_COLS);
+      if (!ref.ac2) next.c2 = wrap(ref.c2 + dc, MAX_COLS);
+    }
+    if (ref.kind === "cell") {
+      next.r2 = next.r1;
+      next.c2 = next.c1;
+    }
+    return next;
+  });
+}
+
+/** The active cell (the selection's focus) of the current sheet. */
+export function activeCellOf(ctx: Context): { r: number; c: number } {
+  const last = _.last(ctx.luckysheet_select_save);
+  if (!last) return { r: 0, c: 0 };
+  return {
+    r: last.row_focus ?? last.row?.[0] ?? 0,
+    c: last.column_focus ?? last.column?.[0] ?? 0,
+  };
+}
+
+/**
+ * A stored definition as Excel's Name Manager shows it: relative
+ * references as seen from the active cell (or `base`).
+ */
+export function refersToForActiveCell(
+  ctx: Context,
+  refersTo: string,
+  base: { r: number; c: number } = activeCellOf(ctx)
+) {
+  return offsetRelativeReferences(refersTo, base.r, base.c);
+}
+
+/** One reference typed in a definition, qualified and made A1-relative. */
+function normalizeReference(
+  text: string,
+  sheetName: string | null,
+  base: { r: number; c: number }
+) {
+  const ref = parseRef(text);
+  if (!ref) return text;
+  let withSheet = ref;
+  if (ref.sheet == null && sheetName != null) {
+    withSheet = {
+      ...ref,
+      prefix: `${quoteSheetName(sheetName)}!`,
+      sheet: sheetName,
+    };
+  }
+  const out = formatRef(withSheet);
+  return offsetRelativeReferences(`=${out}`, -base.r, -base.c).slice(1);
+}
+
+/**
+ * Normalises a definition typed by the user: adds the leading "=",
+ * qualifies unqualified references with the sheet `sheetId` (`=$A$1:$B$2`
+ * on Sheet1 -> `=Sheet1!$A$1:$B$2`), and stores relative references as seen
+ * from A1 when they were typed with `base` as the active cell (`=A1` typed
+ * at B2 -> `=Sheet1!XFD1048576`, i.e. one row up and one column left of the
+ * using cell). Plain text that is not a formula becomes a constant (`abc`
+ * -> `="abc"`, `12` -> `=12`).
  */
 export function normalizeRefersTo(
   ctx: Context,
   text: string,
-  sheetId: string
+  sheetId: string,
+  base: { r: number; c: number } = { r: 0, c: 0 }
 ): string {
   let t = String(text ?? "").trim();
   if (!t) return "";
@@ -710,10 +819,13 @@ export function normalizeRefersTo(
       let end = quotedEnd(t, i, ch);
       if (ch === "'" && t[end] === "!") {
         // 'Sheet name'!A1 or 'Sheet name'!Name: keep the qualified part
-        const rest =
-          matchSticky(REF_AT, t, end + 1) ??
-          matchSticky(IDENT_AT, t, end + 1) ??
-          "";
+        const ref = matchSticky(REF_AT, t, i);
+        if (ref) {
+          out += normalizeReference(ref, sheetName, base);
+          i += ref.length;
+          continue;
+        }
+        const rest = matchSticky(IDENT_AT, t, end + 1) ?? "";
         end += 1 + rest.length;
       }
       out += t.slice(i, end);
@@ -729,10 +841,7 @@ export function normalizeRefersTo(
     }
     const ref = matchSticky(REF_AT, t, i);
     if (ref) {
-      out +=
-        ref.indexOf("!") > -1 || sheetName == null
-          ? ref
-          : `${quoteSheetName(sheetName)}!${makeAbsolute(ref)}`;
+      out += normalizeReference(ref, sheetName, base);
       i += ref.length;
       continue;
     }
@@ -830,7 +939,9 @@ export function resolveNameRange(
 ): NameRange | null {
   const entry = findDefinedName(ctx, name, sheetId);
   if (!entry) return null;
-  let body = entry.refersTo.trim();
+  let body = entry.relative
+    ? refersToForActiveCell(ctx, entry.refersTo).trim()
+    : entry.refersTo.trim();
   if (body.startsWith("=")) body = body.slice(1).trim();
   if (!isPureReference(body)) return null;
   return parseRangeText(
@@ -949,22 +1060,29 @@ function removeEntry(ctx: Context, name: string, scope: string | null) {
 /**
  * Adds a defined name (or replaces the one being edited, `previous`).
  * Returns the validation error, or null on success. The definition is
- * normalised relative to `sheetId` (default: the current sheet).
+ * normalised relative to `sheetId` (default: the current sheet): relative
+ * references are taken as typed with `base` active (default: the active
+ * cell when `sheetId` is the current sheet, else A1), as in Excel's Name
+ * Manager.
  */
 export function saveDefinedName(
   ctx: Context,
   input: DefinedNameInput,
   previous?: { name: string; scope: string | null },
-  options: { sheetId?: string; recalculate?: boolean } = {}
+  options: {
+    sheetId?: string;
+    recalculate?: boolean;
+    base?: { r: number; c: number };
+  } = {}
 ): NameValidationError | "emptyDefinition" | null {
   const scope = input.scope ?? null;
   const err = validateDefinedName(ctx, input.name, scope, previous);
   if (err) return err;
-  const refersTo = normalizeRefersTo(
-    ctx,
-    input.refersTo,
-    options.sheetId ?? ctx.currentSheetId
-  );
+  const sheetId = options.sheetId ?? ctx.currentSheetId;
+  const base =
+    options.base ??
+    (sheetId === ctx.currentSheetId ? activeCellOf(ctx) : { r: 0, c: 0 });
+  const refersTo = normalizeRefersTo(ctx, input.refersTo, sheetId, base);
   if (!refersTo) return "emptyDefinition";
   if (previous) removeEntry(ctx, previous.name, previous.scope);
   const idx = storageSheetIndex(ctx, scope);
@@ -1180,11 +1298,15 @@ export function evaluateDefinedName(
   const sheetId = entry.scope ?? ctx.currentSheetId;
   // evaluate on a shallow copy: the context may be frozen (React state)
   const tmp = { ...ctx } as Context;
+  // relative references: as seen from the active cell (Excel)
+  const formula = entry.relative
+    ? refersToForActiveCell(ctx, entry.refersTo)
+    : entry.refersTo;
   let res: any[];
   try {
     res = execfunction(
       tmp,
-      entry.refersTo,
+      formula,
       null as any,
       null as any,
       sheetId,
