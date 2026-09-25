@@ -28,7 +28,7 @@ describe(".parse() variable", () => {
     expect(parser.parse("foo")).toMatchObject({ error: null, result: "bar" });
     expect(parser.parse("SUM(baz, 2.1, 0.2)")).toMatchObject({
       error: null,
-      result: 8.899999999999999,
+      result: 8.9,
     });
   });
 });
