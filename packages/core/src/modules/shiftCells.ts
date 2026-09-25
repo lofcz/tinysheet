@@ -6,11 +6,13 @@
  * left/right) of the range move. Formulas everywhere are rewritten with the
  * same rules as Excel (see refAdjust.ts), and cell-keyed data follows the
  * cells: merges, data validation, hyperlinks, borders, conditional-format
- * ranges and the calc chain.
+ * and alternating-colour ranges, the filter range and the calc chain.
+ * Defined names, tables, charts and note boxes follow through the reference
+ * adjusters (modelSync.ts).
  */
 import _ from "lodash";
 import type { Context } from "../context";
-import type { Cell } from "../types";
+import type { Cell, Sheet } from "../types";
 import { getSheetIndex } from "../utils";
 import { delFunctionGroup } from "./formula";
 import { liveSheetConfig } from "./moveCells";
@@ -21,6 +23,8 @@ import {
   ReferenceChange,
 } from "./refAdjust";
 import { expandRowsAndColumns } from "./sheet";
+import { shiftCellsBreaksTable } from "./tables";
+import "./modelSync";
 
 type Rect = { row: [number, number]; column: [number, number] };
 
@@ -30,6 +34,107 @@ type ShiftSpec = {
   vertical: boolean;
   range: Rect;
 };
+
+/**
+ * `rect` after the shift. Only its part inside the shifted band moves, so a
+ * range wider than the band is split (conditional-format ranges, Excel);
+ * parts that are deleted disappear.
+ */
+function shiftRect(
+  rect: Rect,
+  change: ReferenceChange,
+  sheetId: string,
+  spec: ShiftSpec
+): Rect[] {
+  const key = spec.vertical ? "column" : "row";
+  const band = spec.range[key];
+  const span = rect[key];
+  const lo = Math.max(span[0], band[0]);
+  const hi = Math.min(span[1], band[1]);
+  if (lo > hi) return [rect];
+  const mid: Rect = { ...rect, [key]: [lo, hi] };
+  const moved = adjustRangeForChange(mid, change, sheetId);
+  const same = (a: Rect | null) =>
+    a != null &&
+    a.row[0] === mid.row[0] &&
+    a.row[1] === mid.row[1] &&
+    a.column[0] === mid.column[0] &&
+    a.column[1] === mid.column[1];
+  if (same(moved)) return [rect];
+  const parts: Rect[] = [];
+  if (span[0] < band[0]) parts.push({ ...rect, [key]: [span[0], band[0] - 1] });
+  if (moved) parts.push(moved);
+  if (span[1] > band[1]) parts.push({ ...rect, [key]: [band[1] + 1, span[1]] });
+  return parts;
+}
+
+/**
+ * The autofilter range follows the shift when it lies in the shifted band
+ * (its column filters move with their columns, hidden-row marks with their
+ * rows); it is removed when all its cells are deleted.
+ */
+function shiftFilter(
+  ctx: Context,
+  file: Sheet,
+  change: ReferenceChange,
+  spec: ShiftSpec,
+  map: (r: number, c: number) => [number, number] | null
+) {
+  const sel = file.filter_select;
+  if (!sel || !sel.row || !sel.column) return;
+  const rect: Rect = {
+    row: [sel.row[0], sel.row[1]],
+    column: [sel.column[0], sel.column[1]],
+  };
+  const key = spec.vertical ? "column" : "row";
+  const band = spec.range[key];
+  if (rect[key][0] < band[0] || rect[key][1] > band[1]) return;
+  const next = adjustRangeForChange(rect, change, file.id!);
+  if (
+    next &&
+    next.row[0] === rect.row[0] &&
+    next.row[1] === rect.row[1] &&
+    next.column[0] === rect.column[0] &&
+    next.column[1] === rect.column[1]
+  ) {
+    return;
+  }
+  if (!next) {
+    file.filter_select = undefined;
+    file.filter = undefined;
+  } else {
+    file.filter_select = { row: next.row, column: next.column };
+    if (file.filter) {
+      const filter: Record<string, any> = {};
+      _.forEach(file.filter, (item) => {
+        if (!item) return;
+        // a column's position: its header cell
+        const to = map(rect.row[0], item.cindex);
+        if (!to) return;
+        const rowhidden: Record<string, number> = {};
+        _.forEach(item.rowhidden, (v, n) => {
+          const moved = map(Number(n), item.cindex);
+          if (moved) rowhidden[moved[0]] = v as number;
+        });
+        const cindex = to[1];
+        filter[cindex - next.column[0]] = {
+          ...item,
+          rowhidden: spec.vertical ? rowhidden : item.rowhidden,
+          cindex,
+          str: next.row[0],
+          edr: next.row[1],
+          stc: next.column[0],
+          edc: next.column[1],
+        };
+      });
+      file.filter = filter;
+    }
+  }
+  if (file.id === ctx.currentSheetId) {
+    ctx.luckysheet_filter_save = file.filter_select;
+    ctx.filter = file.filter ?? {};
+  }
+}
 
 /** Where cell (r, c) goes; null when it is deleted. */
 function cellMapper(spec: ShiftSpec) {
@@ -91,6 +196,13 @@ function shiftCells(ctx: Context, sheetId: string, spec: ShiftSpec) {
   const cfg = liveSheetConfig(ctx, sheetId);
   const { range, vertical, insert } = spec;
   if (mergeBlocks(cfg.merge || {}, spec)) throw new Error("partMC");
+  // "This operation is not allowed. The operation is attempting to shift
+  // cells in a table on your worksheet." (Excel)
+  let shift: "down" | "up" | "right" | "left" = insert ? "right" : "left";
+  if (vertical) shift = insert ? "down" : "up";
+  if (shiftCellsBreaksTable(ctx, sheetId, range, shift)) {
+    throw new Error("tableShift");
+  }
 
   const [b1, b2] = vertical ? range.column : range.row;
   const [s1, s2] = vertical ? range.row : range.column;
@@ -220,15 +332,36 @@ function shiftCells(ctx: Context, sheetId: string, spec: ShiftSpec) {
 
   const cf = file.luckysheet_conditionformat_save;
   if (cf && cf.length > 0) {
+    // applies-to ranges: the part in the shifted band moves (Excel splits
+    // a range that is wider than the band)
     file.luckysheet_conditionformat_save = cf
       .map((rule: any) => ({
         ...rule,
-        cellrange: (rule.cellrange || [])
-          .map((rg: Rect) => adjustRangeForChange(rg, change, sheetId))
-          .filter(Boolean),
+        cellrange: (rule.cellrange || []).flatMap((rg: Rect) =>
+          shiftRect(rg, change, sheetId, spec)
+        ),
       }))
       .filter((rule: any) => rule.cellrange.length > 0);
   }
+
+  const af = file.luckysheet_alternateformat_save;
+  if (af && af.length > 0) {
+    // alternating colours are one rectangle: it moves when it lies in the
+    // shifted band, as the filter range does
+    file.luckysheet_alternateformat_save = af
+      .map((item: any) => {
+        const rg = item?.cellrange;
+        if (!rg) return item;
+        const key = vertical ? "column" : "row";
+        const band = range[key];
+        if (rg[key][0] < band[0] || rg[key][1] > band[1]) return item;
+        const next = adjustRangeForChange(rg, change, sheetId);
+        return next ? { ...item, cellrange: next } : null;
+      })
+      .filter(Boolean);
+  }
+
+  shiftFilter(ctx, file, change, spec, map);
 
   if (file.calcChain) {
     file.calcChain = file.calcChain
