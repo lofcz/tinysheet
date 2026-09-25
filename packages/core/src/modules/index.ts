@@ -70,3 +70,5 @@ export * from "./errorChecking";
 export * from "./evaluateFormula";
 export { formulaAuditLocale } from "../locale/formulaAudit";
 export type { FormulaAuditLocale } from "../locale/formulaAudit";
+export * from "./outline";
+export * from "./subtotal";

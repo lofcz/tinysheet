@@ -55,7 +55,7 @@ describe("default toolbar", () => {
       "conditionFormat formatAsTable cell-styles",
       "quick-formula clear-format filter search",
       "freeze image picture-in-cell chart sparkline link comment threaded-comment",
-      "nameManager dataVerification splitColumn locationCondition screenshot",
+      "nameManager dataVerification splitColumn outline locationCondition screenshot",
       "pageLayout print",
       "trace-precedents trace-dependents remove-arrows show-formulas error-checking evaluate-formula watch-window calculation-options",
     ]);

@@ -35,6 +35,7 @@ import { colorToArgb } from "../common/units";
 import { setDefinedNames } from "../common/definedNames";
 import { exportCalcProperties } from "../common/calcProperties";
 import { writePageSetup, writePrintNames } from "../common/pageSetup";
+import { writeOutline } from "../common/outline";
 import { setConditionalFormatting } from "./ExcelConditionFormat";
 import { writeSparklines } from "./ExcelSparkline";
 
@@ -102,6 +103,7 @@ export const sheetExportFeatures: SheetExportFeature[] = [
   { name: "cells", write: writeCells },
   // pictures placed in cells (rich values, see ExcelCellImage.ts)
   { name: "cell-images", write: writeCellImages },
+  { name: "outline", write: writeOutline },
   { name: "tables", write: writeTables },
   { name: "notes", write: writeNotes },
   // after notes: a thread's legacy note replaces a note on the same cell

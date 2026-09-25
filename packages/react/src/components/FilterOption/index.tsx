@@ -2,6 +2,7 @@ import {
   createFilterOptions,
   fixColumnStyleOverflowInFreeze,
   fixRowStyleOverflowInFreeze,
+  getOutlineGutterSize,
   getSheetIndex,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
@@ -51,14 +52,18 @@ const FilterOptions: React.FC = () => {
       setContext((draftCtx) => {
         if (draftCtx.filterContextMenu?.col === filterOptions.startCol + i)
           return;
+        // the outline gutters shift the sheet area right / down
+        const outline = getOutlineGutterSize(draftCtx);
         draftCtx.filterContextMenu = {
           x:
             v.left +
+            outline.left +
             draftCtx.rowHeaderWidth -
             refs.scrollbarX.current!.scrollLeft,
           y:
             v.top +
             23 +
+            outline.top +
             draftCtx.toolbarHeight +
             draftCtx.calculatebarHeight +
             draftCtx.columnHeaderHeight -

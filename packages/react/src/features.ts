@@ -7,6 +7,7 @@
  */
 import { registerFormulaAuditing } from "./components/FormulaAuditing/register";
 import { installSparklineUI } from "./components/Sparkline";
+import { installOutlineUI } from "./components/Outline";
 
 let loaded = false;
 
@@ -15,4 +16,5 @@ export function loadBuiltinFeatures() {
   loaded = true;
   registerFormulaAuditing();
   installSparklineUI();
+  installOutlineUI();
 }

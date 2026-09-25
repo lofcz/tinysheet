@@ -1,0 +1,143 @@
+/* Outline (Data › Group) gutters beside the row and column headers, and the
+   outline dialogs. Colours come from --fortune-* tokens. */
+
+.fortune-outline-gutter,
+.fortune-outline-corner {
+  position: absolute;
+  background: var(--fortune-header-bg);
+  color: var(--fortune-header-text);
+  overflow: hidden;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.fortune-outline-corner {
+  top: 0;
+  left: 0;
+  border-right: 1px solid var(--fortune-grid-line, var(--fortune-border));
+  border-bottom: 1px solid var(--fortune-grid-line, var(--fortune-border));
+}
+
+.fortune-outline-rows {
+  left: 0;
+  border-right: 1px solid var(--fortune-grid-line, var(--fortune-border));
+}
+
+.fortune-outline-cols {
+  top: 0;
+  border-bottom: 1px solid var(--fortune-grid-line, var(--fortune-border));
+}
+
+.fortune-outline-levels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.fortune-outline-rows > .fortune-outline-levels {
+  bottom: auto;
+  border-bottom: 1px solid var(--fortune-grid-line, var(--fortune-border));
+}
+
+.fortune-outline-cols > .fortune-outline-levels {
+  right: auto;
+  border-right: 1px solid var(--fortune-grid-line, var(--fortune-border));
+}
+
+.fortune-outline-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+}
+
+.fortune-outline-rows > .fortune-outline-body {
+  bottom: auto;
+}
+
+.fortune-outline-cols > .fortune-outline-body {
+  right: auto;
+}
+
+.fortune-outline-layer {
+  position: absolute;
+  overflow: hidden;
+}
+
+.fortune-outline-layer-content {
+  position: absolute;
+}
+
+.fortune-outline-line {
+  position: absolute;
+  box-sizing: content-box;
+  border-left: 1px solid var(--fortune-header-text);
+  border-top: 1px solid var(--fortune-header-text);
+  pointer-events: none;
+}
+
+.fortune-outline-button {
+  position: absolute;
+  box-sizing: border-box;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 9px/1 var(--fortune-font-family, sans-serif);
+  color: var(--fortune-header-text);
+  background: var(--fortune-bg);
+  border: 1px solid var(--fortune-border-strong);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.fortune-outline-button:hover {
+  background: var(--fortune-bg-hover);
+  color: var(--fortune-text);
+}
+
+.fortune-outline-button:focus-visible {
+  outline: 2px solid var(--fortune-focus-ring, var(--fortune-accent));
+  outline-offset: 1px;
+}
+
+.fortune-outline-toggle svg {
+  display: block;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  fill: none;
+}
+
+/* dialogs */
+
+.fortune-outline-dialog {
+  min-width: 320px;
+}
+
+.fortune-outline-dialog .fortune-dt-scroll {
+  max-height: 180px;
+}
+
+.fortune-outline-radios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2);
+  margin: var(--fortune-space-2) 0 var(--fortune-space-3);
+}
+
+.fortune-outline-radios label {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  cursor: pointer;
+}
+
+.fortune-outline-dialog select {
+  width: 100%;
+}

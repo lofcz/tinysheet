@@ -22,6 +22,7 @@ import { readCellImages } from "./FortuneCellImage";
 import { importCalcProperties } from "../common/calcProperties";
 // eslint-disable-next-line import/no-cycle
 import { readSparklines } from "./FortuneSparkline";
+import { readOutline } from "../common/outline";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -333,6 +334,7 @@ export const sheetImportFeatures: SheetImportFeature[] = [
   // pictures in cells (rich values, see FortuneCellImage.ts)
   { name: "cell-images", read: (ctx) => readCellImages(ctx) },
   { name: "sparklines", read: (ctx) => readSparklines(ctx) },
+  { name: "outline", read: readOutline },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 
