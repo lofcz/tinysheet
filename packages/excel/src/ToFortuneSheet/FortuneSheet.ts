@@ -18,6 +18,7 @@
   IfortunesheetHyperlink,
   IfortunesheetHyperlinkType,
   IfortunesheetDataVerification,
+  IfortunesheetDataVerificationValue,
 } from "./IFortune";
 import {
   FortuneSheetCelldata,
@@ -136,6 +137,30 @@ export function frozenFromPane(panes: Element[] | null) {
   const type: "rangeRow" | "rangeColumn" | "rangeBoth" =
     xSplit > 0 && ySplit > 0 ? "rangeBoth" : ySplit > 0 ? "rangeRow" : "rangeColumn";
   return { type, range };
+}
+
+const DV_RANGE_RE =
+  /^(?:(?:'[^']+'|[^!'"]+)!)?\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?$/;
+
+/** Top-left cell (0-based) of the first range of a sqref ("B2:C5 E1"). */
+function sqrefAnchor(sqref: string | null): { r: number; c: number } | null {
+  const first = String(sqref ?? "")
+    .trim()
+    .split(/\s+/)[0];
+  const m = /^\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?$/.exec(
+    first
+  );
+  if (!m) return null;
+  const col = (letters: string) =>
+    letters
+      .toUpperCase()
+      .split("")
+      .reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+  const r1 = parseInt(m[2], 10) - 1;
+  const c1 = col(m[1]);
+  const r2 = m[4] ? parseInt(m[4], 10) - 1 : r1;
+  const c2 = m[3] ? col(m[3]) : c1;
+  return { r: Math.min(r1, r2), c: Math.min(c1, c2) };
 }
 
 /** Excel data-validation operators -> TinySheet `type2`. */
@@ -2217,12 +2242,33 @@ export class FortuneSheet extends FortuneSheetBase {
       let _value1: string | number = valueArr?.length >= 1 ? valueArr[0] : "";
       let _value2: string | number = valueArr?.length >= 2 ? valueArr[1] : "";
       let _hint = escapeCharacter(getXmlAttibute(attrList, "prompt", null));
+      let _hintTitle = escapeCharacter(
+        getXmlAttibute(attrList, "promptTitle", null)
+      );
       let showInput = getXmlAttibute(attrList, "showInputMessage", "0");
       let showError = getXmlAttibute(attrList, "showErrorMessage", "0");
       let errorStyle = getXmlAttibute(attrList, "errorStyle", "stop");
-      let _hintShow = !!_hint && (showInput == "1" || showInput == "true");
-      let _prohibitInput =
-        (showError == "1" || showError == "true") && errorStyle == "stop";
+      if (errorStyle !== "warning" && errorStyle !== "information") {
+        errorStyle = "stop";
+      }
+      let allowBlank = getXmlAttibute(attrList, "allowBlank", "0");
+      let _hintShow =
+        !!(_hint || _hintTitle) && (showInput == "1" || showInput == "true");
+      // an error alert of any style (Stop blocks the input, Warning and
+      // Information ask)
+      let _prohibitInput = showError == "1" || showError == "true";
+      let _errorTitle = escapeCharacter(
+        getXmlAttibute(attrList, "errorTitle", null)
+      );
+      let _errorMessage = escapeCharacter(
+        getXmlAttibute(attrList, "error", null)
+      );
+      // Excel reads the rule's relative references from the top-left cell
+      // of its first range: TinySheet keeps that cell as the rule's anchor.
+      let _anchor = sqrefAnchor(sqref);
+      // a bound written as a formula ("B1", "$C$1*2") stays a formula
+      const asBound = (value: string | number) =>
+        value === "" || isFinite(Number(value)) ? value : `=${value}`;
 
       if (_type === "date") {
         _type2 = DV_DATE_OPERATORS[operator] || "between";
@@ -2239,9 +2285,18 @@ export class FortuneSheet extends FortuneSheetBase {
       } else if (_type === "dropdown") {
         // "a,b,c" -> a,b,c ; ranges stay references
         const list = String(_value1).replace(/^=/, "");
-        _value1 = /^".*"$/s.test(list)
-          ? list.slice(1, -1).replace(/""/g, '"')
-          : list;
+        if (/^".*"$/s.test(list)) {
+          _value1 = list.slice(1, -1).replace(/""/g, '"');
+        } else if (
+          DV_RANGE_RE.test(list) ||
+          /^[A-Za-z_\\][A-Za-z0-9_.\\]*$/.test(list)
+        ) {
+          // ranges and defined names are list sources as they are
+          _value1 = list;
+        } else {
+          // any other formula (OFFSET(...), INDIRECT(...), ...)
+          _value1 = `=${list}`;
+        }
       } else if (_type === "text_content") {
         // Custom formulas generated for "contains / excludes / equals" rules.
         const text = String(_value1);
@@ -2266,11 +2321,15 @@ export class FortuneSheet extends FortuneSheetBase {
         }
       } else {
         _type2 = DV_OPERATORS[operator] || "between";
+        if (_type !== "checkbox") {
+          _value1 = asBound(_value1);
+          _value2 = asBound(_value2);
+        }
       }
 
       // dynamically add dataVerifications
       for (const ref of sqrefIndexArr) {
-        dataVerification[ref] = {
+        const item: IfortunesheetDataVerificationValue = {
           type: _type as any,
           type2: _type2,
           value1: _value1,
@@ -2281,7 +2340,14 @@ export class FortuneSheet extends FortuneSheetBase {
           hintShow: _hintShow,
           hintText: _hint,
           hintValue: _hint || "",
-        } as any;
+          ignoreBlank: allowBlank == "1" || allowBlank == "true",
+        };
+        if (_hintTitle) item.hintTitle = _hintTitle;
+        if (_prohibitInput) item.errorStyle = errorStyle as any;
+        if (_errorTitle) item.errorTitle = _errorTitle;
+        if (_errorMessage) item.errorMessage = _errorMessage;
+        if (_anchor) item.anchor = { ..._anchor };
+        dataVerification[ref] = item;
       }
     }
 
