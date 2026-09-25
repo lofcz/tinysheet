@@ -197,7 +197,27 @@ pass `bun run test:formula-parser`, `bun run test:jest` and `bun run build`.
 - **T63** Make `tsc --noEmit` pass (React types resolution, strictness fixes) and add typecheck and lint for every package to CI; fix `formula-parser` lint (`babel-eslint`).
 - **T64** Playwright e2e suite on the static Storybook build (formulas, spill, autocomplete, keyboard, theme, CF, paste) that runs in CI; docs updates for all new options and shortcuts.
 
-## Phase 3: in progress (15 streams, T65–T119)
+## Phase 3 status: delivered
+
+All 15 streams (T65–T119) are merged. Every check passes: `tsc`, `lint`
+(0 errors), jest (2683), formula-parser vitest (2127), excel (128), and the
+Playwright e2e suite (89).
+
+Merged: pictures in cells (IMAGE, Place in Cell), PivotTables with
+GETPIVOTDATA, outline and subtotals, formula auditing and calculation
+options, sparklines, new chart types, checkboxes and data tools (Flash Fill,
+Advanced Filter, Goal Seek, data tables), page layout and printing,
+protection and view options, time-sliced recalculation, editing gaps,
+threaded comments, shapes and text boxes, table filters and slicers, and
+xlsx robustness and localisation.
+
+The streams' separate plug-in hooks now share one registry per layer:
+
+* react `features.ts`: every built-in feature registers its toolbar items, overlays and menu entries from `loadBuiltinFeatures()`, which runs on the first registry lookup. This avoids registering from module top level, which bundlers tree-shake.
+* react `registerContextMenuItem`: an item object, or a builder that returns entries and submenus.
+* excel `registerXlsxPostProcessor`: every zip-level writer runs on one open package, in a documented order. This covers sparklines, protection, table extras, charts, shapes, PivotTables and checkboxes.
+
+## Phase 3 plan (15 streams, T65–T119)
 
 Close the fixable phase 2 gaps and add the Excel features that are still
 missing entirely. Same rules as before. In addition, features plug into shared
@@ -206,8 +226,9 @@ code through the extension registries instead of editing it:
 * `registerCellDecorator` (core): draw cell backgrounds, replacement content or foreground marks on the canvas.
 * `registerShortcut` (core): keyboard shortcuts.
 * `registerToolbarItem` / `registerSheetOverlay` (react): toolbar items and components in the cell area.
-* `registerContextMenuAction` (react): context-menu entries.
+* `registerContextMenuAction` / `registerContextMenuItem` (react): context-menu entries.
 * `sheetExportFeatures` / `sheetImportFeatures` (excel): xlsx writers and readers.
+* `registerXlsxPostProcessor` (excel): zip-level edits of the written package.
 
 ### R1 · Images in cells
 - **T65** `IMAGE(source, [alt_text], [sizing], [height], [width])` renders the picture inside the cell (sizing 0–3, async load and cache, placeholder while loading, `#VALUE!` on bad input, spills for arrays).
