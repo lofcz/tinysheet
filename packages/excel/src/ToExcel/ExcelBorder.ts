@@ -1,6 +1,7 @@
 import ExcelJS from "@protobi/exceljs";
 import { IBorderInfo, IBorderInfoCompute, IBorderSide } from "../common/ICommon";
 import { getObjType, rgb2hex } from "../common/method";
+import { colorToArgb } from "../common/units";
 
 var setBorder = function (lucksheetfile: any, worksheet: ExcelJS.Worksheet) {
   if (!lucksheetfile) return;
@@ -12,7 +13,7 @@ var setBorder = function (lucksheetfile: any, worksheet: ExcelJS.Worksheet) {
       1: "thin",
       2: "hair",
       3: "dotted",
-      4: "dashDot", // 'Dashed',
+      4: "dashed",
       5: "dashDot",
       6: "dashDotDot",
       7: "double",
@@ -36,7 +37,7 @@ var setBorder = function (lucksheetfile: any, worksheet: ExcelJS.Worksheet) {
         info.t.color.indexOf("rgb") > -1 ? rgb2hex(info.t.color) : info.t.color;
       border["top"] = {
         style: luckyToExcel.style[info.t.style],
-        color: { argb: tcolor.replace("#", "") },
+        color: { argb: colorToArgb(tcolor) ?? "FF000000" },
       };
     }
     if (info.r != undefined) {
@@ -44,7 +45,7 @@ var setBorder = function (lucksheetfile: any, worksheet: ExcelJS.Worksheet) {
         info.r.color.indexOf("rgb") > -1 ? rgb2hex(info.r.color) : info.r.color;
       border["right"] = {
         style: luckyToExcel.style[info.r.style],
-        color: { argb: rcolor.replace("#", "") },
+        color: { argb: colorToArgb(rcolor) ?? "FF000000" },
       };
     }
     if (info.b != undefined) {
@@ -52,7 +53,7 @@ var setBorder = function (lucksheetfile: any, worksheet: ExcelJS.Worksheet) {
         info.b.color.indexOf("rgb") > -1 ? rgb2hex(info.b.color) : info.b.color;
       border["bottom"] = {
         style: luckyToExcel.style[info.b.style],
-        color: { argb: bcolor.replace("#", "") },
+        color: { argb: colorToArgb(bcolor) ?? "FF000000" },
       };
     }
     if (info.l != undefined) {
@@ -60,7 +61,7 @@ var setBorder = function (lucksheetfile: any, worksheet: ExcelJS.Worksheet) {
         info.l.color.indexOf("rgb") > -1 ? rgb2hex(info.l.color) : info.l.color;
       border["left"] = {
         style: luckyToExcel.style[info.l.style],
-        color: { argb: lcolor.replace("#", "") },
+        color: { argb: colorToArgb(lcolor) ?? "FF000000" },
       };
     }
     worksheet.getCell(row + 1, column + 1).border = border;

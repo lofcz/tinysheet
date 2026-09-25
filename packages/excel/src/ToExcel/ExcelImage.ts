@@ -40,35 +40,41 @@ var setImages = function (table: any, worksheet: any, workbook: any) {
     const myBase64Image = images[key].src;
     //开始行 开始列 结束行 结束列
     const item = images[key];
+    // Charts (chartSpec) are exported by the chart feature; SVG and remote
+    // images cannot be embedded as pictures.
+    const mime = /^data:image\/(png|jpe?g|gif);base64,/i.exec(
+      String(myBase64Image || "")
+    );
+    if (item?.chartSpec || !mime) continue;
     const imageId = workbook.addImage({
       base64: myBase64Image,
-      extension: "png",
+      extension: mime[1].toLowerCase().replace("jpg", "jpeg") as any,
     });
 
     if (!visibledatacolumn || !visibledatarow) {
       const defaultColWidth = localTable.defaultColWidth || 73;
       const defaultRowHeight = localTable.defaultRowHeight || 19;
-      
-      const rowCount = localTable.data.length;
-      const colCount = localTable.data[0].length;
-      
+
+      const rowCount = Math.max(localTable.data?.length || 0, 200);
+      const colCount = Math.max(localTable.data?.[0]?.length || 0, 60);
+
       visibledatacolumn = [];
       visibledatarow = [];
 
       let lastVal = 0;
-      for (let i=0; i<rowCount; i++) {
-        const rowHeight = (localTable.config?.rowlen?.[i] || defaultRowHeight);
+      for (let i = 0; i < rowCount; i++) {
+        const rowHeight = localTable.config?.rowlen?.[i] || defaultRowHeight;
         const rowPosition = lastVal + rowHeight;
-        
+
         visibledatarow.push(rowPosition);
         lastVal = rowPosition;
       }
 
       lastVal = 0;
-      for (let i=0; i<colCount; i++) {
-        const colWidth = (localTable.config?.columnlen?.[i] || defaultColWidth);
+      for (let i = 0; i < colCount; i++) {
+        const colWidth = localTable.config?.columnlen?.[i] || defaultColWidth;
         const colPosition = lastVal + colWidth;
-        
+
         visibledatacolumn.push(colPosition);
         lastVal = colPosition;
       }

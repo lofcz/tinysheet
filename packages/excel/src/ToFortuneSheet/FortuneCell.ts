@@ -8,13 +8,9 @@ import {
   getColor,
   getlineStringAttr,
 } from "./ReadXml";
-import {
-  getcellrange,
-  escapeCharacter,
-  isChinese,
-  isJapanese,
-  isKoera,
-} from "../common/method";
+import { formatValue } from "@lofcz/tinysheet-core";
+import { getcellrange, escapeCharacter } from "../common/method";
+import { fromExcelFormula } from "../common/formulaText";
 import {
   ST_CellType,
   borderTypes,
@@ -30,72 +26,44 @@ import {
   FortuneSheetCellFormat,
 } from "./FortuneBase";
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const SHORT_MONTH_NAMES = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-const LONG_MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-const SHORT_WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const LONG_WEEKDAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
+export type FortuneCellWorkbookInfo = {
+  /** The workbook uses the 1904 date system (serials are shifted on import). */
+  date1904?: boolean;
+};
 
-type ExcelDateFormatPart = ExcelDateFormatLiteralPart | ExcelDateFormatTokenPart;
+/** Days between the 1900 and 1904 date systems. */
+const DATE1904_OFFSET = 1462;
 
-interface ExcelDateFormatLiteralPart {
-  type: "literal";
-  value: string;
+/** Cell font attributes a rich-text run inherits when it does not set them. */
+const INHERITED_RUN_KEYS = ["ff", "fc", "fs", "cl", "un", "bl", "it"];
+
+/** Whether a number format shows a date or time (first section). */
+export function isDateFormat(fa: string | null | undefined) {
+  if (!fa || /^general$/i.test(fa)) return false;
+  return formatHasDate(fa) || formatHasTime(fa);
 }
 
-interface ExcelDateFormatTokenPart {
-  type: "token";
-  token: string;
-  length: number;
-  value: string;
-  elapsed?: boolean;
+function formatHasDate(fa: string) {
+  const f = stripFormatLiterals(fa.split(";")[0]).toLowerCase();
+  if (/[yd]/.test(f) || /(^|[^a-z])e+([^a-z]|$)/.test(f)) return true;
+  const mm = f.replace(/h+[^a-z0-9]*m+/g, "").replace(/m+[^a-z0-9]*s/g, "");
+  return /m/.test(mm);
 }
 
-interface ExcelDateParts {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  second: number;
-  weekday: number;
-  elapsedHours: number;
-  elapsedMinutes: number;
-  elapsedSeconds: number;
+function formatHasTime(fa: string) {
+  const raw = fa.split(";")[0];
+  if (/\[(h+|m+|s+)\]/i.test(raw)) return true;
+  const f = stripFormatLiterals(raw).toLowerCase();
+  return /[hs]/.test(f) || /am\/pm|a\/p/.test(f);
+}
+
+function stripFormatLiterals(fa: string) {
+  return fa
+    .replace(/"[^"]*"/g, "")
+    .replace(/\\./g, "")
+    .replace(/_./g, "")
+    .replace(/\*./g, "")
+    .replace(/\[[^\]]*\]/g, "");
 }
 
 export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
@@ -103,6 +71,10 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
   _fomulaRef: string;
   _formulaSi: string;
   _formulaType: string;
+  /** `ref` of an array formula master (`<f t="array" ref=...>`). */
+  _arrayRef: string;
+  /** The array formula carries dynamic-array cell metadata (`cm`). */
+  _dynamicArray: boolean;
 
   private sheetFile: string;
   private readXml: ReadXml;
@@ -110,6 +82,7 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
   private styles: IStyleCollections;
   private sharedStrings: Element[];
   private mergeCells: Element[];
+  private workbookInfo: FortuneCellWorkbookInfo;
 
   constructor(
     cell: Element,
@@ -117,7 +90,8 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
     sharedStrings: Element[],
     mergeCells: Element[],
     sheetFile: string,
-    ReadXml: ReadXml
+    ReadXml: ReadXml,
+    workbookInfo: FortuneCellWorkbookInfo = {}
   ) {
     //Private
     super();
@@ -127,6 +101,7 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
     this.sharedStrings = sharedStrings;
     this.readXml = ReadXml;
     this.mergeCells = mergeCells;
+    this.workbookInfo = workbookInfo;
 
     let attrList = cell.attributeList;
     let r = attrList.r,
@@ -147,46 +122,43 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
     let v = this.cell.getInnerElements("v");
     let f = this.cell.getInnerElements("f");
 
-    if (v == null) {
-      v = this.cell.getInnerElements("t");
-    }
-
     let cellXfs = this.styles["cellXfs"] as Element[];
     let cellStyleXfs = this.styles["cellStyleXfs"] as Element[];
-    let cellStyles = this.styles["cellStyles"] as Element[];
     let fonts = this.styles["fonts"] as Element[];
     let fills = this.styles["fills"] as Element[];
     let borders = this.styles["borders"] as Element[];
     let numfmts = this.styles["numfmts"] as IattributeList;
     let clrScheme = this.styles["clrScheme"] as Element[];
 
-    let sharedStrings = this.sharedStrings;
     let cellValue = new FortuneSheetCelldataValue();
 
     if (f != null) {
       let formula = f[0],
         attrList = formula.attributeList;
-      let t = attrList.t,
+      let ft = attrList.t,
         ref = attrList.ref,
         si = attrList.si;
       let formulaValue = f[0].value;
-      if (t == "shared") {
+      if (ft == "shared") {
         this._fomulaRef = ref;
-        this._formulaType = t;
+        this._formulaType = ft;
         this._formulaSi = si;
+      } else if (ft == "array" && ref != null) {
+        this._formulaType = ft;
+        this._arrayRef = ref;
+        this._dynamicArray = this.cell.attributeList.cm != null;
       }
-      // console.log(ref, t, si);
-      if (ref != null || (formulaValue != null && formulaValue.length > 0)) {
-        formulaValue = escapeCharacter(formulaValue);
-        cellValue.f = (formulaValue.startsWith('=') ? "" : "=") + formulaValue;
+      if (formulaValue != null && formulaValue.length > 0) {
+        cellValue.f = fromExcelFormula(escapeCharacter(formulaValue));
       }
     }
+
 
     let familyFont = null;
     let quotePrefix;
     if (s != null) {
       let sNum = parseInt(s);
-      let cellXf = cellXfs[sNum];
+      let cellXf = cellXfs[sNum] ?? cellXfs[0] ?? new Element("<xf/>");
       let xfId = cellXf.attributeList.xfId;
 
       let numFmtId, fontId, fillId, borderId;
@@ -199,7 +171,8 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
         applyProtection;
 
       if (xfId != null) {
-        let cellStyleXf = cellStyleXfs[parseInt(xfId)];
+        let cellStyleXf =
+          cellStyleXfs[parseInt(xfId)] ?? new Element("<xf/>");
         let attrList = cellStyleXf.attributeList;
 
         let applyNumberFormat = attrList.applyNumberFormat;
@@ -306,9 +279,7 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
       if (numFmtId != undefined) {
         let numf = numfmts[parseInt(numFmtId)];
         let cellFormat = new FortuneSheetCellFormat();
-        cellFormat.fa = escapeCharacter(numf);
-        // console.log(numf, numFmtId, this.v);
-        cellFormat.t = t || "n";
+        cellFormat.fa = numf != null ? escapeCharacter(numf) : "General";
         cellValue.ct = cellFormat;
       }
 
@@ -339,7 +310,7 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
           if (sz != null && sz.length > 0) {
             let fs = sz[0].attributeList.val;
             if (fs != null) {
-              cellValue.fs = parseInt(fs);
+              cellValue.fs = parseFloat(fs);
             }
           }
 
@@ -394,7 +365,7 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
 
           if (underlines != null && underlines.length > 0) {
             let underline = underlines[0].attributeList.val;
-            if (underline == "single") {
+            if (underline == null || underline == "single") {
               cellValue.un = 1;
             } else if (underline == "double") {
               cellValue.un = 2;
@@ -471,7 +442,7 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
       if (textRotation != undefined) {
         // tr: number | undefined //Text rotation,0: 0、1: 45 、2: -45、3 Vertical text、4: 90 、5: -90, alignment
         if (textRotation == "255") {
-          cellValue.tr = 3;
+          cellValue.tr = "3" as any;
         }
         // else if(textRotation=="45"){
         //     cellValue.tr = 1;
@@ -486,7 +457,7 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
         //     cellValue.tr = 5;
         // }
         else {
-          cellValue.tr = 0;
+          cellValue.tr = "0" as any;
           cellValue.rt = parseInt(textRotation);
         }
       }
@@ -572,358 +543,7 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
       cellValue.tb = "1";
     }
 
-    if (v != null) {
-      let value = v[0].value;
-
-      if (/&#\d+;/.test(value)) {
-        value = this.htmlDecode(value);
-      }
-
-      if (t == ST_CellType["SharedString"]) {
-        let siIndex = parseInt(v[0].value);
-        let sharedSI = sharedStrings[siIndex];
-
-        let rFlag = sharedSI.getInnerElements("r");
-        if (rFlag == null) {
-          let tFlag = sharedSI.getInnerElements("t");
-          if (tFlag != null) {
-            let text = "";
-            tFlag.forEach((t) => {
-              text += t.value;
-            });
-
-            text = escapeCharacter(text);
-
-            //isContainMultiType(text) &&
-            if (familyFont == "Roman" && text.length > 0) {
-              let textArray = text.split("");
-              let preWordType: string = null,
-                wordText = "",
-                preWholef: string = null;
-              let wholef = "Times New Roman";
-              if (cellValue.ff != null) {
-                wholef = cellValue.ff;
-              }
-
-              let cellFormat = cellValue.ct;
-              if (cellFormat == null) {
-                cellFormat = new FortuneSheetCellFormat();
-              }
-
-              if (cellFormat.s == null) {
-                cellFormat.s = [];
-              }
-
-              for (let i = 0; i < textArray.length; i++) {
-                let w = textArray[i];
-                let type: string = null,
-                  ff = wholef;
-
-                if (isChinese(w)) {
-                  type = "c";
-                  ff = "宋体";
-                } else if (isJapanese(w)) {
-                  type = "j";
-                  ff = "Yu Gothic";
-                } else if (isKoera(w)) {
-                  type = "k";
-                  ff = "Malgun Gothic";
-                } else {
-                  type = "e";
-                }
-
-                if (
-                  (type != preWordType && preWordType != null) ||
-                  i == textArray.length - 1
-                ) {
-                  let InlineString: any = {};
-
-                  InlineString.ff = preWholef;
-
-                  if (cellValue.fc != null) {
-                    InlineString.fc = cellValue.fc;
-                  }
-
-                  if (cellValue.fs != null) {
-                    InlineString.fs = cellValue.fs;
-                  }
-
-                  if (cellValue.cl != null) {
-                    InlineString.cl = cellValue.cl;
-                  }
-
-                  if (cellValue.un != null) {
-                    InlineString.un = cellValue.un;
-                  }
-
-                  if (cellValue.bl != null) {
-                    InlineString.bl = cellValue.bl;
-                  }
-
-                  if (cellValue.it != null) {
-                    InlineString.it = cellValue.it;
-                  }
-
-                  if (i == textArray.length - 1) {
-                    if (type == preWordType) {
-                      InlineString.ff = ff;
-                      InlineString.v = wordText + w;
-                    } else {
-                      InlineString.ff = preWholef;
-                      InlineString.v = wordText;
-                      cellFormat.s.push(InlineString);
-
-                      let InlineStringLast: any = {};
-                      InlineStringLast.ff = ff;
-                      InlineStringLast.v = w;
-                      if (cellValue.fc != null) {
-                        InlineStringLast.fc = cellValue.fc;
-                      }
-
-                      if (cellValue.fs != null) {
-                        InlineStringLast.fs = cellValue.fs;
-                      }
-
-                      if (cellValue.cl != null) {
-                        InlineStringLast.cl = cellValue.cl;
-                      }
-
-                      if (cellValue.un != null) {
-                        InlineStringLast.un = cellValue.un;
-                      }
-
-                      if (cellValue.bl != null) {
-                        InlineStringLast.bl = cellValue.bl;
-                      }
-
-                      if (cellValue.it != null) {
-                        InlineStringLast.it = cellValue.it;
-                      }
-                      cellFormat.s.push(InlineStringLast);
-
-                      break;
-                    }
-                  } else {
-                    InlineString.v = wordText;
-                  }
-
-                  cellFormat.s.push(InlineString);
-
-                  wordText = w;
-                } else {
-                  wordText += w;
-                }
-
-                preWordType = type;
-                preWholef = ff;
-              }
-
-              cellFormat.t = "inlineStr";
-              // cellFormat.s = [InlineString];
-              cellValue.ct = cellFormat;
-              // console.log(cellValue);
-            } else {
-              text = this.replaceSpecialWrap(text);
-
-              if (text.indexOf("\r\n") > -1 || text.indexOf("\n") > -1) {
-                let InlineString: any = {};
-                InlineString.v = text;
-                let cellFormat = cellValue.ct;
-                if (cellFormat == null) {
-                  cellFormat = new FortuneSheetCellFormat();
-                }
-
-                if (cellValue.ff != null) {
-                  InlineString.ff = cellValue.ff;
-                }
-
-                if (cellValue.fc != null) {
-                  InlineString.fc = cellValue.fc;
-                }
-
-                if (cellValue.fs != null) {
-                  InlineString.fs = cellValue.fs;
-                }
-
-                if (cellValue.cl != null) {
-                  InlineString.cl = cellValue.cl;
-                }
-
-                if (cellValue.un != null) {
-                  InlineString.un = cellValue.un;
-                }
-
-                if (cellValue.bl != null) {
-                  InlineString.bl = cellValue.bl;
-                }
-
-                if (cellValue.it != null) {
-                  InlineString.it = cellValue.it;
-                }
-
-                cellFormat.t = "inlineStr";
-                cellFormat.s = [InlineString];
-                cellValue.ct = cellFormat;
-              } else {
-                cellValue.v = text;
-                quotePrefix = "1";
-              }
-            }
-          }
-        } else {
-          let styles: any = [];
-          rFlag.forEach((r) => {
-            let tFlag = r.getInnerElements("t");
-            let rPr = r.getInnerElements("rPr");
-
-            let InlineString: any = {};
-
-            if (tFlag != null && tFlag.length > 0) {
-              let text = tFlag[0].value;
-              text = this.replaceSpecialWrap(text);
-              text = escapeCharacter(text);
-              InlineString.v = text;
-            }
-
-            if (rPr != null && rPr.length > 0) {
-              let frpr = rPr[0];
-              let sz = getlineStringAttr(frpr, "sz"),
-                rFont = getlineStringAttr(frpr, "rFont"),
-                family = getlineStringAttr(frpr, "family"),
-                charset = getlineStringAttr(frpr, "charset"),
-                scheme = getlineStringAttr(frpr, "scheme"),
-                b = getlineStringAttr(frpr, "b"),
-                i = getlineStringAttr(frpr, "i"),
-                u = getlineStringAttr(frpr, "u"),
-                strike = getlineStringAttr(frpr, "strike"),
-                vertAlign = getlineStringAttr(frpr, "vertAlign"),
-                color;
-
-              let cEle = frpr.getInnerElements("color");
-              if (cEle != null && cEle.length > 0) {
-                color = getColor(cEle[0], this.styles, "t");
-              }
-
-              let ff;
-              // if(family!=null){
-              //     ff = fontFamilys[family];
-              // }
-              if (rFont != null) {
-                ff = rFont;
-              }
-              if (ff != null) {
-                InlineString.ff = ff;
-              } else if (cellValue.ff != null) {
-                InlineString.ff = cellValue.ff;
-              }
-
-              if (color != null) {
-                InlineString.fc = color;
-              } else if (cellValue.fc != null) {
-                InlineString.fc = cellValue.fc;
-              }
-
-              if (sz != null) {
-                InlineString.fs = parseInt(sz);
-              } else if (cellValue.fs != null) {
-                InlineString.fs = cellValue.fs;
-              }
-
-              if (strike != null) {
-                InlineString.cl = parseInt(strike);
-              } else if (cellValue.cl != null) {
-                InlineString.cl = cellValue.cl;
-              }
-
-              if (u != null) {
-                InlineString.un = parseInt(u);
-              } else if (cellValue.un != null) {
-                InlineString.un = cellValue.un;
-              }
-
-              if (b != null) {
-                InlineString.bl = parseInt(b);
-              } else if (cellValue.bl != null) {
-                InlineString.bl = cellValue.bl;
-              }
-
-              if (i != null) {
-                InlineString.it = parseInt(i);
-              } else if (cellValue.it != null) {
-                InlineString.it = cellValue.it;
-              }
-
-              if (vertAlign != null) {
-                InlineString.va = parseInt(vertAlign);
-              }
-
-              // ff:string | undefined //font family
-              // fc:string | undefined//font color
-              // fs:number | undefined//font size
-              // cl:number | undefined//strike
-              // un:number | undefined//underline
-              // bl:number | undefined//blod
-              // it:number | undefined//italic
-              // v:string | undefined
-            } else {
-              if (InlineString.ff == null && cellValue.ff != null) {
-                InlineString.ff = cellValue.ff;
-              }
-
-              if (InlineString.fc == null && cellValue.fc != null) {
-                InlineString.fc = cellValue.fc;
-              }
-
-              if (InlineString.fs == null && cellValue.fs != null) {
-                InlineString.fs = cellValue.fs;
-              }
-
-              if (InlineString.cl == null && cellValue.cl != null) {
-                InlineString.cl = cellValue.cl;
-              }
-
-              if (InlineString.un == null && cellValue.un != null) {
-                InlineString.un = cellValue.un;
-              }
-
-              if (InlineString.bl == null && cellValue.bl != null) {
-                InlineString.bl = cellValue.bl;
-              }
-
-              if (InlineString.it == null && cellValue.it != null) {
-                InlineString.it = cellValue.it;
-              }
-            }
-
-            styles.push(InlineString);
-          });
-
-          let cellFormat = cellValue.ct;
-          if (cellFormat == null) {
-            cellFormat = new FortuneSheetCellFormat();
-          }
-          cellFormat.t = "inlineStr";
-          cellFormat.s = styles;
-          cellValue.ct = cellFormat;
-        }
-      }
-      // to be confirmed
-      else if (t == ST_CellType["InlineString"] && v != null) {
-        cellValue.v = `${value}`;
-      } else {
-        value = escapeCharacter(value);
-        // Generators (openpyxl/XlsxWriter) often emit `<v></v>` for formulas that
-        // were never calculated. An empty string would render as a blank cell and
-        // block host recalculation — leave `v` unset so `f` can be evaluated.
-        if (cellValue.f != null && (value == null || value === "")) {
-          // keep v undefined
-        } else {
-          cellValue.v = value;
-        }
-      }
-    }
-
-    this.setDateDisplayValue(cellValue);
+    this.assignValue(cellValue, t, v);
 
     if (quotePrefix != null) {
       cellValue.qp = parseInt(quotePrefix);
@@ -932,293 +552,186 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
     return cellValue;
   }
 
-  private setDateDisplayValue(cellValue: FortuneSheetCelldataValue) {
-    if (
-      cellValue.ct == null ||
-      cellValue.ct.fa == null ||
-      cellValue.v == null ||
-      (cellValue.ct.t != ST_CellType["Number"] &&
-        cellValue.ct.t != ST_CellType["Date"])
-    ) {
-      return;
-    }
-
-    const numericValue = Number(cellValue.v);
-    if (!isFinite(numericValue)) {
-      return;
-    }
-
-    try {
-      const formattedDate = this.formatExcelDate(cellValue.ct.fa, numericValue);
-      if (formattedDate == null) {
-        return;
-      }
-
-      cellValue.m = formattedDate;
-      cellValue.ct.t = ST_CellType["Date"];
-    } catch (e) {
-      return;
-    }
-  }
-
-  private formatExcelDate(format: string, serialValue: number): string | null {
-    const section = this.getFirstFormatSection(format);
-    const parts = this.tokenizeDateFormat(section);
-
-    if (!this.hasDateFormatToken(parts)) {
-      return null;
-    }
-
-    const dateParts = this.getExcelDateParts(serialValue);
-    const use12HourClock = /A\/P|AM\/PM/i.test(section);
-    let result = "";
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (part.type == "literal") {
-        result += part.value;
-        continue;
-      }
-
-      result += this.formatDateToken(
-        part,
-        this.getDateToken(parts, i, -1),
-        this.getDateToken(parts, i, 1),
-        dateParts,
-        use12HourClock
-      );
-    }
-
-    return result;
-  }
-
-  private getFirstFormatSection(format: string): string {
-    let inQuote = false;
-
-    for (let i = 0; i < format.length; i++) {
-      const char = format.charAt(i);
-      if (char == "\\") {
-        i++;
-      } else if (char == "\"") {
-        inQuote = !inQuote;
-      } else if (char == ";" && !inQuote) {
-        return format.slice(0, i);
-      }
-    }
-
-    return format;
-  }
-
-  private tokenizeDateFormat(format: string): ExcelDateFormatPart[] {
-    const parts: ExcelDateFormatPart[] = [];
-
-    for (let i = 0; i < format.length; i++) {
-      const char = format.charAt(i);
-      const lowerChar = char.toLowerCase();
-
-      if (char == "\"") {
-        let value = "";
-        i++;
-        while (i < format.length && format.charAt(i) != "\"") {
-          value += format.charAt(i);
-          i++;
-        }
-        if (value.length > 0) {
-          parts.push({ type: "literal", value });
-        }
-      } else if (char == "\\") {
-        if (i + 1 < format.length) {
-          parts.push({ type: "literal", value: format.charAt(i + 1) });
-          i++;
-        }
-      } else if (char == "_" || char == "*") {
-        i++;
-      } else if (char == "[") {
-        const endIndex = format.indexOf("]", i + 1);
-        if (endIndex == -1) {
-          parts.push({ type: "literal", value: char });
-          continue;
-        }
-
-        const bracketValue = format.slice(i + 1, endIndex).toLowerCase();
-        if (/^[hms]+$/.test(bracketValue)) {
-          parts.push({
-            type: "token",
-            token: bracketValue.charAt(0),
-            length: bracketValue.length,
-            value: bracketValue,
-            elapsed: true,
-          });
-        }
-        i = endIndex;
-      } else if (/^AM\/PM/i.test(format.slice(i))) {
-        parts.push({ type: "token", token: "ampm", length: 5, value: "AM/PM" });
-        i += 4;
-      } else if (/^A\/P/i.test(format.slice(i))) {
-        parts.push({ type: "token", token: "ampm", length: 3, value: "A/P" });
-        i += 2;
-      } else if (/[ymdhs]/.test(lowerChar)) {
-        let value = char;
-        while (
-          i + 1 < format.length &&
-          format.charAt(i + 1).toLowerCase() == lowerChar
-        ) {
-          value += format.charAt(i + 1);
-          i++;
-        }
-        parts.push({
-          type: "token",
-          token: lowerChar,
-          length: value.length,
-          value,
-        });
-      } else {
-        parts.push({ type: "literal", value: char });
-      }
-    }
-
-    return parts;
-  }
-
-  private hasDateFormatToken(parts: ExcelDateFormatPart[]): boolean {
-    for (let i = 0; i < parts.length; i++) {
-      if (parts[i].type == "token") {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  private getDateToken(
-    parts: ExcelDateFormatPart[],
-    index: number,
-    direction: number
-  ): ExcelDateFormatTokenPart | null {
-    for (let i = index + direction; i >= 0 && i < parts.length; i += direction) {
-      const part = parts[i];
-      if (part.type == "token") {
-        return part;
-      }
-    }
-
-    return null;
-  }
-
-  private formatDateToken(
-    part: ExcelDateFormatTokenPart,
-    previousToken: ExcelDateFormatTokenPart | null,
-    nextToken: ExcelDateFormatTokenPart | null,
-    dateParts: ExcelDateParts,
-    use12HourClock: boolean
-  ): string {
-    if (part.token == "ampm") {
-      if (part.value.toUpperCase() == "A/P") {
-        return dateParts.hour < 12 ? "A" : "P";
-      }
-      return dateParts.hour < 12 ? "AM" : "PM";
-    }
-
-    if (part.token == "y") {
-      if (part.length <= 2) {
-        return this.pad(dateParts.year % 100, 2);
-      }
-      return this.pad(dateParts.year, part.length);
-    }
-
-    if (part.token == "d") {
-      if (part.length == 1) {
-        return dateParts.day.toString();
-      }
-      if (part.length == 2) {
-        return this.pad(dateParts.day, 2);
-      }
-      if (part.length == 3) {
-        return SHORT_WEEKDAY_NAMES[dateParts.weekday];
-      }
-      return LONG_WEEKDAY_NAMES[dateParts.weekday];
-    }
-
-    if (part.token == "h") {
-      let hour = part.elapsed ? dateParts.elapsedHours : dateParts.hour;
-      if (use12HourClock && !part.elapsed) {
-        hour = hour % 12;
-        if (hour == 0) {
-          hour = 12;
-        }
-      }
-      return part.length > 1 ? this.pad(hour, part.length) : hour.toString();
-    }
-
-    if (part.token == "m") {
-      const isMinute =
-        part.elapsed ||
-        (previousToken != null && previousToken.token == "h") ||
-        (nextToken != null && nextToken.token == "s");
-      if (isMinute) {
-        const minute = part.elapsed ? dateParts.elapsedMinutes : dateParts.minute;
-        return part.length > 1 ? this.pad(minute, part.length) : minute.toString();
-      }
-
-      if (part.length == 1) {
-        return dateParts.month.toString();
-      }
-      if (part.length == 2) {
-        return this.pad(dateParts.month, 2);
-      }
-      if (part.length == 3) {
-        return SHORT_MONTH_NAMES[dateParts.month - 1];
-      }
-      if (part.length == 4) {
-        return LONG_MONTH_NAMES[dateParts.month - 1];
-      }
-      return SHORT_MONTH_NAMES[dateParts.month - 1].charAt(0);
-    }
-
-    if (part.token == "s") {
-      const second = part.elapsed ? dateParts.elapsedSeconds : dateParts.second;
-      return part.length > 1 ? this.pad(second, part.length) : second.toString();
-    }
-
-    return part.value;
-  }
-
-  private getExcelDateParts(serialValue: number): ExcelDateParts {
-    const wholeDays = Math.floor(serialValue);
-    const fraction = serialValue - wholeDays;
-    let days = wholeDays > 59 ? wholeDays - 1 : wholeDays;
-    let milliseconds = Math.round(fraction * MS_PER_DAY);
-
-    if (milliseconds >= MS_PER_DAY) {
-      days += Math.floor(milliseconds / MS_PER_DAY);
-      milliseconds = milliseconds % MS_PER_DAY;
-    }
-
-    const date = new Date(
-      Date.UTC(1899, 11, 31) + days * MS_PER_DAY + milliseconds
-    );
-
-    return {
-      year: date.getUTCFullYear(),
-      month: date.getUTCMonth() + 1,
-      day: date.getUTCDate(),
-      hour: date.getUTCHours(),
-      minute: date.getUTCMinutes(),
-      second: date.getUTCSeconds(),
-      weekday: date.getUTCDay(),
-      elapsedHours: Math.floor(serialValue * 24),
-      elapsedMinutes: Math.floor(serialValue * 24 * 60),
-      elapsedSeconds: Math.floor(serialValue * 24 * 60 * 60),
+  /** Cell value (v / m / ct) from the cell's type and `<v>` / `<is>`. */
+  private assignValue(
+    cellValue: FortuneSheetCelldataValue,
+    t: string,
+    v: Element[] | null
+  ) {
+    const fa = cellValue.ct?.fa;
+    const setType = (type: string, format?: string) => {
+      const ct = cellValue.ct ?? new FortuneSheetCellFormat();
+      ct.fa = format ?? ct.fa ?? "General";
+      ct.t = type;
+      cellValue.ct = ct;
     };
+
+    if (t == ST_CellType["SharedString"]) {
+      if (v == null) return;
+      const si = this.sharedStrings[parseInt(v[0].value)];
+      if (si != null) this.assignStringItem(cellValue, si);
+      return;
+    }
+
+    if (t == ST_CellType["InlineString"]) {
+      const is = this.cell.getInnerElements("is");
+      if (is != null) this.assignStringItem(cellValue, is[0]);
+      return;
+    }
+
+    if (v == null) {
+      if (cellValue.ct != null && cellValue.ct.t == null) cellValue.ct.t = "n";
+      return;
+    }
+    let raw = v[0].value ?? "";
+    if (/&#\d+;/.test(raw)) raw = this.htmlDecode(raw);
+    raw = escapeCharacter(raw);
+
+    // Generators (openpyxl/XlsxWriter) often emit `<v></v>` for formulas
+    // that were never calculated: leave `v` unset so the formula is evaluated.
+    if (raw === "" && cellValue.f != null) return;
+
+    if (t == ST_CellType["Boolean"]) {
+      const b = raw === "1" || raw.toUpperCase() === "TRUE";
+      cellValue.v = b as any;
+      cellValue.m = b ? "TRUE" : "FALSE";
+      setType("b", "General");
+      return;
+    }
+    if (t == ST_CellType["Error"]) {
+      cellValue.v = raw;
+      cellValue.m = raw;
+      setType("e");
+      return;
+    }
+    if (t == ST_CellType["String"]) {
+      const text = this.replaceSpecialWrap(raw);
+      cellValue.v = text;
+      cellValue.m = text;
+      setType(fa === "@" ? "s" : "g");
+      return;
+    }
+
+    // Numbers (t="n" or no type) and ISO dates (t="d").
+    let num = Number(raw);
+    if (t == ST_CellType["Date"] && isNaN(num)) {
+      const ms = Date.parse(raw);
+      if (!isNaN(ms)) num = ms / 86400000 + 25569;
+    }
+    if (raw.trim() === "" || !isFinite(num)) {
+      cellValue.v = raw;
+      setType("g");
+      return;
+    }
+    const format = fa ?? "General";
+    const isDate = isDateFormat(format);
+    if (isDate && this.workbookInfo.date1904) num += DATE1904_OFFSET;
+    cellValue.v = num as any;
+    cellValue.m = formatValue(format, num);
+    setType(isDate ? "d" : "n", format);
   }
 
-  private pad(value: number, length: number): string {
-    let result = value.toString();
-    while (result.length < length) {
-      result = "0" + result;
+  /** Text or rich text of a shared-string / inline-string item. */
+  private assignStringItem(cellValue: FortuneSheetCelldataValue, si: Element) {
+    // Phonetic runs (<rPh>) are not part of the text.
+    const item = new Element(
+      si.elementString.replace(/<rPh\b[\s\S]*?<\/rPh>/g, "")
+    );
+    let rFlag = item.getInnerElements("r");
+    if (rFlag == null) {
+      let tFlag = item.getInnerElements("t");
+      let text = "";
+      if (tFlag != null) {
+        tFlag.forEach((tt) => {
+          text += tt.value;
+        });
+      }
+      text = this.replaceSpecialWrap(escapeCharacter(text));
+      if (text.indexOf("\r\n") > -1 || text.indexOf("\n") > -1) {
+        let InlineString: any = { v: text.replace(/\r?\n/g, "\r\n") };
+        for (const key of INHERITED_RUN_KEYS) {
+          if ((cellValue as any)[key] != null) {
+            InlineString[key] = (cellValue as any)[key];
+          }
+        }
+        let cellFormat = cellValue.ct ?? new FortuneSheetCellFormat();
+        cellFormat.fa = cellFormat.fa ?? "General";
+        cellFormat.t = "inlineStr";
+        cellFormat.s = [InlineString];
+        cellValue.ct = cellFormat;
+      } else {
+        cellValue.v = text;
+        cellValue.m = text;
+        let cellFormat = cellValue.ct ?? new FortuneSheetCellFormat();
+        cellFormat.fa = cellFormat.fa ?? "General";
+        cellFormat.t = cellFormat.fa === "@" ? "s" : "g";
+        cellValue.ct = cellFormat;
+        // Keep numeric-looking text as text when edited.
+        cellValue.qp = 1;
+      }
+      return;
     }
-    return result;
+
+    let styles: any = [];
+    rFlag.forEach((r) => {
+      let tFlag = r.getInnerElements("t");
+      let rPr = r.getInnerElements("rPr");
+
+      let InlineString: any = {};
+
+      if (tFlag != null && tFlag.length > 0) {
+        let text = tFlag[0].value;
+        text = this.replaceSpecialWrap(escapeCharacter(text));
+        InlineString.v = text.replace(/\r?\n/g, "\r\n");
+      }
+
+      if (rPr != null && rPr.length > 0) {
+        let frpr = rPr[0];
+        let sz = getlineStringAttr(frpr, "sz"),
+          rFont = getlineStringAttr(frpr, "rFont"),
+          b = getlineStringAttr(frpr, "b"),
+          i = getlineStringAttr(frpr, "i"),
+          u = getlineStringAttr(frpr, "u"),
+          strike = getlineStringAttr(frpr, "strike"),
+          vertAlign = getlineStringAttr(frpr, "vertAlign"),
+          color;
+
+        let cEle = frpr.getInnerElements("color");
+        if (cEle != null && cEle.length > 0) {
+          color = getColor(cEle[0], this.styles, "t");
+        }
+
+        const pick = (key: string, own: any, parse = (x: any) => x) => {
+          if (own != null) InlineString[key] = parse(own);
+          else if ((cellValue as any)[key] != null)
+            InlineString[key] = (cellValue as any)[key];
+        };
+        pick("ff", rFont);
+        pick("fc", color);
+        pick("fs", sz, (x) => parseFloat(x));
+        pick("cl", strike, (x) => parseInt(x));
+        pick("un", u, (x) => parseInt(x));
+        pick("bl", b, (x) => parseInt(x));
+        pick("it", i, (x) => parseInt(x));
+        if (vertAlign != null) InlineString.va = parseInt(vertAlign);
+      } else {
+        for (const key of INHERITED_RUN_KEYS) {
+          if (InlineString[key] == null && (cellValue as any)[key] != null) {
+            InlineString[key] = (cellValue as any)[key];
+          }
+        }
+      }
+
+      styles.push(InlineString);
+    });
+
+    let cellFormat = cellValue.ct ?? new FortuneSheetCellFormat();
+    cellFormat.fa = cellFormat.fa ?? "General";
+    cellFormat.t = "inlineStr";
+    cellFormat.s = styles;
+    cellValue.ct = cellFormat;
   }
+
 
   private replaceSpecialWrap(text: string): string {
     text = text
