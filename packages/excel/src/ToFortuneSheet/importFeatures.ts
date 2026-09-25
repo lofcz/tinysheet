@@ -10,11 +10,12 @@
  * Sheet readers run after a sheet was parsed, in array order; workbook
  * readers run once after every sheet was parsed.
  */
+import { applyTableFormatting } from "@lofcz/tinysheet-core";
 import { ReadXml, Element, IStyleCollections } from "./ReadXml";
 import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
-import type { FortuneSheet } from "./FortuneSheet";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
+import type { FortuneSheet } from "./FortuneSheet";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -257,8 +258,44 @@ export function parseTablePart(xml: string) {
 }
 
 /**
- * Table parts -> `sheet.tables`. Formulas inside a table refer to it
- * unqualified, as in Excel's formula bar (`[@Price]`, `[Sales]`).
+ * Write a table's look (header, total and band fills, bold rows) into its
+ * cells, as TinySheet keeps it (core's applyTableFormatting): Excel draws
+ * it from the table style instead. Fills the file sets itself are kept.
+ */
+function applyTableLook(sheet: FortuneSheet, table: any) {
+  const [r1, r2] = table.range.row;
+  const [c1, c2] = table.range.column;
+  const inside = (r: number, c: number) =>
+    r >= r1 && r <= r2 && c >= c1 && c <= c2;
+  const entries = new Map<string, any>();
+  sheet.celldata.forEach((cell) => {
+    if (inside(cell.r, cell.c)) entries.set(`${cell.r}_${cell.c}`, cell);
+  });
+  const data: any[][] = [];
+  for (let r = r1; r <= r2; r += 1) {
+    data[r] = [];
+    for (let c = c1; c <= c2; c += 1) {
+      const v = entries.get(`${r}_${c}`)?.v;
+      data[r][c] = v && typeof v === "object" ? v : null;
+    }
+  }
+  const id = "__import__";
+  applyTableFormatting({ luckysheetfile: [{ id, data }] } as any, id, table);
+  for (let r = r1; r <= r2; r += 1) {
+    for (let c = c1; c <= c2; c += 1) {
+      const v = data[r][c];
+      if (!v || Object.keys(v).length === 0) continue;
+      const entry = entries.get(`${r}_${c}`);
+      if (entry) entry.v = v;
+      else sheet.celldata.push({ r, c, v });
+    }
+  }
+}
+
+/**
+ * Table parts -> `sheet.tables`, with their look written into the cells.
+ * Formulas inside a table refer to it unqualified, as in Excel's formula
+ * bar (`[@Price]`, `[Sales]`).
  */
 export function readTables(ctx: SheetImportContext) {
   const tables = partRelationships(ctx.files, ctx.sheetFile)
@@ -270,6 +307,7 @@ export function readTables(ctx: SheetImportContext) {
     );
   if (tables.length === 0) return;
   (ctx.sheet as any).tables = tables;
+  tables.forEach((table) => applyTableLook(ctx.sheet, table));
   ctx.sheet.celldata.forEach((cell) => {
     const v = cell.v as any;
     if (!v || typeof v.f !== "string" || v.f.indexOf("[") < 0) return;

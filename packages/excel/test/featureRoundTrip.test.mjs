@@ -3,8 +3,11 @@
 // notes shown permanently.
 import test from "node:test";
 import assert from "node:assert/strict";
+import ExcelJS from "@protobi/exceljs";
 import {
   cellMap,
+  excelJsBytes,
+  importXlsx,
   readWithExcelJS,
   roundTrip,
   sheetByName,
@@ -127,10 +130,10 @@ test("data validation: anchors, error styles and input messages", async () => {
   assert.match(xml, /<formula2>\$A\$1<\/formula2>/);
 
   const dv = sheetByName(result, "DV").dataVerification;
-  for (const key of ["1_1", "2_1", "3_1"]) {
+  ["1_1", "2_1", "3_1"].forEach((key) => {
     assert.equal(dv[key].value1, "B2>A2");
     assert.deepEqual(dv[key].anchor, { r: 1, c: 1 });
-  }
+  });
   // re-anchored at the rule's new top-left cell, formula shifted with it
   assert.equal(dv["2_3"].value1, "D3>C3");
   assert.deepEqual(dv["2_3"].anchor, { r: 2, c: 3 });
@@ -213,6 +216,38 @@ test("tables become xlsx table parts and come back", async () => {
   assert.equal(map.get("5_0").f, "=AVERAGE(Sales[Price])");
   assert.equal(map.get("0_1").v, "Price");
   assert.equal(map.get("1_1").v, 2);
+});
+
+test("tables made in Excel get TinySheet's table look", async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("X");
+  ws.addTable({
+    name: "People",
+    ref: "B2",
+    headerRow: true,
+    style: { theme: "TableStyleMedium7", showRowStripes: true },
+    columns: [{ name: "Name" }, { name: "Age" }],
+    rows: [
+      ["Ann", 31],
+      ["Bob", 42],
+    ],
+  });
+  ws.getCell("D3").value = { formula: "People[[#This Row],[Age]]+1" };
+  const result = await importXlsx(await excelJsBytes(wb));
+  const sheetX = sheetByName(result, "X");
+  assert.deepEqual(sheetX.tables[0].range, { row: [1, 3], column: [1, 2] });
+  assert.deepEqual(
+    sheetX.tables[0].columns.map((c) => c.name),
+    ["Name", "Age"]
+  );
+  const map = cellMap(sheetX);
+  // header fill and font, first band filled, second band plain
+  assert.equal(map.get("1_1").bg, "#70AD47");
+  assert.equal(map.get("1_1").bl, 1);
+  assert.equal(map.get("2_2").bg, "#E2EFDA");
+  assert.equal(map.get("3_2").bg, undefined);
+  // outside the table: references stay qualified
+  assert.equal(map.get("2_3").f, "=People[[#This Row],[Age]]+1");
 });
 
 test("notes shown permanently keep Excel's visible flag", async () => {
