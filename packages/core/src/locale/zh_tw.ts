@@ -941,6 +941,7 @@ export default {
     specialSame: "相同",
   },
   sheetconfig: {
+    insert: "插入",
     delete: "删除",
     copy: "複製",
     rename: "重命名",

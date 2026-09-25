@@ -1,19 +1,17 @@
 import {
   Sheet,
-  editSheetName,
-  cancelNormalSelected,
-  cancelActiveImgItem,
   locale,
   getGroupedSheetIds,
-  onSheetTabActivated,
+  renameSheet,
   selectSheetRange,
+  sheetNameErrorMessage,
   toggleSheetInGroup,
   checkWorkbookStructure,
   isWorkbookStructureProtected,
   isEditingFormula,
   switchSheetWhileEditing,
+  validateSheetName,
 } from "@lofcz/tinysheet-core";
-import _ from "lodash";
 import React, {
   useContext,
   useState,
@@ -25,22 +23,26 @@ import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import SVGIcon from "../SVGIcon";
 import { activateOnKey } from "../Toolbar/Button";
+import { activateSheetTab } from "./activate";
 
 type Props = {
   sheet: Sheet;
-  isDropPlaceholder?: boolean;
+  /** the tab is being dragged to another position */
+  dragging?: boolean;
 };
 
-const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
+const SheetItem: React.FC<Props> = ({ sheet, dragging }) => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const [editing, setEditing] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const editingRef = useRef(false);
+  editingRef.current = editing;
+  // remounts the name after editing: the browser edited its text node
+  const [nameKey, setNameKey] = useState(0);
   const editable = useRef<HTMLSpanElement>(null);
-  const [dragOver, setDragOver] = useState(false);
   const { showAlert } = useAlert();
   const { info } = locale(context);
-  const isGrouped =
-    !isDropPlaceholder && getGroupedSheetIds(context).includes(sheet.id!);
+  const isGrouped = getGroupedSheetIds(context).includes(sheet.id!);
+  const isActive = context.currentSheetId === sheet.id;
   /** The editor with the formula being edited (cell editor or formula bar). */
   const formulaEditor = useCallback(
     () =>
@@ -51,160 +53,123 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   );
 
   useEffect(() => {
-    setContext((draftCtx) => {
-      // leaving Point mode across sheets already restored the edited cell's
-      // sheet (and a commit may have moved its selection since)
-      if (draftCtx.sheetScrollRestoredFor === draftCtx.currentSheetId) return;
-      draftCtx.sheetScrollRestoredFor = undefined;
-      const r = context.sheetScrollRecord[draftCtx?.currentSheetId];
-      if (r) {
-        draftCtx.scrollLeft = r.scrollLeft ?? 0;
-        draftCtx.scrollTop = r.scrollTop ?? 0;
-        draftCtx.luckysheet_select_status = r.luckysheet_select_status ?? false;
-        draftCtx.luckysheet_select_save = r.luckysheet_select_save ?? undefined;
-      } else {
-        draftCtx.scrollLeft = 0;
-        draftCtx.scrollTop = 0;
-        draftCtx.luckysheet_select_status = false;
-        draftCtx.luckysheet_select_save = undefined;
-      }
-      draftCtx.luckysheet_selection_range = [];
-    });
-  }, [context.currentSheetId, context.sheetScrollRecord, setContext]);
-
-  useEffect(() => {
-    if (!editable.current) return;
-    if (editing) {
-      // select all when enter editing mode
-      if (window.getSelection) {
-        const range = document.createRange();
-        range.selectNodeContents(editable.current);
-        if (
-          range.startContainer &&
-          document.body.contains(range.startContainer)
-        ) {
-          const selection = window.getSelection();
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-        }
-        // @ts-ignore
-      } else if (document.selection) {
-        // @ts-ignore
-        const range = document.body.createTextRange();
-        range.moveToElementText(editable.current);
-        range.select();
-      }
-    }
-
-    // store the current text
-    editable.current.dataset.oldText = editable.current.innerText;
+    const el = editable.current;
+    if (!el || !editing) return;
+    // select the whole name when renaming starts
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
   }, [editing]);
 
-  const onBlur = useCallback(() => {
-    setContext((draftCtx) => {
-      try {
-        editSheetName(draftCtx, editable.current!);
-      } catch (e: any) {
-        showAlert(e.message);
-      }
-    });
-    setEditing(false);
-  }, [setContext, showAlert]);
-
-  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLSpanElement>) => {
-    if (e.key === "Enter") {
-      editable.current?.blur();
+  const startRename = useCallback(() => {
+    if (context.allowEdit === false) return;
+    if (isWorkbookStructureProtected(context)) {
+      setContext((ctx) => {
+        checkWorkbookStructure(ctx);
+      });
+      return;
     }
-    e.stopPropagation();
-  }, []);
+    setEditing(true);
+  }, [context, setContext]);
 
-  const onDragStart = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      if (context.allowEdit === true)
-        e.dataTransfer.setData("sheetId", `${sheet.id}`);
-      e.stopPropagation();
+  /**
+   * Ends renaming: commits the typed name, or with `cancel` drops it. From
+   * the keyboard (Enter, Esc) the grid gets the focus back.
+   */
+  const finishRename = useCallback(
+    (cancel: boolean, fromKeyboard = false) => {
+      if (!editingRef.current) return;
+      editingRef.current = false;
+      const text = (editable.current?.innerText ?? "").replace(/[\r\n]+/g, "");
+      setEditing(false);
+      // (right away: a delayed focus could end the next rename)
+      if (fromKeyboard) refs.cellInput.current?.focus({ preventScroll: true });
+      setNameKey((k) => k + 1);
+      window.getSelection()?.removeAllRanges();
+      if (cancel || text === sheet.name) return;
+      const error = validateSheetName(context, text, sheet.id);
+      if (error) {
+        showAlert(sheetNameErrorMessage(context, error));
+        return;
+      }
+      setContext((draftCtx) => {
+        renameSheet(draftCtx, sheet.id!, text);
+      });
     },
-    [context.allowEdit, sheet.id]
+    [context, refs.cellInput, setContext, sheet.id, sheet.name, showAlert]
   );
 
-  const onDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      if (context.allowEdit === false) return;
-      const draggingId = e.dataTransfer.getData("sheetId");
-      setContext((draftCtx) => {
-        if (!checkWorkbookStructure(draftCtx)) return;
-        const droppingId = sheet.id;
-        let draggingSheet: Sheet | undefined;
-        let droppingSheet: Sheet | undefined;
-        _.sortBy(draftCtx.luckysheetfile, ["order"]).forEach((f, i) => {
-          f.order = i;
-          if (f.id === draggingId) {
-            draggingSheet = f;
-          } else if (f.id === droppingId) {
-            droppingSheet = f;
-          }
-        });
-        if (draggingSheet && droppingSheet) {
-          draggingSheet.order = droppingSheet.order! - 0.1;
-          // re-order all sheets
-          _.sortBy(draftCtx.luckysheetfile, ["order"]).forEach((f, i) => {
-            f.order = i;
-          });
-        } else if (draggingSheet && isDropPlaceholder) {
-          draggingSheet.order = draftCtx.luckysheetfile.length;
-        }
-      });
-      setDragOver(false);
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLSpanElement>) => {
       e.stopPropagation();
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        finishRename(false, true);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        finishRename(true, true);
+      }
     },
-    [context.allowEdit, isDropPlaceholder, setContext, sheet.id]
+    [finishRename]
+  );
+
+  const openMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const rect = refs.workbookContainer.current!.getBoundingClientRect();
+      const { clientX, clientY } = e;
+      setContext((ctx) => {
+        // the sheet is shown first (a right-click inside a group keeps it)
+        if (!getGroupedSheetIds(ctx).includes(sheet.id!)) {
+          activateSheetTab(
+            ctx,
+            sheet.id!,
+            refs.globalCache,
+            refs.cellInput.current
+          );
+        }
+        ctx.showSheetList = undefined;
+        ctx.sheetTabContextMenu = {
+          x: clientX - rect.left,
+          y: clientY - rect.top,
+          sheet,
+          onRename: () => setEditing(true),
+        };
+      });
+    },
+    [
+      refs.cellInput,
+      refs.globalCache,
+      refs.workbookContainer,
+      setContext,
+      sheet,
+    ]
   );
 
   return (
     <div
       role="tab"
-      aria-selected={context.currentSheetId === sheet.id || isGrouped}
-      onKeyDown={activateOnKey}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      aria-selected={isActive || isGrouped}
+      data-sheet-id={sheet.id}
+      onKeyDown={(e) => {
+        if (editing) return;
+        activateOnKey(e);
       }}
-      onDragEnter={(e) => {
-        setDragOver(true);
-        e.stopPropagation();
-      }}
-      onDragLeave={(e) => {
-        setDragOver(false);
-        e.stopPropagation();
-      }}
-      onDragEnd={(e) => {
-        setDragOver(false);
-        e.stopPropagation();
-      }}
-      onDrop={onDrop}
-      onDragStart={onDragStart}
-      draggable={
-        context.allowEdit && !editing && !isWorkbookStructureProtected(context)
-      }
-      key={sheet.id}
-      ref={containerRef}
-      className={
-        isDropPlaceholder
-          ? "fortune-sheettab-placeholder"
-          : `luckysheet-sheets-item${
-              context.currentSheetId === sheet.id
-                ? " luckysheet-sheets-item-active"
-                : ""
-            }${isGrouped ? " luckysheet-sheets-item-grouped" : ""}`
-      }
+      className={`luckysheet-sheets-item${
+        isActive ? " luckysheet-sheets-item-active" : ""
+      }${isGrouped ? " luckysheet-sheets-item-grouped" : ""}${
+        dragging ? " luckysheet-sheets-item-dragging" : ""
+      }`}
       onMouseDown={(e) => {
         // Point mode across sheets: the formula keeps the focus
-        if (!isDropPlaceholder && isEditingFormula(context, formulaEditor())) {
+        if (isEditingFormula(context, formulaEditor())) {
           e.preventDefault();
         }
       }}
       onClick={(e) => {
-        if (isDropPlaceholder) return;
+        if (editing) return;
         // editing a formula: show the sheet to pick references on it
         const editor = formulaEditor();
         if (isEditingFormula(context, editor)) {
@@ -222,82 +187,64 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
           return;
         }
         setContext((draftCtx) => {
-          onSheetTabActivated(draftCtx, sheet.id!);
-          draftCtx.sheetScrollRecord[draftCtx.currentSheetId] = {
-            scrollLeft: draftCtx.scrollLeft,
-            scrollTop: draftCtx.scrollTop,
-            luckysheet_select_status: draftCtx.luckysheet_select_status,
-            luckysheet_select_save: draftCtx.luckysheet_select_save,
-            luckysheet_selection_range: draftCtx.luckysheet_selection_range,
-          };
-          draftCtx.dataVerificationDropDownList = false;
-          draftCtx.currentSheetId = sheet.id!;
-          draftCtx.zoomRatio = sheet.zoomRatio || 1;
-          cancelActiveImgItem(draftCtx, refs.globalCache);
-          cancelNormalSelected(draftCtx);
+          activateSheetTab(
+            draftCtx,
+            sheet.id!,
+            refs.globalCache,
+            refs.cellInput.current
+          );
         });
+        // clicked with the mouse: keys go to the grid again (Excel), so
+        // Ctrl+PageDown or typing work right away
+        if (e.detail > 0)
+          refs.cellInput.current?.focus({ preventScroll: true });
+      }}
+      onDoubleClick={(e) => {
+        if (
+          editing ||
+          (e.target as HTMLElement).closest(".luckysheet-sheets-item-function")
+        ) {
+          return;
+        }
+        e.preventDefault();
+        startRename();
       }}
       tabIndex={0}
       onContextMenu={(e) => {
-        if (isDropPlaceholder) return;
-        const rect = refs.workbookContainer.current!.getBoundingClientRect();
-        const { pageX, pageY } = e;
-        setContext((ctx) => {
-          // 右击的时候先进行跳转 (a right-click inside a group keeps it)
-          if (!getGroupedSheetIds(ctx).includes(sheet.id!)) {
-            onSheetTabActivated(ctx, sheet.id!);
-            ctx.dataVerificationDropDownList = false;
-            ctx.currentSheetId = sheet.id!;
-            ctx.zoomRatio = sheet.zoomRatio || 1;
-          }
-          ctx.sheetTabContextMenu = {
-            x: pageX - rect.left - window.scrollX,
-            y: pageY - rect.top - window.scrollY,
-            sheet,
-            onRename: () => setEditing(true),
-          };
-        });
+        if (editing) return;
+        openMenu(e);
       }}
       style={{
-        borderLeft: dragOver ? "2px solid var(--fortune-accent)" : "",
         display: sheet.hide === 1 ? "none" : "",
       }}
     >
       <span
+        key={nameKey}
         className="luckysheet-sheets-item-name"
         spellCheck="false"
         suppressContentEditableWarning
-        contentEditable={isDropPlaceholder ? false : editing}
-        onDoubleClick={() => {
-          if (isWorkbookStructureProtected(context)) {
-            setContext((ctx) => {
-              checkWorkbookStructure(ctx);
-            });
-          } else setEditing(true);
+        contentEditable={editing ? "plaintext-only" : false}
+        onBlur={() => finishRename(false)}
+        onKeyDown={editing ? onKeyDown : undefined}
+        onPaste={(e) => {
+          if (!editing) return;
+          // one line of plain text
+          e.preventDefault();
+          const text = e.clipboardData
+            .getData("text/plain")
+            .replace(/[\r\n]+/g, " ");
+          document.execCommand("insertText", false, text);
         }}
-        onBlur={onBlur}
-        onKeyDown={onKeyDown}
         ref={editable}
-        style={dragOver ? { pointerEvents: "none" } : {}}
       >
         {sheet.name}
       </span>
       <span
         className="luckysheet-sheets-item-function"
         onClick={(e) => {
-          if (isDropPlaceholder || context.allowEdit === false) return;
-          const rect = refs.workbookContainer.current!.getBoundingClientRect();
-          const { pageX, pageY } = e;
-          setContext((ctx) => {
-            // 右击的时候先进行跳转
-            ctx.currentSheetId = sheet.id!;
-            ctx.sheetTabContextMenu = {
-              x: pageX - rect.left - window.scrollX,
-              y: pageY - rect.top - window.scrollY,
-              sheet,
-              onRename: () => setEditing(true),
-            };
-          });
+          e.stopPropagation();
+          if (context.allowEdit === false) return;
+          openMenu(e);
         }}
         onKeyDown={activateOnKey}
         tabIndex={0}

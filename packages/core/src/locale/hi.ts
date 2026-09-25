@@ -910,6 +910,7 @@ export default {
     specialSame: "समान",
   },
   sheetconfig: {
+    insert: "डालें",
     delete: "हटाएं",
     copy: "कॉपी करें",
     rename: "नाम बदलें",

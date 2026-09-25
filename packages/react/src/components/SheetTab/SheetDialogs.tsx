@@ -10,6 +10,7 @@ import React, { useContext, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import { activateOnKey } from "../Toolbar/Button";
+import { activateSheetTab } from "./activate";
 
 const END = "__end__";
 
@@ -49,7 +50,7 @@ const DialogButtons: React.FC<{
  * pointing at the copy). The moved or copied sheet becomes active.
  */
 export const MoveOrCopyDialog: React.FC<{ sheet: Sheet }> = ({ sheet }) => {
-  const { context, setContext } = useContext(WorkbookContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
   const { hideDialog } = useDialog();
   const { sheetconfig } = locale(context);
   const sheets = _.sortBy(context.luckysheetfile, (s) => Number(s.order));
@@ -61,6 +62,7 @@ export const MoveOrCopyDialog: React.FC<{ sheet: Sheet }> = ({ sheet }) => {
 
   const onOk = () => {
     hideDialog();
+    refs.cellInput.current?.focus({ preventScroll: true });
     const beforeId = before === END ? null : before;
     if (copy) {
       setContext(
@@ -70,7 +72,7 @@ export const MoveOrCopyDialog: React.FC<{ sheet: Sheet }> = ({ sheet }) => {
           });
           if (id) {
             ctx.groupedSheetIds = undefined;
-            ctx.currentSheetId = id;
+            activateSheetTab(ctx, id, refs.globalCache);
           }
         },
         { addSheetOp: true }
@@ -125,7 +127,7 @@ export const MoveOrCopyDialog: React.FC<{ sheet: Sheet }> = ({ sheet }) => {
 
 /** Excel's Unhide dialog, with several sheets selectable at once. */
 export const UnhideDialog: React.FC = () => {
-  const { context, setContext } = useContext(WorkbookContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
   const { hideDialog } = useDialog();
   const { sheetconfig } = locale(context);
   const hidden = _.sortBy(
@@ -148,6 +150,7 @@ export const UnhideDialog: React.FC = () => {
 
   const onOk = () => {
     hideDialog();
+    refs.cellInput.current?.focus({ preventScroll: true });
     if (picked.length === 0) return;
     setContext((ctx) => {
       unhideSheets(ctx, picked);

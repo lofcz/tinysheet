@@ -43,9 +43,17 @@
   padding: 0px 0px;
   margin-left: var(--fortune-space-1);
   position: relative;
-  max-width: 54%;
+  /* as wide as the tabs, shrinking (and scrolling) when they do not fit */
+  flex: 0 1 auto;
+  min-width: 0;
   vertical-align: bottom;
   display: inline-block;
+}
+
+#luckysheet-sheet-content > .fortune-sheettab-button,
+#luckysheet-sheet-content > .sheet-list-container,
+#luckysheet-sheet-content > .fortune-sheettab-scroll {
+  flex: none;
 }
 
 .fortune-sheettab-container .boundary {
@@ -234,6 +242,47 @@
 
 .fortune-sheettab-scroll:hover {
   background-color: var(--fortune-bg-hover);
+}
+
+.fortune-sheettab-scroll.disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.fortune-sheettab-scroll.disabled:hover {
+  background-color: transparent;
+}
+
+/* Reordering tabs by dragging: the insertion point and the dragged tab */
+.fortune-sheettab-drop-indicator {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--fortune-accent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.fortune-sheettab-drop-indicator::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -4px;
+  border: 5px solid transparent;
+  border-top-color: var(--fortune-accent);
+  border-bottom-width: 0;
+}
+
+.fortune-sheettab-dragging,
+.fortune-sheettab-dragging .luckysheet-sheets-item,
+.luckysheet-sheet-area div.luckysheet-sheets-item-dragging {
+  cursor: grabbing;
+}
+
+.luckysheet-sheet-area div.luckysheet-sheets-item-dragging {
+  opacity: 0.6;
 }
 
 .fortune-sheettab-placeholder {

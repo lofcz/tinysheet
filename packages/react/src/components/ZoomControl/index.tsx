@@ -1,4 +1,10 @@
-import React, { useCallback, useContext, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Context,
   MAX_ZOOM_RATIO,
@@ -61,10 +67,21 @@ const ZoomControl: React.FC = () => {
     setRadioMenuOpen(false);
   }, []);
 
+  useEffect(() => {
+    if (!radioMenuOpen) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setRadioMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [radioMenuOpen]);
+
   const zoomTo = useCallback(
     (val: number) => {
-      val = parseFloat(val.toFixed(1));
-      if (val > MAX_ZOOM_RATIO || val < MIN_ZOOM_RATIO) {
+      val = parseFloat(val.toFixed(2));
+      if (val > MAX_ZOOM_RATIO + 1e-9 || val < MIN_ZOOM_RATIO - 1e-9) {
         return;
       }
       setContext(
@@ -89,7 +106,8 @@ const ZoomControl: React.FC = () => {
         aria-label={info.zoomOut}
         title={info.zoomOut}
         onClick={(e) => {
-          zoomTo(context.zoomRatio - 0.1);
+          // the next 10% step below (Excel: 115% -> 110%)
+          zoomTo((Math.ceil(context.zoomRatio * 10 - 1e-6) - 1) / 10);
           e.stopPropagation();
         }}
         onKeyDown={activateOnKey}
@@ -98,10 +116,10 @@ const ZoomControl: React.FC = () => {
       >
         <SVGIcon name="minus" width={16} height={16} />
       </div>
-      <div className="fortune-zoom-ratio">
+      <div className="fortune-zoom-ratio" ref={menuRef}>
         <div
           className="fortune-zoom-ratio-current fortune-zoom-button"
-          onClick={() => setRadioMenuOpen(true)}
+          onClick={() => setRadioMenuOpen((open) => !open)}
           onKeyDown={activateOnKey}
           tabIndex={0}
           role="button"
@@ -116,7 +134,6 @@ const ZoomControl: React.FC = () => {
         {radioMenuOpen && (
           <div
             className="fortune-zoom-ratio-menu"
-            ref={menuRef}
             role="listbox"
             aria-label={info.zoomLevel}
           >
@@ -146,7 +163,8 @@ const ZoomControl: React.FC = () => {
         aria-label={info.zoomIn}
         title={info.zoomIn}
         onClick={(e) => {
-          zoomTo(context.zoomRatio + 0.1);
+          // the next 10% step above (Excel: 115% -> 120%)
+          zoomTo((Math.floor(context.zoomRatio * 10 + 1e-6) + 1) / 10);
           e.stopPropagation();
         }}
         onKeyDown={activateOnKey}

@@ -914,6 +914,7 @@ export default {
     specialSame: "Same",
   },
   sheetconfig: {
+    insert: "Insert",
     delete: "Delete",
     copy: "Copy",
     rename: "Rename",

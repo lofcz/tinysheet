@@ -185,8 +185,16 @@ export function deleteSheet(ctx: Context, id: string) {
   // _this.setSheetHide(index, true);
   moveWorkbookNamesBeforeSheetDelete(ctx, id);
 
-  // $(`#luckysheet-sheets-item${index}`).remove();
-  // $(`#luckysheet-datavisual-selection-set-${index}`).remove();
+  // Excel shows the next visible sheet to the right, else the one to the left
+  let nextSheet: Sheet | undefined;
+  if (id === ctx.currentSheetId) {
+    const ordered = sortedSheets(ctx);
+    const at = ordered.findIndex((s) => s.id === id);
+    nextSheet =
+      ordered.slice(at + 1).find(isVisibleSheet) ??
+      ordered.slice(0, Math.max(at, 0)).reverse().find(isVisibleSheet);
+  }
+
   ctx.luckysheetfile = ctx.luckysheetfile.map((sheet) => {
     sheet.order =
       (sheet.order as number) < (ctx.luckysheetfile[arrIndex].order as number)
@@ -201,11 +209,16 @@ export function deleteSheet(ctx: Context, id: string) {
 
   // server.saveParam("shd", null, { deleIndex: index });
   if (id === ctx.currentSheetId) {
-    const shownSheets = ctx.luckysheetfile.filter(
-      (singleSheet) => _.isUndefined(singleSheet.hide) || singleSheet.hide !== 1
-    );
-    const orderSheets = _.sortBy(shownSheets, (sheet) => sheet.order);
-    ctx.currentSheetId = orderSheets?.[0]?.id as string;
+    const next =
+      nextSheet ??
+      _.sortBy(ctx.luckysheetfile.filter(isVisibleSheet), (s) =>
+        Number(s.order ?? 0)
+      )[0];
+    ctx.currentSheetId = next?.id as string;
+    if (next) ctx.zoomRatio = next.zoomRatio || 1;
+  }
+  if (ctx.groupedSheetIds) {
+    ctx.groupedSheetIds = ctx.groupedSheetIds.filter((s) => s !== id);
   }
 
   if (ctx.hooks.afterDeleteSheet) {
@@ -504,6 +517,36 @@ function sortedSheets(ctx: Context) {
 }
 
 /**
+ * Moves `sheetIds` (keeping their tab order) before `beforeSheetId` (null:
+ * to the end) and renumbers every sheet's `order` from 0. A `beforeSheetId`
+ * that is itself moving means the first sheet after it that stays.
+ */
+export function moveSheets(
+  ctx: Context,
+  sheetIds: string[],
+  beforeSheetId: string | null
+) {
+  if (!checkWorkbookStructure(ctx)) return;
+  if (ctx.allowEdit === false) return;
+  const ids = new Set(sheetIds);
+  const all = sortedSheets(ctx);
+  const moving = all.filter((s) => ids.has(s.id!));
+  if (moving.length === 0) return;
+  const list = all.filter((s) => !ids.has(s.id!));
+  let at = list.length;
+  if (beforeSheetId != null) {
+    const from = all.findIndex((s) => s.id === beforeSheetId);
+    const next =
+      from < 0 ? undefined : all.slice(from).find((s) => !ids.has(s.id!));
+    if (next) at = list.indexOf(next);
+  }
+  list.splice(at, 0, ...moving);
+  list.forEach((s, i) => {
+    if (s.order !== i) s.order = i;
+  });
+}
+
+/**
  * Moves `sheetId` before `beforeSheetId` (null: to the end) and renumbers
  * every sheet's `order` from 0.
  */
@@ -512,20 +555,8 @@ export function moveSheet(
   sheetId: string,
   beforeSheetId: string | null
 ) {
-  if (!checkWorkbookStructure(ctx)) return;
-  if (ctx.allowEdit === false || sheetId === beforeSheetId) return;
-  const list = sortedSheets(ctx).filter((s) => s.id !== sheetId);
-  const moving = ctx.luckysheetfile.find((s) => s.id === sheetId);
-  if (!moving) return;
-  let at = list.length;
-  if (beforeSheetId != null) {
-    const i = list.findIndex((s) => s.id === beforeSheetId);
-    if (i >= 0) at = i;
-  }
-  list.splice(at, 0, moving);
-  list.forEach((s, i) => {
-    s.order = i;
-  });
+  if (sheetId === beforeSheetId) return;
+  moveSheets(ctx, [sheetId], beforeSheetId);
 }
 
 function plainValue<T>(v: T): T {

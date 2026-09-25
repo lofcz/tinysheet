@@ -1,10 +1,15 @@
 import {
   locale,
+  addSheet,
+  beginUndoGroup,
   deleteSheet,
-  api,
   duplicateSheet,
   getGroupedSheetIds,
   hideSheets,
+  isSheetProtected,
+  moveSheet,
+  moveSheets,
+  protectionLocale,
   selectAllSheets,
   ungroupSheets,
   checkWorkbookStructure,
@@ -13,10 +18,12 @@ import {
 import _ from "lodash";
 import React, {
   useContext,
+  useEffect,
   useRef,
   useState,
   useLayoutEffect,
   useCallback,
+  useMemo,
 } from "react";
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
@@ -24,6 +31,8 @@ import { useDialog } from "../../hooks/useDialog";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { ChangeColor } from "../ChangeColor";
 import { MoveOrCopyDialog, UnhideDialog } from "../SheetTab/SheetDialogs";
+import { ProtectSheetDialog, useUnprotect } from "../Protection";
+import { activateSheetTab } from "../SheetTab/activate";
 import SVGIcon from "../SVGIcon";
 import Divider from "./Divider";
 import "./index.css";
@@ -35,7 +44,7 @@ import Menu from "./Menu";
  * several visible sheets, Select All Sheets / Ungroup Sheets.
  */
 const SheetTabContextMenu: React.FC = () => {
-  const { context, setContext, settings } = useContext(WorkbookContext);
+  const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const { x, y, sheet, onRename } = context.sheetTabContextMenu;
   const { sheetconfig } = locale(context);
   const [position, setPosition] = useState({ x: -1, y: -1 });
@@ -43,6 +52,8 @@ const SheetTabContextMenu: React.FC = () => {
   const [isShowInputColor, setIsShowInputColor] = useState<boolean>(false);
   const { showAlert, hideAlert } = useAlert();
   const { showDialog } = useDialog();
+  const unprotect = useUnprotect();
+  const protection = protectionLocale(context);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const grouped = getGroupedSheetIds(context);
@@ -51,41 +62,126 @@ const SheetTabContextMenu: React.FC = () => {
   ).length;
   const hiddenCount = context.luckysheetfile.length - visibleCount;
   // the sheets a command applies to: the group, or the clicked sheet
-  const targets =
-    sheet?.id && grouped.includes(sheet.id) ? grouped : [sheet?.id!];
+  const groupKey = grouped.join("\n");
+  const targets = useMemo(
+    () =>
+      sheet?.id && groupKey.split("\n").includes(sheet.id)
+        ? groupKey.split("\n")
+        : [sheet?.id!],
+    [groupKey, sheet?.id]
+  );
 
-  const close = useCallback(() => {
-    setContext((ctx) => {
-      ctx.sheetTabContextMenu = {};
-    });
-  }, [setContext]);
+  /**
+   * Closes the menu. After a command (and Esc) keys go to the grid again,
+   * so Ctrl+Z undoes it; a dialog or the rename box takes the focus after.
+   */
+  const close = useCallback(
+    (refocus = true) => {
+      setContext((ctx) => {
+        ctx.sheetTabContextMenu = {};
+      });
+      if (refocus) refs.cellInput.current?.focus({ preventScroll: true });
+    },
+    [refs.cellInput, setContext]
+  );
+  const closeOnOutsideClick = useCallback(() => close(false), [close]);
 
   useLayoutEffect(() => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (rect && x != null && y != null) {
-      setPosition({ x, y: y - rect.height });
+      // above the pointer, kept inside the workbook
+      const bounds = refs.workbookContainer.current?.getBoundingClientRect();
+      const maxX = bounds ? bounds.width - rect.width - 4 : x;
+      setPosition({
+        x: Math.max(0, Math.min(x, maxX)),
+        y: Math.max(0, y - rect.height),
+      });
     }
-  }, [x, y]);
+  }, [x, y, refs.workbookContainer]);
 
-  useOutsideClick(containerRef, close, [close]);
+  useEffect(() => {
+    if (x == null || y == null) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      close();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [close, x, y]);
 
-  const moveSheet = useCallback(
-    (delta: number) => {
+  useOutsideClick(containerRef, closeOnOutsideClick, [closeOnOutsideClick]);
+
+  /** Move left / right: past the next visible sheet on that side. */
+  const moveBy = useCallback(
+    (delta: -1 | 1) => {
       if (context.allowEdit === false) return;
-      if (!sheet) return;
+      if (!sheet?.id) return;
       setContext((ctx) => {
-        let currentOrder = -1;
-        _.sortBy(ctx.luckysheetfile, ["order"]).forEach((_sheet, i) => {
-          _sheet.order = i;
-          if (_sheet.id === sheet.id) {
-            currentOrder = i;
-          }
-        });
-        api.setSheetOrder(ctx, { [sheet.id!]: currentOrder + delta });
+        const visible = _.sortBy(
+          ctx.luckysheetfile.filter((s) => s.hide !== 1),
+          (s) => Number(s.order)
+        );
+        const ids = targets.filter(Boolean);
+        const first = visible.findIndex((s) => ids.includes(s.id!));
+        const last = _.findLastIndex(visible, (s) => ids.includes(s.id!));
+        if (first < 0) return;
+        if (delta < 0) {
+          if (first === 0) return;
+          moveSheets(ctx, ids, visible[first - 1].id!);
+        } else {
+          if (last >= visible.length - 1) return;
+          moveSheets(ctx, ids, visible[last + 2]?.id ?? null);
+        }
       });
     },
-    [context.allowEdit, setContext, sheet]
+    [context.allowEdit, setContext, sheet?.id, targets]
   );
+
+  /** Insert: a new sheet before the clicked one (Excel). */
+  const insertSheet = useCallback(() => {
+    if (context.allowEdit === false || !sheet?.id) return;
+    setContext(
+      (ctx) => {
+        const previous = ctx.currentSheetId;
+        const view = {
+          scrollLeft: ctx.scrollLeft,
+          scrollTop: ctx.scrollTop,
+          luckysheet_select_status: ctx.luckysheet_select_status,
+          luckysheet_select_save: ctx.luckysheet_select_save,
+          luckysheet_selection_range: ctx.luckysheet_selection_range,
+        };
+        const count = ctx.luckysheetfile.length;
+        addSheet(ctx, settings);
+        if (ctx.luckysheetfile.length === count) return;
+        const added = ctx.luckysheetfile[ctx.luckysheetfile.length - 1];
+        if (added?.id) moveSheet(ctx, added.id, sheet.id!);
+        ctx.sheetScrollRecord[previous] = view;
+        ctx.groupedSheetIds = undefined;
+        ctx.zoomRatio = 1;
+      },
+      { addSheetOp: true }
+    );
+  }, [context.allowEdit, setContext, settings, sheet?.id]);
+
+  /** Delete: the grouped sheets, or the clicked one, as one undo step. */
+  const removeSheets = useCallback(() => {
+    const ids = targets.filter(Boolean);
+    const endGroup = beginUndoGroup(refs.globalCache);
+    try {
+      ids.forEach((id) => {
+        setContext(
+          (ctx) => {
+            deleteSheet(ctx, id);
+          },
+          { deleteSheetOp: { id } }
+        );
+      });
+    } finally {
+      endGroup();
+    }
+    refs.cellInput.current?.focus({ preventScroll: true });
+  }, [refs.cellInput, refs.globalCache, setContext, targets]);
 
   const hideSheet = useCallback(() => {
     if (context.allowEdit === false) return;
@@ -115,12 +211,12 @@ const SheetTabContextMenu: React.FC = () => {
         const id = duplicateSheet(ctx, sheet.id!);
         if (id) {
           ctx.groupedSheetIds = undefined;
-          ctx.currentSheetId = id;
+          activateSheetTab(ctx, id, refs.globalCache);
         }
       },
       { addSheetOp: true }
     );
-  }, [context.allowEdit, setContext, sheet?.id]);
+  }, [context.allowEdit, refs.globalCache, setContext, sheet?.id]);
 
   const updateShowInputColor = useCallback((state: boolean) => {
     setIsShowInputColor(state);
@@ -149,44 +245,65 @@ const SheetTabContextMenu: React.FC = () => {
       ref={containerRef}
     >
       {settings.sheetTabContextMenu?.map((name, i) => {
+        if (name === "insert") {
+          return (
+            <Menu
+              key={name}
+              onClick={() => {
+                close();
+                if (isWorkbookStructureProtected(context)) {
+                  setContext((ctx) => {
+                    checkWorkbookStructure(ctx);
+                  });
+                  return;
+                }
+                insertSheet();
+              }}
+            >
+              {sheetconfig.insert}
+            </Menu>
+          );
+        }
         if (name === "delete") {
           return (
             <Menu
               key={name}
               onClick={() => {
-                const shownSheets = context.luckysheetfile.filter(
-                  (singleSheet) =>
-                    _.isUndefined(singleSheet.hide) || singleSheet.hide !== 1
-                );
+                close();
                 if (isWorkbookStructureProtected(context)) {
                   // Excel's message instead of the confirmation
                   setContext((ctx) => {
                     checkWorkbookStructure(ctx);
                   });
-                } else if (
-                  context.luckysheetfile.length > 1 &&
-                  shownSheets.length > 1
-                ) {
+                } else if (visibleCount - targets.length >= 1) {
                   showAlert(sheetconfig.confirmDelete, "yesno", () => {
-                    setContext(
-                      (ctx) => {
-                        deleteSheet(ctx, sheet.id!);
-                      },
-                      {
-                        deleteSheetOp: {
-                          id: sheet.id!,
-                        },
-                      }
-                    );
                     hideAlert();
+                    removeSheets();
                   });
                 } else {
                   showAlert(sheetconfig.noMoreSheet, "ok");
                 }
-                close();
               }}
             >
               {sheetconfig.delete}
+            </Menu>
+          );
+        }
+        if (name === "protect") {
+          const sheetProtected = isSheetProtected(context);
+          return (
+            <Menu
+              key={name}
+              onClick={() => {
+                close();
+                if (!editable) return;
+                if (sheetProtected) unprotect("sheet");
+                else showDialog(<ProtectSheetDialog />);
+              }}
+            >
+              {sheetProtected
+                ? protection.unprotectSheet
+                : protection.protectSheet}
             </Menu>
           );
         }
@@ -208,7 +325,7 @@ const SheetTabContextMenu: React.FC = () => {
             <React.Fragment key={name}>
               <Menu
                 onClick={() => {
-                  moveSheet(-1.5);
+                  moveBy(-1);
                   close();
                 }}
               >
@@ -216,7 +333,7 @@ const SheetTabContextMenu: React.FC = () => {
               </Menu>
               <Menu
                 onClick={() => {
-                  moveSheet(1.5);
+                  moveBy(1);
                   close();
                 }}
               >

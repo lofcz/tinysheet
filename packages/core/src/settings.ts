@@ -402,9 +402,11 @@ export const defaultSettings: Required<Settings> = {
     "hide-column",
   ], // header菜单
   sheetTabContextMenu: [
+    "insert",
     "delete",
-    "copy",
     "rename",
+    "copy",
+    "protect",
     "color",
     "hide",
     "|",

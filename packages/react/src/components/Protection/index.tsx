@@ -57,7 +57,7 @@ function relayout() {
   setTimeout(() => window.dispatchEvent(new Event("resize")));
 }
 
-function useUnprotect() {
+export function useUnprotect() {
   const { context, setContext } = useContext(WorkbookContext);
   const { showDialog } = useDialog();
   const clearUndo = useClearUndo();

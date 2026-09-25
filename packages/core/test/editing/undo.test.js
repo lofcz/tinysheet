@@ -37,7 +37,12 @@ import {
   handleTextBackground,
 } from "../../src/modules/toolbar";
 import { setConditionRules } from "../../src/modules/ConditionFormat";
-import { addSheet, deleteSheet } from "../../src/modules/sheet";
+import {
+  addSheet,
+  deleteSheet,
+  hideSheets,
+  unhideSheets,
+} from "../../src/modules/sheet";
 import { replaceAll } from "../../src/modules/searchReplace";
 import { getFlowdata } from "../../src/context";
 
@@ -403,6 +408,41 @@ describe("undo/redo matrix", () => {
     host.redo();
     host.undo();
     expect(sheetOf(host.ctx, "id_3").order).toBe(2);
+  });
+
+  test("undoing an added sheet shows the sheet that was active", () => {
+    const host = makeHost();
+    host.ctx = { ...host.ctx, currentSheetId: "id_2" };
+    host.act(
+      (d) =>
+        addSheet(d, { generateSheetId: () => "id_3" }, undefined, false, "New"),
+      { addSheetOp: true }
+    );
+    expect(host.ctx.currentSheetId).toBe("id_3");
+    host.undo();
+    expect(host.ctx.luckysheetfile).toHaveLength(2);
+    expect(host.ctx.currentSheetId).toBe("id_2");
+  });
+
+  test("undo / redo never leave a hidden sheet active", () => {
+    const host = makeHost();
+    host.act((d) => hideSheets(d, ["id_2"]));
+    host.ctx = { ...host.ctx, currentSheetId: "id_1" };
+    // unhiding shows the sheet; undoing it hides it again
+    host.act((d) => unhideSheets(d, ["id_2"]));
+    expect(host.ctx.currentSheetId).toBe("id_2");
+    host.undo();
+    expect(sheetOf(host.ctx, "id_2").hide).toBe(1);
+    expect(host.ctx.currentSheetId).toBe("id_1");
+    host.redo();
+    expect(sheetOf(host.ctx, "id_2").hide).toBeUndefined();
+    // hiding the active sheet, then redo after undo
+    host.act((d) => hideSheets(d, ["id_2"]));
+    expect(host.ctx.currentSheetId).toBe("id_1");
+    host.undo();
+    host.ctx = { ...host.ctx, currentSheetId: "id_2" };
+    host.redo();
+    expect(host.ctx.currentSheetId).toBe("id_1");
   });
 
   test("Replace All is one step", () => {

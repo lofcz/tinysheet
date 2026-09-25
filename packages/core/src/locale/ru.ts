@@ -1588,6 +1588,7 @@ export default {
     specialSame: "Эти же",
   },
   sheetconfig: {
+    insert: "Вставить",
     delete: "Удалить",
     copy: "Копировать",
     rename: "Переименовать",

@@ -1,61 +1,48 @@
-import {
-  Sheet,
-  cancelNormalSelected,
-  cancelActiveImgItem,
-} from "@lofcz/tinysheet-core";
-import React, { useContext, useEffect, useRef } from "react";
+import { Sheet, unhideSheets } from "@lofcz/tinysheet-core";
+import React, { useContext } from "react";
 import WorkbookContext from "../../context";
 import "./index.css";
 import SheetHiddenButton from "./SheetHiddenButton";
 import SVGIcon from "../SVGIcon";
+import { activateSheetTab } from "../SheetTab/activate";
 
 type Props = {
   sheet: Sheet;
-  isDropPlaceholder?: boolean;
 };
 
-const SheetListItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
+const SheetListItem: React.FC<Props> = ({ sheet }) => {
   const { context, setContext, refs } = useContext(WorkbookContext);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const activate = () => {
     setContext((draftCtx) => {
-      const r = context.sheetScrollRecord[draftCtx?.currentSheetId];
-      if (r) {
-        draftCtx.scrollLeft = r.scrollLeft ?? 0;
-        draftCtx.scrollTop = r.scrollTop ?? 0;
-        draftCtx.luckysheet_select_status = r.luckysheet_select_status ?? false;
-        draftCtx.luckysheet_select_save = r.luckysheet_select_save ?? undefined;
-      } else {
-        draftCtx.scrollLeft = 0;
-        draftCtx.scrollTop = 0;
-        draftCtx.luckysheet_select_status = false;
-        draftCtx.luckysheet_select_save = undefined;
+      draftCtx.showSheetList = undefined;
+      // a hidden sheet is unhidden to be shown
+      if (sheet.hide === 1) {
+        if (draftCtx.allowEdit === false) return;
+        unhideSheets(draftCtx, [sheet.id!]);
+        return;
       }
-      draftCtx.luckysheet_selection_range = [];
+      activateSheetTab(
+        draftCtx,
+        sheet.id!,
+        refs.globalCache,
+        refs.cellInput.current
+      );
     });
-  }, [context.currentSheetId, context.sheetScrollRecord, setContext]);
+    refs.cellInput.current?.focus({ preventScroll: true });
+  };
 
   return (
     <div
       className="fortune-sheet-list-item"
-      key={sheet.id}
-      ref={containerRef}
-      onClick={() => {
-        if (isDropPlaceholder) return;
-        setContext((draftCtx) => {
-          draftCtx.sheetScrollRecord[draftCtx.currentSheetId] = {
-            scrollLeft: draftCtx.scrollLeft,
-            scrollTop: draftCtx.scrollTop,
-            luckysheet_select_status: draftCtx.luckysheet_select_status,
-            luckysheet_select_save: draftCtx.luckysheet_select_save,
-            luckysheet_selection_range: draftCtx.luckysheet_selection_range,
-          };
-          draftCtx.currentSheetId = sheet.id!;
-          draftCtx.zoomRatio = sheet.zoomRatio || 1;
-          cancelActiveImgItem(draftCtx, refs.globalCache);
-          cancelNormalSelected(draftCtx);
-        });
+      role="menuitemradio"
+      aria-checked={sheet.id === context.currentSheetId}
+      onClick={activate}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          activate();
+        }
       }}
       tabIndex={0}
     >
@@ -81,7 +68,7 @@ const SheetListItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         )}
         {sheet.name}
       </span>
-      {sheet.hide && <SheetHiddenButton sheet={sheet} />}
+      {sheet.hide === 1 && <SheetHiddenButton sheet={sheet} />}
     </div>
   );
 };
