@@ -66,9 +66,33 @@ class Sheet {
     const { x, y } = this.point(8, 4);
     await this.page.mouse.move(x, y);
     const steps = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 100);
+    const before = await this.scrollPosition();
     for (let i = 0; i < steps; i += 1) {
       await this.page.mouse.wheel(dx / steps, dy / steps);
     }
+    // Wheel events are applied asynchronously (the sheet batches scrolling
+    // per animation frame): wait until the scrollbars moved and settled
+    // before the next click is hit-tested against the scrolled grid.
+    let last = null;
+    await expect
+      .poll(async () => {
+        const now = await this.scrollPosition();
+        const moved =
+          (dx === 0 || now.x !== before.x) && (dy === 0 || now.y !== before.y);
+        const settled = last != null && now.x === last.x && now.y === last.y;
+        last = now;
+        return moved && settled;
+      })
+      .toBe(true);
+  }
+
+  /** Scroll offsets of the sheet's scrollbars. */
+  scrollPosition() {
+    return this.page.evaluate(() => {
+      const x = document.querySelector(".luckysheet-scrollbar-x");
+      const y = document.querySelector(".luckysheet-scrollbar-y");
+      return { x: x?.scrollLeft ?? 0, y: y?.scrollTop ?? 0 };
+    });
   }
 
   /** Drag-select from (r1, c1) to (r2, c2). */
