@@ -23,6 +23,7 @@ import {
   calcSelectionInfo,
   groupValuesRefresh,
   setFormulaCellInfoMap,
+  mirrorGroupedSheetEdits,
 } from "@lofcz/tinysheet-core";
 import React, {
   useMemo,
@@ -284,7 +285,12 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         setContext((ctx_) => {
           const [result, patches, inversePatches] = produceWithPatches(
             ctx_,
-            concatProducer(recipe, triggerGroupValuesRefresh)
+            concatProducer(
+              recipe,
+              // grouped sheets: repeat the edit on every grouped sheet
+              (draft) => mirrorGroupedSheetEdits(ctx_, draft),
+              triggerGroupValuesRefresh
+            )
           );
           if (patches.length > 0 && !options.noHistory) {
             if (options.logPatch) {

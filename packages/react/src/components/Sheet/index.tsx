@@ -260,14 +260,14 @@ function drawSheet(
       tableCanvas.drawMain({
         scrollWidth: context.scrollLeft + verticalPx - verticalScrollWidth,
         scrollHeight: horizontalScrollTop,
-        drawHeight: horizontalPx,
+        drawHeight: horizontalPx - horizontalScrollTop,
         offsetLeft: verticalPx - verticalScrollWidth + context.rowHeaderWidth,
       });
       // left down
       tableCanvas.drawMain({
         scrollWidth: verticalScrollWidth,
         scrollHeight: context.scrollTop + horizontalPx - horizontalScrollTop,
-        drawWidth: verticalPx,
+        drawWidth: verticalPx - verticalScrollWidth,
         offsetTop:
           horizontalPx - horizontalScrollTop + context.columnHeaderHeight,
       });
@@ -275,8 +275,8 @@ function drawSheet(
       tableCanvas.drawMain({
         scrollWidth: verticalScrollWidth,
         scrollHeight: horizontalScrollTop,
-        drawWidth: verticalPx,
-        drawHeight: horizontalPx,
+        drawWidth: verticalPx - verticalScrollWidth,
+        drawHeight: horizontalPx - horizontalScrollTop,
       });
       // headers
       tableCanvas.drawColumnHeader(
@@ -284,13 +284,19 @@ function drawSheet(
         undefined,
         verticalPx - verticalScrollWidth + context.rowHeaderWidth
       );
-      tableCanvas.drawColumnHeader(verticalScrollWidth, verticalPx);
+      tableCanvas.drawColumnHeader(
+        verticalScrollWidth,
+        verticalPx - verticalScrollWidth
+      );
       tableCanvas.drawRowHeader(
         context.scrollTop + horizontalPx - horizontalScrollTop,
         undefined,
         horizontalPx - horizontalScrollTop + context.columnHeaderHeight
       );
-      tableCanvas.drawRowHeader(horizontalScrollTop, horizontalPx);
+      tableCanvas.drawRowHeader(
+        horizontalScrollTop,
+        horizontalPx - horizontalScrollTop
+      );
       tableCanvas.drawFreezeLine({
         horizontalTop:
           horizontalPx - horizontalScrollTop + context.columnHeaderHeight - 2,
@@ -311,7 +317,7 @@ function drawSheet(
       tableCanvas.drawMain({
         scrollWidth: context.scrollLeft,
         scrollHeight: horizontalScrollTop,
-        drawHeight: horizontalPx,
+        drawHeight: horizontalPx - horizontalScrollTop,
       });
       // headers
       tableCanvas.drawColumnHeader(context.scrollLeft);
@@ -320,7 +326,10 @@ function drawSheet(
         undefined,
         horizontalPx - horizontalScrollTop + context.columnHeaderHeight
       );
-      tableCanvas.drawRowHeader(horizontalScrollTop, horizontalPx);
+      tableCanvas.drawRowHeader(
+        horizontalScrollTop,
+        horizontalPx - horizontalScrollTop
+      );
       tableCanvas.drawFreezeLine({
         horizontalTop:
           horizontalPx - horizontalScrollTop + context.columnHeaderHeight - 2,
@@ -337,7 +346,7 @@ function drawSheet(
       tableCanvas.drawMain({
         scrollWidth: verticalScrollWidth,
         scrollHeight: context.scrollTop,
-        drawWidth: verticalPx,
+        drawWidth: verticalPx - verticalScrollWidth,
       });
       // headers
       tableCanvas.drawRowHeader(context.scrollTop);
@@ -346,7 +355,10 @@ function drawSheet(
         undefined,
         verticalPx - verticalScrollWidth + context.rowHeaderWidth
       );
-      tableCanvas.drawColumnHeader(verticalScrollWidth, verticalPx);
+      tableCanvas.drawColumnHeader(
+        verticalScrollWidth,
+        verticalPx - verticalScrollWidth
+      );
       tableCanvas.drawFreezeLine({
         verticalLeft:
           verticalPx - verticalScrollWidth + context.rowHeaderWidth - 2,

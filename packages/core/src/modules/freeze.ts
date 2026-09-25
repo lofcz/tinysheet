@@ -337,16 +337,18 @@ function frozenAreaTooLarge(ctx: Context, frozen: Frozen) {
  * - "unfreeze": removes frozen panes (and a split).
  * Frozen rows/columns start at the top/left of the sheet, and the scrolling
  * pane is scrolled back to them. Returns "tooLarge" (and changes nothing)
- * when the frozen part would fill the window.
+ * when the frozen part would fill the window. `dryRun` only checks.
  */
 export function freezePanes(
   ctx: Context,
-  mode: FreezeMode
+  mode: FreezeMode,
+  options: { dryRun?: boolean } = {}
 ): "ok" | "tooLarge" | "noop" {
   if (!isAllowEdit(ctx)) return "noop";
   const sheet = currentSheetFile(ctx);
   if (!sheet) return "noop";
   if (mode === "unfreeze") {
+    if (options.dryRun) return "ok";
     delete sheet.frozen;
     return "ok";
   }
@@ -361,6 +363,7 @@ export function freezePanes(
   }
   if (!frozen) return "noop";
   if (frozenAreaTooLarge(ctx, frozen)) return "tooLarge";
+  if (options.dryRun) return "ok";
   sheet.frozen = frozen;
   if (frozen.type !== "rangeColumn") ctx.scrollTop = 0;
   if (frozen.type !== "rangeRow") ctx.scrollLeft = 0;
