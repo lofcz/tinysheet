@@ -400,3 +400,16 @@ export function handlePasteSpecial(ctx: Context, options: PasteSpecialOptions) {
   }
   return pasteSpecial(ctx, options);
 }
+
+/**
+ * Open the Paste Special dialog (Ctrl+Alt+V / Ctrl+Shift+V). Returns false
+ * when there is no copied range to paste from, so the caller can fall back
+ * to a normal paste.
+ */
+export function openPasteSpecial(ctx: Context) {
+  if (!isAllowEdit(ctx)) return false;
+  if (!ctx.luckysheet_copy_save?.copyRange?.length) return false;
+  if ((ctx.luckysheet_select_save?.length ?? 0) !== 1) return false;
+  ctx.showPasteSpecial = true;
+  return true;
+}
