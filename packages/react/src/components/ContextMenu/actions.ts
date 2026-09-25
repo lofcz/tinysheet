@@ -57,3 +57,50 @@ export function getContextMenuAction(key: ContextMenuActionKey) {
   const list = registry[key];
   return list?.[list.length - 1];
 }
+
+/**
+ * Whole menu entries contributed by features: a name listed in
+ * `settings.cellContextMenu` / `headerContextMenu` that the menu does not
+ * know renders the items its registered builder returns (none to hide it).
+ *
+ *   registerContextMenuItem("new-comment", ({ r, c, close }) => [
+ *     { key: "new-comment", label: "New Comment", onSelect: () => ... },
+ *   ]);
+ */
+export type ContextMenuItem = {
+  key: string;
+  label: string;
+  /** a ContextMenu/icons.tsx icon name */
+  icon?: string;
+  shortcut?: string;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
+export type ContextMenuItemBuilder = (
+  helpers: ContextMenuActionHelpers & {
+    /** the active cell */
+    r: number;
+    c: number;
+    /** set for the row / column header menu */
+    headerType: "row" | "column" | null;
+    /** close the menu and give the focus back to the sheet */
+    close: () => void;
+  }
+) => ContextMenuItem[];
+
+const itemBuilders = new Map<string, ContextMenuItemBuilder>();
+
+export function registerContextMenuItem(
+  name: string,
+  build: ContextMenuItemBuilder
+) {
+  itemBuilders.set(name, build);
+  return () => {
+    if (itemBuilders.get(name) === build) itemBuilders.delete(name);
+  };
+}
+
+export function getContextMenuItem(name: string) {
+  return itemBuilders.get(name);
+}
