@@ -14,6 +14,7 @@
  * borders -> images -> data validation -> views.
  */
 import ExcelJS from "@protobi/exceljs";
+import JSZip from "jszip";
 import type { XlsxPostProcessInfo } from "./postProcess";
 import { postProcessXlsx } from "./postProcess";
 import { writeCells, writeNotes } from "./ExcelStyle";
@@ -33,6 +34,11 @@ import {
   finalizeConditionalFormatting,
   setConditionalFormatting,
 } from "./ExcelConditionFormat";
+import {
+  collectCheckboxes,
+  hasCheckboxes,
+  writeCheckboxParts,
+} from "./ExcelCheckbox";
 
 export type XlsxExportOptions = {
   /** Skip sheets with hide=1 instead of exporting them as hidden. */
@@ -114,6 +120,8 @@ export const sheetExportFeatures: SheetExportFeature[] = [
     write: (ctx) => setConditionalFormatting(ctx.sheet, ctx.worksheet),
   },
   { name: "views", write: writeSheetViews },
+  // cell checkboxes: marked here, written by the "checkboxes" zip feature
+  { name: "checkboxes", write: collectCheckboxes },
   // Charts are added to the written zip (addChartsToXlsx).
 ];
 
@@ -124,6 +132,29 @@ export const workbookExportFeatures: WorkbookExportFeature[] = [
     write: (ctx) => setDefinedNames(ctx.workbook, ctx.sheets),
   },
 ];
+
+/**
+ * Zip-level writers, run on the finished file for what ExcelJS can't
+ * express (parts it doesn't know, extensions of its XML). `needed` skips
+ * unzipping when a feature has nothing to write.
+ */
+export type XlsxZipFeature = {
+  name: string;
+  needed?: (post: XlsxPostProcessInfo, sheets: any[]) => boolean;
+  process: (
+    zip: JSZip,
+    post: XlsxPostProcessInfo,
+    sheets: any[]
+  ) => Promise<void> | void;
+};
+
+export const xlsxZipFeatures: XlsxZipFeature[] = [
+  { name: "checkboxes", needed: hasCheckboxes, process: writeCheckboxParts },
+];
+
+export function registerXlsxZipFeature(feature: XlsxZipFeature) {
+  xlsxZipFeatures.push(feature);
+}
 
 export function registerSheetExportFeature(
   feature: SheetExportFeature,
@@ -278,7 +309,23 @@ export async function exportToXlsx(
   const processed = await postProcessXlsx(buffer as ArrayBuffer, post);
   // exceljs cannot create charts: add native chart parts to its output
   const withCharts = await addChartsToXlsx(processed, sheets);
-  return withCharts instanceof Uint8Array
-    ? withCharts
-    : new Uint8Array(withCharts);
+  let out =
+    withCharts instanceof Uint8Array ? withCharts : new Uint8Array(withCharts);
+  const zipFeatures = xlsxZipFeatures.filter(
+    (f) => !f.needed || f.needed(post, sheets)
+  );
+  if (zipFeatures.length > 0) {
+    const zip = await JSZip.loadAsync(out);
+    for (let i = 0; i < zipFeatures.length; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await zipFeatures[i].process(zip, post, sheets);
+    }
+    out = await zip.generateAsync({
+      type: "uint8array",
+      compression: "DEFLATE",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+  }
+  return out;
 }
