@@ -217,6 +217,45 @@ export function makeHugeSheet(
   } as Sheet;
 }
 
+/**
+ * A long dependency chain: A1 = 1, A{r} = A{r-1}+1 down to row `rows`, and
+ * B{r} = A{r}*2 on every 10th row. Editing A1 recalculates all of it.
+ */
+export function makeChainSheet(rows = 100_000, id = "chain"): Sheet {
+  const celldata: CellWithRowAndCol[] = [
+    { r: 0, c: 0, v: { v: 1, m: "1", ct: { fa: "General", t: "n" } } },
+  ];
+  const calcChain: { r: number; c: number; id: string }[] = [];
+  for (let r = 1; r < rows; r += 1) {
+    const v = r + 1;
+    celldata.push({
+      r,
+      c: 0,
+      v: { v, m: String(v), f: `=A${r}+1`, ct: { fa: "General", t: "n" } },
+    });
+    calcChain.push({ r, c: 0, id });
+  }
+  for (let r = 0; r < rows; r += 10) {
+    const v = (r + 1) * 2;
+    celldata.push({
+      r,
+      c: 1,
+      v: { v, m: String(v), f: `=A${r + 1}*2`, ct: { fa: "General", t: "n" } },
+    });
+    calcChain.push({ r, c: 1, id });
+  }
+  return {
+    name: "Chain",
+    id,
+    status: 1,
+    order: 0,
+    row: rows,
+    column: 10,
+    celldata,
+    calcChain,
+  } as Sheet;
+}
+
 declare global {
   interface Window {
     __perf?: {
@@ -239,6 +278,8 @@ type PerfProps = {
   sheets?: number;
   /** build sheets with makeHugeSheet(rows, cols) instead */
   huge?: boolean;
+  /** build sheets with makeChainSheet(rows) instead */
+  chain?: boolean;
   cols?: number;
 };
 
@@ -249,6 +290,7 @@ const PerfWorkbook: React.FC<PerfProps> = ({
   frozen,
   sheets = 1,
   huge,
+  chain,
   cols,
 }) => {
   const ref = useRef<WorkbookInstance>(null);
@@ -256,9 +298,10 @@ const PerfWorkbook: React.FC<PerfProps> = ({
     const t0 = performance.now();
     const list: Sheet[] = [];
     for (let i = 0; i < sheets; i += 1) {
-      const sheet = huge
-        ? makeHugeSheet(rows, cols, `huge${i}`)
-        : makeLargeSheet(rows, i === 0 ? "perf" : `perf${i}`);
+      let sheet: Sheet;
+      if (chain) sheet = makeChainSheet(rows, `chain${i}`);
+      else if (huge) sheet = makeHugeSheet(rows, cols, `huge${i}`);
+      else sheet = makeLargeSheet(rows, i === 0 ? "perf" : `perf${i}`);
       sheet.name = i === 0 ? sheet.name : `${sheet.name} ${i + 1}`;
       sheet.order = i;
       sheet.status = i === 0 ? 1 : 0;
@@ -330,3 +373,12 @@ export const MillionRows: StoryFn<{ rows: number; cols: number }> = ({
   cols,
 }) => <PerfWorkbook rows={rows} cols={cols} huge />;
 MillionRows.args = { rows: 1_000_000, cols: 100 };
+
+/**
+ * A 100k-formula dependency chain: editing A1 recalculates every formula
+ * (in slices, with a progress indicator in the status bar).
+ */
+export const LongChain: StoryFn<{ rows: number }> = ({ rows }) => (
+  <PerfWorkbook rows={rows} chain />
+);
+LongChain.args = { rows: 100_000 };

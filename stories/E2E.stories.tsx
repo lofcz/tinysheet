@@ -62,3 +62,20 @@ Blank.args = {};
 
 export const Dark = Template.bind({});
 Dark.args = { theme: "dark" };
+
+declare global {
+  interface Window {
+    /** Sheets (and theme) a test sets up before the story mounts. */
+    __e2eScenario?: { data: Sheet[]; theme?: "light" | "dark" };
+  }
+}
+
+/**
+ * The workbook a test put in `window.__e2eScenario` before the page loaded
+ * (Playwright's addInitScript).
+ */
+export const Scenario = Template.bind({});
+const scenario = typeof window !== "undefined" ? window.__e2eScenario : null;
+Scenario.args = scenario
+  ? { data: scenario.data, theme: scenario.theme ?? "light" }
+  : {};

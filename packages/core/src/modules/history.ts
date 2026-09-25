@@ -26,6 +26,7 @@ import type {
   CellWithRowAndCol,
   GlobalCache,
   History,
+  Sheet,
 } from "../types";
 import { getSheetIndex } from "../utils";
 import {
@@ -34,6 +35,16 @@ import {
   PatchOptions,
 } from "../utils/patch";
 import { createFilterOptions } from "./filter";
+import {
+  DataSession,
+  prepareChunkedSheets,
+  publicDataPatches,
+  reconcileChunkedSheets,
+  runDataSession,
+} from "./rowStore";
+import { invalidateSpillAnchors } from "./spillIndex";
+import { hasPendingRecalc, recalcEpoch } from "./recalcScheduler";
+import { execFunctionGroup, groupValuesRefresh } from "./formula";
 
 enablePatches();
 export type HistoryOptions = PatchOptions & {
@@ -43,8 +54,76 @@ export type HistoryOptions = PatchOptions & {
   logPatch?: boolean;
 };
 
+/**
+ * Runs `recipe` on a draft of `ctx` in a data session, so chunked sheet
+ * matrices (rowStore.ts) resolve to the draft, and returns the result with
+ * every changed sheet's matrix view brought up to date, and the patches and
+ * inverse patches with public paths.
+ */
+function produceInSessionWithPatches(
+  base: Context,
+  recipe: (draft: Context) => void
+): [Context, Patch[], Patch[]] {
+  const ctx = prepareChunkedSheets(base);
+  const session = new DataSession(null);
+  const [produced, patches, inversePatches] = produceWithPatches(
+    ctx,
+    (draft: Context) => {
+      session.root = draft;
+      runDataSession(session, () => {
+        recipe(draft);
+      });
+    }
+  );
+  const result = reconcileChunkedSheets(ctx, produced, session);
+  return [
+    result,
+    publicDataPatches(patches, ctx, result, true),
+    publicDataPatches(inversePatches, ctx, result, false),
+  ];
+}
+
+/** Like produceInSessionWithPatches, without the patches. */
+function produceInSession(
+  base: Context,
+  recipe: (draft: Context) => void
+): Context {
+  const ctx = prepareChunkedSheets(base);
+  const session = new DataSession(null);
+  const produced = produce(ctx, (draft: Context) => {
+    session.root = draft;
+    runDataSession(session, () => {
+      recipe(draft);
+    });
+  });
+  return reconcileChunkedSheets(ctx, produced, session);
+}
+
 function produceNoPatches(ctx: Context, recipe: (draft: Context) => void) {
-  return produce(ctx, recipe);
+  return produceInSession(ctx, recipe);
+}
+
+/**
+ * `immer.produce` for contexts: use it (rather than immer directly) for any
+ * update of a context, so the cells of chunked (large) sheets can be edited
+ * (see rowStore.ts).
+ */
+export function produceContext(
+  ctx: Context,
+  recipe: (draft: Context) => void
+): Context {
+  return produceInSession(ctx, recipe);
+}
+
+/**
+ * `immer.applyPatches` for contexts: applies patches with public paths
+ * (`["luckysheetfile", i, "data", r, c]`), to chunked sheets too.
+ */
+export function applyContextPatches(ctx: Context, patches: Patch[]): Context {
+  if (patches.length === 0) return ctx;
+  return produceInSession(ctx, (draft) => {
+    applyPatches(draft, patches);
+  });
 }
 
 type HistoryHost = GlobalCache | Pick<Context, "getRefs">;
@@ -114,6 +193,14 @@ function dataToCelldata(data: CellMatrix | undefined) {
     }
   }
   return cellData;
+}
+
+/** A deep copy of a sheet with its cells as `celldata` (no `data`). */
+function sheetWithCelldata(sheet: Sheet): Sheet {
+  const { data, ...rest } = sheet;
+  const value = _.cloneDeep(rest) as Sheet;
+  value.celldata = _.cloneDeep(dataToCelldata(data));
+  return value;
 }
 
 /**
@@ -194,6 +281,69 @@ function recoverSharedConfigPatches(
   });
 }
 
+export type HistoryStepResult = {
+  context: Context;
+  /** undo steps applied, with the patches/options to broadcast */
+  applied: { history: History; patches: Patch[]; options?: PatchOptions }[];
+};
+
+/** Steps whose recalculation was time-sliced (see recalcScheduler.ts). */
+const slicedSteps = new WeakSet<History>();
+
+/**
+ * The step's patches hold only the part of its recalculation that ran in
+ * the update itself (the rest ran later, outside of the history), or another
+ * recalculation is still queued: recalculate what depends on the cells the
+ * undo/redo restored, so formula values match their inputs again.
+ */
+function recalcAfterHistory(
+  ctx: Context,
+  history: History,
+  patches: Patch[],
+  applied: HistoryStepResult["applied"]
+): Context {
+  if (!slicedSteps.has(history) && !hasPendingRecalc(ctx)) return ctx;
+  const cells: { r: number; c: number; i: string }[] = [];
+  let everything = false;
+  patches.forEach(({ path, value }) => {
+    if (path[0] !== "luckysheetfile" || path[2] !== "data") return;
+    const id = ctx.luckysheetfile[path[1] as number]?.id;
+    if (id == null) return;
+    if (typeof path[3] !== "number") {
+      everything = true;
+    } else if (typeof path[4] === "number") {
+      cells.push({ r: path[3], c: path[4], i: id });
+    } else {
+      const n = Array.isArray(value) ? value.length : 0;
+      for (let c = 0; c < n; c += 1) cells.push({ r: path[3], c, i: id });
+    }
+  });
+  if (!everything && cells.length === 0) return ctx;
+  const [next, recalcPatches] = produceInSessionWithPatches(ctx, (draft) => {
+    if (!draft.groupValuesRefreshData) draft.groupValuesRefreshData = [];
+    const fc = draft.formulaCache;
+    fc.execFunctionExist = everything
+      ? undefined
+      : _.uniqBy(cells, (x) => `${x.r}_${x.c}_${x.i}`);
+    execFunctionGroup(
+      draft,
+      null as any,
+      null as any,
+      null,
+      draft.currentSheetId,
+      undefined,
+      everything
+    );
+    groupValuesRefresh(draft);
+    fc.execFunctionGlobalData = null;
+  });
+  const workbookPatches = filterPatch(recalcPatches);
+  if (workbookPatches.length > 0) {
+    applied.push({ history, patches: workbookPatches });
+  }
+  return next;
+}
+
 export type ProduceResult = {
   result: Context;
   /** the recorded undo step, when the change was recorded */
@@ -214,7 +364,13 @@ export function produceWithHistory(
   cache: GlobalCache,
   group: number | undefined = cache.undoGroup?.id
 ): ProduceResult {
-  const [result, patches, inversePatches] = produceWithPatches(ctx, recipe);
+  const epoch = recalcEpoch();
+  const [result, patches, inversePatches] = produceInSessionWithPatches(
+    ctx,
+    recipe
+  );
+  // the update queued part of its recalculation (time slicing)
+  const sliced = recalcEpoch() !== epoch;
   if (patches.length === 0 || options.noHistory) {
     if (
       patches.length > 0 &&
@@ -242,9 +398,7 @@ export function produceWithHistory(
   if (options.deleteSheetOp) {
     const index = getSheetIndex(ctx, options.deleteSheetOp.id);
     if (index != null) {
-      const value = _.cloneDeep(ctx.luckysheetfile[index]);
-      value.celldata = dataToCelldata(value.data as CellMatrix);
-      delete value.data;
+      const value = sheetWithCelldata(ctx.luckysheetfile[index]);
       value.status = 0;
       options.deletedSheet = { id: options.deleteSheetOp.id, index, value };
       filteredInversePatches = [
@@ -262,6 +416,7 @@ export function produceWithHistory(
     options,
   };
   if (group != null) recorded.group = group;
+  if (sliced) slicedSteps.add(recorded);
   cache.undoList.push(recorded);
   cache.redoList = [];
   return { result, recorded, patches };
@@ -358,6 +513,8 @@ function refreshFormulaCache(
   type: "undo" | "redo",
   options: PatchOptions | undefined
 ) {
+  // restored cells may hold spill anchors the anchor index does not know
+  invalidateSpillAnchors(ctx);
   if (
     options?.deleteRowColOp ||
     options?.insertRowColOp ||
@@ -370,12 +527,6 @@ function refreshFormulaCache(
     ctx.formulaCache.updateFormulaCache(ctx, history, type);
   }
 }
-
-export type HistoryStepResult = {
-  context: Context;
-  /** undo steps applied, with the patches/options to broadcast */
-  applied: { history: History; patches: Patch[]; options?: PatchOptions }[];
-};
 
 /**
  * Removes the last step (and the steps of its group) from `list`, most
@@ -435,7 +586,7 @@ export function applyUndoSteps(
           });
         });
     }
-    context = applyPatches(context, inverse);
+    context = applyContextPatches(context, inverse);
     const inversedOptions = inverseRowColOptions(history.options);
     if (inversedOptions?.insertRowColOp) {
       inversedOptions.restoreDeletedCells = true;
@@ -443,9 +594,7 @@ export function applyUndoSteps(
     if (history.options?.addSheetOp && inversedOptions) {
       const index = getSheetIndex(before, history.options.addSheet!.id!);
       if (index != null) {
-        const value = _.cloneDeep(before.luckysheetfile[index]);
-        value.celldata = dataToCelldata(value.data as CellMatrix);
-        delete value.data;
+        const value = sheetWithCelldata(before.luckysheetfile[index]);
         inversedOptions.addSheet = {
           id: history.options.addSheet!.id,
           index,
@@ -468,6 +617,7 @@ export function applyUndoSteps(
       patches: inverse,
       options: inversedOptions,
     });
+    context = recalcAfterHistory(context, history, inverse, applied);
   });
   return { context, applied };
 }
@@ -497,7 +647,7 @@ export function applyRedoSteps(
   let context = ctx;
   const applied: HistoryStepResult["applied"] = [];
   steps.forEach((history) => {
-    context = applyPatches(context, history.patches);
+    context = applyContextPatches(context, history.patches);
     context = produceNoPatches(context, (draft) => {
       const switched = showHistorySheet(draft, history, history.patches);
       syncContextAfterHistory(draft, history.patches, switched);
@@ -508,6 +658,7 @@ export function applyRedoSteps(
       patches: history.patches,
       options: history.options,
     });
+    context = recalcAfterHistory(context, history, history.patches, applied);
   });
   return { context, applied };
 }

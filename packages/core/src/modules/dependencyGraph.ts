@@ -29,6 +29,7 @@ import type {
  */
 
 const DRAFT_STATE = Symbol.for("immer-state");
+const PEEK_VIEW = Symbol.for("tinysheet.peekView");
 
 let stateKeys: { base: string; copy: string } | null = null;
 
@@ -74,7 +75,10 @@ function draftStateKeys() {
 export function peek<T>(value: T): T {
   if (value == null || typeof value !== "object") return value;
   const state = (value as any)[DRAFT_STATE];
-  if (state == null || typeof state !== "object") return value;
+  if (state == null || typeof state !== "object") {
+    // chunked sheet matrices (rowStore.ts) have a draft-free view
+    return (value as any)[PEEK_VIEW] ?? value;
+  }
   const keys = draftStateKeys();
   const latest = state[keys.copy] ?? state[keys.base];
   return latest == null ? value : latest;

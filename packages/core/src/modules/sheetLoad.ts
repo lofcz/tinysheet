@@ -1,5 +1,6 @@
 import type { CellMatrix, Sheet } from "../types";
 import { peek } from "./dependencyGraph";
+import { createChunkedMatrix, getChunkedRowThreshold } from "./rowStore";
 
 /**
  * Expand a sheet's sparse `celldata` into its dense `data` matrix, sized to
@@ -47,5 +48,7 @@ export function expandCellData(
     if (d && d.r >= 0 && d.c >= 0) data[d.r][d.c] = peek(d.v) as any;
   }
   for (let r = 0; r < rows; r += 1) Object.freeze(data[r]);
+  // large sheets keep their rows in chunks (see rowStore.ts)
+  if (rows >= getChunkedRowThreshold()) return createChunkedMatrix(data);
   return Object.freeze(data) as CellMatrix;
 }

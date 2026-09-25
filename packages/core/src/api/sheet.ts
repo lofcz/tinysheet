@@ -6,9 +6,20 @@ import { CellMatrix, CellWithRowAndCol, Sheet, SingleRange } from "../types";
 import { getSheetIndex } from "../utils";
 import { api, execfunction, insertUpdateFunctionGroup } from "..";
 import { duplicateSheet, hideSheets } from "../modules/sheet";
+import { isChunkedMatrix, materializeMatrix } from "../modules/rowStore";
 
+/**
+ * The sheets of the workbook. Sheets of chunked (large) matrices are copies
+ * whose `data` is materialised as a plain 2D array.
+ */
 export function getAllSheets(ctx: Context) {
-  return ctx.luckysheetfile;
+  const files = ctx.luckysheetfile;
+  if (!files.some((sheet) => isChunkedMatrix(sheet?.data))) return files;
+  return files.map((sheet) =>
+    isChunkedMatrix(sheet?.data)
+      ? { ...sheet, data: materializeMatrix(sheet.data) }
+      : sheet
+  );
 }
 
 export { getSheet };

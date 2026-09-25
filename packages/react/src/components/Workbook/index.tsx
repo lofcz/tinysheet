@@ -27,7 +27,13 @@ import {
   applyUndoSteps,
   applyRedoSteps,
   beginUndoGroup,
+  filterPatch,
+  flushRecalc,
+  hasPendingRecalc,
+  runRecalcSlice,
+  setRecalcScheduler,
 } from "@lofcz/tinysheet-core";
+import { flushSync } from "react-dom";
 import React, {
   useMemo,
   useState,
@@ -236,6 +242,73 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       },
       [emitOp]
     );
+
+    // Time-sliced recalculation (core recalcScheduler.ts): a long
+    // recalculation evaluates what fits in a frame's budget and queues the
+    // rest, which runs here one slice per animation frame. Slices change
+    // formula values only: no undo step, but collaborators get the ops.
+    const sliceFrame = useRef<number | null>(null);
+    const runRecalcSliceUpdate = useCallback(
+      (unlimited = false) => {
+        setContext((ctx_) => {
+          if (!hasPendingRecalc(ctx_) && ctx_.recalcProgress === undefined) {
+            return ctx_;
+          }
+          const { result, patches } = produceWithHistory(
+            ctx_,
+            (draft) => {
+              if (unlimited) flushRecalc(draft);
+              else runRecalcSlice(draft);
+              triggerGroupValuesRefresh(draft);
+            },
+            { noHistory: true },
+            globalCache.current
+          );
+          const ops = filterPatch(patches);
+          if (ops.length > 0) emitOp(result, ops);
+          return result;
+        });
+      },
+      [emitOp]
+    );
+    useEffect(() => {
+      // A macrotask per slice: input events and paints get in between
+      // slices (a slice is ~8 ms), without waiting a frame for each.
+      let channel: MessageChannel | null = null;
+      let cancelled = false;
+      const run = () => {
+        sliceFrame.current = null;
+        if (!cancelled) runRecalcSliceUpdate();
+      };
+      if (typeof MessageChannel !== "undefined") {
+        channel = new MessageChannel();
+        channel.port1.onmessage = run;
+      }
+      setRecalcScheduler(context, () => {
+        if (sliceFrame.current != null) return;
+        sliceFrame.current = 1;
+        if (channel) channel.port2.postMessage(null);
+        else setTimeout(run, 0);
+      });
+      return () => {
+        cancelled = true;
+        setRecalcScheduler(context, null);
+        if (channel) channel.port1.onmessage = null;
+      };
+      // the formula cache lives as long as the workbook
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [context.formulaCache, runRecalcSliceUpdate]);
+
+    // Latest committed context, for API calls that must see the result of a
+    // synchronous flush (getCellValue while a recalculation is queued).
+    const latestContext = useRef(context);
+    latestContext.current = context;
+    const flushRecalcNow = useCallback(() => {
+      if (!hasPendingRecalc(latestContext.current))
+        return latestContext.current;
+      flushSync(() => runRecalcSliceUpdate(true));
+      return latestContext.current;
+    }, [runRecalcSliceUpdate]);
 
     const handleUndo = useCallback(() => {
       // the lists are updated here, not in the updater (which React may call
@@ -663,9 +736,17 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           mergedSettings,
           cellInput.current,
           scrollbarX.current,
-          scrollbarY.current
+          scrollbarY.current,
+          flushRecalcNow
         ),
-      [context, setContextWithProduce, handleUndo, handleRedo, mergedSettings]
+      [
+        context,
+        setContextWithProduce,
+        handleUndo,
+        handleRedo,
+        mergedSettings,
+        flushRecalcNow,
+      ]
     );
 
     // ~1300 lines of static SVG symbols: keep the element identity stable so

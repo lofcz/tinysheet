@@ -44,6 +44,7 @@ import { columnCharToIndex, getSheetIndex, indexToColumnChar } from "../utils";
 import { error as ERRORS, isRealNull, valueIsError } from "./validation";
 import { setCellValue } from "./cell";
 import { getSheetDataCached, peek, peekCell } from "./dependencyGraph";
+import { noteSpillAnchor } from "./spillIndex";
 import { expandFormulaNames, getNameDependencies } from "./names";
 import { cellImageFromValue, isImageValue, sameImageValue } from "./cellImage";
 import { getPivotData, pivotAt } from "./pivot";
@@ -1869,6 +1870,7 @@ function spillResult(
     if (old) {
       if (!old.blocked) clearGhosts(ctx, state, data, id, r, c, old, null);
       delete anchor!.spill;
+      noteSpillAnchor(ctx, id, r, c, null);
     }
     if (matrix) {
       const v = matrix[0][0];
@@ -1918,6 +1920,7 @@ function spillResult(
       clearGhosts(ctx, state, data, id, r, c, old, null);
     }
     anchor.spill = { rs, cs, blocked: true };
+    noteSpillAnchor(ctx, id, r, c, anchor.spill);
     return ERRORS.sp;
   }
   if (old && !old.blocked) {
@@ -1951,6 +1954,7 @@ function spillResult(
     }
   }
   anchor.spill = { rs, cs };
+  noteSpillAnchor(ctx, id, r, c, anchor.spill);
   return normalizeSpillValue(matrix[0][0]);
 }
 
@@ -2017,6 +2021,7 @@ export function onFormulaRemoved(
       clearGhosts(ctx, state, data, id, r, c, cell.spill, null);
     }
     delete cell.spill;
+    noteSpillAnchor(ctx, id, r, c, null);
   }
   getState(ctx).dynamicDeps.delete(formulaKey(r, c, id));
 }
@@ -2056,7 +2061,10 @@ function cleanupOrphanGhosts(
     cs += 1;
   }
   clearGhosts(ctx, state, data, id, r, c, { rs, cs }, null);
-  if (cell?.spill) delete cell.spill;
+  if (cell?.spill) {
+    delete cell.spill;
+    noteSpillAnchor(ctx, id, r, c, null);
+  }
 }
 
 /**

@@ -690,6 +690,7 @@ export default {
     max: "Max",
     sum: "Sum",
     calculating: "Calculating…",
+    recalculating: "Calculating ({0}%)",
     customize: "Customize Status Bar",
     copied: "Copied to clipboard",
     clickToCopy: "Click to copy",

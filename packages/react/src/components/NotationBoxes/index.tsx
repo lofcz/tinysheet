@@ -1,5 +1,7 @@
 import React, { useContext, useEffect, useRef } from "react";
 import {
+  CellMatrix,
+  forEachChangedRow,
   getFlowdata,
   onCommentBoxMoveStart,
   onCommentBoxResizeStart,
@@ -17,26 +19,25 @@ const NotationBoxes: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const flowdata = getFlowdata(context);
 
-  // Columns of shown comments per row. Rows are immutable (immer), so after
-  // an edit only rows whose identity changed are rescanned, not every cell.
+  // Columns of shown comments per row (rows without any are left out). Rows
+  // are immutable (immer), so after an edit only rows whose identity changed
+  // are rescanned, not every cell; for chunked (large) sheets only the rows
+  // of changed chunks are even looked at.
   const shownByRow = useRef(new WeakMap<object, number[]>());
-  const lastScan = useRef<{ data: unknown[]; cols: number[][] } | null>(null);
+  const lastScan = useRef<{
+    data: CellMatrix;
+    shown: Map<number, number[]>;
+  } | null>(null);
   const hasCommentBoxes = (context.commentBoxes?.length ?? 0) > 0;
   const hasCommentBoxesRef = useRef(hasCommentBoxes);
   hasCommentBoxesRef.current = hasCommentBoxes;
   useEffect(() => {
     if (flowdata) {
-      const psShownCells: { r: number; c: number }[] = [];
       const cache = shownByRow.current;
-      const last = lastScan.current;
-      const aligned = last != null && last.data.length === flowdata.length;
-      const colsByRow: number[][] = new Array(flowdata.length);
-      for (let i = 0; i < flowdata.length; i += 1) {
+      const colsOf = (i: number) => {
         const row = flowdata[i];
-        let cols: number[] | undefined;
-        if (!row) cols = NO_COLS;
-        else if (aligned && last!.data[i] === row) cols = last!.cols[i];
-        else cols = cache.get(row);
+        if (!row) return NO_COLS;
+        let cols = cache.get(row);
         if (cols === undefined) {
           cols = NO_COLS;
           for (let j = 0; j < row.length; j += 1) {
@@ -47,12 +48,34 @@ const NotationBoxes: React.FC = () => {
           }
           cache.set(row, cols);
         }
-        colsByRow[i] = cols;
-        for (let k = 0; k < cols.length; k += 1) {
-          psShownCells.push({ r: i, c: cols[k] });
+        return cols;
+      };
+      const last = lastScan.current;
+      let shown: Map<number, number[]> | null = null;
+      if (last) {
+        let next: Map<number, number[]> | null = null;
+        const compared = forEachChangedRow(last.data, flowdata, (i) => {
+          if (!next) next = new Map(last.shown);
+          const cols = colsOf(i);
+          if (cols.length > 0) next.set(i, cols);
+          else next.delete(i);
+        });
+        if (compared) shown = next ?? last.shown;
+      }
+      if (!shown) {
+        shown = new Map();
+        for (let i = 0; i < flowdata.length; i += 1) {
+          const cols = colsOf(i);
+          if (cols.length > 0) shown.set(i, cols);
         }
       }
-      lastScan.current = { data: flowdata, cols: colsByRow };
+      lastScan.current = { data: flowdata, shown };
+      const psShownCells: { r: number; c: number }[] = [];
+      Array.from(shown.keys())
+        .sort((a, b) => a - b)
+        .forEach((r) => {
+          shown!.get(r)!.forEach((c) => psShownCells.push({ r, c }));
+        });
       // nothing shown and nothing to clear: skip the extra context update
       if (psShownCells.length === 0 && !hasCommentBoxesRef.current) return;
       setContext((ctx) => showComments(ctx, psShownCells));
