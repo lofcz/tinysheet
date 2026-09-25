@@ -33,13 +33,16 @@ import { execFunctionGroup, execfunction, groupValuesRefresh } from "./formula";
 import { invalidateDependencyGraph } from "./formulaHelper";
 import { setSelectionRange } from "./navigation";
 import { extractStaticReferences, quoteSheetName } from "./formulaFunctions";
-import type { RowColChange, StructuredRefEnv } from "./tables";
+import type { StructuredRefEnv } from "./tables";
+import { resolveStructuredReference, tableIndexOf } from "./tables";
 import {
-  resolveStructuredReference,
-  shiftSpanDelete,
-  shiftSpanInsert,
-  tableIndexOf,
-} from "./tables";
+  formatRef,
+  parseRef,
+  ParsedRef,
+  ReferenceAdjusterApi,
+  ReferenceChange,
+  transformReferences,
+} from "./refAdjust";
 
 /* ------------------------------------------------------------------------ */
 /* Types                                                                    */
@@ -1075,109 +1078,79 @@ export function moveWorkbookNamesBeforeSheetDelete(
   target.definedNames = [...(target.definedNames ?? []), ...global];
 }
 
-const REF_PARTS =
-  /^((?:[^'!]+|'(?:[^']|'')+')!)?(\$?)([A-Za-z]{1,3})?(\$?)(\d+)?(?::((?:[^'!]+|'(?:[^']|'')+')!)?(\$?)([A-Za-z]{1,3})?(\$?)(\d+)?)?$/;
-
-function unquoteSheet(prefix: string) {
-  const p = prefix.slice(0, -1);
-  return p.startsWith("'") ? p.slice(1, -1).replace(/''/g, "'") : p;
-}
-
-/** Shift one reference token for a row/column insertion or deletion. */
-function shiftReference(
-  ctx: Context,
-  ref: string,
-  sheetId: string,
-  op: RowColChange
-): string {
-  const m = REF_PARTS.exec(ref);
-  if (!m || !m[1] || sheetIdByName(ctx, unquoteSheet(m[1])) !== sheetId) {
-    return ref;
+/**
+ * Whether a reference of a name definition points at fixed cells for
+ * `change`. References whose affected coordinates are relative (`A1` in a
+ * name, see "Relative references" above) are offsets from the cell using
+ * the name, so moving cells does not change them.
+ */
+function followsChange(ref: ParsedRef, change: ReferenceChange) {
+  const rowsFixed = ref.kind === "cols" || (ref.ar1 && ref.ar2);
+  const colsFixed = ref.kind === "rows" || (ref.ac1 && ref.ac2);
+  switch (change.type) {
+    case "insert":
+    case "delete":
+      return change.axis === "row" ? rowsFixed : colsFixed;
+    case "renameSheet":
+    case "deleteSheet":
+      return true;
+    default:
+      return rowsFixed && colsFixed;
   }
-  const hasEnd = ref.indexOf(":") > -1;
-  const p1 = { ca: m[2], col: m[3], ra: m[4], row: m[5] };
-  const p2 = hasEnd ? { ca: m[7], col: m[8], ra: m[9], row: m[10] } : p1;
-  const isRow = op.type === "row";
-  const get = (p: typeof p1) => {
-    if (isRow) return p.row == null ? null : parseInt(p.row, 10) - 1;
-    return p.col == null ? null : columnCharToIndex(p.col.toUpperCase());
-  };
-  const a = get(p1);
-  const b = get(p2);
-  if (a == null || b == null) return ref; // whole columns for a row op etc.
-  const span: [number, number] = [Math.min(a, b), Math.max(a, b)];
-  const next =
-    op.kind === "insert"
-      ? shiftSpanInsert(span, op.index, op.count)
-      : shiftSpanDelete(span, op.start, op.end);
-  if (!next) return "#REF!";
-  if (next[0] === span[0] && next[1] === span[1]) return ref;
-  const set = (p: typeof p1, v: number) =>
-    isRow ? { ...p, row: String(v + 1) } : { ...p, col: indexToColumnChar(v) };
-  const q1 = set(p1, next[0]);
-  const q2 = set(p2, next[1]);
-  const text = (p: typeof p1) =>
-    `${p.col != null ? `${p.ca}${p.col}` : ""}${
-      p.row != null ? `${p.ra}${p.row}` : ""
-    }`;
-  return `${m[1]}${text(q1)}${hasEnd ? `:${m[6] ?? ""}${text(q2)}` : ""}`;
-}
-
-/** Shift the references of a formula text that point into sheet `sheetId`. */
-export function shiftFormulaReferences(
-  ctx: Context,
-  formula: string,
-  sheetId: string,
-  op: RowColChange
-): string {
-  let out = "";
-  let i = 0;
-  const s = formula;
-  while (i < s.length) {
-    const ch = s[i];
-    if (ch === '"') {
-      const end = quotedEnd(s, i, '"');
-      out += s.slice(i, end);
-      i = end;
-      continue;
-    }
-    const ref = matchSticky(REF_AT, s, i);
-    if (ref) {
-      out += shiftReference(ctx, ref, sheetId, op);
-      i += ref.length;
-      continue;
-    }
-    const ident = IDENT_START.test(ch) ? matchSticky(IDENT_AT, s, i) : null;
-    if (ident) {
-      out += ident;
-      i += ident.length;
-      continue;
-    }
-    out += ch;
-    i += 1;
-  }
-  return out;
 }
 
 /**
- * Keeps defined names pointing at the same cells when rows/columns of sheet
- * `sheetId` are inserted or deleted (deleted targets become #REF!). Called
- * by insertRowCol / deleteRowCol.
+ * Rewrite one name definition for a structural change: absolute references
+ * follow their cells (and become #REF! when deleted), sheet renames and
+ * deletions apply to every reference.
  */
-export function adjustNamesForRowCol(
+export function rewriteNameDefinition(
+  refersTo: string,
+  hostSheetId: string,
+  change: ReferenceChange,
+  rewrite: (formula: string, host: string) => string
+): string {
+  return transformReferences(refersTo, (ref) => {
+    if (!followsChange(ref, change)) return null;
+    const text = `=${formatRef(ref)}`;
+    const out = rewrite(text, hostSheetId);
+    if (out === text) return null;
+    if (out.indexOf("#REF!") >= 0) return "#REF!";
+    return parseRef(out.slice(1));
+  });
+}
+
+/**
+ * Keeps defined names pointing at the same cells for every structural
+ * change (rows/columns/cells inserted or deleted, cells moved, sheets
+ * renamed or deleted). Registered with refAdjust (see modelSync.ts), so it
+ * runs exactly once per change.
+ */
+export function adjustNamesForChange(
   ctx: Context,
-  sheetId: string,
-  op: RowColChange
+  change: ReferenceChange,
+  api: Pick<ReferenceAdjusterApi, "rewriteFormula">
 ) {
   ctx.luckysheetfile.forEach((f) => {
-    if (!f.definedNames?.length) return;
+    if (!f.definedNames?.length || f.id == null) return;
+    const deleted = change.type === "deleteSheet" && f.id === change.sheetId;
     let changed = false;
     const next = f.definedNames.map((d) => {
-      const refersTo = shiftFormulaReferences(ctx, d.refersTo, sheetId, op);
+      // names scoped to a deleted sheet go away with it; workbook names
+      // stored there are moved to another sheet (deleteSheet)
+      if (deleted && d.local) return d;
+      if (typeof d.refersTo !== "string" || !d.refersTo) return d;
+      const refersTo = rewriteNameDefinition(
+        d.refersTo,
+        f.id!,
+        change,
+        api.rewriteFormula
+      );
       if (refersTo === d.refersTo) return d;
       changed = true;
       return { ...d, refersTo };
     });
+    // a new array: the name index is memoised on its identity
     if (changed) f.definedNames = next;
   });
 }

@@ -18,6 +18,9 @@ import { reconcileSpillsAfterMove } from "./spill";
 import { CFSplitRange } from "./ConditionFormat";
 import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
 import { expandRowsAndColumns } from "./sheet";
+// names, tables, charts and note boxes follow moved cells (reference
+// adjusters registered by modelSync)
+import "./modelSync";
 
 /* -------------------------------------------------------------------------- */
 /*                   Moving a block of cells (cut/paste, drag)                */
