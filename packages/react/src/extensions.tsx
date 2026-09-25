@@ -11,7 +11,9 @@
  * - status bar items: `registerStatusBarItem("calcStatus", CalcStatus)`.
  *
  * Canvas cell decorators and keyboard shortcuts live in the core package
- * (`registerCellDecorator`, `registerShortcut`).
+ * (`registerCellDecorator`, `registerShortcut`). Context-menu entries are
+ * registered with `registerContextMenuAction` / `registerContextMenuItem`
+ * (re-exported here).
  *
  * Built-in features register themselves in ./features.ts, loaded on the
  * first registry lookup (the package is side-effect free, so a feature
@@ -26,7 +28,10 @@ export {
   registerContextMenuAction,
   registerContextMenuItem,
 } from "./components/ContextMenu/actions";
-export type { ContextMenuItem } from "./components/ContextMenu/actions";
+export type {
+  ContextMenuItem,
+  ContextMenuActionHelpers,
+} from "./components/ContextMenu/actions";
 
 export type ToolbarItemRenderer = (props: {
   name: string;

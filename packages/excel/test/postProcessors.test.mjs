@@ -41,6 +41,7 @@ test("built-in post-processors run in a documented order", () => {
       "tables",
       "charts",
       "shapes",
+      "pivot-tables",
       "feature-fixups",
     ]
   );

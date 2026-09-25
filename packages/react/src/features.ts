@@ -9,6 +9,7 @@ import { registerFormulaAuditing } from "./components/FormulaAuditing/register";
 import { installSparklineUI } from "./components/Sparkline";
 import { installOutlineUI } from "./components/Outline";
 import { registerShapesFeature } from "./components/Shapes";
+import { registerPivotTableFeatures } from "./components/PivotTable";
 
 let loaded = false;
 
@@ -19,4 +20,5 @@ export function loadBuiltinFeatures() {
   installSparklineUI();
   installOutlineUI();
   registerShapesFeature();
+  registerPivotTableFeatures();
 }

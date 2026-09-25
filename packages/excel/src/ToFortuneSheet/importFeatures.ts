@@ -24,6 +24,8 @@ import { importCalcProperties } from "../common/calcProperties";
 import { readSparklines } from "./FortuneSparkline";
 import { readOutline } from "../common/outline";
 import { readShapes } from "../shapes/importXlsx";
+// eslint-disable-next-line import/no-cycle
+import { readPivotTables } from "../common/pivotTables";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -341,11 +343,13 @@ export const sheetImportFeatures: SheetImportFeature[] = [
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 
-/** Workbook-level readers (defined names (P3), ...). */
+/** Workbook-level readers (defined names (P3), PivotTables, ...). */
 export const workbookImportFeatures: WorkbookImportFeature[] = [
   // _xlnm.Print_Area / _xlnm.Print_Titles -> sheet.pageSetup
   { name: "print-names", read: readPrintNames },
   { name: "calc-properties", read: importCalcProperties },
+  // PivotTables (they need every sheet, for their source sheet's id)
+  { name: "pivot-tables", read: (ctx) => readPivotTables(ctx) },
 ];
 
 export function registerSheetImportFeature(feature: SheetImportFeature) {

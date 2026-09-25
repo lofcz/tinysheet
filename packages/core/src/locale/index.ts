@@ -92,6 +92,8 @@ export { excelIoLocale } from "./excelIo";
 export type { ExcelIoLocale } from "./excelIo";
 export { FUNCTION_CATEGORIES } from "./functions/types";
 export type { ChartLocale } from "./chart";
+export { pivotLocale, pivotText } from "./pivot";
+export type { PivotLocale } from "./pivot";
 export type {
   FunctionListEntry,
   FunctionListParam,

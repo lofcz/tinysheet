@@ -4,7 +4,7 @@
      packages/core/src/locale/functions/en.ts. Do not edit by hand;
      run `bun run docs:functions` instead. -->
 
-TinySheet ships 505 worksheet functions. Every one of them
+TinySheet ships 506 worksheet functions. Every one of them
 appears in formula autocomplete, shows an argument hint while you type,
 and is listed in the function search dialog. Arguments in `[brackets]`
 are optional; `...` means the argument can be repeated.
@@ -13,7 +13,7 @@ are optional; `...` means the argument can be repeated.
 | --- | ---: |
 | [Math and trigonometry](#math-and-trigonometry) | 82 |
 | [Statistical](#statistical) | 111 |
-| [Lookup and reference](#lookup-and-reference) | 38 |
+| [Lookup and reference](#lookup-and-reference) | 39 |
 | [Database](#database) | 12 |
 | [Date and time](#date-and-time) | 25 |
 | [Financial](#financial) | 56 |
@@ -241,6 +241,7 @@ are optional; `...` means the argument can be repeated.
 | `EXPAND(array, rows, [columns], [pad_with])` | Pads an array to a given size. |
 | `FILTER(array, include, [if_empty])` | Rows or columns that meet criteria. |
 | `FORMULATEXT(reference)` | Formula of a cell as text. |
+| `GETPIVOTDATA(data_field, pivot_table, [field1, ...], [item1, ...])` | Value from a PivotTable. |
 | `GROUPBY(row_fields, values, function, [field_headers], [total_depth], [sort_order], [filter_array], [field_relationship])` | Group and aggregate rows. |
 | `HLOOKUP(lookup_value, table_array, row_index_num, [range_lookup])` | Horizontal lookup. |
 | `HSTACK(array1, [array2, ...])` | Stacks arrays side by side. |

@@ -69,6 +69,8 @@ export type Context = {
   shapeDrawKind?: string;
   /** Whether the Format Shape pane is open for the selected shapes. */
   shapeFormatOpen?: boolean;
+  /** The PivotTable Fields pane was closed (see modules/pivot.ts). */
+  pivotFieldListHidden?: boolean;
   presences?: Presence[];
   showSearch?: boolean;
   showReplace?: boolean;

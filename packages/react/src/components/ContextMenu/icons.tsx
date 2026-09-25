@@ -40,6 +40,10 @@ const paths: Record<string, string> = {
   autofit: "M3 5h2v14H3zM19 5h2v14h-2zM7 12l3-3v2h4V9l3 3-3 3v-2h-4v2z",
   chevron: "M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z",
   check: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+  refresh:
+    "M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z",
+  pivot:
+    "M3 3h18v18H3V3zm2 2v3h3V5H5zm5 0v3h9V5h-9zm-5 5v9h3v-9H5zm5 0v9h9v-9h-9z",
 };
 
 type Props = { name: string; size?: number };

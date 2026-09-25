@@ -15,7 +15,8 @@
  *   `adjustSparklinesForChange`),
  * - note boxes with an explicit position (`adjustNotesForChange` below),
  * - shapes and text boxes: their cell anchors (shapes.ts
- *   `adjustShapesForChange`).
+ *   `adjustShapesForChange`),
+ * - PivotTable sources and report positions (pivot.ts).
  *
  * The data-validation rule anchors register their own adjuster
  * (dataVerification.ts). Cell-keyed data (merges, data-validation and
@@ -32,6 +33,7 @@ import type { Context } from "../context";
 import type { Sheet } from "../types";
 import { remapDuplicatedCharts, adjustChartsForChange } from "./chart";
 import { adjustNamesForChange } from "./names";
+import { adjustPivotTablesForChange } from "./pivot";
 import {
   createSheetLookup,
   locateRangeForChange,
@@ -144,6 +146,17 @@ const sparklinesAdjuster: ReferenceAdjuster = (ctx, change, api) =>
   adjustSparklinesForChange(ctx, change, api);
 const shapesAdjuster: ReferenceAdjuster = (ctx, change) =>
   adjustShapesForChange(ctx, change);
+const pivotsAdjuster: ReferenceAdjuster = (ctx, change, api) => {
+  if (change.type === "renameSheet") return;
+  adjustPivotTablesForChange(
+    ctx,
+    (range, sheetId) =>
+      change.type === "deleteSheet"
+        ? { range, sheetId }
+        : api.locateRange(range, sheetId),
+    change.type === "deleteSheet" ? change.sheetId : undefined
+  );
+};
 
 /** Keys the model adjusters are registered under. */
 export const MODEL_ADJUSTER_KEYS = [
@@ -153,6 +166,7 @@ export const MODEL_ADJUSTER_KEYS = [
   "model.notes",
   "model.sparklines",
   "model.shapes",
+  "model.pivots",
 ] as const;
 
 /**
@@ -168,6 +182,7 @@ export function installModelAdjusters() {
   registerReferenceAdjuster("model.sparklines", sparklinesAdjuster);
   installSparklineRenderer();
   registerReferenceAdjuster("model.shapes", shapesAdjuster);
+  registerReferenceAdjuster("model.pivots", pivotsAdjuster);
 }
 
 installModelAdjusters();

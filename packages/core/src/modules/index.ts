@@ -49,6 +49,7 @@ export * from "./refAdjust";
 export * from "./pasteSpecial";
 export * from "./names";
 export * from "./tables";
+export * from "./pivot";
 export * from "./chart";
 export * from "./chartRender";
 export * from "./sparkline";

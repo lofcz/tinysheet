@@ -46,6 +46,7 @@ import { setCellValue } from "./cell";
 import { getSheetDataCached, peek, peekCell } from "./dependencyGraph";
 import { expandFormulaNames, getNameDependencies } from "./names";
 import { cellImageFromValue, isImageValue, sameImageValue } from "./cellImage";
+import { getPivotData, pivotAt } from "./pivot";
 
 // ---------------------------------------------------------------------------
 // Types and per-workbook state
@@ -1243,6 +1244,53 @@ const allFunctions: Record<string, Fn> = {
   },
 };
 
+/**
+ * GETPIVOTDATA(data_field, pivot_table, [field1, item1], ...): the value a
+ * PivotTable report shows (modules/pivot.ts). The formula depends on the
+ * whole report, so it follows refreshes.
+ */
+function getPivotDataFn(args: any[], frame: EvalFrame) {
+  const [dataField, table, ...rest] = args;
+  if (dataField instanceof Error) return dataField;
+  const ref = refArg(table, frame);
+  if (ref instanceof Error) return ref;
+  if (rest.length % 2 !== 0) return errorValue(ERR_REF);
+  const pairs: [unknown, unknown][] = [];
+  for (let i = 0; i < rest.length; i += 2) {
+    const f = rest[i];
+    const item = Array.isArray(rest[i + 1])
+      ? rest[i + 1].flat()[0]
+      : rest[i + 1];
+    if (f instanceof Error) return f;
+    if (item instanceof Error) return item;
+    pairs.push([f, item]);
+  }
+  const pivot = pivotAt(frame.ctx, ref.sheetId, ref.r1, ref.c1);
+  if (pivot?.output) {
+    recordDependency(frame, {
+      sheetId: ref.sheetId,
+      r1: pivot.output.row[0],
+      c1: pivot.output.column[0],
+      r2: pivot.output.row[1],
+      c2: pivot.output.column[1],
+    });
+  }
+  const res = getPivotData(
+    frame.ctx,
+    ref.sheetId,
+    ref.r1,
+    ref.c1,
+    String(Array.isArray(dataField) ? dataField.flat()[0] : dataField ?? ""),
+    pairs
+  );
+  if (typeof res === "string" && /^#[A-Z0-9/!?]+$/.test(res)) {
+    return errorValue(res);
+  }
+  return res ?? errorValue(ERR_REF);
+}
+
+allFunctions.GETPIVOTDATA = getPivotDataFn;
+
 /** Functions implemented (or completed) by this module. */
 export const WORKBOOK_FUNCTION_NAMES = [
   "ROW",
@@ -1261,6 +1309,7 @@ export const WORKBOOK_FUNCTION_NAMES = [
   "CELL",
   "SUBTOTAL",
   "AGGREGATE",
+  "GETPIVOTDATA",
 ];
 
 /**
@@ -1282,6 +1331,7 @@ const REFERENCE_PARAMS: Record<string, (k: number) => boolean> = {
   INDIRECT: () => false,
   CELL: (k) => k === 1,
   SUBTOTAL: (k) => k >= 1,
+  GETPIVOTDATA: (k) => k === 1,
 };
 
 /** Functions whose result is a reference (`createReference`). */

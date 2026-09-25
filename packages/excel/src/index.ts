@@ -74,6 +74,14 @@ export { addShapesToXlsx, shapesToAnchorsXml } from "./shapes/exportXlsx";
 export { readDrawingShapes, readShapes } from "./shapes/importXlsx";
 export type { SheetExportOptions } from "./ToExcel/ExcelFile";
 
+// PivotTables in xlsx (definitions; the report cells are ordinary cells).
+export {
+  addPivotTablesToXlsx,
+  parsePivotTableXml,
+  pivotToXlsxParts,
+  readPivotTables,
+} from "./common/pivotTables";
+
 // xlsx import extension points.
 export {
   sheetImportFeatures,
