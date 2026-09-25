@@ -321,7 +321,7 @@ export function readChartRange(
  * non-empty cells around it), like Excel does when inserting a chart from one
  * selected cell.
  */
-export function getCurrentRegion(
+export function getChartSourceRegion(
   data: CellMatrix | undefined,
   row: number,
   column: number
@@ -558,7 +558,7 @@ export function getChartSourceFromSelection(ctx: Context): ChartRange | null {
   let row: [number, number] = [last.row[0], last.row[1]];
   let column: [number, number] = [last.column[0], last.column[1]];
   if (row[0] === row[1] && column[0] === column[1]) {
-    const region = getCurrentRegion(data, row[0], column[0]);
+    const region = getChartSourceRegion(data, row[0], column[0]);
     row = region.row;
     column = region.column;
   }

@@ -36,6 +36,7 @@ export * from "./filter";
 export * from "./moveCells";
 export * from "./conditionalFormat";
 export * from "./splitColumn";
+export * from "./removeDuplicates";
 export * from "./locationCondition";
 export * from "./dataVerification";
 export * from "./ConditionFormat";

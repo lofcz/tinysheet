@@ -30,12 +30,9 @@ import {
   insertImage,
   showImgChooser,
   updateFormat,
-  handleSort,
   handleHorizontalAlign,
   handleVerticalAlign,
   handleScreenShot,
-  createFilter,
-  clearFilter,
   applyLocation,
   buildFormatCode,
   formatValue,
@@ -56,7 +53,8 @@ import { useDialog } from "../../hooks/useDialog";
 import { FormulaSearch } from "../FormulaSearch";
 import { SplitColumn } from "../SplitColumn";
 import { LocationCondition } from "../LocationCondition";
-import DataVerification from "../DataVerification";
+import DataVerificationCombo from "../DataVerification/ToolbarCombo";
+import SortFilterCombo from "../CustomSort/SortFilterCombo";
 import ConditionalFormat from "../ConditionFormat";
 import CustomButton from "./CustomButton";
 import { CustomColor } from "./CustomColor";
@@ -101,12 +99,10 @@ const Toolbar: React.FC<{
     border,
     freezen,
     formula,
-    sort,
     align,
     textWrap,
     rotation,
     screenshot,
-    filter,
     splitText,
     findAndReplace,
     comment,
@@ -611,17 +607,7 @@ const Toolbar: React.FC<{
       if (name === "formatAsTable") return <FormatAsTableButton key={name} />;
       if (name === "nameManager") return <NameManagerButton key={name} />;
       if (name === "dataVerification") {
-        return (
-          <Button
-            iconId={name}
-            tooltip={tooltip}
-            key={name}
-            onClick={() => {
-              if (context.allowEdit === false) return;
-              showDialog(<DataVerification />);
-            }}
-          />
-        );
+        return <DataVerificationCombo tooltip={tooltip} key={name} />;
       }
       if (name === "locationCondition") {
         const items = [
@@ -1342,74 +1328,7 @@ const Toolbar: React.FC<{
         );
       }
       if (name === "filter") {
-        const items = [
-          {
-            iconId: "sort-asc",
-            value: "sort-asc",
-            text: sort.asc,
-            onClick: () => {
-              setContext((ctx) => {
-                handleSort(ctx, true);
-              });
-            },
-          },
-          {
-            iconId: "sort-desc",
-            value: "sort-desc",
-            text: sort.desc,
-            onClick: () => {
-              setContext((ctx) => {
-                handleSort(ctx, false);
-              });
-            },
-          },
-          // { iconId: "sort", value: "sort", text: sort.custom },
-          { iconId: "", value: "divider" },
-          {
-            iconId: "filter1",
-            value: "filter",
-            text: filter.filter,
-            onClick: () =>
-              setContext((draftCtx) => {
-                createFilter(draftCtx);
-              }),
-          },
-          {
-            iconId: "eraser",
-            value: "eraser",
-            text: filter.clearFilter,
-            onClick: () =>
-              setContext((draftCtx) => {
-                clearFilter(draftCtx);
-              }),
-          },
-        ];
-        return (
-          <Combo iconId="filter" key={name} tooltip={toolbar.sortAndFilter}>
-            {(setOpen) => (
-              <Select>
-                {items.map(({ text, iconId, value, onClick }, index) =>
-                  value !== "divider" ? (
-                    <Option
-                      key={value}
-                      onClick={() => {
-                        onClick?.();
-                        setOpen(false);
-                      }}
-                    >
-                      <div className="fortune-toolbar-menu-line">
-                        {text}
-                        <SVGIcon name={iconId} />
-                      </div>
-                    </Option>
-                  ) : (
-                    <MenuDivider key={`divider-${index}`} />
-                  )
-                )}
-              </Select>
-            )}
-          </Combo>
-        );
+        return <SortFilterCombo tooltip={toolbar.sortAndFilter} key={name} />;
       }
       return (
         <Button
@@ -1452,10 +1371,8 @@ const Toolbar: React.FC<{
       border,
       freezen,
       screenshot,
-      sort,
       textWrap,
       rotation,
-      filter,
       splitText,
       findAndReplace,
       context.luckysheet_select_save,

@@ -5,7 +5,7 @@ import {
   deleteChart,
   detectChartSeries,
   findChart,
-  getCurrentRegion,
+  getChartSourceRegion,
   insertChart,
   parseChartRange,
   pasteChart,
@@ -115,7 +115,7 @@ describe("chart ranges", () => {
 
   test("current region expands a single cell to the data block", () => {
     const ctx = makeContext(table);
-    expect(getCurrentRegion(ctx.luckysheetfile[0].data, 1, 1)).toEqual({
+    expect(getChartSourceRegion(ctx.luckysheetfile[0].data, 1, 1)).toEqual({
       row: [0, 2],
       column: [0, 3],
     });

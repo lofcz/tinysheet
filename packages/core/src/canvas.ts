@@ -10,7 +10,12 @@ import {
 import { isInlineStringCell } from "./modules/inline-string";
 import { getSheetIndex, indexToColumnChar } from "./utils";
 import { getBorderInfoComputeRange } from "./modules/border";
-import { checkCF, getComputeMap, validateCellData } from "./modules";
+import {
+  checkCF,
+  drawCellPlaceholder,
+  drawDataVerificationMarks,
+  getComputeMap,
+} from "./modules";
 import { cfTextCell, drawCFDecorations } from "./modules/cfDraw";
 import { getCanvasTheme, resolveCellTextColor } from "./theme";
 import {
@@ -1853,6 +1858,39 @@ export class Canvas {
       );
     }
 
+    // data validation on an empty cell: placeholder text, blank markers
+    const dvIndex = getSheetIndex(this.sheetCtx, this.sheetCtx.currentSheetId);
+    if (
+      dvIndex != null &&
+      this.sheetCtx.luckysheetfile[dvIndex]?.dataVerification?.[`${r}_${c}`] &&
+      !(`${r}_${c}` in dynamicArrayCompute)
+    ) {
+      const dvRect = {
+        x: startX + offsetLeft,
+        y: startY + offsetTop,
+        w: endX - startX,
+        h: endY - startY,
+      };
+      const theme = getCanvasTheme(this.sheetCtx);
+      drawCellPlaceholder(
+        this.sheetCtx,
+        renderCtx,
+        r,
+        c,
+        dvRect,
+        theme.headerText
+      );
+      drawDataVerificationMarks(
+        this.sheetCtx,
+        renderCtx,
+        r,
+        c,
+        null,
+        dvRect,
+        theme.commentMarker
+      );
+    }
+
     // 若单元格有批注
     if (flowdata?.[r]?.[c]?.ps) {
       const ps_w = 8 * this.sheetCtx.zoomRatio;
@@ -2034,8 +2072,6 @@ export class Canvas {
 
     renderCtx.fillRect(cellsize[0], cellsize[1], cellsize[2], cellsize[3]);
 
-    // const { dataVerification } = dataVerificationCtrl;
-
     const index = getSheetIndex(
       this.sheetCtx,
       this.sheetCtx.currentSheetId
@@ -2043,21 +2079,22 @@ export class Canvas {
 
     const { dataVerification } = this.sheetCtx.luckysheetfile[index];
 
-    if (
-      dataVerification?.[`${r}_${c}`] &&
-      !validateCellData(this.sheetCtx, dataVerification[`${r}_${c}`], value)
-    ) {
-      // 单元格左上角红色小三角标示
-      const dv_w = 5 * this.sheetCtx.zoomRatio;
-      const dv_h = 5 * this.sheetCtx.zoomRatio; // 红色小三角宽高
-
-      renderCtx.beginPath();
-      renderCtx.moveTo(startX + offsetLeft, startY + offsetTop);
-      renderCtx.lineTo(startX + offsetLeft + dv_w, startY + offsetTop);
-      renderCtx.lineTo(startX + offsetLeft, startY + offsetTop + dv_h);
-      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).commentMarker;
-      renderCtx.fill();
-      renderCtx.closePath();
+    // data validation: invalid marker and Circle Invalid Data
+    if (dataVerification?.[`${r}_${c}`]) {
+      drawDataVerificationMarks(
+        this.sheetCtx,
+        renderCtx,
+        r,
+        c,
+        value,
+        {
+          x: startX + offsetLeft,
+          y: startY + offsetTop,
+          w: endX - startX,
+          h: endY - startY,
+        },
+        getCanvasTheme(this.sheetCtx).commentMarker
+      );
     }
 
     // 若单元格有批注（单元格右上角红色小三角标示）

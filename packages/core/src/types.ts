@@ -284,6 +284,13 @@ export type DataRegulationProps = {
   prohibitInput: boolean;
   hintShow: boolean;
   hintValue: string;
+  hintTitle?: string;
+  errorStyle?: "stop" | "warning" | "information";
+  errorTitle?: string;
+  errorMessage?: string;
+  ignoreBlank?: boolean;
+  showDropdown?: boolean;
+  placeholder?: string;
 };
 
 export type ConditionRulesProps = {

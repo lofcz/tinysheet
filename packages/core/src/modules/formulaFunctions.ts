@@ -723,7 +723,15 @@ function anchorOfGhost(ctx: Context, sheetId: string, r: number, c: number) {
 // Workbook functions
 // ---------------------------------------------------------------------------
 
-type Fn = (args: any[], frame: EvalFrame) => any;
+type ParserRef = {
+  sheetName?: string;
+  startRow: number;
+  startColumn: number;
+  endRow: number;
+  endColumn: number;
+} | null;
+
+type Fn = (args: any[], frame: EvalFrame, refs?: ParserRef[]) => any;
 
 function refArg(v: any): RefRange | Error {
   if (v instanceof Error) return v;
@@ -1159,6 +1167,51 @@ const workbookFunctions: Record<string, Fn> = {
     }
     return subtotalCompute(fn, values);
   },
+  /**
+   * AGGREGATE over references: options 0-3 skip nested SUBTOTAL/AGGREGATE,
+   * options 1, 3, 5 and 7 skip hidden rows (by hand or by a filter). The
+   * skipped cells are blanked and the parser's own AGGREGATE does the rest.
+   */
+  AGGREGATE(args, frame, refs) {
+    if (!refs || refs.every((r) => r == null)) return undefined;
+    const fnArg = toNumberArg(args[0]);
+    if (fnArg instanceof Error) return undefined;
+    const optArg = args[1] == null || args[1] === "" ? 0 : toNumberArg(args[1]);
+    if (optArg instanceof Error) return undefined;
+    const fn = Math.trunc(fnArg);
+    const opt = Math.trunc(optArg);
+    if (fn < 1 || fn > 19 || opt < 0 || opt > 7) return undefined;
+    const ignoreHidden = opt % 2 === 1;
+    const ignoreNested = opt <= 3;
+    const params = args.slice();
+    const last = fn <= 13 ? args.length - 1 : 2;
+    for (let k = 2; k <= last; k += 1) {
+      const ref = refs[k];
+      if (ref && Array.isArray(args[k])) {
+        const sheetId = ref.sheetName
+          ? findSheetIdByName(frame.ctx, ref.sheetName)
+          : frame.sheetId;
+        if (sheetId != null) {
+          const { rowhidden, filtered } = hiddenRowSets(frame.ctx, sheetId);
+          const r0 = Math.max(ref.startRow, 0);
+          const c0 = Math.max(ref.startColumn, 0);
+          params[k] = (args[k] as any[]).map((row: any, i: number) => {
+            const r = r0 + i;
+            const hidden = r in rowhidden || r in filtered;
+            if (ignoreHidden && hidden) return row.map(() => null);
+            if (!ignoreNested) return row;
+            return row.map((v: any, j: number) =>
+              isSubtotalFormula(formulaOfCell(frame.ctx, sheetId, r, c0 + j))
+                ? null
+                : v
+            );
+          });
+        }
+      }
+    }
+    // no references left: the parser's AGGREGATE computes the result
+    return frame.ctx.formulaCache.parser._callFunction("AGGREGATE", params, []);
+  },
 };
 
 /** Functions implemented (or completed) by this module. */
@@ -1178,6 +1231,7 @@ export const WORKBOOK_FUNCTION_NAMES = [
   "HYPERLINK",
   "CELL",
   "SUBTOTAL",
+  "AGGREGATE",
 ];
 
 const installedParsers = new WeakSet<object>();
@@ -1188,7 +1242,12 @@ export function installWorkbookFunctions(parser: any) {
   installedParsers.add(parser);
   parser.on(
     "callFunction",
-    (name: string, params: any[], done: (v: any) => void) => {
+    (
+      name: string,
+      params: any[],
+      done: (v: any) => void,
+      refs?: ParserRef[]
+    ) => {
       const fn = workbookFunctions[String(name).toUpperCase()];
       if (!fn) return;
       const ctx = parser.context as Context | undefined;
@@ -1203,7 +1262,7 @@ export function installWorkbookFunctions(parser: any) {
         deps: [],
         formula: "",
       };
-      const result = fn(params ?? [], frame);
+      const result = fn(params ?? [], frame, refs);
       // undefined: not handled here, the parser's own implementation runs.
       if (result !== undefined) done(result);
     }
@@ -1281,7 +1340,8 @@ export function finishFormulaEvaluation(
 // Dependency hooks (called from execFunctionGroup)
 // ---------------------------------------------------------------------------
 
-const VOLATILE_RE = /(^|[^A-Za-z0-9_.])(INDIRECT|OFFSET|CELL|SUBTOTAL)\s*\(/i;
+const VOLATILE_RE =
+  /(^|[^A-Za-z0-9_.])(INDIRECT|OFFSET|CELL|SUBTOTAL|AGGREGATE)\s*\(/i;
 const OFFSET_LIKE_RE = /(INDIRECT|OFFSET|INDEX)\(/i;
 
 /** Formulas that must be re-evaluated on every recalculation. */

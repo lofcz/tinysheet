@@ -1,0 +1,66 @@
+/* AutoFilter menu additions: condition submenus, period grid, states. */
+
+.fortune-filter-condition-submenu {
+  max-height: 70vh;
+  overflow-y: auto;
+  min-width: 200px;
+}
+
+.fortune-filter-condition-submenu .luckysheet-cols-menuitem-content {
+  padding: 5px 20px;
+}
+
+.fortune-filter-submenu-header {
+  padding: 4px 20px 2px;
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-filter-period-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  padding: 2px 12px 4px;
+}
+
+.fortune-filter-period {
+  padding: 3px 8px;
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fortune-filter-period:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-filter-period.active,
+.fortune-filter-condition-active {
+  color: var(--fortune-accent-text, var(--fortune-accent));
+  font-weight: 600;
+}
+
+.fortune-filter-menu .fortune-filter-menu-disabled .luckysheet-cols-menuitem,
+.fortune-filter-menu
+  .fortune-filter-menu-disabled
+  .luckysheet-cols-menuitem
+  .luckysheet-cols-menuitem-content {
+  color: var(--fortune-text-disabled, var(--fortune-text-muted));
+  cursor: default;
+}
+
+.fortune-filter-menu
+  .fortune-filter-menu-disabled
+  .luckysheet-cols-menuitem:hover {
+  background: transparent;
+}
+
+.fortune-filter-active-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--fortune-filter, var(--fortune-accent));
+  vertical-align: middle;
+}
