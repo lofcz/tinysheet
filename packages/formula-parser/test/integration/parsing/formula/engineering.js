@@ -37,7 +37,7 @@ describe(".parse() engineering formulas", () => {
   it("BESSELK", () => {
     expect(
       parser.parse("BESSELK()")
-    ).toMatchObject({ error: null, result: Infinity });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("BESSELK(1.4)")
     ).toMatchObject({ error: null, result: 0.2436550649012485 });
@@ -49,7 +49,7 @@ describe(".parse() engineering formulas", () => {
   it("BESSELY", () => {
     expect(
       parser.parse("BESSELY()")
-    ).toMatchObject({ error: null, result: -Infinity });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("BESSELY(1.4)")
     ).toMatchObject({ error: null, result: 0.33789513259016046 });
@@ -61,7 +61,7 @@ describe(".parse() engineering formulas", () => {
   it("BIN2DEC", () => {
     expect(
       parser.parse("BIN2DEC()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("BIN2DEC(1010)")
     ).toMatchObject({ error: null, result: 10 });
@@ -76,25 +76,25 @@ describe(".parse() engineering formulas", () => {
   it("BIN2HEX", () => {
     expect(
       parser.parse("BIN2HEX()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("BIN2HEX(1010)")
-    ).toMatchObject({ error: null, result: "a" });
+    ).toMatchObject({ error: null, result: "A" });
     expect(
       parser.parse("BIN2HEX(1010, 4)")
-    ).toMatchObject({ error: null, result: "000a" });
+    ).toMatchObject({ error: null, result: "000A" });
     expect(
       parser.parse("BIN2HEX(0, 3)")
     ).toMatchObject({ error: null, result: "000" });
     expect(
       parser.parse("BIN2HEX(1111)")
-    ).toMatchObject({ error: null, result: "f" });
+    ).toMatchObject({ error: null, result: "F" });
   });
 
   it("BIN2OCT", () => {
     expect(
       parser.parse("BIN2OCT()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("BIN2OCT(1010)")
     ).toMatchObject({ error: null, result: "12" });
@@ -202,16 +202,16 @@ describe(".parse() engineering formulas", () => {
   it("CONVERT", () => {
     expect(
       parser.parse("CONVERT()")
-    ).toMatchObject({ error: "#ERROR!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("CONVERT(1)")
-    ).toMatchObject({ error: "#ERROR!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('CONVERT(2, "lbm", "kg")')
     ).toMatchObject({ error: null, result: 0.90718474 });
     expect(
       parser.parse('CONVERT(100, "km", "mi")')
-    ).toMatchObject({ error: null, result: 62.13711922373339 });
+    ).toBeMatchCloseTo({ error: null, result: 62.13711922373339 });
     expect(
       parser.parse('CONVERT(100, "km", "m")')
     ).toMatchObject({ error: null, result: 100000 });
@@ -223,7 +223,7 @@ describe(".parse() engineering formulas", () => {
   it("DEC2BIN", () => {
     expect(
       parser.parse("DEC2BIN()")
-    ).toMatchObject({ error: null, result: "0" });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DEC2BIN(10)")
     ).toMatchObject({ error: null, result: "1010" });
@@ -238,7 +238,7 @@ describe(".parse() engineering formulas", () => {
   it("DEC2HEX", () => {
     expect(
       parser.parse("DEC2HEX()")
-    ).toMatchObject({ error: null, result: "0" });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DEC2HEX(100)")
     ).toMatchObject({ error: null, result: "64" });
@@ -256,7 +256,7 @@ describe(".parse() engineering formulas", () => {
   it("DEC2OCT", () => {
     expect(
       parser.parse("DEC2OCT()")
-    ).toMatchObject({ error: null, result: "0" });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DEC2OCT(58)")
     ).toMatchObject({ error: null, result: "72" });
@@ -289,7 +289,7 @@ describe(".parse() engineering formulas", () => {
   it("ERF", () => {
     expect(
       parser.parse("ERF()")
-    ).toMatchObject({ error: null, result: 1.1102230246251565e-16 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("ERF(1)")
     ).toBeMatchCloseTo({ error: null, result: 0.8427007929497149 });
@@ -325,7 +325,7 @@ describe(".parse() engineering formulas", () => {
   it("HEX2BIN", () => {
     expect(
       parser.parse("HEX2BIN()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('HEX2BIN("FA")')
     ).toMatchObject({ error: null, result: "11111010" });
@@ -340,7 +340,7 @@ describe(".parse() engineering formulas", () => {
   it("HEX2DEC", () => {
     expect(
       parser.parse("HEX2DEC()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('HEX2DEC("FA")')
     ).toMatchObject({ error: null, result: 250 });
@@ -352,7 +352,7 @@ describe(".parse() engineering formulas", () => {
   it("HEX2OCT", () => {
     expect(
       parser.parse("HEX2OCT()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('HEX2OCT("FA")')
     ).toMatchObject({ error: null, result: "372" });
@@ -654,7 +654,7 @@ describe(".parse() engineering formulas", () => {
   it("OCT2BIN", () => {
     expect(
       parser.parse("OCT2BIN()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("OCT2BIN(3)")
     ).toMatchObject({ error: null, result: "11" });
@@ -666,7 +666,7 @@ describe(".parse() engineering formulas", () => {
   it("OCT2DEC", () => {
     expect(
       parser.parse("OCT2DEC()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("OCT2DEC(3)")
     ).toMatchObject({ error: null, result: 3 });
@@ -678,15 +678,15 @@ describe(".parse() engineering formulas", () => {
   it("OCT2HEX", () => {
     expect(
       parser.parse("OCT2HEX()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("OCT2HEX(3)")
     ).toMatchObject({ error: null, result: "3" });
     expect(
       parser.parse("OCT2HEX(33)")
-    ).toMatchObject({ error: null, result: "1b" });
+    ).toMatchObject({ error: null, result: "1B" });
     expect(
       parser.parse("OCT2HEX(33, 3)")
-    ).toMatchObject({ error: null, result: "01b" });
+    ).toMatchObject({ error: null, result: "01B" });
   });
 });

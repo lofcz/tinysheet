@@ -10,6 +10,9 @@ import {
   handleRowFreezeHandleMouseDown,
   getSheetIndex,
   fixPositionOnFrozenCells,
+  isAllowEdit,
+  autofitRows,
+  getAutofitTargets,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
@@ -131,6 +134,21 @@ const RowHeader: React.FC = () => {
     [refs.cellArea, refs.globalCache, refs.workbookContainer, setContext]
   );
 
+  // double-click a row border: autofit (every selected row when the
+  // border belongs to the selection)
+  const onRowSizeHandleDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+      e.stopPropagation();
+      const index = hoverLocation.row_index;
+      if (index < 0) return;
+      setContext((draftCtx) => {
+        if (!isAllowEdit(draftCtx)) return;
+        autofitRows(draftCtx, getAutofitTargets(draftCtx, "row", index));
+      });
+    },
+    [hoverLocation.row_index, setContext]
+  );
+
   const onRowFreezeHandleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       const { nativeEvent } = e;
@@ -217,6 +235,7 @@ const RowHeader: React.FC = () => {
         className="fortune-rows-change-size"
         ref={rowChangeSizeRef}
         onMouseDown={onRowSizeHandleMouseDown}
+        onDoubleClick={onRowSizeHandleDoubleClick}
         style={{
           top: hoverLocation.row - 3 + (hoverInFreeze ? context.scrollTop : 0),
           opacity: context.luckysheet_rows_change_size ? 1 : 0,

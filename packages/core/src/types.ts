@@ -1,5 +1,6 @@
 import { Patch as ImmerPatch } from "immer";
 import { PatchOptions } from "./utils";
+import type { Chart } from "./modules/chart";
 
 export type Op = {
   op:
@@ -127,6 +128,8 @@ export type Sheet = {
   celldata?: CellWithRowAndCol[];
   id?: string;
   images?: Image[];
+  /** Live chart objects (see `modules/chart.ts`). */
+  charts?: Chart[];
   zoomRatio?: number;
   column?: number;
   row?: number;
@@ -155,7 +158,76 @@ export type Sheet = {
   frozen?: {
     type: "row" | "column" | "both" | "rangeRow" | "rangeColumn" | "rangeBoth";
     range?: { row_focus: number; column_focus: number };
+    /** Split panes (not frozen): the top/left pane scrolls on its own. */
+    split?: boolean;
+    /** Split panes: first row / column shown in the top / left pane. */
+    top?: number;
+    left?: number;
   };
+  /**
+   * Defined names stored on this sheet (see modules/names.ts). Names with
+   * `local: true` are scoped to this sheet; the others are workbook-scoped
+   * (they live on whichever sheet stores them, normally the first one).
+   */
+  // eslint-disable-next-line no-use-before-define
+  definedNames?: DefinedName[];
+  /** Excel-style tables ("Format as Table") of this sheet, see modules/tables.ts */
+  // eslint-disable-next-line no-use-before-define
+  tables?: SheetTable[];
+};
+
+/** A defined name (Excel Name Manager entry). */
+export type DefinedName = {
+  /** Case-insensitively unique within its scope. */
+  name: string;
+  /**
+   * The definition as formula text starting with "=": a reference
+   * (`=Sheet1!$A$1:$B$5`), a constant (`=0.2`), a formula or a LAMBDA
+   * (`=LAMBDA(x, x*2)`, callable as `Name(1)`).
+   */
+  refersTo: string;
+  /** true: scoped to the sheet storing the name; otherwise workbook-scoped. */
+  local?: boolean;
+  comment?: string;
+  /** Hidden names are resolved in formulas but not listed in the UI. */
+  hidden?: boolean;
+};
+
+export type TableTotalFunction =
+  | "none"
+  | "sum"
+  | "average"
+  | "count"
+  | "countNums"
+  | "max"
+  | "min"
+  | "stdDev"
+  | "var"
+  | "custom";
+
+export type SheetTableColumn = {
+  name: string;
+  /** Aggregate shown in the total row (SUBTOTAL formula). */
+  totalFunction?: TableTotalFunction;
+  /** Text shown in the total row when there is no function. */
+  totalLabel?: string;
+};
+
+/** An Excel-style table on a sheet. */
+export type SheetTable = {
+  /** Workbook-unique name (`Table1`), usable in structured references. */
+  name: string;
+  /** Whole table: header row + data rows + total row. */
+  range: { row: [number, number]; column: [number, number] };
+  headerRow: boolean;
+  totalRow: boolean;
+  bandedRows: boolean;
+  bandedColumns: boolean;
+  firstColumn: boolean;
+  lastColumn: boolean;
+  /** Key of a style from TABLE_STYLES (modules/tables.ts). */
+  style: string;
+  columns: SheetTableColumn[];
 };
 
 export type CommentBox = {
@@ -212,6 +284,13 @@ export type DataRegulationProps = {
   prohibitInput: boolean;
   hintShow: boolean;
   hintValue: string;
+  hintTitle?: string;
+  errorStyle?: "stop" | "warning" | "information";
+  errorTitle?: string;
+  errorMessage?: string;
+  ignoreBlank?: boolean;
+  showDropdown?: boolean;
+  placeholder?: string;
 };
 
 export type ConditionRulesProps = {
@@ -245,6 +324,8 @@ export type History = {
   patches: ImmerPatch[];
   inversePatches: ImmerPatch[];
   options?: PatchOptions;
+  /** steps sharing a group are undone/redone together (withUndoGroup) */
+  group?: number;
 };
 
 export type Freezen = {
@@ -265,6 +346,8 @@ export type GlobalCache = {
   visibleRowsUnique?: number[];
   undoList: History[];
   redoList: History[];
+  /** undo group being recorded (see withUndoGroup) */
+  undoGroup?: { id: number; depth: number };
   editingCommentBoxEle?: HTMLDivElement;
   freezen?: Record<string, Freezen>;
   image?: {

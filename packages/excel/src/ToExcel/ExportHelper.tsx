@@ -1,6 +1,7 @@
 import React from "react";
 import { transformFortuneToExcel } from "../common/Transform";
 import { IFileType } from "../common/ICommon";
+import type { SheetExportOptions } from "./ExcelFile";
 
 const exportHelperStyle: React.CSSProperties = {
   display: "flex",
@@ -33,44 +34,89 @@ const unstyledButtonStyle: React.CSSProperties = {
   textAlign: "left",
 };
 
+type ExportEntry = {
+  key: string;
+  label: string;
+  fileType: IFileType;
+  options?: SheetExportOptions;
+};
+
 const getExportButton = (
-  fileType: IFileType,
-  onClick: (fileType: IFileType) => void
+  entry: ExportEntry,
+  onClick: (clicked: ExportEntry) => void
 ) => {
   return (
     <button
+      key={entry.key}
+      type="button"
       style={unstyledButtonStyle}
-      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#ededed")}
-      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#fff")}
-      onClick={() => onClick(fileType)}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = "#ededed";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "#fff";
+      }}
+      onClick={() => onClick(entry)}
     >
-      Export as .{fileType.toLowerCase()}
+      {entry.label}
     </button>
   );
 };
 
-
-
 interface ExportHelperProps {
   sheetRef: React.RefObject<any>;
-  config: { xlsx?: boolean; csv?: boolean };
+  config: { xlsx?: boolean; csv?: boolean; tsv?: boolean };
 }
 
 export const ExportHelper: React.FC<ExportHelperProps> = (props) => {
   const { sheetRef, config } = props;
   const onMouseLeave = () => {
-    const exportHelper = document.querySelector(".export-helper") as HTMLElement;
+    const exportHelper = document.querySelector(
+      ".export-helper"
+    ) as HTMLElement;
     if (exportHelper) exportHelper.style.visibility = "hidden";
   };
-  const onClick = (fileType: IFileType) => {
-    transformFortuneToExcel(sheetRef, fileType, true);
+  const onClick = (entry: ExportEntry) => {
+    transformFortuneToExcel(sheetRef, entry.fileType, true, entry.options);
     onMouseLeave();
   };
 
+  const entries: ExportEntry[] = [];
+  if (config.xlsx) {
+    entries.push({
+      key: "xlsx",
+      label: "Export as .xlsx",
+      fileType: IFileType.XLSX,
+    });
+  }
+  if (config.csv) {
+    entries.push({
+      key: "csv",
+      label: "Export as .csv",
+      fileType: IFileType.CSV,
+    });
+    entries.push({
+      key: "csv-raw",
+      label: "Export as .csv (raw values)",
+      fileType: IFileType.CSV,
+      options: { csv: { values: "raw" } },
+    });
+  }
+  if (config.tsv) {
+    entries.push({
+      key: "tsv",
+      label: "Export as .tsv",
+      fileType: IFileType.TSV,
+    });
+  }
+
   return (
-    <div className="export-helper" style={exportHelperStyle} onMouseLeave={onMouseLeave}>
-      {config.xlsx ? getExportButton(IFileType.XLSX, onClick) : null}
-      {config.csv ? getExportButton(IFileType.CSV, onClick) : null}
+    <div
+      className="export-helper"
+      style={exportHelperStyle}
+      onMouseLeave={onMouseLeave}
+    >
+      {entries.map((entry) => getExportButton(entry, onClick))}
     </div>
   );
 };

@@ -1,113 +1,103 @@
-import ExcelJS from "@protobi/exceljs";
-import { ALIGNMENT_DEFAULT } from "../common/constant";
-import { rgb2hex } from "../common/method";
+import type ExcelJS from "@protobi/exceljs";
+import { colorToArgb } from "../common/units";
 
-var fillConvert = function (bg: string): ExcelJS.Fill {
-  if (!bg) {
-    return null;
-    // return {
-    // 	type: 'pattern',
-    // 	pattern: 'solid',
-    // 	fgColor:{argb:'#ffffff'.replace('#','')}
-    // }
+/** TinySheet's legacy numeric font ids (locale fontarray, English). */
+const NUMERIC_FONTS = ["Times New Roman", "Arial", "Tahoma", "Verdana"];
+
+const UNDERLINE: Record<number, ExcelJS.Font["underline"]> = {
+  1: "single",
+  2: "double",
+  3: "singleAccounting",
+  4: "doubleAccounting",
+};
+
+const isOn = (v: any) => v != null && v !== 0 && v !== "0" && v !== false;
+
+export function fontName(ff: any): string | undefined {
+  if (ff == null || ff === "") return undefined;
+  if (typeof ff === "number" || /^\d+$/.test(String(ff))) {
+    return NUMERIC_FONTS[Number(ff)] ?? undefined;
   }
-  bg = bg.indexOf("rgb") > -1 ? rgb2hex(bg) : bg;
-  let fill: ExcelJS.Fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: bg.replace("#", "") },
-  };
-  return fill;
+  return (
+    String(ff)
+      .replace(/^["']|["']$/g, "")
+      .trim() || undefined
+  );
+}
+
+/** Font of a cell or of a rich-text run; undefined when nothing is set. */
+export function fontConvert(style: any): Partial<ExcelJS.Font> | undefined {
+  if (!style) return undefined;
+  const font: Partial<ExcelJS.Font> = {};
+  const name = fontName(style.ff);
+  if (name) font.name = name;
+  if (style.fs != null && style.fs !== "" && !Number.isNaN(Number(style.fs))) {
+    font.size = Number(style.fs);
+  }
+  const color = colorToArgb(style.fc);
+  if (color) font.color = { argb: color };
+  if (isOn(style.bl)) font.bold = true;
+  if (isOn(style.it)) font.italic = true;
+  if (isOn(style.cl)) font.strike = true;
+  if (isOn(style.un)) font.underline = UNDERLINE[Number(style.un)] ?? "single";
+  if (style.va === 1 || style.va === "1") font.vertAlign = "subscript";
+  if (style.va === 2 || style.va === "2") font.vertAlign = "superscript";
+  return Object.keys(font).length ? font : undefined;
+}
+
+export function fillConvert(bg: string | undefined): ExcelJS.Fill | undefined {
+  const argb = colorToArgb(bg);
+  if (!argb) return undefined;
+  return { type: "pattern", pattern: "solid", fgColor: { argb } };
+}
+
+const HORIZONTAL: Record<string, ExcelJS.Alignment["horizontal"]> = {
+  "0": "center",
+  "1": "left",
+  "2": "right",
 };
 
-var fontConvert = function (
-  ff = "",
-  fc = "#000000",
-  bl = 0,
-  it = 0,
-  fs = 10,
-  cl = 0,
-  ul = 0
-) {
-  // luckysheet：ff(样式), fc(颜色), bl(粗体), it(斜体), fs(大小), cl(删除线), ul(下划线)
-  const luckyToExcel = {
-    0: "微软雅黑",
-    1: "宋体（Song）",
-    2: "黑体（ST Heiti）",
-    3: "楷体（ST Kaiti）",
-    4: "仿宋（ST FangSong）",
-    5: "新宋体（ST Song）",
-    6: "华文新魏",
-    7: "华文行楷",
-    8: "华文隶书",
-    9: "Arial",
-    10: "Times New Roman ",
-    11: "Tahoma ",
-    12: "Verdana",
-    num2bl: function (num: number) {
-      return num === 0 ? false : true;
-    },
-  };
-  let color = (fc + "").indexOf("rgb") > -1 ? rgb2hex(fc) : fc;
-
-  let font = {
-    name: ff,
-    family: 1,
-    size: fs,
-    color: { argb: color.replace("#", "") },
-    bold: luckyToExcel.num2bl(bl),
-    italic: luckyToExcel.num2bl(it),
-    underline: luckyToExcel.num2bl(ul),
-    strike: luckyToExcel.num2bl(cl),
-  };
-
-  return font;
+const VERTICAL: Record<string, ExcelJS.Alignment["vertical"]> = {
+  "0": "middle",
+  "1": "top",
+  "2": "bottom",
 };
 
-var alignmentConvert = function (
-  vt = ALIGNMENT_DEFAULT,
-  ht = ALIGNMENT_DEFAULT,
-  tb = ALIGNMENT_DEFAULT,
-  tr = ALIGNMENT_DEFAULT
-) {
-  // luckysheet:vt(垂直), ht(水平), tb(换行), tr(旋转)
-  const luckyToExcel: any = {
-    vertical: {
-      0: "middle",
-      1: "top",
-      2: "bottom",
-      ALIGNMENT_DEFAULT: "top",
-    },
-    horizontal: {
-      0: "center",
-      1: "left",
-      2: "right",
-      ALIGNMENT_DEFAULT: "left",
-    },
-    wrapText: {
-      0: false,
-      1: false,
-      2: true,
-      ALIGNMENT_DEFAULT: false,
-    },
-    textRotation: {
-      0: 0,
-      1: 45,
-      2: -45,
-      3: "vertical",
-      4: 90,
-      5: -90,
-      ALIGNMENT_DEFAULT: 0,
-    },
-  };
-
-  let alignment: Partial<ExcelJS.Alignment> = {
-    vertical: luckyToExcel.vertical[vt],
-    horizontal: luckyToExcel.horizontal[ht],
-    wrapText: luckyToExcel.wrapText[tb],
-    textRotation: luckyToExcel.textRotation[tr],
-  };
-  return alignment;
+const ROTATION: Record<string, number | "vertical"> = {
+  "1": 45,
+  "2": -45,
+  "3": "vertical",
+  "4": 90,
+  "5": -90,
 };
 
-export { fillConvert, fontConvert, alignmentConvert };
+/**
+ * TinySheet alignment -> Excel. `rt` holds Excel's textRotation encoding
+ * (0-90 up, 91-180 down); `tr` is the legacy preset (1: 45, 2: -45,
+ * 3: vertical, 4: 90, 5: -90). Undefined `vt` stays unset (Excel: bottom).
+ */
+export function alignmentConvert(
+  cell: any
+): Partial<ExcelJS.Alignment> | undefined {
+  const alignment: Partial<ExcelJS.Alignment> = {};
+  if (cell.ht != null && HORIZONTAL[String(cell.ht)]) {
+    alignment.horizontal = HORIZONTAL[String(cell.ht)];
+  }
+  if (cell.vt != null && VERTICAL[String(cell.vt)]) {
+    alignment.vertical = VERTICAL[String(cell.vt)];
+  }
+  if (String(cell.tb) === "2") alignment.wrapText = true;
+  if (String(cell.tr) === "3") {
+    alignment.textRotation = "vertical";
+  } else if (
+    cell.rt != null &&
+    !Number.isNaN(Number(cell.rt)) &&
+    Number(cell.rt)
+  ) {
+    const rt = Number(cell.rt);
+    alignment.textRotation = rt > 90 ? 90 - rt : rt;
+  } else if (cell.tr != null && ROTATION[String(cell.tr)] != null) {
+    alignment.textRotation = ROTATION[String(cell.tr)];
+  }
+  return Object.keys(alignment).length ? alignment : undefined;
+}

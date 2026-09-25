@@ -3,7 +3,6 @@ import {
   getFlowdata,
   cancelNormalSelected,
   getCellValue,
-  updateCell,
   getInlineStringNoStyle,
   isInlineStringCell,
   escapeScriptTag,
@@ -13,6 +12,8 @@ import {
   isShowHidenCR,
   escapeHTMLTag,
   isAllowEdit,
+  getSpilledCellFormula,
+  setEditMode,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -39,6 +40,8 @@ const FxEditor: React.FC = () => {
   const lastKeyDownEventRef = useRef<KeyboardEvent>(undefined);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const [isHidenRC, setIsHidenRC] = useState<boolean>(false);
+  // a spilled cell shows its anchor's formula, greyed out (like Excel)
+  const [spilledFormula, setSpilledFormula] = useState<string | null>(null);
   const firstSelection = context.luckysheet_select_save?.[0];
   const prevFirstSelection = usePrevious(firstSelection);
   const prevSheetId = usePrevious(context.currentSheetId);
@@ -54,9 +57,11 @@ const FxEditor: React.FC = () => {
     setIsHidenRC(isShowHidenCR(context));
     if (
       _.isEqual(prevFirstSelection, firstSelection) &&
-      context.currentSheetId === prevSheetId
+      context.currentSheetId === prevSheetId &&
+      context.luckysheetCellUpdate.length > 0
     ) {
-      // data change by a collabrative update should not trigger this effect
+      // a data change (collaboration, undo) must not overwrite the text
+      // being edited; outside editing the bar follows the cell
       return;
     }
     const d = getFlowdata(context);
@@ -67,7 +72,11 @@ const FxEditor: React.FC = () => {
       if (_.isNil(r) || _.isNil(c)) return;
 
       const cell = d?.[r]?.[c];
-      if (cell) {
+      const spilled = getSpilledCellFormula(context, r, c);
+      setSpilledFormula(spilled);
+      if (spilled) {
+        value = spilled;
+      } else if (cell) {
         if (isInlineStringCell(cell)) {
           value = getInlineStringNoStyle(r, c, d);
         } else if (cell.f) {
@@ -79,6 +88,7 @@ const FxEditor: React.FC = () => {
       refs.fxInput.current!.innerHTML = escapeHTMLTag(escapeScriptTag(value));
     } else {
       refs.fxInput.current!.innerHTML = "";
+      setSpilledFormula(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -91,6 +101,8 @@ const FxEditor: React.FC = () => {
     if (context.allowEdit === false) {
       return;
     }
+    // the anchor's formula is not this cell's: start from an empty cell
+    if (spilledFormula) refs.fxInput.current!.innerHTML = "";
     if (
       (context.luckysheet_select_save?.length ?? 0) > 0 &&
       !context.luckysheet_cell_selected_move &&
@@ -107,6 +119,8 @@ const FxEditor: React.FC = () => {
         const col_index = last.column_focus;
 
         draftCtx.luckysheetCellUpdate = [row_index, col_index];
+        // the formula bar edits in Edit mode (arrows move the caret)
+        setEditMode(draftCtx, "edit");
         refs.globalCache.doNotFocus = true;
         // formula.rangeResizeTo = $("#luckysheet-functionbox-cell");
       });
@@ -119,6 +133,7 @@ const FxEditor: React.FC = () => {
     context.currentSheetId,
     refs.globalCache,
     setContext,
+    spilledFormula,
   ]);
 
   const onKeyDown = useCallback(
@@ -135,26 +150,18 @@ const FxEditor: React.FC = () => {
       if (formulaKeys.onKeyDown(e)) return;
       if (context.luckysheetCellUpdate.length === 0) return;
       if (key === "Enter") {
-        setContext((draftCtx) => {
-          const lastCellUpdate = _.clone(draftCtx.luckysheetCellUpdate);
-          updateCell(
-            draftCtx,
-            draftCtx.luckysheetCellUpdate[0],
-            draftCtx.luckysheetCellUpdate[1],
-            refs.fxInput.current!
-          );
-          draftCtx.luckysheet_select_save = [
-            {
-              row: [lastCellUpdate[0], lastCellUpdate[0]],
-              column: [lastCellUpdate[1], lastCellUpdate[1]],
-              row_focus: lastCellUpdate[0],
-              column_focus: lastCellUpdate[1],
-            },
-          ];
-          moveHighlightCell(draftCtx, "down", 1, "rangeOfSelect");
-        });
+        if (e.altKey || e.metaKey) {
+          // Alt+Enter: a line break inside the cell
+          document.execCommand("insertHTML", false, "\n ");
+          document.execCommand("delete", false);
+          e.stopPropagation();
+        }
+        // Enter / Shift+Enter / Ctrl+Enter commit in the global key handler
+        // (moving within a multi-cell selection like the cell editor)
         e.preventDefault();
-        e.stopPropagation();
+      } else if (key === "Tab") {
+        // committed by the global key handler; keep the focus in the sheet
+        e.preventDefault();
       } else if (key === "Escape") {
         setContext((draftCtx) => {
           cancelNormalSelected(draftCtx);
@@ -239,7 +246,11 @@ const FxEditor: React.FC = () => {
             innerRef={(e) => {
               refs.fxInput.current = e;
             }}
-            className="fortune-fx-input"
+            className={
+              spilledFormula && !focused
+                ? "fortune-fx-input fortune-fx-input-spilled"
+                : "fortune-fx-input"
+            }
             role="textbox"
             id="luckysheet-functionbox-cell"
             aria-label={info.currentCellInput}

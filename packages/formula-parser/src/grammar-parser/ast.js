@@ -11,6 +11,7 @@
  *   percent {value}           binary {op, left, right}
  *   call {name, key, args}    invoke {callee, args}
  *   intersect {left, right}   implicit {value}
+ *   union {items}             rangeRef {left, right}
  *
  * `key` is the upper-case name used for LET/LAMBDA scope lookups. A plain
  * relative cell token (`x1`) also carries a key, so a LET/LAMBDA name that
@@ -18,6 +19,11 @@
  *
  * `rect` = {sheetName, r1, c1, r2, c2} (0-based, inclusive) describes the
  * referenced area; whole columns span every row and vice versa.
+ *
+ * `union` is the reference union operator `(A1:A2,C1:C2)` (a comma inside
+ * parentheses); `rangeRef` is the range operator `:` between operands that
+ * are not both plain cell references (`A1:INDEX(B:B,5)`, `IF(x,A1,B1):C5`),
+ * resolved at evaluation time to the bounding box of both references.
  */
 import { extractLabel, columnLabelToIndex } from "../helper/cell";
 import { isValidStrict as isValidError } from "../error";
@@ -67,6 +73,14 @@ export function percent(value) {
 
 export function intersect(left, right) {
   return { type: "intersect", left, right };
+}
+
+export function union(items) {
+  return { type: "union", items };
+}
+
+export function rangeRef(left, right) {
+  return { type: "rangeRef", left, right };
 }
 
 export function invoke(callee, args) {

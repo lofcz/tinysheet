@@ -9,6 +9,7 @@ import {
 import _ from "lodash";
 import ContentEditable from "../SheetOverlay/ContentEditable";
 import WorkbookContext from "../../context";
+import "./index.css";
 
 const NO_COLS: number[] = [];
 
@@ -87,18 +88,14 @@ const NotationBoxes: React.FC = () => {
             />
             <div
               id={commentId}
-              className="luckysheet-postil-show-main"
+              className={`luckysheet-postil-show-main fortune-note-box${
+                isEditing ? " fortune-note-box-editing" : ""
+              }`}
               style={{
                 width,
                 height,
-                color: "#000",
-                padding: 5,
-                border: "1px solid #000",
-                backgroundColor: "rgb(255,255,225)",
-                position: "absolute",
                 left,
                 top,
-                boxSizing: "border-box",
                 zIndex: isEditing ? 200 : 100,
               }}
               onMouseDown={(e) => {
@@ -151,25 +148,11 @@ const NotationBoxes: React.FC = () => {
                   ))}
                 </div>
               )}
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  overflow: "hidden",
-                }}
-              >
+              <div className="fortune-note-body">
                 <ContentEditable
                   id={`comment-editor-${rc}`}
+                  className="fortune-note-editor"
                   autoFocus={autoFocus}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    lineHeight: "20px",
-                    boxSizing: "border-box",
-                    textAlign: "center",
-                    wordBreak: "break-all",
-                    outline: "none",
-                  }}
                   allowEdit={context.allowEdit}
                   spellCheck={false}
                   data-r={r}

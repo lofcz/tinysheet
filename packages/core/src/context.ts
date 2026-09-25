@@ -5,6 +5,7 @@ import { normalizeSelection } from "./modules/selection";
 import { computeAxisPositions } from "./modules/geometry";
 import { Hooks } from "./settings";
 import type { ThemeName } from "./theme";
+import type { EditState } from "./modules/editMode";
 import {
   Sheet,
   Selection,
@@ -48,13 +49,21 @@ export type Context = {
   insertedImgs?: Image[];
   editingInsertedImgs?: Image;
   activeImg?: string;
+  /** Id of the selected chart object, if any. */
+  activeChart?: string;
+  /** Whether the chart editor panel is open for `activeChart`. */
+  chartEditorOpen?: boolean;
   presences?: Presence[];
   showSearch?: boolean;
   showReplace?: boolean;
+  /** Paste Special dialog open (Ctrl+Alt+V, Ctrl+Shift+V) */
+  showPasteSpecial?: boolean;
   linkCard?: LinkCardProps;
   rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
   // 提醒弹窗
   warnDialog?: string;
+  /** Open Format Cells dialog and its tab (see openFormatCells). */
+  formatCellsDialog?: { tab: string };
   currency?: string;
   /** Resolved colour theme (from `settings.theme`); read by the canvas. */
   theme?: ThemeName;
@@ -68,9 +77,25 @@ export type Context = {
     optionLabel_hi: any;
     optionLabel_ru: any;
     dataRegulation?: DataRegulationProps; // 数据验证规则
+    /** rule edited from the rules sidebar (see getDataVerificationRules) */
+    editingRuleId?: string;
   };
   // 数据验证下拉列表
   dataVerificationDropDownList?: boolean;
+  /** pending data validation error alert (see checkDataVerificationInput) */
+  dataVerificationAlert?: {
+    sheetId: string;
+    r: number;
+    c: number;
+    value: string;
+    style: "stop" | "warning" | "information";
+    title: string;
+    message: string;
+  };
+  /** sheets whose invalid cells are circled (Circle Invalid Data) */
+  dataVerificationCircles?: Record<string, boolean>;
+  /** the data validation rules sidebar is open */
+  dataVerificationSidebar?: boolean;
   conditionRules: ConditionRulesProps; // 条件格式
 
   contextMenu: {
@@ -183,6 +208,12 @@ export type Context = {
   luckysheet_rows_freeze_drag: boolean;
 
   luckysheetCellUpdate: any[];
+  /** Enter/Edit/Point mode of the edit session (see modules/editMode) */
+  editState?: EditState;
+  /** Excel's End mode: the next arrow key jumps like Ctrl+arrow */
+  endMode?: boolean;
+  /** column where a run of Tab presses started (Enter returns to it) */
+  tabReturn?: { col: number; at: [number, number] };
 
   luckysheet_shiftkeydown: boolean;
   luckysheet_shiftpositon: Selection | undefined;
@@ -223,6 +254,10 @@ export type Context = {
   formulaCache: FormulaCache;
   hooks: Hooks;
   showSheetList?: Boolean;
+  /** Grouped sheets (Ctrl/Shift+click on tabs); edits apply to all of them. */
+  groupedSheetIds?: string[];
+  /** Go To dialog (Ctrl+G / F5) visibility. */
+  showGoTo?: boolean;
   // 只读模式公式被引用单元格强制高光
   forceFormulaRef?: Boolean;
 

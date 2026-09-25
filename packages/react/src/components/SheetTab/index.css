@@ -295,3 +295,81 @@
 .fortune-sheet-area-right {
   display: flex !important;
 }
+
+/* Grouped sheets (Ctrl/Shift+click): selected but not active */
+.luckysheet-sheet-area div.luckysheet-sheets-item-grouped {
+  background-color: var(--fortune-bg);
+  box-shadow: inset 0 -2px 0 var(--fortune-border-strong);
+}
+
+.luckysheet-sheet-area
+  div.luckysheet-sheets-item-grouped.luckysheet-sheets-item-active {
+  box-shadow: inset 0 -2px 0 var(--fortune-accent), var(--fortune-shadow-sm);
+}
+
+/* Move or Copy / Unhide dialogs */
+.fortune-sheet-dialog {
+  width: 300px;
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-sheet-dialog .title {
+  margin-bottom: var(--fortune-space-3);
+}
+
+.fortune-sheet-dialog-label {
+  color: var(--fortune-text-muted);
+  margin-bottom: var(--fortune-space-1);
+}
+
+.fortune-sheet-dialog-list {
+  height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input);
+  padding: var(--fortune-space-1) 0;
+}
+
+.fortune-sheet-dialog-list > div {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  padding: 0 var(--fortune-space-2);
+  line-height: 26px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.fortune-sheet-dialog-list > div:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-sheet-dialog-list > div.on {
+  background: var(--fortune-accent-soft);
+  color: var(--fortune-accent-text);
+}
+
+.fortune-sheet-dialog-list input,
+.fortune-sheet-dialog-check input {
+  margin: 0;
+  accent-color: var(--fortune-accent);
+}
+
+.fortune-sheet-dialog-check {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  margin-top: var(--fortune-space-3);
+  cursor: pointer;
+}
+
+.fortune-sheet-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--fortune-space-2);
+  margin-top: var(--fortune-space-4);
+}

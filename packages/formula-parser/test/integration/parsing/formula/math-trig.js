@@ -67,10 +67,10 @@ describe(".parse() math-trig formulas", () => {
     ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("ACOTH(1)")
-    ).toMatchObject({ error: null, result: Infinity });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("ACOTH(-1)")
-    ).toMatchObject({ error: null, result: -Infinity });
+    ).toMatchObject({ error: "#NUM!", result: null });
   });
 
   it("ADD", () => {
@@ -117,7 +117,7 @@ describe(".parse() math-trig formulas", () => {
   it("ARABIC", () => {
     expect(
       parser.parse("ARABIC()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ARABIC("ABC")')
     ).toMatchObject({ error: "#VALUE!", result: null });
@@ -189,7 +189,7 @@ describe(".parse() math-trig formulas", () => {
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("ATANH(1)")
-    ).toMatchObject({ error: null, result: Infinity });
+    ).toMatchObject({ error: "#NUM!", result: null });
   });
 
   it("BASE", () => {
@@ -498,7 +498,7 @@ describe(".parse() math-trig formulas", () => {
   it("FACT", () => {
     expect(
       parser.parse("FACT()")
-    ).toMatchObject({ error: null, result: 1 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('FACT("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
@@ -928,10 +928,10 @@ describe(".parse() math-trig formulas", () => {
       parser.parse("PRODUCT()")
     ).toMatchObject({ error: null, result: 0 });
     expect(
-      // Scalar text can't be told apart from a text cell reference, which
-      // Excel skips in aggregates.
+      // Typed text that is not a number is #VALUE! (text in referenced
+      // cells is skipped).
       parser.parse('PRODUCT("value")')
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("PRODUCT(2)")
     ).toMatchObject({ error: null, result: 2 });
@@ -949,13 +949,13 @@ describe(".parse() math-trig formulas", () => {
   it("QUOTIENT", () => {
     expect(
       parser.parse("QUOTIENT()")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse('QUOTIENT("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("QUOTIENT(2)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("QUOTIENT(2, 4)")
     ).toMatchObject({ error: null, result: 0 });
@@ -1004,7 +1004,7 @@ describe(".parse() math-trig formulas", () => {
   it("ROMAN", () => {
     expect(
       parser.parse("ROMAN()")
-    ).toMatchObject({ error: null, result: "" });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ROMAN("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
@@ -1242,7 +1242,7 @@ describe(".parse() math-trig formulas", () => {
     ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse('SUM("value")')
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("SUM(64)")
     ).toMatchObject({ error: null, result: 64 });
@@ -1304,10 +1304,10 @@ describe(".parse() math-trig formulas", () => {
       parser.parse("SUMSQ()")
     ).toMatchObject({ error: null, result: 0 });
     expect(
-      // Scalar text can't be told apart from a text cell reference, which
-      // Excel skips in aggregates.
+      // Typed text that is not a number is #VALUE! (text in referenced
+      // cells is skipped).
       parser.parse('SUMSQ("value")')
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("SUMSQ(64)")
     ).toMatchObject({ error: null, result: 4096 });
@@ -1391,7 +1391,7 @@ describe(".parse() math-trig formulas", () => {
   it("TRUNC", () => {
     expect(
       parser.parse("TRUNC()")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse('TRUNC("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });

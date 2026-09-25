@@ -10,7 +10,7 @@ import {
 } from "../types";
 import { getSheetIndex, indexToColumnChar, rgbToHex } from "../utils";
 import { checkCF, getComputeMap } from "./ConditionFormat";
-import { getFailureText, validateCellData } from "./dataVerification";
+import { checkDataVerificationInput } from "./dataVerification";
 import { formatValue, is_date, resolveTypedInput } from "./format";
 import {
   delFunctionGroup,
@@ -28,9 +28,15 @@ import {
   isInlineStringCT,
 } from "./inline-string";
 import { isRealNull, isRealNum, valueIsError } from "./validation";
-import { getCellTextInfo } from "./text";
+import { autoGrowRowAfterEdit } from "./autofit";
 import { setFormulaCellInfo } from "./formulaHelper";
 import { peek } from "./dependencyGraph";
+import { onTableCellEdited } from "./tables";
+import {
+  FORMULA_RESULT_FORMATS,
+  inferFormulaFormat,
+  FormatLookup,
+} from "./formatInference";
 
 // TODO put these in context ref
 // let rangestart = false;
@@ -147,31 +153,40 @@ export function getCellValue(
   return retv;
 }
 
-// Like Excel, a General cell whose formula starts with a date/time function
-// takes that function's format, so =TODAY() shows a date, not a serial.
-const FORMULA_RESULT_FORMATS: Record<string, string> = {
-  DATE: "m/d/yyyy",
-  DATEVALUE: "m/d/yyyy",
-  TODAY: "m/d/yyyy",
-  EDATE: "m/d/yyyy",
-  EOMONTH: "m/d/yyyy",
-  WORKDAY: "m/d/yyyy",
-  "WORKDAY.INTL": "m/d/yyyy",
-  NOW: "m/d/yyyy h:mm",
-  TIME: "h:mm AM/PM",
-  TIMEVALUE: "h:mm AM/PM",
-};
-
+/**
+ * Format of the date/time function a formula starts with (=TODAY() → a date
+ * format), or undefined. See inferFormulaFormat for the full rule set.
+ */
 export function formulaResultFormat(formula: string | undefined) {
   const name = /^=\s*([A-Za-z][A-Za-z0-9_.]*)\s*\(/.exec(formula || "")?.[1];
   return name ? FORMULA_RESULT_FORMATS[name.toUpperCase()] : undefined;
 }
 
-/** Store a formula's computed value and its display text on the cell. */
-function setFormulaResult(cell: Cell, value: any) {
+/** Cell reader for format inference: the formula's sheet or a named one. */
+function formatLookup(
+  ctx: Context | null | undefined,
+  d: CellMatrix
+): FormatLookup {
+  return (sheet, r, c) => {
+    if (sheet == null) return d[r]?.[c];
+    const file = ctx?.luckysheetfile?.find((s) => s.name === sheet);
+    return file?.data?.[r]?.[c];
+  };
+}
+
+/**
+ * Store a formula's computed value and its display text on the cell. A
+ * General cell takes the format Excel infers from the formula: =A1+7 over
+ * a date is a date, =SUM(B1:B9) over currency is currency (see
+ * formatInference.ts for the rule table).
+ */
+function setFormulaResult(cell: Cell, value: any, lookup?: FormatLookup) {
   let fa = cell.ct?.fa || "General";
   if (fa === "General" && isRealNum(value)) {
-    fa = formulaResultFormat(cell.f) || fa;
+    fa =
+      (lookup
+        ? inferFormulaFormat(cell.f, lookup)
+        : formulaResultFormat(cell.f)) || fa;
   }
   if (_.isBoolean(value) || /^(true|false)$/i.test(`${value}`)) {
     cell.v = _.isBoolean(value) ? value : `${value}`.toUpperCase() === "TRUE";
@@ -269,7 +284,7 @@ export function setCellValue(
 
   if (!_.isNil(cell.f)) {
     // Formula result: not re-interpreted as typed input (="1/2" stays text).
-    setFormulaResult(cell, vupdate);
+    setFormulaResult(cell, vupdate, formatLookup(ctx, d));
   } else if (vupdateStr.substr(0, 1) === "'") {
     cell.m = vupdateStr.substr(1);
     cell.ct = { fa: "@", t: "s" };
@@ -634,23 +649,10 @@ export function updateCell(
   //   return;
   // }
 
-  // 数据验证 输入数据无效时禁止输入
-  const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-  const { dataVerification } = ctx.luckysheetfile[index];
-  if (!_.isNil(dataVerification)) {
-    const dvItem = dataVerification[`${r}_${c}`];
-    if (
-      !_.isNil(dvItem) &&
-      dvItem.prohibitInput &&
-      !validateCellData(ctx, dvItem, inputText)
-    ) {
-      const failureText = getFailureText(ctx, dvItem);
-
-      cancelNormalSelected(ctx);
-      ctx.warnDialog = failureText;
-
-      return;
-    }
+  // 数据验证: invalid input raises the rule's error alert instead
+  if (!checkDataVerificationInput(ctx, r, c, inputText ?? value)) {
+    cancelNormalSelected(ctx);
+    return;
   }
 
   let curv = flowdata[r][c];
@@ -831,7 +833,7 @@ export function updateCell(
         // from API setCellValue,luckysheet.setCellValue(0, 0, {f: "=sum(D1)", bg:"#0188fb"}),value is an object, so get attribute f as value
         else {
           Object.keys(value).forEach((attr) => {
-            curv![attr as keyof Cell] = value[attr];
+            (curv as any)[attr] = value[attr];
           });
         }
       } else {
@@ -942,48 +944,9 @@ export function updateCell(
   }
   */
 
-  if ((curv?.tb === "2" && curv.v) || isInlineStringCell(d[r][c])) {
-    // 自动换行
-    const { defaultrowlen } = ctx;
-
-    // const canvas = $("#luckysheetTableContent").get(0).getContext("2d");
-    // offlinecanvas.textBaseline = 'top'; //textBaseline以top计算
-
-    // let fontset = luckysheetfontformat(d[r][c]);
-    // offlinecanvas.font = fontset;
-
-    const cfg =
-      ctx.luckysheetfile[
-        getSheetIndex(ctx, ctx.currentSheetId as string) as number
-      ].config || {};
-    if (!(cfg.columnlen?.[c] && cfg.rowlen?.[r])) {
-      // let currentRowLen = defaultrowlen;
-      // if(!_.isNil(cfg["rowlen"][r])){
-      //     currentRowLen = cfg["rowlen"][r];
-      // }
-
-      const cellWidth = cfg.columnlen?.[c] || ctx.defaultcollen;
-
-      const textInfo = canvas
-        ? getCellTextInfo(d[r][c] as Cell, canvas, ctx, {
-            r,
-            c,
-            cellWidth,
-          })
-        : null;
-
-      let currentRowLen = defaultrowlen;
-      // console.log("rowlen", textInfo);
-      if (textInfo) {
-        currentRowLen = textInfo.textHeightAll + 2;
-      }
-
-      if (currentRowLen > defaultrowlen && !cfg.customHeight?.[r]) {
-        if (_.isNil(cfg.rowlen)) cfg.rowlen = {};
-        cfg.rowlen[r] = currentRowLen;
-      }
-    }
-  }
+  // wrapped text: rows without a custom height follow their content (Excel)
+  // (measured on an offscreen canvas when the caller has none)
+  autoGrowRowAfterEdit(ctx, r, c, { renderCtx: canvas });
 
   // 动态数组
   /*
@@ -1021,6 +984,8 @@ export function updateCell(
 
   setFormulaCellInfo(ctx, { r, c, id: ctx.currentSheetId });
   ctx.formulaCache.execFunctionGlobalData = null;
+  // typing next to a table extends it; header edits rename its columns
+  onTableCellEdited(ctx, ctx.currentSheetId, r, c);
 }
 
 export function getOrigincell(ctx: Context, r: number, c: number, i: string) {
@@ -1583,6 +1548,12 @@ export function luckysheetUpdateCell(
   col_index: number
 ) {
   ctx.luckysheetCellUpdate = [row_index, col_index];
+  // double-click editing is Excel's Edit mode (arrows move the caret)
+  ctx.editState = {
+    mode: "edit",
+    cell: [row_index, col_index],
+    sheetId: ctx.currentSheetId,
+  };
 }
 
 export function getDataBySelectionNoCopy(ctx: Context, range: Selection) {

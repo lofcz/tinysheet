@@ -88,6 +88,18 @@ const OVERLAY_ONLY_KEYS = new Set<string>([
   "luckysheetPaintSingle",
   "showSheetList",
   "sheetFocused",
+  // phase 2 dialogs, panels and edit state (DOM only)
+  "activeChart",
+  "chartEditorOpen",
+  "showPasteSpecial",
+  "formatCellsDialog",
+  "dataVerificationAlert",
+  "dataVerificationSidebar",
+  "editState",
+  "endMode",
+  "tabReturn",
+  "groupedSheetIds",
+  "showGoTo",
 ]);
 
 /** Whether anything the canvas renderer reads differs between two contexts. */
@@ -163,7 +175,7 @@ function sheetPasses(context: Context, freeze: Freeze | undefined): DrawPass[] {
   const { rowHeaderWidth: rhw, columnHeaderHeight: chh } = context;
   const horizontalData = freeze?.horizontal?.freezenhorizontaldata;
   const verticalData = freeze?.vertical?.freezenverticaldata;
-  // frozen rows: height, and scroll offset they were frozen at
+  // frozen (or split-pane) rows: bottom edge, and the pane's own scroll
   const [hPx, , hScroll] = horizontalData ?? [0, 0, 0];
   const [vPx, , vScroll] = verticalData ?? [0, 0, 0];
   const mainLeft = verticalData ? vPx - vScroll + rhw : rhw;
@@ -189,7 +201,7 @@ function sheetPasses(context: Context, freeze: Freeze | undefined): DrawPass[] {
       scrollWidth: mainScrollX,
       scrollHeight: hScroll,
       drawWidth: W,
-      drawHeight: hPx,
+      drawHeight: hPx - hScroll,
       offsetLeft: mainLeft,
       offsetTop: chh,
     });
@@ -200,7 +212,7 @@ function sheetPasses(context: Context, freeze: Freeze | undefined): DrawPass[] {
       kind: "cells",
       scrollWidth: vScroll,
       scrollHeight: mainScrollY,
-      drawWidth: vPx,
+      drawWidth: vPx - vScroll,
       drawHeight: H,
       offsetLeft: rhw,
       offsetTop: mainTop,
@@ -211,8 +223,8 @@ function sheetPasses(context: Context, freeze: Freeze | undefined): DrawPass[] {
       kind: "cells",
       scrollWidth: vScroll,
       scrollHeight: hScroll,
-      drawWidth: vPx,
-      drawHeight: hPx,
+      drawWidth: vPx - vScroll,
+      drawHeight: hPx - hScroll,
       offsetLeft: rhw,
       offsetTop: chh,
     });
@@ -228,7 +240,7 @@ function sheetPasses(context: Context, freeze: Freeze | undefined): DrawPass[] {
     passes.push({
       kind: "colHeader",
       scrollWidth: vScroll,
-      drawWidth: vPx,
+      drawWidth: vPx - vScroll,
       offsetLeft: rhw,
     });
   }
@@ -242,7 +254,7 @@ function sheetPasses(context: Context, freeze: Freeze | undefined): DrawPass[] {
     passes.push({
       kind: "rowHeader",
       scrollHeight: hScroll,
-      drawHeight: hPx,
+      drawHeight: hPx - hScroll,
       offsetTop: chh,
     });
   }

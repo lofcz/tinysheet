@@ -1,0 +1,38 @@
+/* Split panes: split bars and drag ghost */
+.fortune-split-bar,
+.fortune-split-ghost {
+  position: absolute;
+  z-index: 16;
+  box-sizing: border-box;
+}
+
+.fortune-split-bar {
+  background: var(--fortune-bg-muted);
+  border: 1px solid var(--fortune-border-strong);
+}
+
+.fortune-split-bar:hover {
+  background: var(--fortune-border-strong);
+}
+
+.fortune-split-bar-h,
+.fortune-split-ghost-h {
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: row-resize;
+}
+
+.fortune-split-bar-v,
+.fortune-split-ghost-v {
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+}
+
+.fortune-split-ghost {
+  background: var(--fortune-accent);
+  opacity: 0.5;
+  pointer-events: none;
+}

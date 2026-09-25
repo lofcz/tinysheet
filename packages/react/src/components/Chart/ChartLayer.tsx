@@ -1,0 +1,624 @@
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Chart,
+  Context,
+  deleteChart,
+  Freezen,
+  getChartCellPosition,
+  getChartReferencedSheetIds,
+  getChartTheme,
+  getSheetIndex,
+  locale,
+  MIN_CHART_HEIGHT,
+  MIN_CHART_WIDTH,
+  pasteChart,
+  renderChartToSvg,
+  Sheet,
+  svgToDataUri,
+  updateChart,
+} from "@lofcz/tinysheet-core";
+import WorkbookContext from "../../context";
+import SVGIcon from "../SVGIcon";
+import { getChartClipboard, setChartClipboard } from "./chartClipboard";
+import "./index.css";
+
+type Box = { left: number; top: number; width: number; height: number };
+type Side = "lt" | "mt" | "rt" | "lm" | "rm" | "lb" | "mb" | "rb";
+const SIDES: Side[] = ["lt", "mt", "rt", "lm", "rm", "lb", "mb", "rb"];
+
+type Drag = {
+  id: string;
+  mode: "move" | Side;
+  startX: number;
+  startY: number;
+  zoom: number;
+  orig: Box;
+  current: Box;
+  moved: boolean;
+};
+
+/**
+ * Re-render charts at most once per animation frame: a burst of cell edits
+ * (paste, fill, recalculation) redraws charts once.
+ */
+function useFrameThrottled<T>(value: T, enabled: boolean): T {
+  const [snapshot, setSnapshot] = useState(value);
+  const latest = useRef(value);
+  latest.current = value;
+  const frame = useRef<number | null>(null);
+  useEffect(() => {
+    if (!enabled || snapshot === value || frame.current != null) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      setSnapshot(latest.current);
+    });
+  }, [value, snapshot, enabled]);
+  useEffect(
+    () => () => {
+      if (frame.current != null) cancelAnimationFrame(frame.current);
+    },
+    []
+  );
+  return enabled ? snapshot : value;
+}
+
+type SvgCacheEntry = {
+  chart: Chart;
+  data: unknown[];
+  theme: string;
+  width: number;
+  height: number;
+  svg: string;
+};
+
+function resizeBox(orig: Box, side: Side, dx: number, dy: number): Box {
+  let { left, top, width, height } = orig;
+  if (side[0] === "l") {
+    const w = Math.max(MIN_CHART_WIDTH, width - dx);
+    left += width - w;
+    width = w;
+  } else if (side[0] === "r") {
+    width = Math.max(MIN_CHART_WIDTH, width + dx);
+  }
+  if (side[1] === "t") {
+    const h = Math.max(MIN_CHART_HEIGHT, height - dy);
+    top += height - h;
+    height = h;
+  } else if (side[1] === "b") {
+    height = Math.max(MIN_CHART_HEIGHT, height + dy);
+  }
+  if (left < 0) {
+    width += left;
+    left = 0;
+  }
+  if (top < 0) {
+    height += top;
+    top = 0;
+  }
+  return { left, top, width, height };
+}
+
+type Pane = {
+  left: number;
+  top: number;
+  /** clip-path inset: top, right, bottom, left. */
+  clip: [number, number, number, number];
+  /** The scrolling pane's copy carries the selection handles. */
+  primary: boolean;
+};
+
+type Span = { offset: number; clipStart: number; clipEnd: number };
+
+/**
+ * One axis of the frozen-pane split, like Excel: the part of an object that
+ * lies in the frozen rows (columns) stays put, the rest scrolls and is hidden
+ * under the frozen band. `edge` is the frozen boundary in sheet pixels,
+ * `off` the scroll offset since freezing.
+ */
+function splitAxis(
+  start: number,
+  size: number,
+  data: any[] | undefined,
+  scroll: number
+): { frozen?: Span; scrolled: Span } {
+  if (!data) return { scrolled: { offset: 0, clipStart: 0, clipEnd: 0 } };
+  const edge = data[0] as number;
+  const off = scroll - (data[2] as number);
+  const scrolled = {
+    offset: 0,
+    clipStart: Math.max(0, edge + off - start),
+    clipEnd: 0,
+  };
+  const frozen =
+    start < edge
+      ? { offset: off, clipStart: 0, clipEnd: Math.max(0, start + size - edge) }
+      : undefined;
+  return { frozen, scrolled };
+}
+
+/** Screen copies of a chart for the current frozen panes (1, 2 or 4). */
+function placeInPanes(ctx: Context, freeze: Freezen | undefined, box: Box) {
+  const rows = splitAxis(
+    box.top,
+    box.height,
+    freeze?.horizontal?.freezenhorizontaldata,
+    ctx.scrollTop
+  );
+  const cols = splitAxis(
+    box.left,
+    box.width,
+    freeze?.vertical?.freezenverticaldata,
+    ctx.scrollLeft
+  );
+  const panes: Pane[] = [];
+  [rows.scrolled, rows.frozen].forEach((r, ri) => {
+    if (!r) return;
+    [cols.scrolled, cols.frozen].forEach((c, ci) => {
+      if (!c) return;
+      if (r.clipStart + r.clipEnd >= box.height) return;
+      if (c.clipStart + c.clipEnd >= box.width) return;
+      panes.push({
+        left: box.left + c.offset,
+        top: box.top + r.offset,
+        clip: [r.clipStart, c.clipEnd, r.clipEnd, c.clipStart],
+        primary: ri === 0 && ci === 0,
+      });
+    });
+  });
+  return panes;
+}
+
+const TrashIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      fill="currentColor"
+      d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h2v-8h-2zm4 0v8h2v-8h-2z"
+    />
+  </svg>
+);
+
+const ChartLayer: React.FC = () => {
+  const { context, setContext, refs } = useContext(WorkbookContext);
+  const { chart: t } = locale(context);
+  const sheetIndex = getSheetIndex(context, context.currentSheetId);
+  const sheet: Sheet | undefined =
+    sheetIndex == null ? undefined : context.luckysheetfile[sheetIndex];
+  const charts = sheet?.charts;
+  const hasCharts = !!charts && charts.length > 0;
+  const files = useFrameThrottled(context.luckysheetfile, hasCharts);
+  const [preview, setPreview] = useState<(Box & { id: string }) | null>(null);
+  const drag = useRef<Drag | null>(null);
+  const cache = useRef(new Map<string, SvgCacheEntry>());
+  const boxRefs = useRef(new Map<string, HTMLDivElement>());
+  const zoom = context.zoomRatio || 1;
+  const themeName = context.theme || "light";
+  const readonly = context.allowEdit === false;
+
+  const svgFor = useCallback(
+    (chart: Chart, width: number, height: number) => {
+      const sheetIds = getChartReferencedSheetIds(chart);
+      const data = sheetIds.map((id) => files.find((f) => f.id === id)?.data);
+      const hit = cache.current.get(chart.id);
+      if (
+        hit &&
+        hit.chart === chart &&
+        hit.theme === themeName &&
+        hit.width === width &&
+        hit.height === height &&
+        hit.data.length === data.length &&
+        hit.data.every((d, i) => d === data[i])
+      ) {
+        return hit.svg;
+      }
+      const svg = renderChartToSvg(
+        { luckysheetfile: files, theme: themeName },
+        chart,
+        getChartTheme(themeName),
+        { width, height }
+      );
+      cache.current.set(chart.id, {
+        chart,
+        data,
+        theme: themeName,
+        width,
+        height,
+        svg,
+      });
+      return svg;
+    },
+    [files, themeName]
+  );
+
+  // Drop cache entries of deleted charts.
+  useEffect(() => {
+    const ids = new Set<string>();
+    context.luckysheetfile.forEach((f) =>
+      f.charts?.forEach((c) => ids.add(c.id))
+    );
+    (Array.from(cache.current.keys()) as string[]).forEach((id) => {
+      if (!ids.has(id)) cache.current.delete(id);
+    });
+  }, [context.luckysheetfile]);
+
+  // Focus a newly selected chart so Delete / Ctrl+C act on it.
+  const { activeChart, chartEditorOpen } = context;
+  useLayoutEffect(() => {
+    if (!activeChart) return;
+    const el = boxRefs.current.get(activeChart);
+    if (el && !el.contains(document.activeElement)) {
+      const editor = document.activeElement?.closest?.(".fortune-chart-editor");
+      if (!editor) el.focus({ preventScroll: true });
+    }
+  }, [activeChart]);
+
+  // Forget the selection when it no longer exists on this sheet.
+  useEffect(() => {
+    if (activeChart && !charts?.some((c) => c.id === activeChart)) {
+      setContext((ctx) => {
+        ctx.activeChart = undefined;
+        ctx.chartEditorOpen = false;
+      });
+    }
+  }, [activeChart, charts, setContext]);
+
+  // Clicking elsewhere in the workbook deselects (unless the editor is open).
+  useEffect(() => {
+    if (!activeChart || chartEditorOpen) return undefined;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      const container = refs.workbookContainer.current;
+      if (!target || !container?.contains(target)) return;
+      if (
+        target.closest?.(
+          ".fortune-chart-box, .fortune-chart-editor, .fortune-toolbar, .fortune-toolbar-combo-popup"
+        )
+      )
+        return;
+      setContext((ctx) => {
+        ctx.activeChart = undefined;
+      });
+    };
+    document.addEventListener("mousedown", onDown, true);
+    return () => document.removeEventListener("mousedown", onDown, true);
+  }, [activeChart, chartEditorOpen, refs.workbookContainer, setContext]);
+
+  // Paste a copied chart (capture phase, before the cell paste handler).
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const container = refs.workbookContainer.current;
+      const active = document.activeElement as HTMLElement | null;
+      if (!container || !active || !container.contains(active)) return;
+      if (active.closest(".fortune-chart-editor")) return;
+      const copied = getChartClipboard(e.clipboardData?.getData("text/plain"));
+      if (!copied || readonly) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const fromChart = !!active.closest(".fortune-chart-box");
+      setContext((ctx) => {
+        let position = { left: copied.left + 20, top: copied.top + 20 };
+        const sel =
+          ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
+        if (!fromChart && sel) {
+          position = getChartCellPosition(
+            ctx,
+            sel.row_focus ?? sel.row[0],
+            sel.column_focus ?? sel.column[0]
+          );
+        }
+        pasteChart(ctx, copied, position);
+      });
+    };
+    window.addEventListener("paste", onPaste, true);
+    return () => window.removeEventListener("paste", onPaste, true);
+  }, [readonly, refs.workbookContainer, setContext]);
+
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = (e.pageX - d.startX) / d.zoom;
+    const dy = (e.pageY - d.startY) / d.zoom;
+    if (!d.moved && Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+    d.moved = true;
+    d.current =
+      d.mode === "move"
+        ? {
+            ...d.orig,
+            left: Math.max(0, d.orig.left + dx),
+            top: Math.max(0, d.orig.top + dy),
+          }
+        : resizeBox(d.orig, d.mode, dx, dy);
+    setPreview({ id: d.id, ...d.current });
+  }, []);
+
+  const onMouseUp = useCallback(() => {
+    const d = drag.current;
+    drag.current = null;
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+    if (d?.moved) {
+      const box = {
+        left: Math.round(d.current.left),
+        top: Math.round(d.current.top),
+        width: Math.round(d.current.width),
+        height: Math.round(d.current.height),
+      };
+      setContext((ctx) => {
+        updateChart(ctx, d.id, box);
+      });
+    }
+    setPreview(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onMouseMove, setContext]);
+
+  useEffect(
+    () => () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    },
+    [onMouseMove, onMouseUp]
+  );
+
+  const startDrag = useCallback(
+    (e: React.MouseEvent, chart: Chart, mode: Drag["mode"]) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      e.preventDefault();
+      boxRefs.current.get(chart.id)?.focus({ preventScroll: true });
+      if (context.activeChart !== chart.id) {
+        setContext((ctx) => {
+          ctx.activeChart = chart.id;
+        });
+      }
+      if (readonly) return;
+      const orig = {
+        left: chart.left,
+        top: chart.top,
+        width: chart.width,
+        height: chart.height,
+      };
+      drag.current = {
+        id: chart.id,
+        mode,
+        startX: e.pageX,
+        startY: e.pageY,
+        zoom,
+        orig,
+        current: orig,
+        moved: false,
+      };
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    },
+    [context.activeChart, onMouseMove, onMouseUp, readonly, setContext, zoom]
+  );
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent, chart: Chart) => {
+      const mod = e.ctrlKey || e.metaKey;
+      // Undo / redo bubble to the workbook.
+      if (mod && (e.code === "KeyZ" || e.code === "KeyY")) return;
+      // Copy / cut / paste are handled by the clipboard events.
+      if (mod && ["KeyC", "KeyX", "KeyV"].includes(e.code)) {
+        e.stopPropagation();
+        return;
+      }
+      if (e.key === "Tab") return;
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setContext((ctx) => {
+          ctx.activeChart = undefined;
+          ctx.chartEditorOpen = false;
+        });
+        refs.cellInput.current?.focus();
+        return;
+      }
+      if (readonly) return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        setContext((ctx) => deleteChart(ctx, chart.id));
+        refs.cellInput.current?.focus();
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        setContext((ctx) => {
+          ctx.chartEditorOpen = true;
+        });
+        return;
+      }
+      const step = e.shiftKey ? 10 : 1;
+      const nudge: Record<string, [number, number]> = {
+        ArrowLeft: [-step, 0],
+        ArrowRight: [step, 0],
+        ArrowUp: [0, -step],
+        ArrowDown: [0, step],
+      };
+      const delta = nudge[e.key];
+      if (delta) {
+        e.preventDefault();
+        setContext((ctx) =>
+          updateChart(ctx, chart.id, {
+            left: Math.max(0, chart.left + delta[0]),
+            top: Math.max(0, chart.top + delta[1]),
+          })
+        );
+      }
+    },
+    [readonly, refs.cellInput, setContext]
+  );
+
+  const onCopy = useCallback(
+    (e: React.ClipboardEvent, chart: Chart, cut: boolean) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const marker = setChartClipboard(chart);
+      e.clipboardData.setData("text/plain", marker);
+      const svg = renderChartToSvg(
+        { luckysheetfile: context.luckysheetfile },
+        chart,
+        "light"
+      );
+      e.clipboardData.setData(
+        "text/html",
+        `<img src="${svgToDataUri(svg)}" width="${chart.width}" height="${
+          chart.height
+        }" alt="">`
+      );
+      if (cut && !readonly) {
+        setContext((ctx) => deleteChart(ctx, chart.id));
+        refs.cellInput.current?.focus();
+      }
+    },
+    [context.luckysheetfile, readonly, refs.cellInput, setContext]
+  );
+
+  const freeze = refs.globalCache.freezen?.[context.currentSheetId];
+
+  const boxes = useMemo(() => {
+    if (!charts) return [];
+    return charts.map((chart) => {
+      const box =
+        preview?.id === chart.id
+          ? preview
+          : {
+              left: chart.left,
+              top: chart.top,
+              width: chart.width,
+              height: chart.height,
+            };
+      return { chart, box };
+    });
+  }, [charts, preview]);
+
+  if (!hasCharts) return null;
+
+  return (
+    <div className="fortune-chart-layer">
+      {boxes.map(({ chart, box }) => {
+        const active = chart.id === activeChart;
+        const zoomed = {
+          left: box.left * zoom,
+          top: box.top * zoom,
+          width: box.width * zoom,
+          height: box.height * zoom,
+        };
+        const panes = placeInPanes(context, freeze, zoomed);
+        if (panes.length === 0) return null;
+        const svg = svgFor(
+          chart,
+          Math.round(box.width),
+          Math.round(box.height)
+        );
+        return panes.map((pane) => {
+          const clipped = pane.clip.some((v) => v > 0);
+          const showHandles = active && pane.primary;
+          return (
+            <div
+              key={`${chart.id}-${pane.primary ? "main" : pane.clip.join()}`}
+              ref={
+                pane.primary
+                  ? (el) => {
+                      if (el) boxRefs.current.set(chart.id, el);
+                      else boxRefs.current.delete(chart.id);
+                    }
+                  : undefined
+              }
+              className={`fortune-chart-box${
+                active ? " fortune-chart-box-active" : ""
+              }`}
+              data-chart-id={chart.id}
+              role={pane.primary ? "figure" : undefined}
+              aria-label={pane.primary ? chart.title || t.chart : undefined}
+              aria-hidden={pane.primary ? undefined : true}
+              tabIndex={pane.primary ? 0 : -1}
+              style={{
+                left: pane.left,
+                top: pane.top,
+                width: zoomed.width,
+                height: zoomed.height,
+                clipPath: clipped
+                  ? `inset(${pane.clip.map((v) => `${v}px`).join(" ")})`
+                  : undefined,
+              }}
+              onMouseDown={(e) => startDrag(e, chart, "move")}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setContext((ctx) => {
+                  ctx.activeChart = chart.id;
+                  ctx.chartEditorOpen = true;
+                });
+              }}
+              onContextMenu={(e) => e.stopPropagation()}
+              onKeyDown={(e) => onKeyDown(e, chart)}
+              onCopy={(e) => onCopy(e, chart, false)}
+              onCut={(e) => onCopy(e, chart, true)}
+            >
+              <div
+                className="fortune-chart-svg"
+                // SVG produced by the chart renderer; every text is XML-escaped.
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: svg }}
+              />
+              {showHandles && (
+                <>
+                  <div className="fortune-chart-outline" />
+                  {!readonly &&
+                    SIDES.map((side) => (
+                      <div
+                        key={side}
+                        className={`fortune-chart-handle fortune-chart-handle-${side}`}
+                        onMouseDown={(e) => startDrag(e, chart, side)}
+                      />
+                    ))}
+                  {!readonly && (
+                    <div
+                      className="fortune-chart-actions"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className="fortune-chart-action"
+                        title={t.editChart}
+                        aria-label={t.editChart}
+                        onClick={() =>
+                          setContext((ctx) => {
+                            ctx.chartEditorOpen = true;
+                          })
+                        }
+                      >
+                        <SVGIcon name="pencil" width={16} height={16} />
+                      </button>
+                      <button
+                        type="button"
+                        className="fortune-chart-action"
+                        title={t.deleteChart}
+                        aria-label={t.deleteChart}
+                        onClick={() => {
+                          setContext((ctx) => deleteChart(ctx, chart.id));
+                          refs.cellInput.current?.focus();
+                        }}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        });
+      })}
+    </div>
+  );
+};
+
+export default ChartLayer;

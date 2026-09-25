@@ -19,7 +19,11 @@
   IfortunesheetHyperlinkType,
   IfortunesheetDataVerification,
 } from "./IFortune";
-import { FortuneSheetCelldata } from "./FortuneCell";
+import {
+  FortuneSheetCelldata,
+  FortuneCellWorkbookInfo,
+} from "./FortuneCell";
+import { shiftFormula } from "../common/formulaText";
 import { IattributeList } from "../common/ICommon";
 import {
   getXmlAttibute,
@@ -33,6 +37,7 @@ import {
   getTransR1C1ToSequence,
   getPeelOffX14,
   getMultiFormulaValue,
+  escapeCharacter,
 } from "../common/method";
 import {
   borderTypes,
@@ -50,8 +55,10 @@ import {
   FortuneSheetborderInfoCellValue,
   FortunesheetCalcChain,
   FortuneSheetConfigMerge,
+  FortuneSheetCelldataValue,
 } from "./FortuneBase";
 import { ImageList } from "./FortuneImage";
+import { readSheetConditionalFormats } from "./FortuneConditionFormat";
 import dayjs from "dayjs";
 import {
   FortuneChartSpec,
@@ -65,6 +72,8 @@ import {
   escapeXml as chartEscapeXml,
   roundSvgNumber as chartRoundSvgNumber,
 } from "../chart";
+import { importChartXml, ImportedChart } from "../chart/importXlsx";
+import { parseChartRange } from "@lofcz/tinysheet-core";
 
 interface DrawingAnchorRect {
   fromCol: number;
@@ -104,6 +113,54 @@ interface ShapeRenderItem {
   fontSize: number;
 }
 
+/** Excel's default column width for Calibri 11 (8.43 characters + padding). */
+const EXCEL_DEFAULT_COLUMN_WIDTH = 9.140625;
+
+/** TinySheet's own default sizes (px); sheet defaults close to these are not materialised. */
+const TINYSHEET_COLUMN_WIDTH = 73;
+const TINYSHEET_ROW_HEIGHT = 19;
+
+/** `<pane xSplit ySplit state="frozen">` -> TinySheet `frozen`. */
+export function frozenFromPane(panes: Element[] | null) {
+  if (panes == null || panes.length == 0) return undefined;
+  const attrList = panes[0].attributeList;
+  const state = getXmlAttibute(attrList, "state", "split");
+  if (state != "frozen" && state != "frozenSplit") return undefined;
+  const xSplit = Math.round(parseFloat(getXmlAttibute(attrList, "xSplit", "0")));
+  const ySplit = Math.round(parseFloat(getXmlAttibute(attrList, "ySplit", "0")));
+  if (!(xSplit > 0) && !(ySplit > 0)) return undefined;
+  const range = {
+    row_focus: ySplit > 0 ? ySplit - 1 : 0,
+    column_focus: xSplit > 0 ? xSplit - 1 : 0,
+  };
+  const type: "rangeRow" | "rangeColumn" | "rangeBoth" =
+    xSplit > 0 && ySplit > 0 ? "rangeBoth" : ySplit > 0 ? "rangeRow" : "rangeColumn";
+  return { type, range };
+}
+
+/** Excel data-validation operators -> TinySheet `type2`. */
+const DV_OPERATORS: Record<string, string> = {
+  between: "between",
+  notBetween: "notBetween",
+  equal: "equal",
+  notEqual: "notEqualTo",
+  greaterThan: "moreThanThe",
+  lessThan: "lessThan",
+  greaterThanOrEqual: "greaterOrEqualTo",
+  lessThanOrEqual: "lessThanOrEqualTo",
+};
+
+const DV_DATE_OPERATORS: Record<string, string> = {
+  between: "between",
+  notBetween: "notBetween",
+  equal: "equal",
+  notEqual: "notEqualTo",
+  greaterThan: "laterThan",
+  lessThan: "earlierThan",
+  greaterThanOrEqual: "noEarlierThan",
+  lessThanOrEqual: "noLaterThan",
+};
+
 export class FortuneSheet extends FortuneSheetBase {
   private readXml: ReadXml;
   private sheetFile: string;
@@ -116,7 +173,20 @@ export class FortuneSheet extends FortuneSheetBase {
 
   private imageList: ImageList;
 
+  /** Live chart objects with their drawing anchors (positioned later). */
+  chartObjects: any[] = [];
+
   private formulaRefList: IFormulaSI;
+  private workbookInfo: FortuneCellWorkbookInfo;
+  private customDefaultRowHeight: boolean;
+  private customDefaultColWidth: boolean;
+  private arrayFormulaCells: FortuneSheetCelldata[] = [];
+
+  /** Excel frozen panes, in TinySheet's model. */
+  frozen?: {
+    type: "rangeRow" | "rangeColumn" | "rangeBoth";
+    range: { row_focus: number; column_focus: number };
+  };
 
   constructor(
     sheetName: string,
@@ -137,6 +207,7 @@ export class FortuneSheet extends FortuneSheetBase {
     this.sheetList = allFileOption.sheetList;
     this.imageList = allFileOption.imageList;
     this.hide = allFileOption.hide;
+    this.workbookInfo = allFileOption.workbookInfo || {};
 
     //Output
     this.name = sheetName;
@@ -163,6 +234,7 @@ export class FortuneSheet extends FortuneSheetBase {
       tabSelected = getXmlAttibute(attrList, "tabSelected", "0");
       zoomScale = getXmlAttibute(attrList, "zoomScale", "100");
       // let colorId = getXmlAttibute(attrList, "colorId", "0");
+      this.frozen = frozenFromPane(sheetView[0].getInnerElements("pane"));
       let selections = sheetView[0].getInnerElements("selection");
       if (selections != null && selections.length > 0) {
         activeCell = getXmlAttibute(
@@ -200,15 +272,35 @@ export class FortuneSheet extends FortuneSheetBase {
       "sheetFormatPr",
       this.sheetFile
     );
-    let defaultColWidth, defaultRowHeight;
+    // Excel's defaults (Calibri 11): 8.43 characters (+ padding) and 15pt.
+    let defaultColWidth = EXCEL_DEFAULT_COLUMN_WIDTH,
+      defaultRowHeight = 15,
+      customDefaultHeight = false,
+      customDefaultWidth = false;
     if (sheetFormatPr.length > 0) {
       let attrList = sheetFormatPr[0].attributeList;
-      defaultColWidth = getXmlAttibute(attrList, "defaultColWidth", "9.21");
-      defaultRowHeight = getXmlAttibute(attrList, "defaultRowHeight", "19");
+      let width = parseFloat(getXmlAttibute(attrList, "defaultColWidth", null));
+      let base = parseFloat(getXmlAttibute(attrList, "baseColWidth", null));
+      let height = parseFloat(
+        getXmlAttibute(attrList, "defaultRowHeight", null)
+      );
+      if (isFinite(width) && width > 0) {
+        defaultColWidth = width;
+        customDefaultWidth = true;
+      } else if (isFinite(base) && base > 0) {
+        defaultColWidth = base + (EXCEL_DEFAULT_COLUMN_WIDTH - 8);
+        customDefaultWidth = base != 8;
+      }
+      if (isFinite(height) && height > 0) defaultRowHeight = height;
+      customDefaultHeight =
+        getXmlAttibute(attrList, "customHeight", "0") == "1" ||
+        getXmlAttibute(attrList, "customHeight", "0") == "true";
     }
 
-    this.defaultColWidth = getColumnWidthPixel(parseFloat(defaultColWidth));
-    this.defaultRowHeight = getRowHeightPixel(parseFloat(defaultRowHeight));
+    this.defaultColWidth = getColumnWidthPixel(defaultColWidth);
+    this.defaultRowHeight = getRowHeightPixel(defaultRowHeight);
+    this.customDefaultRowHeight = customDefaultHeight;
+    this.customDefaultColWidth = customDefaultWidth;
 
     this.generateConfigColumnLenAndHidden();
     let cellOtherInfo: IcellOtherInfo =
@@ -245,8 +337,11 @@ export class FortuneSheet extends FortuneSheetBase {
     if (this.formulaRefList != null) {
       for (let key in this.formulaRefList) {
         let funclist = this.formulaRefList[key];
-        let mainFunc = funclist["mainRef"],
-          mainCellValue = mainFunc.cellValue;
+        let mainFunc = funclist["mainRef"];
+        if (mainFunc == null) {
+          continue;
+        }
+        let mainCellValue = mainFunc.cellValue;
         let formulaTxt = mainFunc.fv;
         let mainR = mainCellValue.r,
           mainC = mainCellValue.c;
@@ -264,26 +359,13 @@ export class FortuneSheet extends FortuneSheetBase {
           let r = cellValue.r,
             c = cellValue.c;
 
-          let func = formulaTxt;
-          let offsetRow = r - mainR,
-            offsetCol = c - mainC;
-
-          if (offsetRow > 0) {
-            func = "=" + fromulaRef.functionCopy(func, "down", offsetRow);
-          } else if (offsetRow < 0) {
-            func =
-              "=" + fromulaRef.functionCopy(func, "up", Math.abs(offsetRow));
+          if (formulaTxt == null) {
+            continue;
           }
-
-          if (offsetCol > 0) {
-            func = "=" + fromulaRef.functionCopy(func, "right", offsetCol);
-          } else if (offsetCol < 0) {
-            func =
-              "=" + fromulaRef.functionCopy(func, "left", Math.abs(offsetCol));
+          let func = shiftFormula(formulaTxt, r - mainR, c - mainC);
+          if (cellValue.v == null || typeof cellValue.v !== "object") {
+            cellValue.v = new FortuneSheetCelldataValue();
           }
-
-          // console.log(offsetRow, offsetCol, func);
-
           (cellValue.v as IfortuneSheetCelldataValue).f = func;
 
           //添加共享公式链
@@ -313,6 +395,20 @@ export class FortuneSheet extends FortuneSheetBase {
 
     // hyperlink config
     this.hyperlink = this.generateConfigHyperlinks();
+    this.linkHyperlinkCells();
+
+    // array / dynamic-array formulas: spill anchors and spilled cells
+    this.applyArrayFormulas();
+
+    // sheet default width/height for columns and rows without their own
+    this.applyDefaultSizes();
+
+    // conditional formatting
+    this.luckysheet_conditionformat_save = readSheetConditionalFormats(
+      this.readXml,
+      this.sheetFile,
+      this.styles
+    ) as any;
 
     // sheet hide
     this.hide = this.hide;
@@ -425,6 +521,12 @@ export class FortuneSheet extends FortuneSheetBase {
         continue;
       }
 
+      let liveChart = this.buildLiveChart(chartFile);
+      if (liveChart != null) {
+        this.addChartObject(anchor, liveChart);
+        continue;
+      }
+
       let chartSpec = this.buildChartSpec(chartFile, rect.width, rect.height);
       if (chartSpec == null) {
         continue;
@@ -446,6 +548,48 @@ export class FortuneSheet extends FortuneSheetBase {
         chartSpec: chartSpec,
       });
     }
+  }
+
+  /** Supported chart types become live chart objects (see chart/importXlsx). */
+  private buildLiveChart(chartFile: string): ImportedChart | null {
+    let spaces = this.readXml.getElementsByTagName("c:chartSpace", chartFile);
+    if (spaces == null || spaces.length == 0) {
+      return null;
+    }
+    let sheets = Object.keys(this.sheetList).map((name) => ({
+      name: this.decodeXml(name),
+      id: String(this.sheetList[name]),
+    }));
+    try {
+      return importChartXml(spaces[0].elementString, {
+        resolveRange: (ref) =>
+          parseChartRange({ luckysheetfile: sheets as any }, ref, this.id),
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  private addChartObject(anchor: Element, chart: ImportedChart) {
+    let rect = this.getAnchorRect(anchor);
+    if (rect == null) {
+      return;
+    }
+    this.chartObjects.push({
+      chart: chart,
+      fromCol: rect.fromCol,
+      fromColOff: rect.fromColOff,
+      fromRow: rect.fromRow,
+      fromRowOff: rect.fromRowOff,
+      toCol: rect.toCol,
+      toColOff: rect.toColOff,
+      toRow: rect.toRow,
+      toRowOff: rect.toRowOff,
+      originWidth: rect.width,
+      originHeight: rect.height,
+      crop: { height: rect.height, width: rect.width, offsetLeft: 0, offsetTop: 0 },
+      default: { height: rect.height, width: rect.width, left: 0, top: 0 },
+    });
   }
 
   private addDrawingImage(anchor: Element, imageObject: any) {
@@ -1685,6 +1829,103 @@ export class FortuneSheet extends FortuneSheetBase {
     return null;
   }
 
+  private findCell(r: number, c: number) {
+    if (this.cellIndex == null) {
+      this.cellIndex = new Map();
+      for (const cell of this.celldata) {
+        this.cellIndex.set(cell.r + "_" + cell.c, cell);
+      }
+    }
+    return this.cellIndex.get(r + "_" + c);
+  }
+
+  private cellIndex: Map<string, IfortuneSheetCelldata>;
+
+  /** Cells with a hyperlink carry `hl` like links created in TinySheet. */
+  private linkHyperlinkCells() {
+    for (const key of Object.keys(this.hyperlink || {})) {
+      const [r, c] = key.split("_").map(Number);
+      const cell = this.findCell(r, c);
+      if (cell == null || cell.v == null || typeof cell.v !== "object") {
+        continue;
+      }
+      (cell.v as any).hl = { r, c, id: this.id };
+    }
+  }
+
+  /**
+   * Array formulas (`t="array"`, dynamic arrays with `cm`, and legacy CSE
+   * formulas alike) become TinySheet spills: the anchor keeps the formula
+   * and gets `spill: { rs, cs }`, the other cells of the range keep their
+   * cached values and get `spillFrom` so recalculation owns them.
+   */
+  private applyArrayFormulas() {
+    for (const anchor of this.arrayFormulaCells) {
+      const range = getcellrange(anchor._arrayRef);
+      if (range == null) continue;
+      const rs = range.row[1] - range.row[0] + 1;
+      const cs = range.column[1] - range.column[0] + 1;
+      if (!(rs >= 1 && cs >= 1) || (rs == 1 && cs == 1)) continue;
+      if (anchor.v == null || typeof anchor.v !== "object") continue;
+      (anchor.v as any).spill = { rs, cs };
+      for (let i = 0; i < rs; i++) {
+        for (let j = 0; j < cs; j++) {
+          if (i == 0 && j == 0) continue;
+          const cell = this.findCell(anchor.r + i, anchor.c + j);
+          if (cell == null) continue;
+          if (cell.v == null || typeof cell.v !== "object") {
+            cell.v = new FortuneSheetCelldataValue();
+          }
+          delete (cell.v as any).f;
+          (cell.v as any).spillFrom = { dr: i, dc: j };
+        }
+      }
+    }
+  }
+
+  /**
+   * A sheet default column width (or custom default row height) that differs
+   * from TinySheet's default is materialised on every used column/row that
+   * has no size of its own, since TinySheet has no per-sheet default.
+   */
+  private applyDefaultSizes() {
+    let maxRow = -1,
+      maxCol = -1;
+    for (const cell of this.celldata) {
+      if (cell.r > maxRow) maxRow = cell.r;
+      if (cell.c > maxCol) maxCol = cell.c;
+    }
+    for (const key in this.config.merge || {}) {
+      const m = this.config.merge[key];
+      maxRow = Math.max(maxRow, m.r + m.rs - 1);
+      maxCol = Math.max(maxCol, m.c + m.cs - 1);
+    }
+    if (
+      this.customDefaultColWidth &&
+      Math.abs(this.defaultColWidth - TINYSHEET_COLUMN_WIDTH) > 1
+    ) {
+      const lastCol = Math.max(maxCol, 25);
+      for (let c = 0; c <= lastCol; c++) {
+        if (this.config.columnlen?.[c] != null) continue;
+        if (this.config.colhidden?.[c] != null) continue;
+        if (this.config.columnlen == null) this.config.columnlen = {};
+        this.config.columnlen[c] = this.defaultColWidth;
+      }
+    }
+    if (
+      this.customDefaultRowHeight &&
+      Math.abs(this.defaultRowHeight - TINYSHEET_ROW_HEIGHT) > 1
+    ) {
+      const lastRow = Math.max(maxRow, 0);
+      for (let r = 0; r <= lastRow; r++) {
+        if (this.config.rowlen?.[r] != null) continue;
+        if (this.config.rowhidden?.[r] != null) continue;
+        if (this.config.rowlen == null) this.config.rowlen = {};
+        this.config.rowlen[r] = this.defaultRowHeight;
+      }
+    }
+  }
+
   /**
    * @desc This will convert cols/col to fortunesheet config of column'width
    */
@@ -1721,7 +1962,7 @@ export class FortuneSheet extends FortuneSheetBase {
           }
           this.config.colhidden[m] = 0;
 
-          if (this.config.columnlen) {
+          if (this.config.columnlen && !(widthNum > 0)) {
             delete this.config.columnlen[m];
           }
         }
@@ -1774,7 +2015,8 @@ export class FortuneSheet extends FortuneSheetBase {
         }
         this.config.rowhidden[rowNoNum] = 0;
 
-        if (this.config.rowlen) {
+        // Keep the height to restore on unhide (writers use ht="0" for none).
+        if (this.config.rowlen && !(parseFloat(height) > 0)) {
           delete this.config.rowlen[rowNoNum];
         }
       }
@@ -1796,7 +2038,8 @@ export class FortuneSheet extends FortuneSheetBase {
             this.sharedStrings,
             this.mergeCells,
             this.sheetFile,
-            this.readXml
+            this.readXml,
+            this.workbookInfo
           );
           if (cellValue._borderObject != null) {
             if (this.config.borderInfo == null) {
@@ -1862,6 +2105,10 @@ export class FortuneSheet extends FortuneSheetBase {
 
           //     }
           // }
+          if (cellValue._arrayRef != null) {
+            this.arrayFormulaCells.push(cellValue);
+          }
+
           if (cellValue._formulaType == "shared") {
             if (this.formulaRefList == null) {
               this.formulaRefList = {};
@@ -1942,75 +2189,89 @@ export class FortuneSheet extends FortuneSheetBase {
       let formulaValue = row.value;
 
       let type = getXmlAttibute(attrList, "type", null);
-      if (!type) {
+      if (!type || type == "none") {
         continue;
       }
-      let operator = "",
+      let operator = getXmlAttibute(attrList, "operator", null) || "between",
         sqref = "",
         sqrefIndexArr: string[] = [],
         valueArr: string[] = [];
-      let _prohibitInput =
-        getXmlAttibute(attrList, "allowBlank", null) !== "1" ? false : true;
 
       // x14 processing
       const formulaReg = new RegExp(/<x14:formula1>|<xm:sqref>/g);
-      if (formulaReg.test(formulaValue) && extLst?.length >= 0) {
-        operator = getXmlAttibute(attrList, "operator", null);
+      if (formulaReg.test(formulaValue)) {
         const peelOffData = getPeelOffX14(formulaValue);
         sqref = peelOffData?.sqref;
-        sqrefIndexArr = getMultiSequenceToNum(sqref);
         valueArr = getMultiFormulaValue(peelOffData?.formula);
       } else {
-        operator = getXmlAttibute(attrList, "operator", null);
         sqref = getXmlAttibute(attrList, "sqref", null);
-        sqrefIndexArr = getMultiSequenceToNum(sqref);
         valueArr = getMultiFormulaValue(formulaValue);
       }
+      sqrefIndexArr = getMultiSequenceToNum(sqref);
 
-      let _type = DATA_VERIFICATION_MAP[type];
-      let _type2 = null;
+      let _type: string = DATA_VERIFICATION_MAP[type];
+      if (_type == null) {
+        continue;
+      }
+      let _type2: string | null = null;
       let _value1: string | number = valueArr?.length >= 1 ? valueArr[0] : "";
-      let _value2: string | number = valueArr?.length === 2 ? valueArr[1] : "";
-      let _hint = getXmlAttibute(attrList, "prompt", null);
-      let _hintShow = _hint ? true : false;
+      let _value2: string | number = valueArr?.length >= 2 ? valueArr[1] : "";
+      let _hint = escapeCharacter(getXmlAttibute(attrList, "prompt", null));
+      let showInput = getXmlAttibute(attrList, "showInputMessage", "0");
+      let showError = getXmlAttibute(attrList, "showErrorMessage", "0");
+      let errorStyle = getXmlAttibute(attrList, "errorStyle", "stop");
+      let _hintShow = !!_hint && (showInput == "1" || showInput == "true");
+      let _prohibitInput =
+        (showError == "1" || showError == "true") && errorStyle == "stop";
 
-      const matchType = COMMON_TYPE2.includes(_type) ? "common" : _type;
-      _type2 = operator
-        ? DATA_VERIFICATION_TYPE2_MAP[matchType][operator]
-        : "bw";
-
-      // mobile phone number processing
-      if (
-        _type === "text_content" &&
-        (_value1?.includes("LEN") || _value1?.includes("len")) &&
-        _value1?.includes("=11")
-      ) {
-        _type = "validity";
-        _type2 = "phone";
-      }
-
-      // date processing
       if (_type === "date") {
-        const D1900 = new Date(1899, 11, 30, 0, 0, 0);
-        _value1 = dayjs(D1900)
-          .clone()
-          .add(Number(_value1), "day")
-          .format("YYYY-MM-DD");
-        _value2 = dayjs(D1900)
-          .clone()
-          .add(Number(_value2), "day")
-          .format("YYYY-MM-DD");
-      }
-
-      // checkbox and dropdown processing
-      if (_type === "checkbox" || _type === "dropdown") {
-        _type2 = null;
+        _type2 = DV_DATE_OPERATORS[operator] || "between";
+        const toDate = (value: string | number) => {
+          let serial = Number(value);
+          if (value === "" || !isFinite(serial)) return value;
+          if (this.workbookInfo.date1904) serial += 1462;
+          return dayjs(new Date(Date.UTC(1899, 11, 30) + serial * 86400000))
+            .add(new Date().getTimezoneOffset(), "minute")
+            .format("YYYY-MM-DD");
+        };
+        _value1 = toDate(_value1);
+        _value2 = toDate(_value2);
+      } else if (_type === "dropdown") {
+        // "a,b,c" -> a,b,c ; ranges stay references
+        const list = String(_value1).replace(/^=/, "");
+        _value1 = /^".*"$/s.test(list)
+          ? list.slice(1, -1).replace(/""/g, '"')
+          : list;
+      } else if (_type === "text_content") {
+        // Custom formulas generated for "contains / excludes / equals" rules.
+        const text = String(_value1);
+        const include =
+          /^ISNUMBER\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(text);
+        const exclude =
+          /^ISERROR\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(text);
+        const equal = /^\$?[A-Z]+\$?\d+="((?:[^"]|"")*)"$/i.exec(text);
+        if (include) {
+          _type2 = "include";
+          _value1 = include[1].replace(/""/g, '"');
+        } else if (exclude) {
+          _type2 = "exclude";
+          _value1 = exclude[1].replace(/""/g, '"');
+        } else if (equal) {
+          _type2 = "equal";
+          _value1 = equal[1].replace(/""/g, '"');
+        } else {
+          // Any other custom formula.
+          _type = "custom";
+          _value1 = text.replace(/^=/, "");
+        }
+      } else {
+        _type2 = DV_OPERATORS[operator] || "between";
       }
 
       // dynamically add dataVerifications
       for (const ref of sqrefIndexArr) {
         dataVerification[ref] = {
-          type: _type,
+          type: _type as any,
           type2: _type2,
           value1: _value1,
           value2: _value2,
@@ -2019,7 +2280,8 @@ export class FortuneSheet extends FortuneSheetBase {
           prohibitInput: _prohibitInput,
           hintShow: _hintShow,
           hintText: _hint,
-        };
+          hintValue: _hint || "",
+        } as any;
       }
     }
 
@@ -2042,9 +2304,9 @@ export class FortuneSheet extends FortuneSheetBase {
       let attrList = row.attributeList;
       let ref = getXmlAttibute(attrList, "ref", null),
         refArr = getMultiSequenceToNum(ref),
-        _display = getXmlAttibute(attrList, "display", null),
-        _address = getXmlAttibute(attrList, "location", null),
-        _tooltip = getXmlAttibute(attrList, "tooltip", null);
+        _display = escapeCharacter(getXmlAttibute(attrList, "display", null)),
+        _address = escapeCharacter(getXmlAttibute(attrList, "location", null)),
+        _tooltip = escapeCharacter(getXmlAttibute(attrList, "tooltip", null));
       let _type: IfortunesheetHyperlinkType = _address
         ? "cellrange"
         : "webpage";
@@ -2063,7 +2325,7 @@ export class FortuneSheet extends FortuneSheetBase {
         );
 
         if (findRid) {
-          _address = findRid.attributeList["Target"];
+          _address = escapeCharacter(findRid.attributeList["Target"]);
           const type = findRid.attributeList[
             "TargetMode"
           ]?.toLocaleLowerCase();
@@ -2071,6 +2333,10 @@ export class FortuneSheet extends FortuneSheetBase {
             _type = "webpage";
           }
         }
+      }
+
+      if (_address && _type === "cellrange") {
+        _address = _address.replace(/^#/, "");
       }
 
       // match R1C1

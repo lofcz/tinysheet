@@ -63,6 +63,8 @@ import {
   runSpillPropagation,
   takeSpillChanges,
 } from "./formulaFunctions";
+// eslint-disable-next-line import/no-cycle
+import { settleSpillGrowth } from "./spill";
 
 // public: formula cells detected on a reference cycle (for a UI warning)
 export { getCircularReferences } from "./formulaHelper";
@@ -367,7 +369,14 @@ export class FormulaCache {
       const patch = changesHistory[i];
       const { path } = patch;
       if (path[0] === "luckysheetfile") {
-        if (path.length <= 2 || path[2] === "name" || path[2] === "id") {
+        if (
+          path.length <= 2 ||
+          path[2] === "name" ||
+          path[2] === "id" ||
+          // defined names / tables changed: references resolve differently
+          path[2] === "definedNames" ||
+          path[2] === "tables"
+        ) {
           // a sheet was added, removed, replaced or renamed: rebuild lazily
           this.formulaCellInfoMap = null;
           return;
@@ -1491,6 +1500,8 @@ export function execFunctionGroup(
       execFunctionGroup(ctx, null as any, null as any, null, id, data);
     });
   }
+  // spills that ran past the sheet edge: grow the sheet, spill again
+  settleSpillGrowth(ctx);
 }
 
 function findrangeindex(ctx: Context, v: string, vp: string) {
@@ -2462,15 +2473,19 @@ export function functionStrChange(
     }
 
     if (i === funcstack.length - 1) {
-      if (iscelldata(_.trim(str))) {
-        function_str += functionStrChange_range(
-          _.trim(str),
+      // a spill reference (A1#) moves like its anchor cell A1
+      const spillRef = /\d#$/.test(_.trim(str)) ? "#" : "";
+      const ref = spillRef ? _.trim(str).slice(0, -1) : _.trim(str);
+      if (iscelldata(ref)) {
+        const moved = functionStrChange_range(
+          ref,
           type,
           rc,
           orient,
           stindex,
           step
         );
+        function_str += moved.startsWith("#") ? moved : moved + spillRef;
       } else {
         function_str += _.trim(str);
       }
@@ -3285,16 +3300,21 @@ export function functionCopy(
     }
 
     if (i === funcstack.length - 1) {
-      if (iscelldata(_.trim(str))) {
+      // a spill reference (A1#) moves like its anchor cell A1
+      const spillRef = /\d#$/.test(_.trim(str)) ? "#" : "";
+      const ref = spillRef ? _.trim(str).slice(0, -1) : _.trim(str);
+      if (iscelldata(ref)) {
+        let moved = "";
         if (mode === "down") {
-          function_str += downparam(_.trim(str), step);
+          moved = downparam(ref, step);
         } else if (mode === "up") {
-          function_str += upparam(_.trim(str), step);
+          moved = upparam(ref, step);
         } else if (mode === "left") {
-          function_str += leftparam(_.trim(str), step);
+          moved = leftparam(ref, step);
         } else if (mode === "right") {
-          function_str += rightparam(_.trim(str), step);
+          moved = rightparam(ref, step);
         }
+        function_str += moved.startsWith("#") ? moved : moved + spillRef;
       } else {
         function_str += _.trim(str);
       }

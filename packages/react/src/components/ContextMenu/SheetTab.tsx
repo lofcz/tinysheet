@@ -1,4 +1,13 @@
-import { locale, deleteSheet, api } from "@lofcz/tinysheet-core";
+import {
+  locale,
+  deleteSheet,
+  api,
+  duplicateSheet,
+  getGroupedSheetIds,
+  hideSheets,
+  selectAllSheets,
+  ungroupSheets,
+} from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
   useContext,
@@ -9,13 +18,20 @@ import React, {
 } from "react";
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
+import { useDialog } from "../../hooks/useDialog";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { ChangeColor } from "../ChangeColor";
+import { MoveOrCopyDialog, UnhideDialog } from "../SheetTab/SheetDialogs";
 import SVGIcon from "../SVGIcon";
 import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
 
+/**
+ * Sheet tab context menu. Besides the configured items it offers Excel's
+ * Move or Copy... (next to "copy"), Unhide... (next to "hide") and, with
+ * several visible sheets, Select All Sheets / Ungroup Sheets.
+ */
 const SheetTabContextMenu: React.FC = () => {
   const { context, setContext, settings } = useContext(WorkbookContext);
   const { x, y, sheet, onRename } = context.sheetTabContextMenu;
@@ -24,7 +40,17 @@ const SheetTabContextMenu: React.FC = () => {
   const [isShowChangeColor, setIsShowChangeColor] = useState<boolean>(false);
   const [isShowInputColor, setIsShowInputColor] = useState<boolean>(false);
   const { showAlert, hideAlert } = useAlert();
+  const { showDialog } = useDialog();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const grouped = getGroupedSheetIds(context);
+  const visibleCount = context.luckysheetfile.filter(
+    (s) => s.hide !== 1
+  ).length;
+  const hiddenCount = context.luckysheetfile.length - visibleCount;
+  // the sheets a command applies to: the group, or the clicked sheet
+  const targets =
+    sheet?.id && grouped.includes(sheet.id) ? grouped : [sheet?.id!];
 
   const close = useCallback(() => {
     setContext((ctx) => {
@@ -62,28 +88,38 @@ const SheetTabContextMenu: React.FC = () => {
   const hideSheet = useCallback(() => {
     if (context.allowEdit === false) return;
     if (!sheet) return;
+    if (visibleCount - targets.length < 1) {
+      showAlert(sheetconfig.noMoreSheet, "ok");
+      return;
+    }
     setContext((ctx) => {
-      const shownSheets = ctx.luckysheetfile.filter(
-        (oneSheet) => _.isUndefined(oneSheet.hide) || oneSheet?.hide !== 1
-      );
-      if (shownSheets.length > 1) {
-        api.hideSheet(ctx, sheet.id as string);
-      } else {
-        showAlert(sheetconfig.noMoreSheet, "ok");
-      }
+      hideSheets(ctx, targets);
     });
-  }, [context.allowEdit, setContext, sheet, showAlert, sheetconfig]);
+  }, [
+    context.allowEdit,
+    setContext,
+    sheet,
+    showAlert,
+    sheetconfig.noMoreSheet,
+    targets,
+    visibleCount,
+  ]);
 
   const copySheet = useCallback(() => {
     if (context.allowEdit === false) return;
     if (!sheet?.id) return;
     setContext(
       (ctx) => {
-        api.copySheet(ctx, sheet.id!);
+        const id = duplicateSheet(ctx, sheet.id!);
+        if (id) {
+          ctx.groupedSheetIds = undefined;
+          ctx.currentSheetId = id;
+        }
       },
       { addSheetOp: true }
     );
   }, [context.allowEdit, setContext, sheet?.id]);
+
   const updateShowInputColor = useCallback((state: boolean) => {
     setIsShowInputColor(state);
   }, []);
@@ -99,6 +135,8 @@ const SheetTabContextMenu: React.FC = () => {
   }, [context.allowEdit, setContext, sheet?.id]);
 
   if (!sheet || x == null || y == null) return null;
+
+  const editable = context.allowEdit !== false;
 
   return (
     <div
@@ -182,28 +220,50 @@ const SheetTabContextMenu: React.FC = () => {
         }
         if (name === "hide") {
           return (
-            <Menu
-              key={name}
-              onClick={() => {
-                hideSheet();
-                close();
-              }}
-            >
-              {sheetconfig.hide}
-            </Menu>
+            <React.Fragment key={name}>
+              <Menu
+                onClick={() => {
+                  hideSheet();
+                  close();
+                }}
+              >
+                {sheetconfig.hide}
+              </Menu>
+              {editable && hiddenCount > 0 && (
+                <Menu
+                  onClick={() => {
+                    close();
+                    showDialog(<UnhideDialog />);
+                  }}
+                >
+                  {sheetconfig.unhideMenu}
+                </Menu>
+              )}
+            </React.Fragment>
           );
         }
         if (name === "copy") {
           return (
-            <Menu
-              key={name}
-              onClick={() => {
-                copySheet();
-                close();
-              }}
-            >
-              {sheetconfig.copy}
-            </Menu>
+            <React.Fragment key={name}>
+              <Menu
+                onClick={() => {
+                  copySheet();
+                  close();
+                }}
+              >
+                {sheetconfig.duplicate}
+              </Menu>
+              {editable && (
+                <Menu
+                  onClick={() => {
+                    close();
+                    showDialog(<MoveOrCopyDialog sheet={sheet} />);
+                  }}
+                >
+                  {sheetconfig.moveOrCopy}
+                </Menu>
+              )}
+            </React.Fragment>
           );
         }
         if (name === "color") {
@@ -219,12 +279,15 @@ const SheetTabContextMenu: React.FC = () => {
                 }
               }}
             >
-              {sheetconfig.changeColor}
+              {sheetconfig.tabColor}
               <span className="change-color-triangle">
                 <SVGIcon name="rightArrow" width={18} />
               </span>
               {isShowChangeColor && context.allowEdit && (
-                <ChangeColor triggerParentUpdate={updateShowInputColor} />
+                <ChangeColor
+                  triggerParentUpdate={updateShowInputColor}
+                  sheetIds={targets}
+                />
               )}
             </Menu>
           );
@@ -247,6 +310,30 @@ const SheetTabContextMenu: React.FC = () => {
         }
         return null;
       })}
+      {visibleCount > 1 && (
+        <>
+          <Divider />
+          {grouped.length > 0 ? (
+            <Menu
+              onClick={() => {
+                setContext((ctx) => ungroupSheets(ctx));
+                close();
+              }}
+            >
+              {sheetconfig.ungroupSheets}
+            </Menu>
+          ) : (
+            <Menu
+              onClick={() => {
+                setContext((ctx) => selectAllSheets(ctx));
+                close();
+              }}
+            >
+              {sheetconfig.selectAllSheets}
+            </Menu>
+          )}
+        </>
+      )}
     </div>
   );
 };

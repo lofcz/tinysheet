@@ -25,13 +25,33 @@ FortuneExcel will always be compatible with both TinySheet and FortuneSheet.
 
 Moreover, due to its access limitations and new changes to [npm token expiration](https://github.blog/changelog/2025-09-29-strengthening-npm-security-important-changes-to-authentication-and-token-management/), we might not be able to maintain FortuneSheet further.
 
+## Features
+
+- **Excel-compatible formulas**: over 450 functions (see the
+  [supported functions](./docs/guide/functions.md) list), dynamic arrays that
+  spill (`SEQUENCE`, `FILTER`, `SORT`, `UNIQUE`, `XLOOKUP`...), `LET` and
+  `LAMBDA`, with function autocomplete, argument hints and F4 anchoring.
+- **Excel keyboard model**: Ctrl+Arrow data-edge jumps, Enter/Tab wrapping in
+  selections, Ctrl+D/R fill, Ctrl+; dates and more; see
+  [keyboard shortcuts](./docs/guide/shortcuts.md).
+- **Editing**: fill handle series, copy/paste with Excel and Google Sheets
+  (relative references adjusted within the workbook), undo/redo, merges,
+  find and replace, data validation, filters and sorting, comments, images.
+- **Themes**: `theme="light" | "dark" | "auto"` for the whole UI and canvas,
+  restyleable through CSS variables
+  ([docs](./docs/guide/config.md#theme)).
+- **View**: frozen panes, zoom (10–400%), hidden rows and columns, multiple
+  sheets.
+- **Excel import/export** through `@lofcz/tinysheet-excel`.
+- **Collaboration** hooks (`onOp` / `applyOp`) for real-time editing.
+
 ## Upcoming Improvements
 
 - [X] Special Paste Support [ctrl/cmd + shift + v]
 - [X] NaN in Selected Cell/ Range box
 - [ ] Updated documentation
 - [ ] Updated and Improved Storybooks
-- [ ] Dark theme
+- [X] Dark theme
 - [ ] Optimizations
   - [ ] Optimized Edit Cell operation
   - [ ] Optimized Load by deferring caching

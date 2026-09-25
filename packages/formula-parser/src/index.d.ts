@@ -72,6 +72,44 @@ export type LambdaValue = ((...args: unknown[]) => unknown) & {
 
 export function isLambda(value: unknown): value is LambdaValue;
 
+/** A reference descriptor made by `createReference`. */
+export type ReferenceValue = Readonly<ReferenceInfo>;
+
+/**
+ * Make a reference a host function (`callFunction` listener, `setFunction`)
+ * or variable can return instead of values: the evaluator then uses it as a
+ * reference (range operand `MYREF():C5`, `ROWS(MYREF())`, INDEX/CELL/SUM
+ * arguments with `refs`) and reads it through callCellValue/callRangeValue
+ * where a value is needed. `endRow`/`endColumn` default to the start.
+ */
+export function createReference(info: {
+  sheetName?: string | null;
+  startRow: number;
+  startColumn: number;
+  endRow?: number;
+  endColumn?: number;
+}): ReferenceValue;
+
+export function isReference(value: unknown): value is ReferenceValue;
+
+/**
+ * A function registered with `Parser#setFunction`.
+ *
+ * `arrayParams` opts into Excel's array lifting: `true` means every
+ * parameter accepts arrays (never lifted), an index list names the
+ * parameters that accept arrays; any other parameter receiving an array
+ * makes the evaluator call the function once per element and return an
+ * array of the results. Without it a custom function whose name is not an
+ * Excel function receives arrays unchanged; one overriding an Excel
+ * function (e.g. TEXT) follows that function's traits.
+ */
+export type CustomFunction = ((
+  params: unknown[],
+  refs: Array<ReferenceInfo | null>
+) => unknown) & {
+  arrayParams?: boolean | number[];
+};
+
 export declare class Parser {
   constructor();
   parse(expression: string, options?: ParseOptions): ParseResult;
@@ -81,10 +119,13 @@ export declare class Parser {
   getReferences(expression: string): ReferenceInfo[];
   setVariable(name: string, value: unknown): this;
   getVariable(name: string): unknown;
-  setFunction(
-    name: string,
-    fn: (params: unknown[], refs: Array<ReferenceInfo | null>) => unknown
-  ): this;
+  /**
+   * Register a function (it takes precedence over built-ins and special
+   * forms of the same name). `refs[i]` describes argument `i` when it was
+   * written as (or evaluated to) a reference: `A1:A3`, `INDEX(...)`, one
+   * area of a union `(A1,B2)` spread over several params, ...
+   */
+  setFunction(name: string, fn: CustomFunction): this;
   getFunction(name: string): ((...args: unknown[]) => unknown) | undefined;
   on(event: string, listener: (...args: unknown[]) => void): this;
   once(event: string, listener: (...args: unknown[]) => void): this;

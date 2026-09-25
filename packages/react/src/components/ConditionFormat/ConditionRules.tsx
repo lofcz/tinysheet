@@ -1,343 +1,229 @@
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, { useCallback, useContext, useId, useState } from "react";
 import "./index.css";
-import { locale, setConditionRules } from "@lofcz/tinysheet-core";
-import produce from "immer";
+import { addHighlightRule, locale } from "@lofcz/tinysheet-core";
+import type { CFRule, CFStyle } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
+import FormatEditor, { FORMAT_PRESETS } from "./FormatEditor";
+import { CFText, DATE_PERIODS, datePeriodText } from "./previews";
 
+/** Quick rules of the Highlight Cells and Top/Bottom menus. */
+export const QUICK_RULES = [
+  "greaterThan",
+  "lessThan",
+  "between",
+  "equal",
+  "textContains",
+  "occurrenceDate",
+  "duplicateValue",
+  "top10",
+  "top10_percent",
+  "last10",
+  "last10_percent",
+  "aboveAverage",
+  "belowAverage",
+] as const;
+
+function activate(fn: () => void) {
+  return (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fn();
+    }
+  };
+}
+
+function initialValues(type: string): string[] {
+  if (type === "between") return ["", ""];
+  if (type === "occurrenceDate") return ["yesterday"];
+  if (type === "duplicateValue") return ["0"];
+  if (type.startsWith("top10") || type.startsWith("last10")) return ["10"];
+  if (type === "aboveAverage" || type === "belowAverage") return [];
+  return [""];
+}
+
+/**
+ * Excel's quick dialog: "Format cells that are GREATER THAN: [value] with
+ * [Light Red Fill with Dark Red Text]". The rule applies to the selection.
+ */
 const ConditionRules: React.FC<{ type: string }> = ({ type }) => {
   const { context, setContext } = useContext(WorkbookContext);
   const { hideDialog } = useDialog();
-  const { conditionformat, button, protection, generalDialog } =
-    locale(context);
-  const [colorRules, setColorRules] = useState<{
-    textColor: string;
-    cellColor: string;
-  }>({ textColor: "#000000", cellColor: "#000000" });
+  const loc = locale(context);
+  const text = loc.conditionformat as unknown as CFText;
+  const { button } = loc;
+  const id = useId();
+  const [values, setValues] = useState<string[]>(() => initialValues(type));
+  const [preset, setPreset] = useState("presetLightRed");
+  const [custom, setCustom] = useState<CFStyle>(FORMAT_PRESETS[0].style);
+  const [error, setError] = useState("");
 
-  // 开启鼠标选区
-  // const dataSelectRange = useCallback(
-  //   (selectType: string) => {
-  //     hideDialog();
-  //     setContext((ctx) => {
-  //       ctx.conditionRules.textColor.color = colorRules.textColor;
-  //       ctx.conditionRules.cellColor.color = colorRules.cellColor;
+  const setValue = (i: number, v: string) => {
+    setValues((vs) => vs.map((x, j) => (j === i ? v : x)));
+    setError("");
+  };
 
-  //       ctx.rangeDialog!.show = true;
-  //       ctx.rangeDialog!.type = selectType;
-  //       ctx.rangeDialog!.rangeTxt = ctx.conditionRules.rulesValue;
-  //       ctx.rangeDialog!.singleSelect = true;
-  //     });
-  //   },
-  //   [colorRules.cellColor, colorRules.textColor, hideDialog, setContext]
-  // );
-
-  const close = useCallback(
-    (closeType: string) => {
-      if (closeType === "confirm") {
-        setContext((ctx) => {
-          ctx.conditionRules.textColor.color = colorRules.textColor;
-          ctx.conditionRules.cellColor.color = colorRules.cellColor;
-          setConditionRules(
-            ctx,
-            protection,
-            generalDialog,
-            conditionformat,
-            ctx.conditionRules
-          );
-        });
+  const confirm = useCallback(() => {
+    const isRank = type.startsWith("top10") || type.startsWith("last10");
+    if (isRank) {
+      const n = Number(values[0]);
+      const max = type.endsWith("_percent") ? 100 : 1000;
+      if (!Number.isInteger(n) || n < 1 || n > max) {
+        setError(text.pleaseEnterInteger);
+        return;
       }
-      setContext((ctx) => {
-        ctx.conditionRules = {
-          rulesType: "",
-          rulesValue: "",
-          textColor: { check: true, color: "#000000" },
-          cellColor: { check: true, color: "#000000" },
-          betweenValue: { value1: "", value2: "" },
-          dateValue: "",
-          repeatValue: "0",
-          projectValue: "10",
-        };
-      });
-      hideDialog();
-    },
-    [
-      colorRules,
-      conditionformat,
-      generalDialog,
-      hideDialog,
-      protection,
-      setContext,
-    ]
-  );
-
-  // rulesValue初始化
-  useEffect(() => {
+    } else if (
+      ["greaterThan", "lessThan", "equal", "textContains", "between"].includes(
+        type
+      ) &&
+      values.some((v) => `${v}`.trim() === "")
+    ) {
+      setError(text.enterValue);
+      return;
+    }
+    const style =
+      preset === "custom"
+        ? custom
+        : FORMAT_PRESETS.find((p) => p.key === preset)!.style;
     setContext((ctx) => {
-      ctx.conditionRules.rulesType = type;
-
-      if (!ctx.rangeDialog) return;
-      const rangeDialogType = ctx.rangeDialog.type;
-      const rangeT = ctx.rangeDialog!.rangeTxt;
-      if (rangeDialogType === "conditionRulesbetween1") {
-        ctx.conditionRules.betweenValue.value1 = rangeT;
-      } else if (rangeDialogType === "conditionRulesbetween2") {
-        ctx.conditionRules.betweenValue.value2 = rangeT;
-      } else if (rangeDialogType.indexOf("conditionRules") >= 0) {
-        ctx.conditionRules.rulesValue = rangeT;
-      } else if (rangeDialogType === "") {
-        ctx.conditionRules = {
-          rulesType: type,
-          rulesValue: "",
-          textColor: { check: true, color: "#000000" },
-          cellColor: { check: true, color: "#000000" },
-          betweenValue: { value1: "", value2: "" },
-          dateValue: "",
-          repeatValue: "0",
-          projectValue: "10",
-        };
-      }
-      ctx.rangeDialog.type = "";
-      ctx.rangeDialog.rangeTxt = "";
+      addHighlightRule(
+        ctx,
+        type as CFRule["conditionName"],
+        isRank ? [Number(values[0])] : values,
+        style
+      );
     });
+    hideDialog();
+  }, [custom, hideDialog, preset, setContext, text, type, values]);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const rank = type.startsWith("top10") || type.startsWith("last10");
 
   return (
-    <div className="condition-rules">
-      <div className="condition-rules-title">
-        {(conditionformat as any)[`conditionformat_${type}`]}
-      </div>
-
-      <div className="conditin-rules-value">
-        {(conditionformat as any)[`conditionformat_${type}_title`]}
-      </div>
-
-      {(type === "greaterThan" ||
-        type === "lessThan" ||
-        type === "equal" ||
-        type === "textContains") && (
-        <div className="condition-rules-inpbox">
+    <div className="fortune-cf-dialog fortune-cf-quick">
+      <div className="fortune-cf-title">{text[`qt_${type}`]}</div>
+      <div className="fortune-cf-section-title">{text[`qd_${type}`]}</div>
+      <div className="fortune-cf-inline fortune-cf-wrap">
+        {(type === "greaterThan" ||
+          type === "lessThan" ||
+          type === "equal" ||
+          type === "textContains") && (
           <input
-            className="condition-rules-input"
+            className="fortune-cf-input"
             type="text"
-            value={context.conditionRules.rulesValue}
-            onChange={(e) => {
-              const { value } = e.target;
-              setContext((ctx) => {
-                ctx.conditionRules.rulesValue = value;
-              });
-            }}
+            aria-label={text.valueLabel}
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            value={values[0]}
+            onChange={(e) => setValue(0, e.target.value)}
           />
-          {/* <i
-            className="condition-relues-inputicon"
-            aria-hidden="true"
-            onClick={() => {
-              dataSelectRange(`conditionRules${type}`);
-            }}
+        )}
+        {type === "between" && (
+          <>
+            <input
+              className="fortune-cf-input"
+              type="text"
+              aria-label={text.valueLabel}
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              value={values[0]}
+              onChange={(e) => setValue(0, e.target.value)}
+            />
+            <span>{text.andLabel}</span>
+            <input
+              className="fortune-cf-input"
+              type="text"
+              aria-label={text.valueLabel}
+              value={values[1]}
+              onChange={(e) => setValue(1, e.target.value)}
+            />
+          </>
+        )}
+        {type === "occurrenceDate" && (
+          <select
+            className="fortune-cf-select"
+            aria-label={text.datesOccurringOpt}
+            value={values[0]}
+            onChange={(e) => setValue(0, e.target.value)}
           >
-            <SVGIcon name="tab" width={18} />
-          </i> */}
-        </div>
-      )}
-
-      {type === "between" && (
-        <div className="condition-rules-between-box">
-          <div className="condition-rules-between-inpbox">
-            <input
-              className="condition-rules-between-input"
-              type="text"
-              value={context.conditionRules.betweenValue.value1}
-              onChange={(e) => {
-                const { value } = e.target;
-                setContext((ctx) => {
-                  ctx.conditionRules.betweenValue.value1 = value;
-                });
-              }}
-            />
-            {/* <i
-              className="condition-relues-inputicon"
-              aria-hidden="true"
-              onClick={() => {
-                dataSelectRange(`conditionRules${type}1`);
-              }}
+            {DATE_PERIODS.map((p) => (
+              <option key={p} value={p}>
+                {datePeriodText(p, text)}
+              </option>
+            ))}
+          </select>
+        )}
+        {type === "duplicateValue" && (
+          <>
+            <select
+              className="fortune-cf-select"
+              aria-label={text.formatAll}
+              value={values[0]}
+              onChange={(e) => setValue(0, e.target.value)}
             >
-              <SVGIcon name="tab" width={18} />
-            </i> */}
-          </div>
-          <span style={{ margin: "0px 4px" }}>{conditionformat.to}</span>
-          <div className="condition-rules-between-inpbox">
+              <option value="0">{text.duplicateValue}</option>
+              <option value="1">{text.uniqueValue}</option>
+            </select>
+            <span>{text.valuesWith}</span>
+          </>
+        )}
+        {rank && (
+          <>
             <input
-              className="condition-rules-between-input"
-              type="text"
-              value={context.conditionRules.betweenValue.value2}
-              onChange={(e) => {
-                const { value } = e.target;
-                setContext((ctx) => {
-                  ctx.conditionRules.betweenValue.value2 = value;
-                });
-              }}
+              className="fortune-cf-input fortune-cf-input-narrow"
+              type="number"
+              min={1}
+              aria-label={text.valueLabel}
+              value={values[0]}
+              onChange={(e) => setValue(0, e.target.value)}
             />
-            {/* <i
-              className="condition-relues-inputicon"
-              aria-hidden="true"
-              onClick={() => {
-                dataSelectRange(`conditionRules${type}2`);
-              }}
-            >
-              <SVGIcon name="tab" width={18} />
-            </i> */}
-          </div>
-        </div>
-      )}
-      {type === "occurrenceDate" && (
-        <div className="condition-rules-inpbox">
-          <input
-            type="date"
-            className="condition-rules-date"
-            value={context.conditionRules.dateValue}
-            onChange={(e) => {
-              const { value } = e.target;
-              setContext((ctx) => {
-                ctx.conditionRules.dateValue = value;
-              });
-            }}
-          />
-        </div>
-      )}
-      {type === "duplicateValue" && (
+            {type.endsWith("_percent") && <span>%</span>}
+          </>
+        )}
+        {(type === "aboveAverage" || type === "belowAverage") && (
+          <span>{text.forSelectedRange}</span>
+        )}
+        <label htmlFor={`${id}-preset`}>{text.withLabel}</label>
         <select
-          className="condition-rules-select"
-          onChange={(e) => {
-            const { value } = e.target;
-            setContext((ctx) => {
-              ctx.conditionRules.repeatValue = value;
-            });
-          }}
+          id={`${id}-preset`}
+          className="fortune-cf-select fortune-cf-select-wide"
+          value={preset}
+          onChange={(e) => setPreset(e.target.value)}
         >
-          <option value="0">{conditionformat.duplicateValue}</option>
-          <option value="1">{conditionformat.uniqueValue}</option>
+          {FORMAT_PRESETS.map((p) => (
+            <option key={p.key} value={p.key}>
+              {text[p.key]}
+            </option>
+          ))}
+          <option value="custom">{text.presetCustom}</option>
         </select>
+      </div>
+      {preset === "custom" && (
+        <FormatEditor value={custom} onChange={setCustom} text={text} />
       )}
-
-      {(type === "top10" ||
-        type === "top10_percent" ||
-        type === "last10" ||
-        type === "last10_percent") && (
-        <div className="condition-rules-project-box">
-          {type === "top10" || type === "top10_percent"
-            ? conditionformat.top
-            : conditionformat.last}
-
-          <input
-            className="condition-rules-project-input"
-            type="number"
-            value={context.conditionRules.projectValue}
-            onChange={(e) => {
-              const { value } = e.target;
-              setContext((ctx) => {
-                ctx.conditionRules.projectValue = value;
-              });
-            }}
-          />
-
-          {type === "top10" || type === "last10"
-            ? conditionformat.oneself
-            : "%"}
+      {error && (
+        <div className="fortune-cf-error" role="alert">
+          {error}
         </div>
       )}
-
-      <div className="condition-rules-set-title">
-        {`${conditionformat.setAs}：`}
-      </div>
-
-      <div className="condition-rules-setbox">
-        <div className="condition-rules-set">
-          <div className="condition-rules-color">
-            <input
-              id="checkTextColor"
-              type="checkbox"
-              className="condition-rules-check"
-              checked={context.conditionRules.textColor.check}
-              onChange={(e) => {
-                const { checked } = e.target;
-                setContext((ctx) => {
-                  ctx.conditionRules.textColor.check = checked;
-                });
-              }}
-            />
-            <label htmlFor="checkTextColor" className="condition-rules-label">
-              {conditionformat.textColor}
-            </label>
-            <input
-              type="color"
-              className="condition-rules-select-color"
-              value={colorRules.textColor}
-              onChange={(e) => {
-                const { value } = e.target;
-                setColorRules(
-                  produce((draft) => {
-                    draft.textColor = value;
-                  })
-                );
-              }}
-            />
-          </div>
+      <div className="fortune-cf-buttons">
+        <div
+          className="button-basic button-primary"
+          role="button"
+          tabIndex={0}
+          onClick={confirm}
+          onKeyDown={activate(confirm)}
+        >
+          {button.confirm}
         </div>
-        <div className="condition-rules-set">
-          <div className="condition-rules-color">
-            <input
-              id="checkCellColor"
-              type="checkbox"
-              className="condition-rules-check"
-              checked={context.conditionRules.cellColor.check}
-              onChange={(e) => {
-                const { checked } = e.target;
-                setContext((ctx) => {
-                  ctx.conditionRules.cellColor.check = checked;
-                });
-              }}
-            />
-            <label htmlFor="checkCellColor" className="condition-rules-label">
-              {conditionformat.cellColor}
-            </label>
-            <input
-              type="color"
-              className="condition-rules-select-color"
-              value={colorRules.cellColor}
-              onChange={(e) => {
-                const { value } = e.target;
-                setColorRules(
-                  produce((draft) => {
-                    draft.cellColor = value;
-                  })
-                );
-              }}
-            />
-          </div>
+        <div
+          className="button-basic button-default"
+          role="button"
+          tabIndex={0}
+          onClick={hideDialog}
+          onKeyDown={activate(hideDialog)}
+        >
+          {button.cancel}
         </div>
-      </div>
-
-      <div
-        className="button-basic button-primary"
-        onClick={() => {
-          // hideDialog();
-          close("confirm");
-        }}
-        tabIndex={0}
-      >
-        {button.confirm}
-      </div>
-      <div
-        className="button-basic button-close"
-        onClick={() => {
-          // hideDialog();
-          close("close");
-        }}
-        tabIndex={0}
-      >
-        {button.cancel}
       </div>
     </div>
   );

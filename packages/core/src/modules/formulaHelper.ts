@@ -30,6 +30,7 @@ import {
   getFormulaDependencies,
   isVolatileFormula as isWorkbookVolatileFormula,
 } from "./formulaFunctions";
+import { formulaUsesNames } from "./names";
 
 /** Graph node: FormulaCellInfo plus the formula's literal references. */
 type GraphFormulaInfo = FormulaCellInfo & {
@@ -476,7 +477,9 @@ function ensureSheetIndexed(
         const f = peekCell(d, r, c)?.f;
         if (
           isFormulaText(f) &&
-          (target === SHEET_FULL || isCrossSheetCandidate(f))
+          (target === SHEET_FULL ||
+            isCrossSheetCandidate(f) ||
+            formulaUsesNames(ctx, f, id))
         ) {
           registerFormula(ctx, graph, r, c, id, f, d);
         }
@@ -532,7 +535,9 @@ function registerCellInGraph(
   const f = peekCell(d, r, c)?.f;
   if (
     !isFormulaText(f) ||
-    (state === SHEET_CROSS && !isCrossSheetCandidate(f))
+    (state === SHEET_CROSS &&
+      !isCrossSheetCandidate(f) &&
+      !formulaUsesNames(ctx, f, id))
   ) {
     graph.removeNode(key);
     return;

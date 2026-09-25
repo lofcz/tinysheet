@@ -1,56 +1,56 @@
-label {
-  cursor: default;
-}
+/* Go To Special dialog */
 #fortune-location-condition {
-  min-width: 500px;
+  min-width: 460px;
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
 }
+
 #fortune-location-condition .title {
-  background-color: transparent;
-  color: var(--fortune-text);
-  cursor: default;
-  font-size: 16px;
-  font-weight: normal;
-  line-height: 48px;
+  margin-bottom: var(--fortune-space-3);
 }
+
 #fortune-location-condition .listbox {
+  display: flex;
+  gap: var(--fortune-space-5);
   border: 1px solid var(--fortune-border);
-  padding: 10px;
-  font-size: 14px;
-  color: var(--fortune-text);
+  border-radius: var(--fortune-radius-sm);
+  padding: var(--fortune-space-3) var(--fortune-space-4);
 }
-#fortune-location-condition .listbox .listItem {
-  padding: 5px 0;
+
+#fortune-location-condition .column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1);
 }
-#fortune-location-condition .listbox .listItem input[type="radio"] {
-  float: left;
-  margin-top: 5px;
+
+#fortune-location-condition label {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  line-height: 24px;
+  cursor: pointer;
 }
-#fortune-location-condition .listItem {
-  padding: 5px 0;
+
+#fortune-location-condition input {
+  margin: 0;
+  accent-color: var(--fortune-accent);
 }
-#fortune-location-condition .listItem .subItem {
-  height: 30px;
-  padding: 0 10px;
-  display: block;
+
+#fortune-location-condition .subbox {
+  display: flex;
+  flex-direction: column;
+  padding-left: var(--fortune-space-5);
 }
-#fortune-location-condition input[type="radio"] {
-  float: left;
-  margin-top: 3px;
+
+#fortune-location-condition label[aria-disabled="true"] {
+  color: var(--fortune-text-disabled);
+  cursor: default;
 }
-#fortune-location-condition .listbox .listItem .subbox {
-  height: 30px;
-  padding: 0 10px;
-}
-#fortune-location-condition .listbox .listItem .subbox .subItem {
-  float: left;
-  margin-right: 5px;
-}
-#fortune-location-condition .button-basic {
-  margin-top: 10px;
-}
-#fortune-location-condition .button-primary {
-  background: var(--fortune-accent);
-  border: 1px solid var(--fortune-accent);
-  color: var(--fortune-on-accent);
-  margin-right: 10px;
+
+#fortune-location-condition .buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--fortune-space-2);
+  margin-top: var(--fortune-space-4);
 }

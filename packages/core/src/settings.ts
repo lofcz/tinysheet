@@ -132,9 +132,9 @@ export type Settings = {
   showFormulaBar?: boolean;
   showSheetTabs?: boolean;
   /**
-   * Bottom status-bar selection aggregates (count / sum / avg / …).
-   * When false, skips `calcSelectionInfo` on every selection change —
-   * important for drag performance in read-only / embedded previews.
+   * Bottom status bar with the selection aggregates (Average, Count, Sum…;
+   * right-click it to choose). When false, nothing is computed on selection
+   * changes — useful for read-only / embedded previews.
    * @default true
    */
   showStatsBar?: boolean;
@@ -202,6 +202,7 @@ export const defaultSettings: Required<Settings> = {
     "number-decrease",
     "number-increase",
     "format",
+    "cell-styles",
     "|",
     "font",
     "|",
@@ -225,59 +226,64 @@ export const defaultSettings: Required<Settings> = {
     "freeze",
     "conditionFormat",
     "filter",
+    "formatAsTable",
     "link",
     "image",
+    "chart",
     "comment",
     "quick-formula",
+    "nameManager",
     "dataVerification",
     "splitColumn",
     "locationCondition",
     "screenshot",
     "search",
   ], // 自定义工具栏
+  // Excel's cell menu. Entries backed by other modules ("paste-special",
+  // "cell-format", "define-name", "chart") appear once registered; see
+  // react/src/components/ContextMenu/actions.ts. Also available:
+  // "insert-row" / "insert-column" (insert n rows/columns with a count),
+  // "delete-row" / "delete-column", "orderAZ", "orderZA", "sort", "filter".
   cellContextMenu: [
-    "copy", // 复制
-    "paste", // 粘贴
+    "cut",
+    "copy",
+    "paste",
+    "paste-special",
     "|",
-    "insert-row", // 插入行
-    "insert-column", // 插入列
-    "delete-row", // 删除选中行
-    "delete-column", // 删除选中列
-    "delete-cell", // 删除单元格
-    "hide-row", // 隐藏选中行和显示选中行
-    "hide-column", // 隐藏选中列和显示选中列
-    "set-row-height", // 设置行高
-    "set-column-width", // 设置列宽
+    "insert-cells", // Insert… (shift cells right / down, entire row / column)
+    "delete-cells", // Delete… (shift cells left / up, entire row / column)
+    "clear", // Clear Contents
     "|",
-    "clear", // 清除内容
-    "sort", // 排序选区
-    "orderAZ", // 升序
-    "orderZA", // 降序
-    "filter", // 筛选选区
-    "chart", // 图表生成
-    "image", // 插入图片
-    "link", // 插入链接
-    "data", // 数据验证
-    "cell-format", // 设置单元格格式
+    "filter-menu",
+    "sort-menu",
+    "|",
+    "comment", // insert / edit / delete / show notes
+    "|",
+    "cell-format", // Format Cells…
+    "pick-list", // Pick From Drop-down List…
+    "define-name",
+    "link",
+    "image",
+    "data", // Data Validation…
+    "chart",
   ], // 自定义单元格右键菜单
+  // row / column header menu
   headerContextMenu: [
-    "copy", // 复制
-    "paste", // 粘贴
+    "cut",
+    "copy",
+    "paste",
+    "paste-special",
     "|",
-    "insert-row", // 插入行
-    "insert-column", // 插入列
-    "delete-row", // 删除选中行
-    "delete-column", // 删除选中列
-    "delete-cell", // 删除单元格
-    "hide-row", // 隐藏选中行和显示选中行
-    "hide-column", // 隐藏选中列和显示选中列
-    "set-row-height", // 设置行高
-    "set-column-width", // 设置列宽
+    "insert-rowcol",
+    "delete-rowcol",
+    "clear",
     "|",
-    "clear", // 清除内容
-    "sort", // 排序选区
-    "orderAZ", // 升序
-    "orderZA", // 降序
+    "cell-format",
+    "set-row-height", // Row Height…
+    "set-column-width", // Column Width…
+    "autofit",
+    "hide-row", // Hide / Unhide
+    "hide-column",
   ], // header菜单
   sheetTabContextMenu: [
     "delete",
@@ -293,10 +299,10 @@ export const defaultSettings: Required<Settings> = {
     "sort-by-asc",
     "sort-by-desc",
     "|",
+    "clear-column-filter",
     "filter-by-color",
+    "filter-by-condition",
     "|",
-    // "filter-by-condition",
-    // "|",
     "filter-by-value",
   ], // 筛选菜单
   generateSheetId: () => uuidv4(),

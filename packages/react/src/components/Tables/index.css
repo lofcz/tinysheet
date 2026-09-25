@@ -1,0 +1,157 @@
+.fortune-table-menu {
+  padding: var(--fortune-space-2, 8px);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-table-menu-title {
+  margin-bottom: var(--fortune-space-2, 8px);
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-table-menu-item {
+  margin-top: var(--fortune-space-2, 8px);
+  padding: 6px 8px;
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fortune-table-menu-item:hover {
+  background-color: var(--fortune-bg-hover);
+}
+
+.fortune-table-style-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 44px);
+  gap: var(--fortune-space-2, 8px);
+}
+
+.fortune-table-style {
+  display: flex;
+  flex-direction: column;
+  width: 44px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 3px;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg);
+  cursor: pointer;
+  transition: border-color var(--fortune-transition);
+}
+
+.fortune-table-style:hover {
+  border-color: var(--fortune-accent);
+}
+
+.fortune-table-style-selected {
+  border-color: var(--fortune-accent);
+  box-shadow: 0 0 0 1px var(--fortune-accent);
+}
+
+.fortune-table-style-row {
+  flex: 1;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.fortune-table-dialog {
+  width: 420px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-3, 12px);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-table-design {
+  width: 480px;
+}
+
+.fortune-table-dialog-title {
+  font-size: var(--fortune-font-size-lg);
+  font-weight: 500;
+}
+
+.fortune-table-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1, 4px);
+}
+
+.fortune-table-dialog-field > label {
+  color: var(--fortune-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fortune-table-dialog-field input,
+.fortune-table-dialog-field select {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--fortune-control-height);
+  padding: 0 var(--fortune-space-2, 8px);
+}
+
+.fortune-table-dialog-inline {
+  display: flex;
+  gap: var(--fortune-space-2, 8px);
+}
+
+.fortune-table-dialog-inline input {
+  flex: 1;
+}
+
+.fortune-table-design-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--fortune-space-3, 12px);
+}
+
+.fortune-table-dialog-check {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2, 8px);
+  user-select: none;
+}
+
+.fortune-table-dialog-group {
+  margin: 0;
+  padding: var(--fortune-space-2, 8px) var(--fortune-space-3, 12px)
+    var(--fortune-space-3, 12px);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fortune-space-2, 8px) var(--fortune-space-4, 16px);
+}
+
+.fortune-table-dialog-group legend {
+  padding: 0 var(--fortune-space-1, 4px);
+  color: var(--fortune-text-muted);
+}
+
+.fortune-table-totals {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: var(--fortune-space-2, 8px);
+}
+
+.fortune-table-dialog-error {
+  color: var(--fortune-danger);
+}
+
+.fortune-table-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--fortune-space-2, 8px);
+}
+
+.fortune-table-dialog-spacer {
+  flex: 1;
+}

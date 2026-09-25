@@ -40,7 +40,8 @@ import type { Cell, CellMatrix, FormulaDependency } from "../types";
 import { columnCharToIndex, getSheetIndex, indexToColumnChar } from "../utils";
 import { error as ERRORS, isRealNull, valueIsError } from "./validation";
 import { setCellValue } from "./cell";
-import { getSheetDataCached, peekCell } from "./dependencyGraph";
+import { getSheetDataCached, peek, peekCell } from "./dependencyGraph";
+import { expandFormulaNames, getNameDependencies } from "./names";
 
 // ---------------------------------------------------------------------------
 // Types and per-workbook state
@@ -69,6 +70,19 @@ type EvalFrame = {
   sheetId: string;
   isCell: boolean;
   deps: FormulaDependency[];
+  /** The formula being evaluated (with "="). */
+  formula: string;
+};
+
+export type SpillGrowthRequest = {
+  id: string;
+  r: number;
+  c: number;
+  /** The anchor's formula. */
+  f: string;
+  /** Rows / columns the sheet needs (counts). */
+  rows: number;
+  cols: number;
 };
 
 type EngineState = {
@@ -77,6 +91,10 @@ type EngineState = {
   staticDeps: Map<string, FormulaDependency[]>;
   spillChanges: ChangedCell[];
   propagationDepth: number;
+  /** Spills past the sheet edge, waiting for the sheet to grow (spill.ts). */
+  pendingGrowth: SpillGrowthRequest[];
+  /** Set while spill.ts grows a sheet: no new growth requests. */
+  growing: boolean;
 };
 
 const MAX_ROWS = 1048576;
@@ -95,6 +113,8 @@ function getState(ctx: Context): EngineState {
       staticDeps: new Map(),
       spillChanges: [],
       propagationDepth: 0,
+      pendingGrowth: [],
+      growing: false,
     };
     states.set(key, state);
   }
@@ -679,7 +699,7 @@ function isEmptyCell(cell: SpillCell | null | undefined) {
   return isRealNull(cell.v);
 }
 
-function isGhostOf(
+export function isGhostOf(
   cell: SpillCell | null | undefined,
   r: number,
   c: number,
@@ -703,7 +723,15 @@ function anchorOfGhost(ctx: Context, sheetId: string, r: number, c: number) {
 // Workbook functions
 // ---------------------------------------------------------------------------
 
-type Fn = (args: any[], frame: EvalFrame) => any;
+type ParserRef = {
+  sheetName?: string;
+  startRow: number;
+  startColumn: number;
+  endRow: number;
+  endColumn: number;
+} | null;
+
+type Fn = (args: any[], frame: EvalFrame, refs?: ParserRef[]) => any;
 
 function refArg(v: any): RefRange | Error {
   if (v instanceof Error) return v;
@@ -1139,6 +1167,51 @@ const workbookFunctions: Record<string, Fn> = {
     }
     return subtotalCompute(fn, values);
   },
+  /**
+   * AGGREGATE over references: options 0-3 skip nested SUBTOTAL/AGGREGATE,
+   * options 1, 3, 5 and 7 skip hidden rows (by hand or by a filter). The
+   * skipped cells are blanked and the parser's own AGGREGATE does the rest.
+   */
+  AGGREGATE(args, frame, refs) {
+    if (!refs || refs.every((r) => r == null)) return undefined;
+    const fnArg = toNumberArg(args[0]);
+    if (fnArg instanceof Error) return undefined;
+    const optArg = args[1] == null || args[1] === "" ? 0 : toNumberArg(args[1]);
+    if (optArg instanceof Error) return undefined;
+    const fn = Math.trunc(fnArg);
+    const opt = Math.trunc(optArg);
+    if (fn < 1 || fn > 19 || opt < 0 || opt > 7) return undefined;
+    const ignoreHidden = opt % 2 === 1;
+    const ignoreNested = opt <= 3;
+    const params = args.slice();
+    const last = fn <= 13 ? args.length - 1 : 2;
+    for (let k = 2; k <= last; k += 1) {
+      const ref = refs[k];
+      if (ref && Array.isArray(args[k])) {
+        const sheetId = ref.sheetName
+          ? findSheetIdByName(frame.ctx, ref.sheetName)
+          : frame.sheetId;
+        if (sheetId != null) {
+          const { rowhidden, filtered } = hiddenRowSets(frame.ctx, sheetId);
+          const r0 = Math.max(ref.startRow, 0);
+          const c0 = Math.max(ref.startColumn, 0);
+          params[k] = (args[k] as any[]).map((row: any, i: number) => {
+            const r = r0 + i;
+            const hidden = r in rowhidden || r in filtered;
+            if (ignoreHidden && hidden) return row.map(() => null);
+            if (!ignoreNested) return row;
+            return row.map((v: any, j: number) =>
+              isSubtotalFormula(formulaOfCell(frame.ctx, sheetId, r, c0 + j))
+                ? null
+                : v
+            );
+          });
+        }
+      }
+    }
+    // no references left: the parser's AGGREGATE computes the result
+    return frame.ctx.formulaCache.parser._callFunction("AGGREGATE", params, []);
+  },
 };
 
 /** Functions implemented (or completed) by this module. */
@@ -1158,6 +1231,7 @@ export const WORKBOOK_FUNCTION_NAMES = [
   "HYPERLINK",
   "CELL",
   "SUBTOTAL",
+  "AGGREGATE",
 ];
 
 const installedParsers = new WeakSet<object>();
@@ -1168,7 +1242,12 @@ export function installWorkbookFunctions(parser: any) {
   installedParsers.add(parser);
   parser.on(
     "callFunction",
-    (name: string, params: any[], done: (v: any) => void) => {
+    (
+      name: string,
+      params: any[],
+      done: (v: any) => void,
+      refs?: ParserRef[]
+    ) => {
       const fn = workbookFunctions[String(name).toUpperCase()];
       if (!fn) return;
       const ctx = parser.context as Context | undefined;
@@ -1181,8 +1260,9 @@ export function installWorkbookFunctions(parser: any) {
         sheetId: parser.options?.sheetId ?? ctx.currentSheetId,
         isCell: false,
         deps: [],
+        formula: "",
       };
-      const result = fn(params ?? [], frame);
+      const result = fn(params ?? [], frame, refs);
       // undefined: not handled here, the parser's own implementation runs.
       if (result !== undefined) done(result);
     }
@@ -1220,8 +1300,13 @@ export function prepareFormulaEvaluation(
     sheetId: id,
     isCell,
     deps: [],
+    formula: txt,
   };
-  return rewriteReferenceArgs(ctx, txt.substring(1), id);
+  // defined names and table references become plain references (names.ts)
+  let expr = expandFormulaNames(ctx, txt.substring(1), id, r, c);
+  // eslint-disable-next-line no-use-before-define
+  if (SPILL_REF_HINT.test(expr)) expr = rewriteSpillReferences(ctx, expr, id);
+  return rewriteReferenceArgs(ctx, expr, id);
 }
 
 /**
@@ -1244,7 +1329,7 @@ export function finishFormulaEvaluation(
   }
   const deps = frame.deps.slice();
   // eslint-disable-next-line no-use-before-define
-  const result = spillResult(ctx, state, value, r, c, id, deps);
+  const result = spillResult(ctx, state, value, r, c, id, frame.formula);
   const key = formulaKey(r, c, id);
   if (deps.length > 0) state.dynamicDeps.set(key, deps);
   else state.dynamicDeps.delete(key);
@@ -1255,7 +1340,8 @@ export function finishFormulaEvaluation(
 // Dependency hooks (called from execFunctionGroup)
 // ---------------------------------------------------------------------------
 
-const VOLATILE_RE = /(^|[^A-Za-z0-9_.])(INDIRECT|OFFSET|CELL|SUBTOTAL)\s*\(/i;
+const VOLATILE_RE =
+  /(^|[^A-Za-z0-9_.])(INDIRECT|OFFSET|CELL|SUBTOTAL|AGGREGATE)\s*\(/i;
 const OFFSET_LIKE_RE = /(INDIRECT|OFFSET|INDEX)\(/i;
 
 /** Formulas that must be re-evaluated on every recalculation. */
@@ -1302,11 +1388,197 @@ export function getFormulaDependencies(
       : null);
   const dynamic = key ? state?.dynamicDeps.get(key) : undefined;
   if (dynamic?.length) deps = deps.concat(dynamic);
+  if (formulaObject.r != null && formulaObject.c != null && id) {
+    // eslint-disable-next-line no-use-before-define
+    const area = spillAreaDependencies(
+      ctx,
+      formulaObject.r,
+      formulaObject.c,
+      id
+    );
+    if (area) deps = deps.concat(area);
+  }
+  // cells behind defined names / structured references (names.ts)
+  if (f && id) {
+    const named = getNameDependencies(
+      ctx,
+      f,
+      id,
+      formulaObject.r,
+      formulaObject.c
+    );
+    if (named.length) deps = deps.concat(named);
+  }
   return deps;
 }
 
 // ---------------------------------------------------------------------------
 // Spill
+// ---------------------------------------------------------------------------
+
+/**
+ * The spill area of the anchor at (r, c) as dependencies of the anchor: every
+ * cell of its rectangle except the anchor itself (which would make the anchor
+ * its own dependency). Derived from the `spill` tag in the sheet data, so it
+ * stays right after undo/redo, structural changes and reloads.
+ */
+function spillAreaDependencies(
+  ctx: Context,
+  r: number,
+  c: number,
+  id: string
+): FormulaDependency[] | null {
+  const data = getSheetDataCached(ctx, id);
+  const cell = peekCell(data, r, c) as SpillCell | null;
+  const sp = cell?.spill;
+  if (!sp || !cell?.f) return null;
+  const rows = data?.length ?? 0;
+  const cols = peek(data?.[0])?.length ?? 0;
+  const lastRow = Math.min(r + sp.rs, rows) - 1;
+  const lastCol = Math.min(c + sp.cs, cols) - 1;
+  const deps: FormulaDependency[] = [];
+  if (lastCol > c) {
+    deps.push({ row: [r, lastRow], column: [c + 1, lastCol], sheetId: id });
+  }
+  if (lastRow > r) {
+    deps.push({ row: [r + 1, lastRow], column: [c, c], sheetId: id });
+  }
+  return deps.length ? deps : null;
+}
+
+function requestSheetGrowth(state: EngineState, req: SpillGrowthRequest) {
+  if (state.growing || req.rows > MAX_ROWS || req.cols > MAX_COLS) return;
+  state.pendingGrowth.push(req);
+}
+
+/** Whether spill.ts is growing a sheet right now. */
+export function isGrowingSheet(ctx: Context) {
+  return !!states.get(ctx.formulaCache as object)?.growing;
+}
+
+/** Take (and reset) the pending sheet-growth requests. */
+export function takeSpillGrowthRequests(ctx: Context) {
+  const state = states.get(ctx.formulaCache as object);
+  if (!state || state.pendingGrowth.length === 0) return null;
+  const out = state.pendingGrowth;
+  state.pendingGrowth = [];
+  return out;
+}
+
+/** Run `fn` with sheet-growth requests disabled (used while growing). */
+export function withoutSpillGrowth<T>(ctx: Context, fn: () => T): T {
+  const state = getState(ctx);
+  const prev = state.growing;
+  state.growing = true;
+  try {
+    return fn();
+  } finally {
+    state.growing = prev;
+  }
+}
+
+/** Whether a recalculation (or a nested spill pass) is running. */
+export function isRecalculating(ctx: Context) {
+  const state = states.get(ctx.formulaCache as object);
+  return (
+    (state?.propagationDepth ?? 0) > 0 ||
+    (ctx.formulaCache.recalcDepth ?? 0) > 0
+  );
+}
+
+/** Forget the run-time dependencies of a sheet's formulas (cells moved). */
+export function forgetDynamicDependencies(ctx: Context, id: string) {
+  const state = states.get(ctx.formulaCache as object);
+  if (!state) return;
+  const suffix = `i${id}`;
+  Array.from(state.dynamicDeps.keys()).forEach((key) => {
+    if (key.endsWith(suffix)) state.dynamicDeps.delete(key);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Spill references (A1#)
+// ---------------------------------------------------------------------------
+
+// A spill reference is a cell reference (ending with its row number)
+// followed by "#".
+const SPILL_REF_HINT = /\d#/;
+
+/**
+ * The range a spill reference (`A1#`, `Sheet2!$B$3#`) stands for, as
+ * reference text: the anchor's current spill rectangle. `#REF!` when the cell
+ * holds no formula (Excel: the reference is not to a dynamic array), and
+ * `#SPILL!` while the anchor itself is blocked. A formula cell with a single
+ * value is a 1x1 spill, like Excel's `=SEQUENCE(1)` referenced as `A1#`.
+ */
+export function resolveSpillReference(
+  ctx: Context,
+  text: string,
+  sheetId: string
+): string {
+  const ref = parseReference(ctx, text, sheetId);
+  if (!ref || ref.r1 !== ref.r2 || ref.c1 !== ref.c2) return ERR_REF;
+  const cell = peekCell(
+    getSheetDataCached(ctx, ref.sheetId),
+    ref.r1,
+    ref.c1
+  ) as SpillCell | null;
+  // A formula being entered is in the recalculation overlay (and carries its
+  // spill tag) before the cell editor stores it.
+  if (
+    !cell?.f &&
+    !cell?.spill &&
+    !ctx.formulaCache.getGlobalCell(ref.r1, ref.c1, ref.sheetId)?.f
+  ) {
+    return ERR_REF;
+  }
+  const sp = cell?.spill;
+  if (sp?.blocked) return ERRORS.sp;
+  const trimmed = text.trim();
+  const bang = trimmed.lastIndexOf("!");
+  const sheetPart = bang > -1 ? trimmed.slice(0, bang + 1) : "";
+  const start = a1Address(ref.r1, ref.c1, false, false);
+  if (!sp || (sp.rs <= 1 && sp.cs <= 1)) return `${sheetPart}${start}`;
+  const end = a1Address(ref.r1 + sp.rs - 1, ref.c1 + sp.cs - 1, false, false);
+  return `${sheetPart}${start}:${end}`;
+}
+
+/**
+ * Replace spill references (`A1#`) in a formula expression (without "=") by
+ * the range they currently stand for. Only the text handed to the parser
+ * changes; the stored formula keeps `A1#`. The formula depends on the anchor
+ * cell (formulaHelper strips the "#"), so it is recalculated whenever the
+ * anchor is, including when the spill changes size.
+ */
+export function rewriteSpillReferences(
+  ctx: Context,
+  expr: string,
+  sheetId: string
+): string {
+  const toks = tokenizeFormula(expr);
+  let changed = false;
+  const out: string[] = [];
+  for (let i = 0; i < toks.length; i += 1) {
+    const tok = toks[i];
+    const next = toks[i + 1];
+    if (
+      tok.t === "ref" &&
+      next?.t === "other" &&
+      next.s === "#" &&
+      tok.s.indexOf(":") === -1
+    ) {
+      out.push(resolveSpillReference(ctx, tok.s, sheetId));
+      changed = true;
+      i += 1;
+    } else {
+      out.push(tok.s);
+    }
+  }
+  return changed ? out.join("") : expr;
+}
+
+// ---------------------------------------------------------------------------
+// Spill values
 // ---------------------------------------------------------------------------
 
 function normalizeSpillValue(v: any) {
@@ -1425,7 +1697,7 @@ function spillResult(
   r: number,
   c: number,
   id: string,
-  deps: FormulaDependency[]
+  formula: string
 ) {
   const view = getSheetDataCached(ctx, id); // read-only, no immer drafts
   if (!view || !view[r]) return value;
@@ -1461,22 +1733,29 @@ function spillResult(
     return value;
   }
   const rs = matrix.length;
-  const cs = Math.max(
-    ...matrix.map((row) => (Array.isArray(row) ? row.length : 1))
-  );
+  // (no Math.max(...rows): a million-row result would overflow the stack)
+  let cs = 1;
+  for (let i = 0; i < rs; i += 1) {
+    const row = matrix[i];
+    if (Array.isArray(row) && row.length > cs) cs = row.length;
+  }
   const rows = data.length;
   const cols = data[0]?.length ?? 0;
   let blocked = r + rs > rows || c + cs > cols;
-  // The spill area (without the anchor itself, which would make the anchor
-  // its own dependency): editing any of these cells re-evaluates the anchor.
-  const lastRow = Math.min(r + rs, rows) - 1;
-  const lastCol = Math.min(c + cs, cols) - 1;
-  if (lastCol > c) {
-    deps.push({ row: [r, lastRow], column: [c + 1, lastCol], sheetId: id });
+  if (blocked) {
+    // Past the sheet edge: ask for more rows/columns once this recalculation
+    // is over (see spill.ts); until then the anchor shows #SPILL!.
+    requestSheetGrowth(state, {
+      id,
+      r,
+      c,
+      f: formula,
+      rows: r + rs,
+      cols: c + cs,
+    });
   }
-  if (lastRow > r) {
-    deps.push({ row: [r + 1, lastRow], column: [c, c], sheetId: id });
-  }
+  // The spill area is a dependency of the anchor (see spillAreaDependencies):
+  // editing any of its cells re-evaluates the anchor.
   for (let i = 0; i < rs && !blocked; i += 1) {
     for (let j = 0; j < cs; j += 1) {
       if (i === 0 && j === 0) continue;

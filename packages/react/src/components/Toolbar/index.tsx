@@ -1,6 +1,7 @@
 import React, {
   useContext,
   useCallback,
+  useMemo,
   useRef,
   useEffect,
   useState,
@@ -24,16 +25,21 @@ import {
   handleBorder,
   toolbarItemSelectedFunc,
   handleFreeze,
+  freezePanes,
+  getPaneState,
   insertImage,
   showImgChooser,
   updateFormat,
-  handleSort,
   handleHorizontalAlign,
   handleVerticalAlign,
   handleScreenShot,
-  createFilter,
-  clearFilter,
   applyLocation,
+  buildFormatCode,
+  formatValue,
+  getFormatCategory,
+  handleFormatPainter,
+  openFormatCells,
+  startFormatPainter,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
@@ -47,12 +53,16 @@ import { useDialog } from "../../hooks/useDialog";
 import { FormulaSearch } from "../FormulaSearch";
 import { SplitColumn } from "../SplitColumn";
 import { LocationCondition } from "../LocationCondition";
-import DataVerification from "../DataVerification";
+import DataVerificationCombo from "../DataVerification/ToolbarCombo";
+import SortFilterCombo from "../CustomSort/SortFilterCombo";
 import ConditionalFormat from "../ConditionFormat";
 import CustomButton from "./CustomButton";
 import { CustomColor } from "./CustomColor";
 import CustomBorder from "./CustomBorder";
-import { FormatSearch } from "../FormatSearch";
+import { NameManagerButton } from "../NameManager";
+import { FormatAsTableButton } from "../Tables";
+import ChartToolbarItem from "../Chart/ChartToolbarItem";
+import CellStyles from "../CellStyles";
 
 const toolbarTooltipAliases: Record<string, string> = {
   link: "insertLink",
@@ -88,83 +98,52 @@ const Toolbar: React.FC<{
     merge,
     border,
     freezen,
-    defaultFmt,
     formula,
-    sort,
     align,
     textWrap,
     rotation,
     screenshot,
-    filter,
     splitText,
     findAndReplace,
     comment,
     fontarray,
   } = locale(context);
-  const toolbarFormat = locale(context).format;
+  const { numberFormatMenu, formatCells, cellStyles } = locale(context);
   const sheetWidth = context.luckysheetTableContentHW[0];
-  const { currency } = settings;
-  const defaultFormat = defaultFmt(currency);
+  const currency = context.currency || settings.currency || "$";
+  // Excel's Number Format list (Home > Number)
+  const numberFormatItems = useMemo(
+    () =>
+      [
+        { key: "general", value: "General" },
+        { key: "number", value: "0.00" },
+        {
+          key: "currency",
+          value: buildFormatCode("currency", { decimals: 2, symbol: currency }),
+        },
+        {
+          key: "accounting",
+          value: buildFormatCode("accounting", {
+            decimals: 2,
+            symbol: currency,
+          }),
+        },
+        { key: "shortDate", value: "m/d/yyyy" },
+        { key: "longDate", value: "dddd, mmmm d, yyyy" },
+        { key: "time", value: "h:mm:ss AM/PM" },
+        { key: "percentage", value: "0.00%" },
+        { key: "fraction", value: "# ?/?" },
+        { key: "scientific", value: "0.00E+00" },
+        { key: "text", value: "@" },
+      ].map((item) => ({
+        ...item,
+        text: numberFormatMenu[item.key as keyof typeof numberFormatMenu],
+      })),
+    [currency, numberFormatMenu]
+  );
 
   const [customColor, setcustomColor] = useState("#000000");
   const [customStyle, setcustomStyle] = useState("1");
-
-  const showSubMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>, className: string) => {
-      const target = e.target as HTMLDivElement;
-      const menuItem =
-        target.className === "fortune-toolbar-menu-line"
-          ? target.parentElement!
-          : target;
-      const menuItemRect = menuItem.getBoundingClientRect();
-      const workbookContainerRect =
-        refs.workbookContainer.current!.getBoundingClientRect();
-      const subMenu = menuItem.querySelector(`.${className}`) as HTMLDivElement;
-      if (_.isNil(subMenu)) return;
-      const menuItemStyle = window.getComputedStyle(menuItem);
-      const menuItemPaddingRight = parseFloat(
-        menuItemStyle.getPropertyValue("padding-right").replace("px", "")
-      );
-
-      if (
-        workbookContainerRect.right - menuItemRect.right <
-        parseFloat(subMenu.style.width.replace("px", ""))
-      ) {
-        subMenu.style.display = "block";
-        subMenu.style.right = `${menuItemRect.width - menuItemPaddingRight}px`;
-      } else {
-        subMenu.style.display = "block";
-        subMenu.style.right =
-          className === "more-format"
-            ? `${-(parseFloat(subMenu.style.width.replace("px", "")) + 0)}px`
-            : `${-(
-                parseFloat(subMenu.style.width.replace("px", "")) +
-                menuItemPaddingRight
-              )}px`;
-      }
-    },
-    [refs.workbookContainer]
-  );
-
-  const hideSubMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>, className: string) => {
-      const target = e.target as HTMLDivElement;
-
-      if (target.className === `${className}`) {
-        target.style.display = "none";
-        return;
-      }
-
-      const subMenu = (
-        target.className === "condition-format-item"
-          ? target.parentElement
-          : target.querySelector(`.${className}`)
-      ) as HTMLDivElement;
-      if (_.isNil(subMenu)) return;
-      subMenu.style.display = "none";
-    },
-    []
-  );
 
   // rerenders the entire toolbar and trigger recalculation of item locations
   useEffect(() => {
@@ -274,116 +253,102 @@ const Toolbar: React.FC<{
         );
       }
       if (name === "format") {
-        let currentFmt = defaultFormat[0].text;
-        if (cell) {
-          const curr = normalizedCellAttr(cell, "ct");
-          const format = _.find(defaultFormat, (v) => v.value === curr?.fa);
-          if (curr?.fa != null) {
-            if (format != null) {
-              currentFmt = format.text;
-            } else {
-              currentFmt = defaultFormat[defaultFormat.length - 1].text;
-            }
-          }
+        const fa = cell?.ct?.fa;
+        const category = getFormatCategory(fa);
+        let currentFmt: string =
+          numberFormatMenu[category as keyof typeof numberFormatMenu] ??
+          formatCells.categories[category];
+        if (category === "date") {
+          const hit = numberFormatItems.find(
+            (item) => item.value === fa && item.key.endsWith("Date")
+          );
+          if (hit) currentFmt = hit.text;
+        } else if (category === "custom") {
+          currentFmt = numberFormatMenu.custom;
         }
+        const raw = cell?.v;
+        const hasValue = raw != null && raw !== "";
+        const numeric =
+          hasValue && typeof raw !== "boolean" && Number.isFinite(Number(raw));
+        const preview = (code: string, key: string) => {
+          if (!hasValue) {
+            return key === "general" ? numberFormatMenu.noSpecificFormat : "";
+          }
+          if (key === "text" || !numeric) return `${raw}`;
+          return formatValue(code, Number(raw));
+        };
         return (
           <Combo text={currentFmt} key={name} tooltip={tooltip}>
             {(setOpen) => (
               <Select>
-                {defaultFormat.map(({ text, value, example }, ii) => {
-                  if (value === "split") {
-                    return <MenuDivider key={ii} />;
-                  }
-                  if (value === "fmtOtherSelf") {
-                    return (
-                      <Option
-                        key={value}
-                        onMouseEnter={(e) => showSubMenu(e, "more-format")}
-                        onMouseLeave={(e) => hideSubMenu(e, "more-format")}
-                      >
-                        <div className="fortune-toolbar-menu-line">
-                          <div>{text}</div>
-                          <SVGIcon name="rightArrow" width={14} />
-                        </div>
-                        <div
-                          className="more-format toolbar-item-sub-menu fortune-toolbar-select"
-                          style={{
-                            display: "none",
-                            width: 150,
-                            bottom: 10,
-                            top: undefined,
-                          }}
-                        >
-                          {[
-                            {
-                              text: toolbarFormat.moreCurrency,
-                              onclick: () => {
-                                showDialog(
-                                  <FormatSearch
-                                    onCancel={hideDialog}
-                                    type="currency"
-                                  />
-                                );
-                                setOpen(false);
-                              },
-                            },
-                            {
-                              text: toolbarFormat.moreNumber,
-                              onclick: () => {
-                                showDialog(
-                                  <FormatSearch
-                                    onCancel={hideDialog}
-                                    type="number"
-                                  />
-                                );
-                                setOpen(false);
-                              },
-                            },
-                          ].map((v) => (
-                            <div
-                              className="set-background-item fortune-toolbar-select-option"
-                              key={v.text}
-                              onClick={() => {
-                                v.onclick();
-                                setOpen(false);
-                              }}
-                              tabIndex={0}
-                            >
-                              {v.text}
-                            </div>
-                          ))}
-                        </div>
-                      </Option>
-                    );
-                  }
-                  return (
-                    <Option
-                      key={value}
-                      onClick={() => {
-                        setOpen(false);
-                        setContext((ctx) => {
-                          const d = getFlowdata(ctx);
-                          if (d == null) return;
-                          updateFormat(
-                            ctx,
-                            refs.cellInput.current!,
-                            d,
-                            "ct",
-                            value
-                          );
-                        });
-                      }}
+                {numberFormatItems.map(({ key, text, value }) => (
+                  <Option
+                    key={key}
+                    onClick={() => {
+                      setOpen(false);
+                      setContext((ctx) => {
+                        const d = getFlowdata(ctx);
+                        if (d == null) return;
+                        updateFormat(
+                          ctx,
+                          refs.cellInput.current!,
+                          d,
+                          "ct",
+                          value
+                        );
+                      });
+                    }}
+                  >
+                    <div
+                      className="fortune-toolbar-menu-line fortune-number-format-item"
+                      data-format={key}
                     >
-                      <div className="fortune-toolbar-menu-line">
-                        <div>{text}</div>
-                        <div className="fortune-toolbar-subtext">{example}</div>
+                      <div>{text}</div>
+                      <div className="fortune-toolbar-subtext">
+                        {preview(value, key)}
                       </div>
-                    </Option>
-                  );
-                })}
+                    </div>
+                  </Option>
+                ))}
+                <MenuDivider />
+                <Option
+                  onClick={() => {
+                    setOpen(false);
+                    setContext((ctx) => openFormatCells(ctx, "number"), {
+                      noHistory: true,
+                    });
+                  }}
+                >
+                  <div className="fortune-toolbar-menu-line">
+                    <div>{numberFormatMenu.moreFormats}</div>
+                  </div>
+                </Option>
               </Select>
             )}
           </Combo>
+        );
+      }
+      if (name === "cell-styles") {
+        return (
+          <Combo text={cellStyles.title} key={name} tooltip={cellStyles.title}>
+            {(setOpen) => <CellStyles onApplied={() => setOpen(false)} />}
+          </Combo>
+        );
+      }
+      if (name === "format-painter") {
+        return (
+          <Button
+            iconId={name}
+            tooltip={tooltip}
+            key={name}
+            selected={!!context.luckysheetPaintModelOn}
+            onClick={() =>
+              setContext((draftCtx) => handleFormatPainter(draftCtx))
+            }
+            onDoubleClick={() =>
+              setContext((draftCtx) => startFormatPainter(draftCtx, true))
+            }
+          />
         );
       }
       if (name === "font") {
@@ -639,18 +604,10 @@ const Toolbar: React.FC<{
           />
         );
       }
+      if (name === "formatAsTable") return <FormatAsTableButton key={name} />;
+      if (name === "nameManager") return <NameManagerButton key={name} />;
       if (name === "dataVerification") {
-        return (
-          <Button
-            iconId={name}
-            tooltip={tooltip}
-            key={name}
-            onClick={() => {
-              if (context.allowEdit === false) return;
-              showDialog(<DataVerification />);
-            }}
-          />
-        );
+        return <DataVerificationCombo tooltip={tooltip} key={name} />;
       }
       if (name === "locationCondition") {
         const items = [
@@ -845,13 +802,13 @@ const Toolbar: React.FC<{
         const items = [
           "highlightCellRules",
           "itemSelectionRules",
-          // "dataBar",
-          // "colorGradation",
-          // "icons",
+          "dataBar",
+          "colorGradation",
+          "icons",
           "-",
-          // "newFormatRule",
+          "newFormatRule",
           "deleteRule",
-          // "manageRules",
+          "manageRules",
         ];
         return (
           <Combo
@@ -901,6 +858,9 @@ const Toolbar: React.FC<{
             />
           </Button>
         );
+      }
+      if (name === "chart") {
+        return <ChartToolbarItem key={name} />;
       }
       if (name === "comment") {
         const last =
@@ -1174,50 +1134,70 @@ const Toolbar: React.FC<{
       }
 
       if (name === "freeze") {
+        // Excel's View > Freeze Panes menu, plus Split
+        const panes = getPaneState(context);
         const items = [
+          panes === "frozen"
+            ? {
+                text: freezen.unfreezePanes,
+                value: "unfreeze",
+                icon: "freeze-cancel",
+              }
+            : {
+                text: freezen.freezePanes,
+                value: "freeze-panes",
+                icon: "freeze-row-col",
+              },
           {
-            text: freezen.freezenRowRange,
-            value: "freeze-row",
+            text: freezen.freezeTopRow,
+            value: "freeze-top-row",
+            icon: "freeze-row",
           },
           {
-            text: freezen.freezenColumnRange,
-            value: "freeze-col",
+            text: freezen.freezeFirstColumn,
+            value: "freeze-first-column",
+            icon: "freeze-col",
           },
           {
-            text: freezen.freezenRCRange,
-            value: "freeze-row-col",
-          },
-          {
-            text: freezen.freezenCancel,
-            value: "freeze-cancel",
+            text: panes === "split" ? freezen.removeSplit : freezen.splitPanes,
+            value: "split",
+            icon: "freeze-row-col",
           },
         ];
+        const runFreeze = (value: string) => {
+          if (
+            value === "freeze-panes" &&
+            freezePanes(context, "panes", { dryRun: true }) === "tooLarge"
+          ) {
+            showDialog(freezen.rangeRCOverError, "ok");
+            return;
+          }
+          setContext((ctx) => {
+            handleFreeze(ctx, value);
+          });
+        };
         return (
           <Combo
             iconId="freeze-row-col"
             key={name}
             tooltip={tooltip}
             onClick={() =>
-              setContext((ctx) => {
-                handleFreeze(ctx, "freeze-row-col");
-              })
+              runFreeze(panes === "frozen" ? "unfreeze" : "freeze-panes")
             }
           >
             {(setOpen) => (
               <Select>
-                {items.map(({ text, value }) => (
+                {items.map(({ text, value, icon }) => (
                   <Option
                     key={value}
                     onClick={() => {
-                      setContext((ctx) => {
-                        handleFreeze(ctx, value);
-                      });
+                      runFreeze(value);
                       setOpen(false);
                     }}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
-                      <SVGIcon name={value} />
+                      <SVGIcon name={icon} />
                     </div>
                   </Option>
                 ))}
@@ -1348,74 +1328,7 @@ const Toolbar: React.FC<{
         );
       }
       if (name === "filter") {
-        const items = [
-          {
-            iconId: "sort-asc",
-            value: "sort-asc",
-            text: sort.asc,
-            onClick: () => {
-              setContext((ctx) => {
-                handleSort(ctx, true);
-              });
-            },
-          },
-          {
-            iconId: "sort-desc",
-            value: "sort-desc",
-            text: sort.desc,
-            onClick: () => {
-              setContext((ctx) => {
-                handleSort(ctx, false);
-              });
-            },
-          },
-          // { iconId: "sort", value: "sort", text: sort.custom },
-          { iconId: "", value: "divider" },
-          {
-            iconId: "filter1",
-            value: "filter",
-            text: filter.filter,
-            onClick: () =>
-              setContext((draftCtx) => {
-                createFilter(draftCtx);
-              }),
-          },
-          {
-            iconId: "eraser",
-            value: "eraser",
-            text: filter.clearFilter,
-            onClick: () =>
-              setContext((draftCtx) => {
-                clearFilter(draftCtx);
-              }),
-          },
-        ];
-        return (
-          <Combo iconId="filter" key={name} tooltip={toolbar.sortAndFilter}>
-            {(setOpen) => (
-              <Select>
-                {items.map(({ text, iconId, value, onClick }, index) =>
-                  value !== "divider" ? (
-                    <Option
-                      key={value}
-                      onClick={() => {
-                        onClick?.();
-                        setOpen(false);
-                      }}
-                    >
-                      <div className="fortune-toolbar-menu-line">
-                        {text}
-                        <SVGIcon name={iconId} />
-                      </div>
-                    </Option>
-                  ) : (
-                    <MenuDivider key={`divider-${index}`} />
-                  )
-                )}
-              </Select>
-            )}
-          </Combo>
-        );
+        return <SortFilterCombo tooltip={toolbar.sortAndFilter} key={name} />;
       }
       return (
         <Button
@@ -1442,7 +1355,11 @@ const Toolbar: React.FC<{
       refs.cellInput,
       refs.fxInput,
       refs.globalCache,
-      defaultFormat,
+      numberFormatItems,
+      numberFormatMenu,
+      formatCells,
+      cellStyles,
+      context.luckysheetPaintModelOn,
       align,
       handleUndo,
       handleRedo,
@@ -1454,10 +1371,8 @@ const Toolbar: React.FC<{
       border,
       freezen,
       screenshot,
-      sort,
       textWrap,
       rotation,
-      filter,
       splitText,
       findAndReplace,
       context.luckysheet_select_save,
@@ -1465,13 +1380,9 @@ const Toolbar: React.FC<{
       context.allowEdit,
       comment,
       fontarray,
-      hideSubMenu,
-      showSubMenu,
       refs.canvas,
       customColor,
       customStyle,
-      toolbarFormat.moreCurrency,
-      toolbarFormat.moreNumber,
     ]
   );
 

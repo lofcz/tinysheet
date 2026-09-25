@@ -52,7 +52,10 @@ const greenLabel = "green accent (--fortune-accent / --fortune-selection)";
 /** An in-page switcher, plus a custom accent set through a CSS variable. */
 export const Toggle: StoryFn<typeof Workbook> = () => {
   const [theme, setTheme] = useState<ThemeSetting>("dark");
-  const [data, setData] = useState<Sheet[]>([cell, formula]);
+  const [data, setData] = useState<Sheet[]>([
+    cell,
+    formula,
+  ] as unknown as Sheet[]);
   const [green, setGreen] = useState(false);
   return (
     <div

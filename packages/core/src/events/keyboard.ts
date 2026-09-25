@@ -23,6 +23,7 @@ import { hasPartMC } from "../modules/validation";
 import { GlobalCache, Selection } from "../types";
 import { getNowDateTime, isAllowEdit } from "../utils";
 import { handleCopy } from "./copy";
+import { openPasteSpecial } from "./paste";
 import { jfrefreshgrid } from "../modules/refresh";
 import { fillSelectionFromEdge } from "../modules/dropCell";
 import {
@@ -32,6 +33,27 @@ import {
   showSelected,
 } from "../modules/rowcol";
 import * as nav from "../modules/navigation";
+import { openFormatCells } from "../modules/formatCells";
+import { handleNavigationShortcut } from "../modules/goTo";
+import {
+  clearEditMode,
+  endPointMode,
+  getEditorArrowAction,
+  movePointReference,
+  setEditMode,
+  toggleEditMode,
+} from "../modules/editMode";
+import { closeFormulaParens } from "../modules/formulaEditor";
+
+const MODIFIER_KEYS = new Set([
+  "Shift",
+  "Control",
+  "Alt",
+  "Meta",
+  "AltGraph",
+  "CapsLock",
+  "OS",
+]);
 
 const ARROW_DIRECTIONS: Record<string, nav.NavDirection> = {
   ArrowUp: "up",
@@ -199,6 +221,58 @@ function commitToSelection(
   ctx.luckysheet_select_save = normalizeSelection(ctx, restored);
 }
 
+/**
+ * Commits the cell being edited (the text of `editor`, the in-cell editor or
+ * the formula bar) and moves the active cell.
+ *
+ * - `how: "enter"` (Enter, Shift+Enter, Tab, Shift+Tab): inside a
+ *   multi-cell selection that contains the edited cell the selection is
+ *   kept and the active cell wraps within it; otherwise the selection
+ *   collapses and the active cell moves (Enter after a run of Tabs returns
+ *   to the column where the run started).
+ * - `how: "arrow"` (arrow keys in Enter mode): collapses the selection and
+ *   moves one cell.
+ */
+export function commitEditAndMove(
+  ctx: Context,
+  editor: HTMLDivElement,
+  direction: nav.NavDirection,
+  how: "enter" | "arrow",
+  canvas?: CanvasRenderingContext2D
+) {
+  if (ctx.luckysheetCellUpdate.length < 2) return;
+  const cell = _.clone(ctx.luckysheetCellUpdate) as [number, number];
+  const prevSelection = _.cloneDeep(ctx.luckysheet_select_save);
+  closeFormulaParens(editor);
+  updateCell(ctx, cell[0], cell[1], editor, undefined, canvas);
+  clearEditMode(ctx);
+  if (
+    how === "enter" &&
+    isMultiCell(prevSelection) &&
+    selectionContains(prevSelection, cell[0], cell[1])
+  ) {
+    const last = prevSelection![prevSelection!.length - 1];
+    [last.row_focus, last.column_focus] = cell;
+    ctx.luckysheet_select_save = prevSelection;
+    nav.moveAfterEnter(ctx, direction);
+    return;
+  }
+  ctx.luckysheet_select_save = [
+    {
+      row: [cell[0], cell[0]],
+      column: [cell[1], cell[1]],
+      row_focus: cell[0],
+      column_focus: cell[1],
+    },
+  ];
+  if (how === "enter") {
+    nav.moveAfterEnter(ctx, direction);
+  } else {
+    ctx.tabReturn = undefined;
+    nav.moveActiveCell(ctx, direction);
+  }
+}
+
 export function handleGlobalEnter(
   ctx: Context,
   cellInput: HTMLDivElement,
@@ -216,48 +290,27 @@ export function handleGlobalEnter(
     }
     e.preventDefault();
   } else if (ctx.luckysheetCellUpdate.length > 0) {
-    const lastCellUpdate = _.clone(ctx.luckysheetCellUpdate) as [
-      number,
-      number
-    ];
-    const prevSelection = _.cloneDeep(ctx.luckysheet_select_save);
-
     if (e.ctrlKey) {
       // Ctrl+Enter: fill the whole selection with the entered value
+      const lastCellUpdate = _.clone(ctx.luckysheetCellUpdate) as [
+        number,
+        number
+      ];
+      const prevSelection = _.cloneDeep(ctx.luckysheet_select_save);
+      closeFormulaParens(cellInput);
       commitToSelection(ctx, cellInput, lastCellUpdate, prevSelection, canvas);
+      clearEditMode(ctx);
       e.preventDefault();
       return;
     }
 
-    updateCell(
+    commitEditAndMove(
       ctx,
-      ctx.luckysheetCellUpdate[0],
-      ctx.luckysheetCellUpdate[1],
       cellInput,
-      undefined,
+      e.shiftKey ? "up" : "down",
+      "enter",
       canvas
     );
-    const direction = e.shiftKey ? "up" : "down";
-    if (
-      isMultiCell(prevSelection) &&
-      selectionContains(prevSelection, lastCellUpdate[0], lastCellUpdate[1])
-    ) {
-      // Enter inside a multi-cell selection keeps the selection
-      const last = prevSelection![prevSelection!.length - 1];
-      [last.row_focus, last.column_focus] = lastCellUpdate;
-      ctx.luckysheet_select_save = prevSelection;
-      nav.moveAfterEnter(ctx, direction);
-    } else {
-      ctx.luckysheet_select_save = [
-        {
-          row: [lastCellUpdate[0], lastCellUpdate[0]],
-          column: [lastCellUpdate[1], lastCellUpdate[1]],
-          row_focus: lastCellUpdate[0],
-          column_focus: lastCellUpdate[1],
-        },
-      ];
-      nav.moveActiveCell(ctx, direction);
-    }
     e.preventDefault();
   } else if ((ctx.luckysheet_select_save?.length ?? 0) > 0) {
     // Like Excel, Enter moves the active cell (down, Shift+Enter up) and
@@ -310,6 +363,7 @@ function startEditingWith(
   const active = nav.getActiveCell(ctx);
   if (!active) return;
   ctx.luckysheetCellUpdate = [active[0], active[1]];
+  setEditMode(ctx, "enter");
   if (cache) cache.ignoreWriteCell = true;
   cellInput.innerText = value;
   handleFormulaInput(ctx, fxInput, cellInput, kcode);
@@ -364,6 +418,12 @@ export function handleWithCtrlOrMetaKey(
       if ((ctx.luckysheet_select_save?.length ?? 0) > 1) {
         return;
       }
+      // Ctrl + Shift + V: Paste Special (plain paste without a copy)
+      if (openPasteSpecial(ctx)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       selectionCache.isPasteAction = true;
       e.stopPropagation();
       return;
@@ -409,6 +469,8 @@ export function handleWithCtrlOrMetaKey(
     handleUnderline(ctx, cellInput);
   } else if (e.code === "Digit5") {
     handleStrikeThrough(ctx, cellInput);
+  } else if (e.code === "Digit1" || e.code === "Numpad1") {
+    openFormatCells(ctx); // Ctrl+1: Format Cells
   } else if (e.code === "KeyC") {
     // Ctrl + C  复制
     handleCopy(ctx);
@@ -424,6 +486,12 @@ export function handleWithCtrlOrMetaKey(
   } else if (e.code === "KeyV") {
     // Ctrl + V  粘贴
     if ((ctx.luckysheet_select_save?.length ?? 0) > 1) {
+      return;
+    }
+    // Ctrl + Alt + V: Paste Special
+    if (e.altKey && openPasteSpecial(ctx)) {
+      e.preventDefault();
+      e.stopPropagation();
       return;
     }
 
@@ -633,6 +701,169 @@ export function applyRowColShortcutOp(ctx: Context, op: RowColShortcutOp) {
   }
 }
 
+/**
+ * Excel's End mode: End, then an arrow jumps like Ctrl+arrow (Shift extends
+ * the selection), End, Home goes to the last used cell and End, Enter to the
+ * last filled cell of the row. Any other key leaves End mode. Returns true
+ * when the key was consumed.
+ */
+export function handleEndModeKey(ctx: Context, e: KeyboardEvent): boolean {
+  if (MODIFIER_KEYS.has(e.key)) return false;
+  if (e.key === "End" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    ctx.endMode = !ctx.endMode;
+    e.preventDefault();
+    return true;
+  }
+  if (!ctx.endMode) return false;
+  ctx.endMode = false;
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  const arrow = ARROW_DIRECTIONS[e.key];
+  if (arrow) {
+    nav.moveToDataEdge(ctx, arrow, e.shiftKey);
+  } else if (e.key === "Home") {
+    nav.moveToLastUsedCell(ctx, e.shiftKey);
+  } else if (e.key === "Enter") {
+    nav.moveToRowEnd(ctx, e.shiftKey);
+  } else {
+    return false;
+  }
+  e.preventDefault();
+  return true;
+}
+
+/**
+ * React can run a state updater twice for one key event: when a
+ * lower-priority update was pending, the key's update is replayed on the
+ * rebased state after the first result was committed (and its DOM effects,
+ * like clearing the editor, happened). Whatever an editing key reads from the
+ * DOM is therefore captured once per event.
+ */
+const EVENT_MEMO = new WeakMap<Event, Record<string, any>>();
+
+function eventMemo(e: Event) {
+  let memo = EVENT_MEMO.get(e);
+  if (!memo) {
+    memo = {};
+    EVENT_MEMO.set(e, memo);
+  }
+  return memo;
+}
+
+/**
+ * The editor as it was when `e` was first handled (missing closing
+ * parentheses added), in the shape `updateCell` reads.
+ */
+function editorSnapshot(e: Event, editor: HTMLDivElement): HTMLDivElement {
+  const memo = eventMemo(e);
+  if (!memo.editor) {
+    closeFormulaParens(editor);
+    const clone = editor.cloneNode(true) as HTMLDivElement;
+    memo.editor = {
+      innerText: editor.innerText,
+      innerHTML: editor.innerHTML,
+      textContent: editor.textContent,
+      querySelectorAll: (selector: string) => clone.querySelectorAll(selector),
+    };
+  }
+  return memo.editor;
+}
+
+/**
+ * Keys while a cell is being edited, in the in-cell editor or the formula
+ * bar (other keys are left to the editor):
+ *
+ * - arrows: move the caret in Edit mode and in the formula bar, pick a
+ *   reference in Point mode (Shift extends, Ctrl jumps), otherwise commit
+ *   and move the active cell (Enter mode);
+ * - Enter / Shift+Enter / Tab / Shift+Tab: commit and move, wrapping inside
+ *   a multi-cell selection; Ctrl+Enter fills the selection;
+ * - F2 toggles Edit and Enter mode; Esc cancels.
+ */
+export function handleEditingKeyDown(
+  ctx: Context,
+  cellInput: HTMLDivElement,
+  fxInput: HTMLDivElement | null | undefined,
+  e: KeyboardEvent,
+  canvas?: CanvasRenderingContext2D
+) {
+  const { key } = e;
+  if (MODIFIER_KEYS.has(key)) return;
+  if (isKeyFromForeignControl(e, cellInput, fxInput)) return;
+  const target = e.target as Node | null;
+  const fromFx =
+    !!fxInput && !!target && (target === fxInput || fxInput.contains(target));
+  const editor = fromFx ? fxInput! : cellInput;
+  const mirror = fromFx ? cellInput : fxInput;
+  const allowEdit = isAllowEdit(ctx);
+  const arrow = ARROW_DIRECTIONS[key];
+
+  const memo = eventMemo(e);
+  if (arrow) {
+    memo.action ??= getEditorArrowAction(ctx, e, editor, fromFx);
+    if (memo.action === "point") {
+      if (memo.point === undefined) {
+        memo.point = movePointReference(
+          ctx,
+          editor,
+          mirror,
+          arrow,
+          e.shiftKey,
+          e.ctrlKey || e.metaKey
+        )
+          ? _.cloneDeep(ctx.editState)
+          : null;
+      } else if (memo.point) {
+        // replayed event: the editor already shows the reference
+        ctx.editState = _.cloneDeep(memo.point);
+      }
+      if (memo.point) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    } else if (memo.action === "commit" && allowEdit) {
+      commitEditAndMove(ctx, editorSnapshot(e, editor), arrow, "arrow", canvas);
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    return;
+  }
+
+  // anything typed after a picked reference ends Point mode
+  endPointMode(ctx);
+
+  if (key === "Enter") {
+    if (!allowEdit) return;
+    handleGlobalEnter(ctx, editorSnapshot(e, editor), e, canvas);
+    e.stopPropagation();
+    // after committing from the formula bar the grid takes the keys again
+    if (fromFx && ctx.luckysheetCellUpdate.length === 0) cellInput.focus();
+  } else if (key === "Tab") {
+    if (!allowEdit) return;
+    commitEditAndMove(
+      ctx,
+      editorSnapshot(e, editor),
+      e.shiftKey ? "left" : "right",
+      "enter",
+      canvas
+    );
+    e.preventDefault();
+    e.stopPropagation();
+    if (fromFx) cellInput.focus();
+  } else if (key === "F2" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    toggleEditMode(ctx);
+    e.preventDefault();
+    e.stopPropagation();
+  } else if (key === "F4") {
+    e.preventDefault();
+  } else if (key === "Escape") {
+    cancelNormalSelected(ctx);
+    clearEditMode(ctx);
+    moveHighlightCell(ctx, "down", 0, "rangeOfSelect");
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}
+
 export function handleGlobalKeyDown(
   ctx: Context,
   cellInput: HTMLDivElement,
@@ -653,6 +884,7 @@ export function handleGlobalKeyDown(
   if (kstr === "Escape" && !!ctx.luckysheet_selection_range) {
     ctx.luckysheet_selection_range = [];
   }
+  if (kstr === "Escape" && ctx.luckysheetPaintModelOn) cancelPaintModel(ctx);
 
   const allowEdit = isAllowEdit(ctx);
 
@@ -666,18 +898,9 @@ export function handleGlobalKeyDown(
     return;
   }
 
-  if (
-    // $("#luckysheet-modal-dialog-mask").is(":visible") ||
-    // $(event.target).hasClass("luckysheet-mousedown-cancel") ||
-    // $(event.target).hasClass("sp-input") ||
-    ctx.luckysheetCellUpdate.length > 0 &&
-    kstr !== "Enter" &&
-    kstr !== "Tab" &&
-    kstr !== "ArrowUp" &&
-    kstr !== "ArrowDown" &&
-    kstr !== "ArrowLeft" &&
-    kstr !== "ArrowRight"
-  ) {
+  if (ctx.luckysheetCellUpdate.length > 0) {
+    // Enter / Edit / Point mode keys of the cell editor and formula bar
+    handleEditingKeyDown(ctx, cellInput, fxInput, e, canvas);
     return;
   }
 
@@ -716,6 +939,16 @@ export function handleGlobalKeyDown(
   if (isKeyFromForeignControl(e, cellInput, fxInput)) {
     return;
   }
+  // Ctrl+F / Ctrl+H / Ctrl+G / F5: Find, Replace, Go To (navigation stream)
+  if (handleNavigationShortcut(ctx, e)) {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+  if (handleEndModeKey(ctx, e)) {
+    e.stopPropagation();
+    return;
+  }
   if (kstr === "Enter") {
     if (!allowEdit && ctx.luckysheetCellUpdate.length > 0) return;
     handleGlobalEnter(ctx, cellInput, e, canvas);
@@ -741,13 +974,8 @@ export function handleGlobalKeyDown(
     const col_index = last.column_focus;
 
     ctx.luckysheetCellUpdate = [row_index, col_index];
-    e.preventDefault();
-  } else if (kstr === "F4" && ctx.luckysheetCellUpdate.length > 0) {
-    // TODO formula.setfreezonFuc(event);
-    e.preventDefault();
-  } else if (kstr === "Escape" && ctx.luckysheetCellUpdate.length > 0) {
-    cancelNormalSelected(ctx);
-    moveHighlightCell(ctx, "down", 0, "rangeOfSelect");
+    // F2 edits in Edit mode: arrows move the caret
+    setEditMode(ctx, "edit");
     e.preventDefault();
   } else {
     if (e.ctrlKey || e.metaKey) {
@@ -815,10 +1043,16 @@ export function handleGlobalKeyDown(
         const active = nav.getActiveCell(ctx);
         if (active) {
           ctx.luckysheetCellUpdate = [active[0], active[1]];
-          if (cache) cache.overwriteCell = true;
-          cellInput.innerText = "";
-          cellInput.innerHTML = "";
-          handleFormulaInput(ctx, fxInput, cellInput, kcode);
+          setEditMode(ctx, "enter");
+          const memo = eventMemo(e);
+          if (!memo.started) {
+            // not again when React replays the event (see eventMemo)
+            memo.started = true;
+            if (cache) cache.overwriteCell = true;
+            cellInput.innerText = "";
+            cellInput.innerHTML = "";
+            handleFormulaInput(ctx, fxInput, cellInput, kcode);
+          }
         }
       }
       e.preventDefault();
@@ -862,9 +1096,16 @@ export function handleGlobalKeyDown(
         const col_index = last.column_focus;
 
         ctx.luckysheetCellUpdate = [row_index, col_index];
-        cache.overwriteCell = true;
-
-        handleFormulaInput(ctx, fxInput, cellInput, kcode);
+        // typing starts Enter mode: arrows commit and move
+        setEditMode(ctx, "enter");
+        const memo = eventMemo(e);
+        if (!memo.started) {
+          // a replayed event (see eventMemo) must not flag the next edit
+          // session to start empty
+          memo.started = true;
+          cache.overwriteCell = true;
+          handleFormulaInput(ctx, fxInput, cellInput, kcode);
+        }
       }
     }
   }

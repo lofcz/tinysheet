@@ -92,16 +92,16 @@ describe(".parse() financial formulas", () => {
   it("DB", () => {
     expect(
       parser.parse("DB()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DB(10000)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DB(10000, 1000)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DB(10000, 1000, 6)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DB(10000, 1000, 6, 1)")
     ).toMatchObject({ error: null, result: 3190 });
@@ -164,10 +164,10 @@ describe(".parse() financial formulas", () => {
   it("FV", () => {
     expect(
       parser.parse("FV()")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("FV(1.1, 10)")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("FV(1.1, 10, -200)")
     ).toBeMatchCloseTo({ error: null, result: 303088.7450582 });
@@ -184,20 +184,20 @@ describe(".parse() financial formulas", () => {
 
     expect(parser.parse("FVSCHEDULE(100, A1:C1)")).toMatchObject({
       error: null,
-      result: 133.08900000000003,
+      result: 133.089,
     });
   });
 
   it("IPMT", () => {
     expect(
       parser.parse("IPMT()")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("IPMT(0.2, 6)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("IPMT(0.2, 6, 24)")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("IPMT(0.2, 6, 24, 1000)")
     ).toBeMatchCloseTo({ error: null, result: -196.20794961065468 });
@@ -223,16 +223,16 @@ describe(".parse() financial formulas", () => {
   it("ISPMT", () => {
     expect(
       parser.parse("ISPMT()")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("ISPMT(1.1, 2)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("ISPMT(1.1, 2, 16)")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("ISPMT(1.1, 2, 16)")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("ISPMT(1.1, 2, 16, 1000)")
     ).toMatchObject({ error: null, result: -962.5 });
@@ -264,10 +264,10 @@ describe(".parse() financial formulas", () => {
   it("NPER", () => {
     expect(
       parser.parse("NPER()")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("NPER(1.1)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("NPER(1.1, -2)")
     ).toMatchObject({ error: null, result: 0 });
@@ -309,10 +309,10 @@ describe(".parse() financial formulas", () => {
     ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("PDURATION(0.1)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("PDURATION(0.1, 200)")
-    ).toMatchObject({ error: null, result: -Infinity });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("PDURATION(0.1, 200, 400)")
     ).toBeMatchCloseTo({ error: null, result: 7.272540897341714 });
@@ -321,13 +321,13 @@ describe(".parse() financial formulas", () => {
   it("PMT", () => {
     expect(
       parser.parse("PMT()")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("PMT(0.1)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("PMT(0.1, 200)")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("PMT(0.1, 200, 400)")
     ).toBeMatchCloseTo({ error: null, result: -40.00000021063133 });
@@ -339,13 +339,13 @@ describe(".parse() financial formulas", () => {
   it("PPMT", () => {
     expect(
       parser.parse("PPMT()")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("PPMT(0.1)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("PPMT(0.1, 200)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#NUM!", result: null });
     expect(
       parser.parse("PPMT(0.1, 200, 400)")
     ).toMatchObject({ error: null, result: 0 });
@@ -357,13 +357,13 @@ describe(".parse() financial formulas", () => {
   it("PV", () => {
     expect(
       parser.parse("PV()")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("PV(1.1)")
     ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("PV(1.1, 200)")
-    ).toMatchObject({ error: null, result: -0 });
+    ).toMatchObject({ error: null, result: 0 });
     expect(
       parser.parse("PV(1.1, 200, 400)")
     ).toBeMatchCloseTo({ error: null, result: -363.6363636363636 });

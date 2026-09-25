@@ -162,9 +162,10 @@ describe("Workbook with scoped consumers", () => {
       ref.current!.setSelection([{ row: [1, 1], column: [1, 1] }]);
     });
     // the scoped formula bar follows the selection
-    expect(container.querySelector(".fortune-name-box")!.textContent).toBe(
-      "B2"
-    );
+    const nameBox = container.querySelector(".fortune-name-box")!;
+    expect(
+      nameBox instanceof HTMLInputElement ? nameBox.value : nameBox.textContent
+    ).toBe("B2");
     act(() => {
       ref.current!.activateSheet({ index: 1 });
     });

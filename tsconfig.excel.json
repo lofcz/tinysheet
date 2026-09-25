@@ -1,0 +1,20 @@
+{
+  // Type-check for packages/excel. The legacy xlsx converters (ToFortuneSheet/,
+  // ToExcel/, common/) were ported from untyped code and still have ~130
+  // strictNullChecks errors, so this project mirrors the relaxed settings of
+  // packages/excel/tsconfig.build.json while keeping the other strict-family
+  // checks on. Tracked debt: enable "strict": true here once they are fixed.
+  // src/stories/ is excluded: it targets the old @fortune-sheet packages.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": false,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "alwaysStrict": true,
+    "useUnknownInCatchVariables": true
+  },
+  "include": ["packages/excel/src"],
+  "exclude": ["packages/excel/src/stories"]
+}

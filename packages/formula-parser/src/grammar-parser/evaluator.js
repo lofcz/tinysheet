@@ -5,19 +5,38 @@
  *   cellValue(label), rangeValue(startLabel, endLabel),
  *   wholeRangeValue(kind, sheetName, start, startAbsolute, end, endAbsolute),
  *   callVariable(name), callFunction(name, params, refs), throwError(image),
- *   hasFunction(name), getLambdaVariable(name), getOptions().
+ *   hasFunction(name), getFunction(name), getLambdaVariable(name),
+ *   getOptions().
  *
  * Errors: formula errors are thrown as `Error`s and abort the evaluation
  * (the first error wins), except where Excel treats them as values: LET
  * bindings, LAMBDA arguments, array elements, IFERROR/IFNA and the
  * information functions in ERROR_TOLERANT receive error values.
  *
+ * References: reference-valued expressions evaluate to an internal
+ * `Reference` (one or more areas) that is read ("dereferenced") only where a
+ * value is needed. Besides literal references, `A1:INDEX(B:B,5)` (range
+ * operator), `B1:B5 A3:D3` (intersection), `(A1:A2,C1:C2)` (union), INDEX,
+ * CHOOSE, IF, IFS, SWITCH and LET results, and OFFSET/INDIRECT used as range
+ * operands are references, as are host results made with `createReference`
+ * (../helper/reference.js) and variables or range operands the host resolves
+ * through `yy.resolveReference` (the parser's "resolveReference" event).
+ * Function arguments that are references reach `callFunction` as values
+ * plus a `refs` descriptor; references never leak out of the evaluator.
+ *
  * Lazy special forms: LET, LAMBDA, ISOMITTED, IF, IFS, IFERROR, IFNA,
- * CHOOSE and SWITCH evaluate only the arguments they need. They do not emit
- * the `callFunction` event; a function registered with `Parser#setFunction`
- * under the same name takes precedence over them.
+ * CHOOSE and SWITCH evaluate only the arguments they need; INDEX, ROW,
+ * COLUMN, ROWS, COLUMNS, ISREF, AREAS, OFFSET and INDIRECT are evaluated
+ * here when their argument is a reference the evaluator can resolve (other
+ * arguments, e.g. a host's reference markers, go through `callFunction`).
+ * Special forms do not emit the `callFunction` event; a function registered
+ * with `Parser#setFunction` under the same name takes precedence over them.
+ *
+ * Array lifting: a built-in function receiving an array where it expects a
+ * scalar is called once per element (see ./function-traits.js).
  */
 import { createLambda, isLambda } from "../functions/lambda";
+import { etaLambda } from "../functions/eta";
 import CUSTOM_FUNCTIONS from "../functions";
 import SUPPORTED_FORMULAS from "../supported-formulas";
 import {
@@ -30,23 +49,32 @@ import {
   errorCode,
   fail,
   isErrorString,
+  normalizeNumber,
   toBoolean,
   toErrorValue,
   toNumber,
 } from "../helper/value";
-import { broadcast, firstElement } from "../helper/array";
+import { broadcast, columnCount, firstElement, to2D } from "../helper/array";
 import { toLabel } from "../helper/cell";
+import { isReference } from "../helper/reference";
 import {
   MISSING,
   MAX_COLUMN_INDEX,
   MAX_ROW_INDEX,
   isReferenceNode,
 } from "./ast";
+import {
+  builtinArrayParams,
+  normalizeArrayParams,
+  unionPolicy,
+  wrapsReference,
+} from "./function-traits";
 
 const OMITTED = Symbol("omitted");
 const NOT_FOUND = Symbol("notFound");
 const FALLBACK = Symbol("fallback");
 const MAX_LAMBDA_DEPTH = 256;
+const NA = toErrorValue("N/A");
 
 const BUILTIN_FUNCTIONS = new Set(
   SUPPORTED_FORMULAS.map((n) => n.toUpperCase())
@@ -71,6 +99,32 @@ export const ERROR_TOLERANT = new Set([
   "COUNT",
   "COUNTA",
 ]);
+
+// Calls that may evaluate to a reference (when not shadowed or overridden).
+const REFERENCE_CALLS = new Set([
+  "INDEX",
+  "CHOOSE",
+  "IF",
+  "IFS",
+  "SWITCH",
+  "LET",
+  "OFFSET",
+  "INDIRECT",
+]);
+
+/**
+ * A reference value: one or more areas ({sheetName, r1, c1, r2, c2}).
+ * `node` is the literal reference node it came from, read through the
+ * original labels so hosts see `$` markers and sheet names as written.
+ */
+class Reference {
+  constructor(areas, node = null) {
+    this.areas = areas;
+    this.node = node;
+    this.hasValue = false;
+    this.value = void 0;
+  }
+}
 
 function lookup(scope, key) {
   while (scope) {
@@ -143,6 +197,14 @@ function sameSheet(a, b) {
   return String(a).toUpperCase() === String(b).toUpperCase();
 }
 
+function checkSameSheet(areas) {
+  for (let i = 1; i < areas.length; i++) {
+    if (!sameSheet(areas[0].sheetName, areas[i].sheetName)) {
+      fail("VALUE");
+    }
+  }
+}
+
 /**
  * Plain description of a reference: 0-based inclusive indexes, -1 marks a
  * whole row/column span (as in the callRangeValue contract).
@@ -179,6 +241,98 @@ function safeScalar(fn) {
   };
 }
 
+/**
+ * Formula results: 15-significant-digit noise removed, -0 → 0 and
+ * non-finite numbers → #NUM! (also inside arrays).
+ */
+function normalizeResult(value) {
+  if (typeof value === "number") {
+    return normalizeNumber(value);
+  }
+  if (!Array.isArray(value)) {
+    return value;
+  }
+  let copy = null;
+
+  for (let i = 0; i < value.length; i++) {
+    const row = value[i];
+
+    if (Array.isArray(row)) {
+      let rowCopy = null;
+
+      for (let j = 0; j < row.length; j++) {
+        if (typeof row[j] === "number") {
+          const number = normalizeNumber(row[j]);
+
+          if (!Object.is(number, row[j])) {
+            rowCopy = rowCopy || row.slice();
+            rowCopy[j] = number;
+          }
+        }
+      }
+      if (rowCopy) {
+        copy = copy || value.slice();
+        copy[i] = rowCopy;
+      }
+    } else if (typeof row === "number") {
+      const number = normalizeNumber(row);
+
+      if (!Object.is(number, row)) {
+        copy = copy || value.slice();
+        copy[i] = number;
+      }
+    }
+  }
+
+  return copy || value;
+}
+
+// Function results: overflowed numbers (Infinity / NaN) are #NUM!.
+function checkResult(value) {
+  if (typeof value === "number" && !isFinite(value)) {
+    fail("NUM");
+  }
+
+  return value;
+}
+
+function elementResult(value) {
+  const scalar = Array.isArray(value) ? firstElement(value) : value;
+
+  return typeof scalar === "number" && !isFinite(scalar)
+    ? toErrorValue("NUM")
+    : scalar;
+}
+
+// Per-element `refs` of a lifted call: lifted reference args point at the cell.
+function elementRefs(refs, positions, grids, i, j) {
+  if (refs.length === 0) {
+    return refs;
+  }
+  let copy = null;
+
+  for (let p = 0; p < positions.length; p++) {
+    const ref = refs[positions[p]];
+
+    if (ref && ref.startRow >= 0 && ref.startColumn >= 0) {
+      const grid = grids[p];
+      const r = grid.rows === 1 ? 0 : i;
+      const c = grid.cols === 1 ? 0 : j;
+
+      copy = copy || refs.slice();
+      copy[positions[p]] = {
+        sheetName: ref.sheetName,
+        startRow: ref.startRow + r,
+        startColumn: ref.startColumn + c,
+        endRow: ref.startRow + r,
+        endColumn: ref.startColumn + c,
+      };
+    }
+  }
+
+  return copy || refs;
+}
+
 export default class Evaluator {
   constructor(owner) {
     this.owner = owner;
@@ -193,12 +347,16 @@ export default class Evaluator {
     this.yy = this.owner.yy;
     this.depth = 0;
 
-    return this.evaluate(node, null);
+    return normalizeResult(this.evaluate(node, null));
   }
 
+  /**
+   * Evaluate a node to a value (references are read).
+   */
   evaluate(node, scope) {
     switch (node.type) {
       case "number":
+        return isFinite(node.value) ? node.value : fail("NUM");
       case "string":
         return node.value;
       case "binary": {
@@ -210,22 +368,12 @@ export default class Evaluator {
       case "cell":
         return this.evaluateCell(node, scope);
       case "range":
-        return normalizeRange(this.yy.rangeValue(node.start, node.end));
       case "wholeRange":
-        return normalizeRange(
-          this.yy.wholeRangeValue(
-            node.kind,
-            node.sheetName,
-            node.start,
-            node.startAbsolute,
-            node.end,
-            node.endAbsolute
-          )
-        );
+        return this.readNode(node);
       case "call":
-        return this.evaluateCall(node, scope);
+        return this.deref(this.evaluateCall(node, scope, false));
       case "name":
-        return this.evaluateName(node, scope);
+        return this.deref(this.evaluateName(node, scope));
       case "negate":
         return negate(this.evaluate(node.value, scope));
       case "plus":
@@ -247,7 +395,9 @@ export default class Evaluator {
         return this.invokeLambda(callee, node.args, scope);
       }
       case "intersect":
-        return this.evaluateIntersection(node, scope);
+      case "union":
+      case "rangeRef":
+        return this.deref(this.evaluateRef(node, scope));
       case "implicit":
         return this.evaluateImplicit(node, scope);
       case "refError":
@@ -284,17 +434,245 @@ export default class Evaluator {
     return value;
   }
 
+  /**
+   * Evaluate a node, keeping references as `Reference` values.
+   *
+   * @param {Object} node
+   * @param {Object|null} scope
+   * @param {Boolean} refMode The caller needs a reference (range operand,
+   *   ROW argument, ...): OFFSET/INDIRECT are then resolved here.
+   */
+  evaluateAny(node, scope, refMode) {
+    switch (node.type) {
+      case "cell":
+        if (scope && node.key) {
+          const bound = lookup(scope, node.key);
+
+          if (bound !== NOT_FOUND) {
+            return bound === OMITTED ? null : bound;
+          }
+        }
+
+        return new Reference([node.rect], node);
+      case "range":
+      case "wholeRange":
+        return new Reference([node.rect], node);
+      case "intersect":
+      case "union":
+      case "rangeRef":
+        return this.evaluateRef(node, scope);
+      case "call":
+        return this.evaluateCall(node, scope, refMode);
+      case "name":
+        return this.evaluateName(node, scope);
+      default:
+        return this.evaluate(node, scope);
+    }
+  }
+
+  evaluateAnySafe(node, scope, refMode) {
+    try {
+      return this.evaluateAny(node, scope, refMode);
+    } catch (ex) {
+      return toErrorValue(ex);
+    }
+  }
+
+  /**
+   * Evaluate a node that must be a reference.
+   *
+   * @returns {Reference}
+   */
+  evaluateRef(node, scope) {
+    switch (node.type) {
+      case "intersect": {
+        const left = this.evaluateRef(node.left, scope);
+        const right = this.evaluateRef(node.right, scope);
+        const areas = [];
+
+        left.areas.forEach((a) => {
+          right.areas.forEach((b) => {
+            if (!sameSheet(a.sheetName, b.sheetName)) {
+              fail("VALUE");
+            }
+            const rect = intersectRects(a, b);
+
+            if (rect) {
+              areas.push(rect);
+            }
+          });
+        });
+
+        return areas.length ? new Reference(areas) : fail("NULL");
+      }
+      case "union": {
+        const areas = [];
+
+        node.items.forEach((item) => {
+          areas.push(...this.evaluateRef(item, scope).areas);
+        });
+        checkSameSheet(areas);
+
+        return new Reference(areas);
+      }
+      case "rangeRef": {
+        const areas = this.evaluateRef(node.left, scope).areas.concat(
+          this.evaluateRef(node.right, scope).areas
+        );
+
+        checkSameSheet(areas);
+
+        return new Reference([boundingRect(areas)]);
+      }
+      default: {
+        const value = this.evaluateAny(node, scope, true);
+
+        if (value instanceof Reference) {
+          return value;
+        }
+        if (value instanceof Error) {
+          throw value;
+        }
+        const hosted = this.hostReference(value, true);
+
+        return hosted || fail("VALUE");
+      }
+    }
+  }
+
+  /**
+   * A host value standing for a reference (e.g. a host's reference marker
+   * string returned by its OFFSET), resolved through `yy.resolveReference`.
+   *
+   * @returns {Reference|null}
+   */
+  hostReference(value, ask) {
+    let info = null;
+
+    if (isReference(value)) {
+      info = value;
+    } else if (
+      ask &&
+      this.yy.resolveReference &&
+      (typeof value === "string" ||
+        (typeof value === "object" &&
+          value !== null &&
+          !Array.isArray(value) &&
+          !(value instanceof Error)))
+    ) {
+      info = this.yy.resolveReference(value);
+    }
+    if (!info) {
+      return null;
+    }
+    const whole = (index, max) => (index < 0 ? max : index);
+
+    return new Reference([
+      {
+        sheetName: info.sheetName == null ? null : info.sheetName,
+        r1: info.startRow < 0 ? 0 : info.startRow,
+        c1: info.startColumn < 0 ? 0 : info.startColumn,
+        r2: whole(info.endRow, MAX_ROW_INDEX),
+        c2: whole(info.endColumn, MAX_COLUMN_INDEX),
+      },
+    ]);
+  }
+
+  /**
+   * Whether a node can evaluate to a reference (without evaluating it).
+   */
+  isReferenceCapable(node, scope) {
+    switch (node.type) {
+      case "cell":
+        if (scope && node.key) {
+          const bound = lookup(scope, node.key);
+
+          if (bound !== NOT_FOUND) {
+            return bound instanceof Reference;
+          }
+        }
+
+        return true;
+      case "range":
+      case "wholeRange":
+      case "intersect":
+      case "union":
+      case "rangeRef":
+        return true;
+      case "name": {
+        // Host variables may resolve to references (createReference).
+        const bound = scope ? lookup(scope, node.key) : NOT_FOUND;
+
+        return bound === NOT_FOUND || bound instanceof Reference;
+      }
+      case "call":
+        return (
+          REFERENCE_CALLS.has(node.key) &&
+          !this.hasCustomFunction(node.name) &&
+          !(scope && lookup(scope, node.key) !== NOT_FOUND)
+        );
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Value of a reference (other values pass through).
+   */
+  deref(value) {
+    if (!(value instanceof Reference)) {
+      return value;
+    }
+    if (value.hasValue) {
+      return value.value;
+    }
+    if (value.areas.length !== 1) {
+      fail("VALUE");
+    }
+    const result = value.node
+      ? this.readNode(value.node)
+      : this.readRect(value.areas[0]);
+
+    value.hasValue = true;
+    value.value = result;
+
+    return result;
+  }
+
+  // Read a literal reference node through its original labels.
+  readNode(node) {
+    switch (node.type) {
+      case "cell": {
+        const value = this.yy.cellValue(node.image);
+
+        return isErrorString(value) ? toErrorValue(value) : value;
+      }
+      case "range":
+        return normalizeRange(this.yy.rangeValue(node.start, node.end));
+      default:
+        return normalizeRange(
+          this.yy.wholeRangeValue(
+            node.kind,
+            node.sheetName,
+            node.start,
+            node.startAbsolute,
+            node.end,
+            node.endAbsolute
+          )
+        );
+    }
+  }
+
   evaluateCell(node, scope) {
     if (scope && node.key) {
       const bound = lookup(scope, node.key);
 
       if (bound !== NOT_FOUND) {
-        return bound === OMITTED ? null : bound;
+        return bound === OMITTED ? null : this.deref(bound);
       }
     }
-    const value = this.yy.cellValue(node.image);
 
-    return isErrorString(value) ? toErrorValue(value) : value;
+    return this.readNode(node);
   }
 
   evaluateName(node, scope) {
@@ -306,14 +684,32 @@ export default class Evaluator {
       }
     }
 
-    return this.yy.callVariable(node.name);
+    let value;
+
+    try {
+      value = this.yy.callVariable(node.name);
+    } catch (ex) {
+      // A bare function name used as a value (GROUPBY(..., SUM),
+      // BYROW(A1:C3, SUM)) is an eta-reduced LAMBDA, as in Excel.
+      if (
+        BUILTIN_FUNCTIONS.has(node.key) ||
+        this.hasCustomFunction(node.name)
+      ) {
+        return etaLambda(node.key, (args) =>
+          this.yy.callFunction(node.name, args, [])
+        );
+      }
+      throw ex;
+    }
+
+    return this.hostReference(value, true) || value;
   }
 
   hasCustomFunction(name) {
     return !!(this.yy.hasFunction && this.yy.hasFunction(name));
   }
 
-  evaluateCall(node, scope) {
+  evaluateCall(node, scope, refMode) {
     const key = node.key;
 
     if (scope) {
@@ -330,7 +726,7 @@ export default class Evaluator {
     const special = SPECIAL_FORMS[key];
 
     if (special && !this.hasCustomFunction(node.name)) {
-      const result = special.call(this, node.args, scope, node);
+      const result = special.call(this, node.args, scope, node, refMode);
 
       if (result !== FALLBACK) {
         return result;
@@ -351,54 +747,243 @@ export default class Evaluator {
     return this.callEager(node, scope);
   }
 
-  callEager(node, scope) {
+  /**
+   * Call a function with its evaluated arguments.
+   *
+   * @param {Object} node Call node.
+   * @param {Object|null} scope
+   * @param {Map} [preset] Arguments a special form already evaluated
+   *   (index → value, possibly a Reference).
+   */
+  callEager(node, scope, preset) {
     const args = node.args;
-    let params;
 
     if (args.length === 1 && args[0].type === "legacyArray") {
-      params = args[0].items.slice();
-    } else {
-      const tolerant = isTolerant(node.key);
+      const items = args[0].items;
 
-      params = new Array(args.length);
-      for (let i = 0; i < args.length; i++) {
-        const arg = args[i];
+      // `[]` is an empty argument list.
+      return this.finishCall(
+        node,
+        items.length === 1 && items[0] === "" ? [] : items.slice(),
+        []
+      );
+    }
+    const key = node.key;
+    const tolerant = isTolerant(key);
+    const params = [];
+    const refs = [];
+    let hasRefs = false;
 
-        if (arg === MISSING) {
-          params[i] = void 0;
-        } else {
-          params[i] = tolerant
-            ? this.evaluateSafe(arg, scope)
-            : this.evaluateStrict(arg, scope);
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === MISSING) {
+        params.push(void 0);
+        refs.push(null);
+        continue;
+      }
+      let value;
+
+      if (preset && preset.has(i)) {
+        value = preset.get(i);
+      } else if (tolerant) {
+        value = this.evaluateAnySafe(arg, scope, false);
+      } else {
+        value = this.evaluateAny(arg, scope, false);
+      }
+      if (value instanceof Reference) {
+        hasRefs = true;
+        this.pushReference(params, refs, value, key, tolerant);
+      } else {
+        if (!tolerant && value instanceof Error) {
+          throw value;
         }
+        params.push(value);
+        refs.push(null);
       }
     }
 
-    return this.yy.callFunction(
-      node.name,
-      params,
-      this.referencesOf(args, scope)
-    );
+    return this.finishCall(node, params, hasRefs ? refs : []);
   }
 
   /**
-   * Reference descriptors of call arguments (null for non-references).
+   * Append a reference argument (value + descriptor). Multi-area references
+   * follow the function's union policy.
    */
-  referencesOf(args, scope) {
-    let refs = null;
+  pushReference(params, refs, ref, key, tolerant) {
+    const areas = ref.areas;
 
-    for (let i = 0; i < args.length; i++) {
-      const rect = isReferenceNode(args[i])
-        ? this.referenceRect(args[i], scope)
-        : null;
+    if (areas.length > 1) {
+      const policy = unionPolicy(key);
 
-      if (rect) {
-        refs = refs || new Array(args.length).fill(null);
-        refs[i] = referenceInfo(rect);
+      if (policy === "spread") {
+        areas.forEach((area) => {
+          this.pushReference(
+            params,
+            refs,
+            new Reference([area]),
+            key,
+            tolerant
+          );
+        });
+
+        return;
+      }
+      let value;
+
+      try {
+        if (policy !== "flatten") {
+          fail("VALUE");
+        }
+        const row = [];
+
+        areas.forEach((area) => {
+          to2D(this.readRect(area)).forEach((line) => row.push(...line));
+        });
+        value = [row];
+      } catch (ex) {
+        if (!tolerant) {
+          throw ex;
+        }
+        value = toErrorValue(ex);
+      }
+      params.push(value);
+      refs.push(null);
+
+      return;
+    }
+    let value;
+
+    try {
+      value = this.deref(ref);
+    } catch (ex) {
+      if (!tolerant) {
+        throw ex;
+      }
+      value = toErrorValue(ex);
+    }
+    if (!tolerant && value instanceof Error) {
+      throw value;
+    }
+    if (!Array.isArray(value) && wrapsReference(key, params.length)) {
+      value = [[value]];
+    }
+    params.push(value);
+    refs.push(referenceInfo(areas[0]));
+  }
+
+  finishCall(node, params, refs) {
+    const acceptsArrays = this.arrayParams(node);
+
+    if (acceptsArrays) {
+      const positions = [];
+
+      for (let i = 0; i < params.length; i++) {
+        if (Array.isArray(params[i]) && !acceptsArrays(i)) {
+          positions.push(i);
+        }
+      }
+      if (positions.length > 0) {
+        return this.callLifted(node, params, refs, positions);
       }
     }
 
-    return refs || [];
+    const result = this.yy.callFunction(node.name, params, refs);
+
+    return this.hostReference(result, false) || checkResult(result);
+  }
+
+  /**
+   * Array-parameter predicate of a call, or null when nothing is lifted.
+   */
+  arrayParams(node) {
+    const key = node.key;
+    let spec;
+    const custom =
+      this.yy.getFunction && this.hasCustomFunction(node.name)
+        ? this.yy.getFunction(node.name)
+        : null;
+
+    if (custom && custom.arrayParams !== void 0) {
+      spec = normalizeArrayParams(custom.arrayParams);
+    } else if (BUILTIN_FUNCTIONS.has(key)) {
+      const own = CUSTOM_FUNCTIONS[key];
+
+      spec =
+        own && own.arrayParams !== void 0
+          ? normalizeArrayParams(own.arrayParams)
+          : builtinArrayParams(key);
+    } else {
+      return null;
+    }
+
+    return typeof spec === "function" ? spec : null;
+  }
+
+  /**
+   * Call a scalar function once per element of its array arguments (at
+   * `positions`), with Excel broadcasting: single rows/columns repeat,
+   * positions outside a smaller array are #N/A.
+   */
+  callLifted(node, params, refs, positions) {
+    const tolerant = isTolerant(node.key);
+    const grids = positions.map((k) => {
+      const matrix = to2D(params[k]);
+
+      return { matrix, rows: matrix.length, cols: columnCount(matrix) };
+    });
+    let rows = 1;
+    let cols = 1;
+
+    grids.forEach((grid) => {
+      rows = Math.max(rows, grid.rows);
+      cols = Math.max(cols, grid.cols);
+    });
+    const result = new Array(rows);
+
+    for (let i = 0; i < rows; i++) {
+      const line = new Array(cols);
+
+      for (let j = 0; j < cols; j++) {
+        const args = params.slice();
+        let element = null;
+
+        for (let p = 0; p < positions.length; p++) {
+          const grid = grids[p];
+          const r = grid.rows === 1 ? 0 : i;
+          const c = grid.cols === 1 ? 0 : j;
+          const row = grid.matrix[r];
+
+          if (!row || c >= row.length) {
+            element = NA;
+            break;
+          }
+          const value = row[c];
+
+          if (!tolerant && value instanceof Error && element === null) {
+            element = value;
+          }
+          args[positions[p]] = value;
+        }
+        if (element === null) {
+          try {
+            element = elementResult(
+              this.yy.callFunction(
+                node.name,
+                args,
+                elementRefs(refs, positions, grids, i, j)
+              )
+            );
+          } catch (ex) {
+            element = toErrorValue(ex);
+          }
+        }
+        line[j] = element;
+      }
+      result[i] = line;
+    }
+
+    return rows === 1 && cols === 1 ? result[0][0] : result;
   }
 
   makeLambda(params, body, closure) {
@@ -441,33 +1026,9 @@ export default class Evaluator {
     return node === MISSING ? 0 : this.evaluateSafe(node, scope);
   }
 
-  evaluateBranch(node, scope) {
-    return node === MISSING ? 0 : this.evaluate(node, scope);
-  }
-
-  /**
-   * Area referenced by a node, or null when the node is not a reference.
-   */
-  referenceRect(node, scope) {
-    switch (node.type) {
-      case "cell":
-        if (scope && node.key && lookup(scope, node.key) !== NOT_FOUND) {
-          return null;
-        }
-
-        return node.rect;
-      case "range":
-      case "wholeRange":
-        return node.rect;
-      case "intersect": {
-        const left = this.referenceRect(node.left, scope);
-        const right = this.referenceRect(node.right, scope);
-
-        return left && right ? intersectRects(left, right) : null;
-      }
-      default:
-        return null;
-    }
+  // Selected branch of a lazy form: may be a reference.
+  evaluateBranch(node, scope, refMode) {
+    return node === MISSING ? 0 : this.evaluateAny(node, scope, refMode);
   }
 
   readRect(rect) {
@@ -496,30 +1057,22 @@ export default class Evaluator {
     );
   }
 
-  evaluateIntersection(node, scope) {
-    const left = this.referenceRect(node.left, scope);
-    const right = this.referenceRect(node.right, scope);
-
-    if (!left || !right || !sameSheet(left.sheetName, right.sheetName)) {
-      return fail("VALUE");
-    }
-    const rect = intersectRects(left, right);
-
-    if (!rect) {
-      return fail("NULL");
-    }
-
-    return this.readRect(rect);
-  }
-
   evaluateImplicit(node, scope) {
-    const rect = this.referenceRect(node.value, scope);
-
-    if (!rect) {
+    if (!this.isReferenceCapable(node.value, scope)) {
       return firstElement(this.evaluate(node.value, scope));
     }
+    const ref = this.evaluateAny(node.value, scope, true);
+
+    if (!(ref instanceof Reference)) {
+      return firstElement(ref);
+    }
+    if (ref.areas.length !== 1) {
+      return fail("VALUE");
+    }
+    const rect = ref.areas[0];
+
     if (rect.r1 === rect.r2 && rect.c1 === rect.c2) {
-      return this.readRect(rect);
+      return this.deref(ref);
     }
     const options = (this.yy.getOptions && this.yy.getOptions()) || {};
     const row = pickNumber(options.row, options.r);
@@ -573,6 +1126,75 @@ function intersectRects(a, b) {
   return rect.r1 > rect.r2 || rect.c1 > rect.c2 ? null : rect;
 }
 
+function boundingRect(areas) {
+  const rect = { ...areas[0] };
+
+  for (let i = 1; i < areas.length; i++) {
+    const area = areas[i];
+
+    rect.r1 = Math.min(rect.r1, area.r1);
+    rect.c1 = Math.min(rect.c1, area.c1);
+    rect.r2 = Math.max(rect.r2, area.r2);
+    rect.c2 = Math.max(rect.c2, area.c2);
+  }
+
+  return rect;
+}
+
+function singleArea(ref) {
+  return ref.areas.length === 1 ? ref.areas[0] : fail("REF");
+}
+
+// Optional integer argument (blank → `fallback`).
+function integerArg(value, fallback) {
+  if (value === void 0 || value === null) {
+    return fallback;
+  }
+
+  return Math.trunc(toNumber(value));
+}
+
+/**
+ * INDEX(reference, row, [column], [area]) as a reference.
+ */
+function indexReference(ref, rowArg, columnArg, areaArg, columnOmitted) {
+  const area = integerArg(areaArg, 1);
+
+  if (area < 1) {
+    fail("VALUE");
+  }
+  if (area > ref.areas.length) {
+    fail("REF");
+  }
+  const rect = ref.areas[area - 1];
+  const rows = rect.r2 - rect.r1 + 1;
+  const cols = rect.c2 - rect.c1 + 1;
+  let row = integerArg(rowArg, 0);
+  let column = integerArg(columnArg, 0);
+
+  if (row < 0 || column < 0) {
+    fail("VALUE");
+  }
+  if (columnOmitted && rows === 1 && cols > 1) {
+    // A single row with one index: the index selects the column.
+    column = row;
+    row = 0;
+  }
+  if (row > rows || column > cols) {
+    fail("REF");
+  }
+
+  return new Reference([
+    {
+      sheetName: rect.sheetName,
+      r1: row ? rect.r1 + row - 1 : rect.r1,
+      r2: row ? rect.r1 + row - 1 : rect.r2,
+      c1: column ? rect.c1 + column - 1 : rect.c1,
+      c2: column ? rect.c1 + column - 1 : rect.c2,
+    },
+  ]);
+}
+
 const pickBoolean = safeScalar((condition, whenTrue, whenFalse) => {
   if (condition instanceof Error) {
     return condition;
@@ -623,7 +1245,7 @@ function makeIfError(test) {
       return broadcast([value, alternative], (v, alt) => (test(v) ? alt : v));
     }
     if (test(value)) {
-      return this.evaluateBranch(args[1], scope);
+      return this.evaluateBranch(args[1], scope, false);
     }
 
     return value;
@@ -640,8 +1262,55 @@ function chooseIndex(index, count) {
   return n;
 }
 
+/**
+ * ROW/COLUMN/ROWS/COLUMNS-style form: computed from the reference when the
+ * single argument is one the evaluator resolves; other arguments (arrays,
+ * host reference markers, no argument) go through callFunction.
+ */
+function referenceForm(compute) {
+  return function form(args, scope, node) {
+    if (
+      args.length !== 1 ||
+      args[0] === MISSING ||
+      !this.isReferenceCapable(args[0], scope)
+    ) {
+      return FALLBACK;
+    }
+    const value = this.evaluateAny(args[0], scope, true);
+
+    if (value instanceof Reference) {
+      return compute(value);
+    }
+
+    return this.callEager(node, scope, new Map([[0, value]]));
+  };
+}
+
+const CELL_INFO = ["row", "col", "address", "contents"];
+
+function sheetPrefix(sheetName) {
+  const name = String(sheetName);
+
+  return /^[A-Za-z_][A-Za-z0-9_.]*$/.test(name)
+    ? name
+    : `'${name.replace(/'/g, "''")}'`;
+}
+
+function numbersBetween(start, end, vertical) {
+  if (start === end) {
+    return start + 1;
+  }
+  const out = [];
+
+  for (let i = start; i <= end; i++) {
+    out.push(i + 1);
+  }
+
+  return vertical ? out.map((n) => [n]) : [out];
+}
+
 const SPECIAL_FORMS = Object.assign(Object.create(null), {
-  LET(args, scope) {
+  LET(args, scope, node, refMode) {
     const count = args.length;
 
     if (count < 3 || count % 2 === 0) {
@@ -660,12 +1329,14 @@ const SPECIAL_FORMS = Object.assign(Object.create(null), {
       }
       names.add(key);
       const value =
-        args[i + 1] === MISSING ? null : this.evaluateSafe(args[i + 1], inner);
+        args[i + 1] === MISSING
+          ? null
+          : this.evaluateAnySafe(args[i + 1], inner, false);
 
       inner = { vars: new Map([[key, value]]), parent: inner };
     }
 
-    return this.evaluate(args[count - 1], inner);
+    return this.evaluateAny(args[count - 1], inner, refMode);
   },
 
   LAMBDA(args, scope) {
@@ -697,7 +1368,7 @@ const SPECIAL_FORMS = Object.assign(Object.create(null), {
     return !!(key && scope && lookup(scope, key) === OMITTED);
   },
 
-  IF(args, scope) {
+  IF(args, scope, node, refMode) {
     if (args.length < 2 || args.length > 3) {
       return FALLBACK;
     }
@@ -717,10 +1388,10 @@ const SPECIAL_FORMS = Object.assign(Object.create(null), {
       return false;
     }
 
-    return this.evaluateBranch(branch, scope);
+    return this.evaluateBranch(branch, scope, refMode);
   },
 
-  IFS(args, scope) {
+  IFS(args, scope, node, refMode) {
     const count = args.length;
 
     if (count < 2 || count % 2 !== 0) {
@@ -753,7 +1424,7 @@ const SPECIAL_FORMS = Object.assign(Object.create(null), {
         );
       }
       if (toBoolean(condition)) {
-        return this.evaluateBranch(args[i + 1], scope);
+        return this.evaluateBranch(args[i + 1], scope, refMode);
       }
     }
 
@@ -764,7 +1435,7 @@ const SPECIAL_FORMS = Object.assign(Object.create(null), {
 
   IFNA: makeIfError(isNA),
 
-  CHOOSE(args, scope) {
+  CHOOSE(args, scope, node, refMode) {
     if (args.length < 2) {
       return FALLBACK;
     }
@@ -787,11 +1458,12 @@ const SPECIAL_FORMS = Object.assign(Object.create(null), {
 
     return this.evaluateBranch(
       args[chooseIndex(index, args.length - 1)],
-      scope
+      scope,
+      refMode
     );
   },
 
-  SWITCH(args, scope) {
+  SWITCH(args, scope, node, refMode) {
     const count = args.length;
 
     if (count < 2) {
@@ -830,14 +1502,239 @@ const SPECIAL_FORMS = Object.assign(Object.create(null), {
       );
 
       if (compare(value, candidate) === 0) {
-        return this.evaluateBranch(args[2 + 2 * p], scope);
+        return this.evaluateBranch(args[2 + 2 * p], scope, refMode);
       }
     }
     if (hasDefault) {
-      return this.evaluateBranch(args[count - 1], scope);
+      return this.evaluateBranch(args[count - 1], scope, refMode);
     }
 
     return fail("N/A");
+  },
+
+  /**
+   * INDEX over a reference returns a reference (A1:INDEX(B:B,5),
+   * ROW(INDEX(A1:C5,2,0)), INDEX((A1:B2,D1:E2),1,1,2)). Array row/column
+   * arguments and non-reference arrays use the INDEX function.
+   */
+  INDEX(args, scope, node) {
+    const count = args.length;
+
+    if (
+      count < 2 ||
+      count > 4 ||
+      args[0] === MISSING ||
+      !this.isReferenceCapable(args[0], scope)
+    ) {
+      return FALLBACK;
+    }
+    const first = this.evaluateAny(args[0], scope, true);
+    const preset = new Map([[0, first]]);
+    const numbers = [];
+
+    for (let k = 1; k < count; k++) {
+      const value =
+        args[k] === MISSING ? void 0 : this.evaluateStrict(args[k], scope);
+
+      preset.set(k, value);
+      numbers.push(value);
+    }
+    if (!(first instanceof Reference) || numbers.some(Array.isArray)) {
+      return this.callEager(node, scope, preset);
+    }
+
+    return indexReference(
+      first,
+      numbers[0],
+      numbers[1],
+      numbers[2],
+      count < 3 || args[2] === MISSING
+    );
+  },
+
+  /**
+   * OFFSET where a reference is needed (`OFFSET(A1,1,1):C5`, `ROWS(...)`);
+   * elsewhere it is left to the host's OFFSET.
+   */
+  OFFSET(args, scope, node, refMode) {
+    const count = args.length;
+
+    if (
+      !refMode ||
+      count < 3 ||
+      count > 5 ||
+      args[0] === MISSING ||
+      !this.isReferenceCapable(args[0], scope)
+    ) {
+      return FALLBACK;
+    }
+    const rect = singleArea(this.evaluateRef(args[0], scope));
+    const number = (k, fallback) =>
+      k < count && args[k] !== MISSING
+        ? integerArg(this.evaluateStrict(args[k], scope), fallback)
+        : fallback;
+    const rows = number(1, 0);
+    const cols = number(2, 0);
+    const height = number(3, rect.r2 - rect.r1 + 1);
+    const width = number(4, rect.c2 - rect.c1 + 1);
+
+    if (height === 0 || width === 0) {
+      fail("REF");
+    }
+    const top = rect.r1 + rows;
+    const left = rect.c1 + cols;
+    const area = {
+      sheetName: rect.sheetName,
+      r1: height > 0 ? top : top + height + 1,
+      r2: height > 0 ? top + height - 1 : top,
+      c1: width > 0 ? left : left + width + 1,
+      c2: width > 0 ? left + width - 1 : left,
+    };
+
+    if (
+      area.r1 < 0 ||
+      area.c1 < 0 ||
+      area.r2 > MAX_ROW_INDEX ||
+      area.c2 > MAX_COLUMN_INDEX
+    ) {
+      fail("REF");
+    }
+
+    return new Reference([area]);
+  },
+
+  /**
+   * INDIRECT (A1 style) where a reference is needed; elsewhere it is left
+   * to the host's INDIRECT.
+   */
+  INDIRECT(args, scope, node, refMode) {
+    if (!refMode || args.length < 1 || args.length > 2 || args[0] === MISSING) {
+      return FALLBACK;
+    }
+    const text = firstElement(this.evaluateStrict(args[0], scope));
+
+    if (
+      args.length === 2 &&
+      args[1] !== MISSING &&
+      !toBoolean(firstElement(this.evaluateStrict(args[1], scope)))
+    ) {
+      // R1C1 text is resolved by the host only.
+      fail("REF");
+    }
+    if (typeof text !== "string") {
+      fail("REF");
+    }
+    let target;
+
+    try {
+      target = this.owner.parseToAst(text.trim());
+    } catch (ex) {
+      target = null;
+    }
+    if (!target || !isReferenceNode(target)) {
+      fail("REF");
+    }
+
+    return new Reference([target.rect]);
+  },
+
+  ROW: referenceForm((ref) => {
+    const rect = singleArea(ref);
+
+    return numbersBetween(rect.r1, rect.r2, true);
+  }),
+
+  COLUMN: referenceForm((ref) => {
+    const rect = singleArea(ref);
+
+    return numbersBetween(rect.c1, rect.c2, false);
+  }),
+
+  ROWS: referenceForm((ref) => {
+    const rect = singleArea(ref);
+
+    return rect.r2 - rect.r1 + 1;
+  }),
+
+  COLUMNS: referenceForm((ref) => {
+    const rect = singleArea(ref);
+
+    return rect.c2 - rect.c1 + 1;
+  }),
+
+  /**
+   * CELL("row" | "col" | "address" | "contents", reference) for references
+   * the evaluator resolves (CELL("row", INDEX(A1:C5,2,0))); other info
+   * types and other arguments are left to the host's CELL.
+   */
+  CELL(args, scope, node) {
+    if (
+      args.length !== 2 ||
+      args[1] === MISSING ||
+      !this.isReferenceCapable(args[1], scope)
+    ) {
+      return FALLBACK;
+    }
+    const info = args[0] === MISSING ? void 0 : this.evaluate(args[0], scope);
+    const ref = this.evaluateAny(args[1], scope, true);
+    const kind = typeof info === "string" ? info.toLowerCase() : null;
+
+    if (
+      !(ref instanceof Reference) ||
+      ref.areas.length !== 1 ||
+      CELL_INFO.indexOf(kind) === -1
+    ) {
+      return this.callEager(
+        node,
+        scope,
+        new Map([
+          [0, info],
+          [1, ref],
+        ])
+      );
+    }
+    const { sheetName, r1, c1 } = ref.areas[0];
+
+    switch (kind) {
+      case "row":
+        return r1 + 1;
+      case "col":
+        return c1 + 1;
+      case "contents":
+        return this.readRect({ sheetName, r1, c1, r2: r1, c2: c1 });
+      default:
+        return (
+          (sheetName == null ? "" : `${sheetPrefix(sheetName)}!`) +
+          toLabel(
+            { index: r1, isAbsolute: true },
+            { index: c1, isAbsolute: true }
+          )
+        );
+    }
+  },
+
+  ISREF(args, scope) {
+    if (
+      args.length !== 1 ||
+      args[0] === MISSING ||
+      !this.isReferenceCapable(args[0], scope)
+    ) {
+      return FALLBACK;
+    }
+
+    return this.evaluateAnySafe(args[0], scope, true) instanceof Reference;
+  },
+
+  AREAS(args, scope) {
+    if (
+      args.length !== 1 ||
+      args[0] === MISSING ||
+      !this.isReferenceCapable(args[0], scope)
+    ) {
+      return fail("VALUE");
+    }
+
+    return this.evaluateRef(args[0], scope).areas.length;
   },
 });
 

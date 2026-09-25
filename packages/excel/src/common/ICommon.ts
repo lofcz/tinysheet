@@ -42,5 +42,6 @@ export interface IBorderInfoCompute {
 
 export enum IFileType {
   CSV = "csv",
+  TSV = "tsv",
   XLSX = "xlsx",
 }
