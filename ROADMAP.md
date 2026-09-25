@@ -65,7 +65,40 @@ Carried over from phase 1:
 * `bun run test:formula-parser`, `bun run test:jest` and `bun run build` must
   pass before a stream merges.
 
-## Phase 2: in progress (15 streams, 64 tasks)
+## Phase 2 status: delivered
+
+All 15 streams (T1–T64) and three integration passes are merged. Every
+check passes: `tsc`, `lint` (0 errors), jest (2150), formula-parser vitest
+(2119), excel (60), and the Playwright e2e suite (33).
+`packages/formula-parser/FUNCTIONS.md` rates 473 of 524 Excel functions as
+supported, and 1011 documented Excel examples pass.
+
+| Measure (P11, merged tree) | Before | After |
+| --- | --- | --- |
+| First render, 1M cells | 5.3 s | 266 ms |
+| Load 1M rows × 100 cols | 7.6 s | 2.0 s |
+| Scroll step, 1M rows (script / worst frame) | 20.8 ms / 620 ms | 4.6 ms / 21 ms |
+| Click, 1M rows | 147 ms | 9 ms |
+| Scroll step with frozen panes | 18.1 ms | 6.6 ms |
+| Components re-rendered per formula keystroke | 126 | 24 |
+
+Integration passes after the streams:
+
+* **I1:** names, tables, charts and notes follow every structural edit through one reference-adjuster registry. Structured references survive table renames, and `INDIRECT` resolves names.
+* **I2:** context-menu actions (Paste Special, Format Cells, Insert Chart, Define Name, Data Validation), Insert/Delete cells shortcuts, locale coverage with key-by-key English fallback, and an Excel-ordered toolbar.
+* **I3:** core reference functions run on the parser's reference values (OFFSET, INDIRECT incl. R1C1, CELL…). xlsx round-trips for tables, validation details and cell attributes. Faster spill reconciliation.
+
+Carried over from phase 2:
+
+* Row/column insert and delete still scan the whole sheet for spills; each edit copies the whole row array (about 50 ms at 1M rows).
+* Blit scrolling falls back to a full redraw when a merged cell crosses the freeze line or conditional-format bars/icons are on screen.
+* Cut/paste doesn't move autofilter ranges; charts don't move their on-sheet position for cell shifts.
+* GETPIVOTDATA, RTD, CALL, REGISTER.ID, PY and FIELDVALUE are missing; IMAGE returns its alt text.
+* Point mode can't pick references on other sheets; Freeze Panes freezes from A1, not from the scrolled position.
+* exceljs can't write some validation and conditional-format details (e.g. list "Show dropdown"), and tables without data rows aren't exported.
+* The excel package's toolbar labels are English only.
+
+## Phase 2 plan (15 streams, 64 tasks)
 
 Same rules as phase 1: each stream owns its files, lands with tests, and must
 pass `bun run test:formula-parser`, `bun run test:jest` and `bun run build`.
@@ -164,9 +197,13 @@ pass `bun run test:formula-parser`, `bun run test:jest` and `bun run build`.
 - **T63** Make `tsc --noEmit` pass (React types resolution, strictness fixes) and add typecheck and lint for every package to CI; fix `formula-parser` lint (`babel-eslint`).
 - **T64** Playwright e2e suite on the static Storybook build (formulas, spill, autocomplete, keyboard, theme, CF, paste) that runs in CI; docs updates for all new options and shortcuts.
 
-## Phase 3: later
+## Phase 3: next
 
-* Web-worker calculation engine.
-* Virtualised row/column storage for sheets with 1M+ rows.
+* Chunked row storage and a web-worker calculation engine (removes the per-edit row copy and whole-sheet spill scans).
+* A pivot table UI on top of GROUPBY/PIVOTBY, and GETPIVOTDATA.
+* Slicers and timeline filters for tables.
+* Sparklines (cell-level mini charts) and more chart types (combo, radar, waterfall, histogram).
+* Threaded comments and @mentions; review/track changes.
+* Freeze from the scrolled position, cross-sheet Point mode, and multi-window split editing.
 * Collaborative editing hardening: operational transforms for formulas.
 * Printing and page layout.
