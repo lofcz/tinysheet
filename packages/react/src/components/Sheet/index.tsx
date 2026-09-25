@@ -8,6 +8,8 @@ import {
   handleGlobalWheel,
   initFreeze,
   lowerBound,
+  getSheetIndex,
+  hasCellDecorators,
   Sheet as SheetType,
 } from "@lofcz/tinysheet-core";
 import "./index.css";
@@ -436,6 +438,21 @@ function freezeMergeSpan(
 }
 
 /**
+ * Whether cells may hold anti-aliased paths (conditional-format icons,
+ * paint of cell decorators): their pixels where a canvas edge cuts them
+ * depend on where they are drawn, so a blit redraws those cells.
+ */
+function hasEdgeSensitivePaint(context: Context) {
+  if (hasCellDecorators()) return true;
+  const i = getSheetIndex(context, context.currentSheetId);
+  const rules =
+    i == null
+      ? undefined
+      : context.luckysheetfile[i]?.luckysheet_conditionformat_save;
+  return Array.isArray(rules) && rules.some((r: any) => r?.type === "icons");
+}
+
+/**
  * The edge between two cells of the scrolling panes (canvas px along
  * `axis`) at or before (`after` false) or at or after `pos`.
  */
@@ -565,15 +582,17 @@ function blitScroll(
   // 4. cells cut by the far canvas edges: a path cut by the canvas edge is
   // rasterised differently too, so these are redrawn, not moved (along the
   // scroll when it moves them outwards, and across it always)
-  if (delta < 0) strip(cellEdge(next, freeze, axis, end, false), end);
-  const across = axis === "x" ? "y" : "x";
-  const acrossEnd = axis === "x" ? height : width;
-  const from = cellEdge(next, freeze, across, acrossEnd, false);
-  drawSheet(canvasElement, next, freeze, {
-    axis: across,
-    start: from,
-    size: acrossEnd + STRIP_OVERHANG - from,
-  });
+  if (hasEdgeSensitivePaint(next)) {
+    if (delta < 0) strip(cellEdge(next, freeze, axis, end, false), end);
+    const across = axis === "x" ? "y" : "x";
+    const acrossEnd = axis === "x" ? height : width;
+    const from = cellEdge(next, freeze, across, acrossEnd, false);
+    drawSheet(canvasElement, next, freeze, {
+      axis: across,
+      start: from,
+      size: acrossEnd + STRIP_OVERHANG - from,
+    });
+  }
   return true;
 }
 
