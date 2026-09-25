@@ -721,6 +721,9 @@ export class FortuneFile {
       if ((sheet as any).threadedComments != null) {
         sheetout.threadedComments = (sheet as any).threadedComments;
       }
+      if ((sheet as any).pageSetup != null) {
+        sheetout.pageSetup = (sheet as any).pageSetup;
+      }
 
       if (sheet.hyperlink != null) {
         sheetout.hyperlink = sheet.hyperlink;

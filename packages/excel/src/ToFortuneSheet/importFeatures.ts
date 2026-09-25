@@ -17,6 +17,7 @@ import { escapeCharacter, getcellrange } from "../common/method";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
 import { readThreadedComments, threadedCommentCells } from "./threadedComments";
+import { readPageSetup, readPrintNames } from "../common/pageSetup";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -318,11 +319,15 @@ export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "notes", read: readNotes },
   { name: "threadedComments", read: readThreadedComments },
   { name: "tables", read: readTables },
+  { name: "page-setup", read: readPageSetup },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 
 /** Workbook-level readers (defined names (P3), ...). */
-export const workbookImportFeatures: WorkbookImportFeature[] = [];
+export const workbookImportFeatures: WorkbookImportFeature[] = [
+  // _xlnm.Print_Area / _xlnm.Print_Titles -> sheet.pageSetup
+  { name: "print-names", read: readPrintNames },
+];
 
 export function registerSheetImportFeature(feature: SheetImportFeature) {
   sheetImportFeatures.push(feature);

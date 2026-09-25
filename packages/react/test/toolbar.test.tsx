@@ -1,7 +1,8 @@
 import { render } from "@testing-library/react";
 import React from "react";
 import { defaultSettings } from "@lofcz/tinysheet-core";
-import Workbook from "../src/components/Workbook";
+// the package entry, which also registers the built-in toolbar features
+import { Workbook } from "../src";
 
 function toolbarItems(lang = "en") {
   const { container } = render(
@@ -55,6 +56,7 @@ describe("default toolbar", () => {
       "quick-formula clear-format filter search",
       "freeze image chart link comment threaded-comment",
       "nameManager dataVerification splitColumn locationCondition screenshot",
+      "pageLayout print",
     ]);
   });
 

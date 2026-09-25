@@ -174,6 +174,9 @@ export type Sheet = {
   /** Excel-style tables ("Format as Table") of this sheet, see modules/tables.ts */
   // eslint-disable-next-line no-use-before-define
   tables?: SheetTable[];
+  /** Page Setup and print settings of this sheet, see modules/pageSetup.ts */
+  // eslint-disable-next-line no-use-before-define
+  pageSetup?: PageSetup;
   /**
    * Threaded comments (Excel "Comments", distinct from notes stored in
    * `cell.ps`), see modules/threadedComments.ts.
@@ -472,4 +475,103 @@ export type FormulaCell = {
   color?: string;
   chidren?: AncestorFormulaCell;
   times?: number;
+};
+
+/** A rectangle of cells (0-based, inclusive). */
+export type PrintRange = { row: [number, number]; column: [number, number] };
+
+export type PageOrientation = "portrait" | "landscape";
+
+/** Paper sizes of Page Setup (see PAPER_SIZES in modules/pageSetup.ts). */
+export type PaperSizeId =
+  | "letter"
+  | "tabloid"
+  | "ledger"
+  | "legal"
+  | "statement"
+  | "executive"
+  | "a3"
+  | "a4"
+  | "a5"
+  | "b4"
+  | "b5"
+  | "folio"
+  | "envelope10"
+  | "envelopeDL"
+  | "envelopeC5";
+
+/** Page margins in inches (as Excel stores them). */
+export type PageMargins = {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+  header: number;
+  footer: number;
+};
+
+/**
+ * A header or footer: the text of its left, centre and right sections with
+ * Excel's codes (`&P` page, `&N` pages, `&D` date, `&T` time, `&F` file,
+ * `&A` sheet, `&Z` path, `&G` picture, `&B` / `&I` / `&U` / `&S` bold,
+ * italic, underline, strikethrough, `&"font,style"`, `&nn` font size,
+ * `&K` colour, `&&` a literal ampersand).
+ */
+export type HeaderFooterText = {
+  left?: string;
+  center?: string;
+  right?: string;
+};
+
+/**
+ * Excel's Page Setup of a sheet. Every field is optional; missing fields
+ * use Excel's defaults (portrait Letter, Normal margins, 100% scale, ...).
+ */
+export type PageSetup = {
+  orientation?: PageOrientation;
+  paperSize?: PaperSizeId;
+  /** Adjust to: percent of normal size (10–400). */
+  scale?: number;
+  /** Fit to `fitToWidth` pages wide by `fitToHeight` tall instead of `scale`. */
+  fitToPage?: boolean;
+  /** Pages wide (0: automatic, as many as needed). */
+  fitToWidth?: number;
+  /** Pages tall (0: automatic). */
+  fitToHeight?: number;
+  /** First page number (undefined: automatic). */
+  firstPageNumber?: number;
+  /** Print quality in dpi. */
+  printQuality?: number;
+  margins?: Partial<PageMargins>;
+  centerHorizontally?: boolean;
+  centerVertically?: boolean;
+  /** Print area: printed instead of the used range. */
+  printArea?: PrintRange[];
+  /** Rows to repeat at top (0-based, inclusive). */
+  printTitleRows?: [number, number];
+  /** Columns to repeat at left (0-based, inclusive). */
+  printTitleColumns?: [number, number];
+  gridLines?: boolean;
+  headings?: boolean;
+  blackAndWhite?: boolean;
+  draft?: boolean;
+  pageOrder?: "downThenOver" | "overThenDown";
+  comments?: "none" | "atEnd" | "asDisplayed";
+  cellErrors?: "displayed" | "blank" | "dash" | "NA";
+  header?: HeaderFooterText;
+  footer?: HeaderFooterText;
+  differentFirst?: boolean;
+  differentOddEven?: boolean;
+  firstHeader?: HeaderFooterText;
+  firstFooter?: HeaderFooterText;
+  evenHeader?: HeaderFooterText;
+  evenFooter?: HeaderFooterText;
+  /** Scale the header/footer with the document (default true). */
+  scaleWithDoc?: boolean;
+  /** Align the header/footer with the page margins (default true). */
+  alignWithMargins?: boolean;
+  /** Manual page breaks before these rows (0-based; a page starts there). */
+  rowBreaks?: number[];
+  /** Manual page breaks before these columns (0-based). */
+  colBreaks?: number[];
 };

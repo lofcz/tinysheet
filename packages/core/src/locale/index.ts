@@ -95,3 +95,5 @@ export type {
   FunctionListParam,
   FunctionParamType,
 } from "./functions/types";
+export { pageLayoutLocale } from "./pageLayout";
+export type { PageLayoutLocale } from "./pageLayout";

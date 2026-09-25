@@ -219,6 +219,13 @@ export type Settings = {
   searchUsers?:
     | ((query: string) => CommentUser[] | Promise<CommentUser[]>)
     | null;
+  /**
+   * Show the automatic page breaks (dashed lines) in Normal view once a
+   * sheet was previewed or printed, or a page break was inserted, as Excel
+   * does.
+   * @default true
+   */
+  showPageBreaksAfterPrint?: boolean;
 };
 
 export const defaultSettings: Required<Settings> = {
@@ -300,6 +307,10 @@ export const defaultSettings: Required<Settings> = {
     "splitColumn",
     "locationCondition",
     "screenshot",
+    "|",
+    // Page Layout / File > Print (registered by the react package)
+    "pageLayout",
+    "print",
   ], // 自定义工具栏
   // Excel's cell menu. Entries backed by other modules ("paste-special",
   // "cell-format", "define-name", "chart") appear once registered; see
@@ -376,4 +387,5 @@ export const defaultSettings: Required<Settings> = {
   currentUser: null,
   users: [],
   searchUsers: null,
+  showPageBreaksAfterPrint: true,
 };

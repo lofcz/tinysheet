@@ -56,3 +56,6 @@ export * from "./formatCells";
 export { inferFormulaFormat } from "./formatInference";
 export * from "./extensions";
 export * from "./threadedComments";
+export * from "./pageSetup";
+export * from "./headerFooter";
+export * from "./printRender";

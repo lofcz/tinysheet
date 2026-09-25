@@ -25,6 +25,11 @@ export type XlsxPostProcessInfo = {
   visibleNotes?: Record<number, { r: number; c: number }[]>;
   /** Threads and persons to write (writeThreadedComments). */
   threadedComments?: ThreadedCommentExportInfo;
+  /**
+   * Worksheet id -> edits of the written worksheet XML, for elements or
+   * attributes ExcelJS cannot write (feature writers push them).
+   */
+  sheetXmlFixups?: Record<number, ((xml: string) => string)[]>;
 };
 
 const METADATA_XML =
@@ -198,6 +203,21 @@ async function showNotes(zip: JSZip, info: XlsxPostProcessInfo) {
   );
 }
 
+async function applySheetXmlFixups(zip: JSZip, info: XlsxPostProcessInfo) {
+  await Promise.all(
+    Object.entries(info.sheetXmlFixups ?? {}).map(async ([id, fixups]) => {
+      const path = `xl/worksheets/sheet${id}.xml`;
+      const file = zip.file(path);
+      if (!file || fixups.length === 0) return;
+      const xml = await file.async("string");
+      zip.file(
+        path,
+        fixups.reduce((acc, fix) => fix(acc), xml)
+      );
+    })
+  );
+}
+
 export async function postProcessXlsx(
   buffer: ArrayBuffer | Uint8Array,
   info: XlsxPostProcessInfo
@@ -207,6 +227,7 @@ export async function postProcessXlsx(
   await fixInternalHyperlinks(zip);
   await showNotes(zip, info);
   await writeThreadedCommentParts(zip, info);
+  await applySheetXmlFixups(zip, info);
   return zip.generateAsync({
     type: "uint8array",
     compression: "DEFLATE",
