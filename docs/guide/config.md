@@ -45,6 +45,7 @@ The following are all supported setting parameters
 - The height of the column header area [columnHeaderHeight](#columnheaderheight)
 - Whether to show the formula bar [showFormulaBar](#showformulabar)
 - Initialize the default font size [defaultFontSize](#defaultfontsize)
+- Colour theme [theme](#theme)
 
 ### lang
 - Type: String
@@ -217,6 +218,43 @@ The following are all supported setting parameters
 - Type：Number
 - Default：11
 - Usage：Initialize the default font size
+
+------------
+### theme
+- Type: `"light" | "dark" | "auto"`
+- Default: `"light"`
+- Usage: Colour theme of the whole workbook: toolbar, formula bar, menus,
+  dialogs, sheet tabs and the canvas grid (cell background, default text
+  colour, grid lines and headers). `"auto"` follows the operating system's
+  `prefers-color-scheme` and switches live when it changes. The resolved theme
+  is exposed as `data-theme="light|dark"` on `.fortune-container` (and on
+  dialogs rendered outside it).
+
+  ```jsx
+  <Workbook data={data} theme="dark" />
+  ```
+
+  Colours are CSS custom properties, so you can restyle either theme without
+  touching the component. Override them on `.fortune-container` and
+  `.fortune-modal-container`, for example a green accent:
+
+  ```css
+  .my-app .fortune-container,
+  .my-app .fortune-modal-container {
+    --fortune-accent: #188038;
+    --fortune-accent-hover: #137333;
+    --fortune-accent-soft: #e6f4ea;
+    --fortune-accent-text: #137333;
+    --fortune-selection: #188038;
+    --fortune-selection-fill: rgba(24, 128, 56, 0.1);
+  }
+  ```
+
+  The full token list (backgrounds `--fortune-bg*`, text `--fortune-text*`,
+  lines `--fortune-border*` / `--fortune-grid-line`, headers
+  `--fortune-header-*`, radii and font sizes) is at the top of
+  `packages/react/src/components/Workbook/index.css`. Cell styles set in the
+  data (`bg`, `fc`) are drawn as authored in both themes.
 
 ------------
 
