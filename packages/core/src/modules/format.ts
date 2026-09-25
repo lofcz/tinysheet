@@ -12,6 +12,7 @@ export {
   setInputMonthNames,
 } from "./inputParse";
 export type { ParsedInput, TypedCellValue } from "./inputParse";
+export * from "./numberFormat";
 
 const base1904 = new Date(1900, 2, 1, 0, 0, 0);
 
@@ -126,6 +127,126 @@ export function genarate(
       return [formatValue(fa, parsed.v), { fa, t: "n" }, parsed.v];
     }
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Fitting numbers to the column width                                 */
+/* ------------------------------------------------------------------ */
+
+/** Excel's General exponent form: 1.2E+08, 1E-05. */
+function generalExponential(v: number, digits: number) {
+  const [mant, exp] = v.toExponential(digits).toUpperCase().split("E");
+  const m = mant.indexOf(".") > -1 ? mant.replace(/\.?0+$/, "") : mant;
+  const sign = exp[0] === "-" ? "-" : "+";
+  const e = exp.replace(/^[+-]/, "");
+  return `${m}E${sign}${e.length < 2 ? `0${e}` : e}`;
+}
+
+/**
+ * Shorter renderings of a number in General format, longest first: fewer
+ * decimals while a significant digit is left, then scientific notation with
+ * a shrinking mantissa. This is what Excel shows in a narrow column.
+ */
+export function generalCandidates(v: number): string[] {
+  const out: string[] = [];
+  if (!Number.isFinite(v)) return out;
+  const abs = Math.abs(v);
+  if (abs < 1e15) {
+    for (let d = 10; d >= 0; d -= 1) {
+      const s = v.toFixed(d);
+      const trimmed =
+        s.indexOf(".") > -1 ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
+      const shown = trimmed === "-0" ? "0" : trimmed;
+      // stop once rounding has eaten every significant digit
+      if (v !== 0 && Number(shown) === 0) break;
+      if (out[out.length - 1] !== shown) out.push(shown);
+    }
+  }
+  if (v !== 0) {
+    for (let d = 5; d >= 0; d -= 1) {
+      const s = generalExponential(v, d);
+      if (out.indexOf(s) === -1) out.push(s);
+    }
+  }
+  return out;
+}
+
+/** As many `#` as fit in the width (at least one), like Excel. */
+export function hashFill(
+  availableWidth: number,
+  measure: (text: string) => number
+) {
+  const w = measure("#");
+  const n = w > 0 ? Math.floor(availableWidth / w) : 1;
+  return "#".repeat(Math.max(1, Math.min(n, 255)));
+}
+
+/**
+ * The text a number cell shows in a column `availableWidth` wide.
+ *
+ * - Text (and anything that is not a finite number) is returned unchanged:
+ *   it overflows or is clipped by the renderer as before.
+ * - A General number that does not fit is shown with fewer decimals, then in
+ *   scientific notation; if even `1E+10` does not fit, as `####`.
+ * - A number or date with any other format that does not fit is `####`, as
+ *   is a negative date or time (which Excel cannot display).
+ *
+ * `display` is the formatted text for a wide column (cell.m); `measure`
+ * returns the rendered width of a string in the cell's font.
+ */
+export function fitNumberToWidth(
+  value: unknown,
+  fmt: string | null | undefined,
+  display: string,
+  availableWidth: number,
+  measure: (text: string) => number
+): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return display;
+  const general = !fmt || fmt === "General";
+  if (!general && value < 0 && fmt !== "@" && is_date(fmt)) {
+    return hashFill(availableWidth, measure);
+  }
+  if (measure(display) <= availableWidth) return display;
+  if (general) {
+    const candidates = generalCandidates(value);
+    for (let i = 0; i < candidates.length; i += 1) {
+      if (
+        candidates[i].length < display.length &&
+        measure(candidates[i]) <= availableWidth
+      ) {
+        return candidates[i];
+      }
+    }
+  }
+  return hashFill(availableWidth, measure);
+}
+
+/**
+ * Renderer hook: the cell to lay out in a column `availableWidth` wide.
+ * Returns the cell itself unless it is a number that has to be shortened
+ * (see fitNumberToWidth), in which case a copy with the fitted `m`.
+ */
+export function fitCellToWidth<T extends Cell | null | undefined>(
+  cell: T,
+  availableWidth: number,
+  measure: (text: string) => number
+): T {
+  if (!cell || typeof cell.v !== "number") return cell;
+  const t = cell.ct?.t;
+  if (t === "s" || t === "g" || t === "inlineStr" || cell.ct?.fa === "@") {
+    return cell;
+  }
+  // rotated text is laid out along its angle; leave it alone
+  if ((cell.tr && cell.tr !== "0") || cell.rt) return cell;
+  const display = cell.m == null ? formatGeneral(cell.v) : `${cell.m}`;
+  const fitted = fitNumberToWidth(
+    cell.v,
+    cell.ct?.fa,
+    display,
+    availableWidth,
+    measure
+  );
+  return fitted === display ? cell : { ...cell, m: fitted };
 }
 
 /* ------------------------------------------------------------------ */
