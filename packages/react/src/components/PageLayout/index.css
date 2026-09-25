@@ -227,7 +227,7 @@
 
 .fortune-ps-sections {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--fortune-space-2);
 }
 
@@ -239,6 +239,9 @@
 }
 
 .fortune-ps-sections textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   height: 64px;
   resize: vertical;
   padding: var(--fortune-space-1) var(--fortune-space-2);

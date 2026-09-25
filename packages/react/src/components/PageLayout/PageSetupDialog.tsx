@@ -6,7 +6,9 @@ import {
   PAPER_SIZES,
   PageMargins,
   PageSetup,
+  PX_PER_INCH,
   getPageSetup,
+  pagePaperPx,
   headerFooterPlainText,
   locale,
   parsePrintRanges,
@@ -94,6 +96,11 @@ const PageSetupDialog: React.FC<Props> = ({
   const dialogRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const r = resolvePageSetup(draft);
+  const paperPx = pagePaperPx(r);
+  const paperIn = {
+    width: paperPx.width / PX_PER_INCH,
+    height: paperPx.height / PX_PER_INCH,
+  };
   const set = (patch: Partial<PageSetup>) =>
     setDraft((d) => ({ ...d, ...patch }));
   const setMargin = (key: keyof PageMargins, value: number) =>
@@ -379,10 +386,10 @@ const PageSetupDialog: React.FC<Props> = ({
             <div
               className="fortune-ps-paper-content"
               style={{
-                left: `${(r.margins.left / 8.5) * 100}%`,
-                right: `${(r.margins.right / 8.5) * 100}%`,
-                top: `${(r.margins.top / 11) * 100}%`,
-                bottom: `${(r.margins.bottom / 11) * 100}%`,
+                left: `${(r.margins.left / paperIn.width) * 100}%`,
+                right: `${(r.margins.right / paperIn.width) * 100}%`,
+                top: `${(r.margins.top / paperIn.height) * 100}%`,
+                bottom: `${(r.margins.bottom / paperIn.height) * 100}%`,
                 justifyContent: r.centerHorizontally ? "center" : "flex-start",
                 alignItems: r.centerVertically ? "center" : "flex-start",
               }}
