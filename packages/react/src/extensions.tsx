@@ -9,9 +9,20 @@
  *   use the workbook context for geometry).
  *
  * Canvas cell decorators and keyboard shortcuts live in the core package
- * (`registerCellDecorator`, `registerShortcut`).
+ * (`registerCellDecorator`, `registerShortcut`). Context-menu entries are
+ * registered with `registerContextMenuAction` / `registerContextMenuItem`
+ * (re-exported here).
  */
 import React from "react";
+
+export {
+  registerContextMenuAction,
+  registerContextMenuItem,
+} from "./components/ContextMenu/actions";
+export type {
+  ContextMenuItem,
+  ContextMenuActionHelpers,
+} from "./components/ContextMenu/actions";
 
 export type ToolbarItemRenderer = (props: {
   name: string;

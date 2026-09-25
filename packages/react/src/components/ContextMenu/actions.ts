@@ -57,3 +57,38 @@ export function getContextMenuAction(key: ContextMenuActionKey) {
   const list = registry[key];
   return list?.[list.length - 1];
 }
+
+/**
+ * Whole menu entries contributed by features (PivotTable Refresh, ...).
+ * An entry shows where its name appears in `settings.cellContextMenu` /
+ * `headerContextMenu`, when `visible` allows it:
+ *
+ *   registerContextMenuItem("pivot-refresh", {
+ *     label: () => "Refresh",
+ *     visible: ({ context }) => inPivot(context),
+ *     onSelect: ({ setContext }) => setContext(refresh),
+ *   });
+ */
+export type ContextMenuItem = {
+  label: (helpers: ContextMenuActionHelpers) => string;
+  /** A MenuIcon name (ContextMenu/icons.tsx). */
+  icon?: string;
+  shortcut?: string;
+  /** false hides the entry (default: shown). */
+  visible?: (helpers: ContextMenuActionHelpers) => boolean;
+  disabled?: (helpers: ContextMenuActionHelpers) => boolean;
+  onSelect: ContextMenuAction;
+};
+
+const items = new Map<string, ContextMenuItem>();
+
+export function registerContextMenuItem(name: string, item: ContextMenuItem) {
+  items.set(name, item);
+  return () => {
+    if (items.get(name) === item) items.delete(name);
+  };
+}
+
+export function getContextMenuItem(name: string) {
+  return items.get(name);
+}

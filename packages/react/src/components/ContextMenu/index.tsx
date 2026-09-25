@@ -52,7 +52,11 @@ import Menu from "./Menu";
 import MenuIcon from "./icons";
 import CustomSort from "../CustomSort";
 import DataVerification from "../DataVerification";
-import { getContextMenuAction, ContextMenuActionKey } from "./actions";
+import {
+  getContextMenuAction,
+  getContextMenuItem,
+  ContextMenuActionKey,
+} from "./actions";
 import { registerDefaultContextMenuActions } from "./defaultActions";
 import {
   InsertDeleteDialog,
@@ -60,8 +64,12 @@ import {
   useInsertDeleteRunner,
 } from "./dialogs";
 import PickList, { PickListState } from "./PickList";
+import { registerPivotTableFeatures } from "../PivotTable";
 
 registerDefaultContextMenuActions();
+// features plugging into the registries (the package is side-effect free,
+// so they are registered from a module the workbook always loads)
+registerPivotTableFeatures();
 
 type MenuEntry =
   | {
@@ -794,8 +802,28 @@ const ContextMenu: React.FC = () => {
       case "insert-row":
       case "insert-column":
         return legacyInsertRowCol(name === "insert-row" ? "row" : "column");
-      default:
-        return [];
+      default: {
+        // entries registered by features (actions.ts)
+        const registered = getContextMenuItem(name);
+        if (!registered) return [];
+        const helpers = {
+          ...workbookCtx,
+          showDialog: (content: React.ReactNode) => showDialog(content),
+          hideDialog,
+        };
+        if (registered.visible?.(helpers) === false) return [];
+        return item({
+          key: name,
+          label: registered.label(helpers),
+          icon: registered.icon,
+          shortcut: registered.shortcut,
+          disabled: registered.disabled?.(helpers),
+          onSelect: () => {
+            close();
+            registered.onSelect(helpers);
+          },
+        });
+      }
     }
   };
 
