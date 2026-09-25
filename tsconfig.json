@@ -2,7 +2,8 @@
   "compilerOptions": {
     "target": "es5",
     "module": "es2015",
-    "declaration": true,
+    "declaration": false,
+    "noEmit": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "removeComments": true,
@@ -17,10 +18,47 @@
     "paths": {
       "@lofcz/tinysheet-core": ["packages/core/src"],
       "@lofcz/tinysheet-react": ["packages/react/src"],
-      "@lofcz/tinysheet-excel": ["packages/excel/src"]
+      "@lofcz/tinysheet-excel": ["packages/excel/src"],
+      "@lofcz/tinysheet-formula-parser": ["packages/formula-parser/src"],
+      "react": [
+        "node_modules/@types/react",
+        "node_modules/.bun/node_modules/@types/react"
+      ],
+      "react/*": [
+        "node_modules/@types/react/*",
+        "node_modules/.bun/node_modules/@types/react/*"
+      ],
+      "react-dom": [
+        "node_modules/@types/react-dom",
+        "node_modules/.bun/node_modules/@types/react-dom"
+      ],
+      "react-dom/*": [
+        "node_modules/@types/react-dom/*",
+        "node_modules/.bun/node_modules/@types/react-dom/*"
+      ],
+      "lodash": [
+        "node_modules/@types/lodash",
+        "node_modules/.bun/node_modules/@types/lodash"
+      ],
+      "lodash/*": [
+        "node_modules/@types/lodash/*",
+        "node_modules/.bun/node_modules/@types/lodash/*"
+      ],
+      "uuid": [
+        "node_modules/@types/uuid",
+        "node_modules/.bun/node_modules/@types/uuid"
+      ],
+      "numeral": [
+        "node_modules/@types/numeral",
+        "node_modules/.bun/node_modules/@types/numeral"
+      ],
+      "file-saver": [
+        "node_modules/@types/file-saver",
+        "node_modules/.bun/node_modules/@types/file-saver"
+      ]
     }
   },
-  "include": ["packages/*/src", "stories/"],
+  "include": ["packages/core/src", "packages/react/src", "stories/"],
   "exclude": [
     "node_modules",
     "packages/*/lib",

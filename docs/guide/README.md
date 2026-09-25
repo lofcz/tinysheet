@@ -39,12 +39,14 @@ This project is originated from [Luckysheet](https://github.com/mengshukeji/Luck
 ### Operation
 + **Undo/Redo**
 + **Copy/Paste/Cut** (Copy from excel to Luckysheet with format, vice versa)
-+ **Hot key** (The operating experience is consistent with excel, if there are differences or missing, please feedback to us)
++ **Hot key** (Excel-compatible keyboard model; see [Keyboard shortcuts](./shortcuts.md))
 + **Format Painter** (Similar to google sheet)
 + ~~**Selection by drag and dropping**~~ (Change the parameters of formula and chart through selection)
 
 ### ️Formulas & functions
-+ **Built-in formulas**
++ **Formula autocomplete and argument hints** (function list while typing, signature card inside the parentheses, F4 to cycle `$` anchoring)
++ **Dynamic arrays** (results spill into neighbouring cells: SEQUENCE, FILTER, SORT, UNIQUE, XLOOKUP, LET, LAMBDA and more)
++ **Built-in formulas** (over 450 Excel functions; see [Supported functions](./functions.md))
 	+ Math (SUMIFS, AVERAGEIFS, SUMIF, SUM, etc.)
 	+ Text (CONCATENATE, REGEXMATCH, MID)
 	+ Date (DATEVALUE, DATEDIF, NOW, WEEKDAY, etc.)
@@ -77,6 +79,10 @@ This project is originated from [Luckysheet](https://github.com/mengshukeji/Luck
 
 ### Insert object
 + **Insert picture** (JPG,PNG,SVG and so on)
+
+### Appearance
++ **Light, dark and auto themes** (`theme` setting; `auto` follows the operating system; restyle with CSS variables, see [theme](./config.md#theme))
++ **Zoom** (10% to 400%, from the status bar or Ctrl + / Ctrl -)
 
 ### Misc
 + **Screenshot** (Take a screenshot with selection)

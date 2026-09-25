@@ -53,6 +53,8 @@ module.exports = {
 						'cell',
 						'op',
 						'api',
+						'shortcuts',
+						'functions',
 						'FAQ',
 						'contribute'
 					],

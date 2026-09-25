@@ -47,6 +47,8 @@ module.exports = {
   testPathIgnorePatterns: [
     "/node_modules/",
     "/worktrees/",
+    // Playwright specs (run by `bun run test:e2e`, not Jest).
+    "<rootDir>/e2e/",
     "packages/excel/test/transformExcelToFortune.xls_preview.test.js",
   ],
   // Local git worktrees duplicate every package.
