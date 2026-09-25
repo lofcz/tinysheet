@@ -55,3 +55,6 @@ export * from "./modelSync";
 export * from "./formatCells";
 export { inferFormulaFormat } from "./formatInference";
 export * from "./extensions";
+export * from "./pageSetup";
+export * from "./headerFooter";
+export * from "./printRender";
