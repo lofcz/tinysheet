@@ -14,6 +14,25 @@ const IGNORED_CONSOLE = [/favicon\.ico/];
 
 const storyUrl = (id) => `/iframe.html?id=${id}&viewMode=story`;
 
+/**
+ * A toolbar button by its accessible name. Items that do not fit the width
+ * sit in the "More" overflow: it is opened when the button is not visible.
+ */
+async function toolbarButton(page, name) {
+  const inBar = page
+    .locator(".fortune-toolbar")
+    .getByRole("button", { name, exact: true });
+  if (await inBar.first().isVisible()) return inBar.first();
+  const more = page.locator(".fortune-toolbar-more-container");
+  if (!(await more.isVisible())) {
+    await page
+      .locator(".fortune-toolbar")
+      .getByRole("button", { name: "More" })
+      .click();
+  }
+  return more.getByRole("button", { name, exact: true }).first();
+}
+
 class Sheet {
   constructor(page) {
     this.page = page;
@@ -197,4 +216,4 @@ const test = base.extend({
   },
 });
 
-module.exports = { test, expect, Sheet, storyUrl };
+module.exports = { test, expect, Sheet, storyUrl, toolbarButton };

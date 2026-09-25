@@ -1,4 +1,4 @@
-const { test, expect, Sheet } = require("../fixtures");
+const { test, expect, Sheet, toolbarButton } = require("../fixtures");
 
 // Shapes and text boxes (Insert › Shapes): draw, select, move, resize,
 // rotate, edit text, format, z-order, keyboard and undo, in the browser.
@@ -14,16 +14,7 @@ async function openStory(page, id = "shapes--gallery") {
 
 /** Open the Insert › Shapes gallery (it may sit in the "More" overflow). */
 async function openGallery(page) {
-  const button = page
-    .locator(".fortune-toolbar")
-    .getByRole("button", { name: "Shapes: Dropdown" });
-  if (!(await button.isVisible())) {
-    await page
-      .locator(".fortune-toolbar")
-      .getByRole("button", { name: "More" })
-      .click();
-  }
-  await button.click();
+  await (await toolbarButton(page, "Shapes: Dropdown")).click();
   await expect(page.locator(".fortune-shape-gallery")).toBeVisible();
 }
 

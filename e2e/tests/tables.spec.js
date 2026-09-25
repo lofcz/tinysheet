@@ -1,4 +1,4 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, toolbarButton } = require("../fixtures");
 
 // Tables and slicers (stream R14): header filter buttons, the total-row
 // dropdown, calculated columns and slicers.
@@ -77,7 +77,7 @@ test.describe("tables", () => {
   test("slicers filter the table", async ({ sheet, page }) => {
     await makeTable(sheet, page);
     await sheet.click(2, 0);
-    await page.getByRole("button", { name: "Insert Slicer" }).click();
+    await (await toolbarButton(page, "Insert Slicer")).click();
     const dialog = page.locator(".fortune-slicer-insert");
     await dialog.getByLabel("Region").check();
     await dialog.getByRole("button", { name: "OK" }).click();

@@ -1,4 +1,4 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, toolbarButton } = require("../fixtures");
 
 // PivotTables (stream R2): Insert › PivotTable, the Fields pane, protected
 // report cells, drill-down and the context menu.
@@ -44,7 +44,7 @@ async function values(page, r1, c1, r2, c2) {
 async function insertPivot(sheet, page) {
   await fillData(page);
   await sheet.click(1, 0);
-  await page.getByRole("button", { name: "Pivot Table" }).first().click();
+  await (await toolbarButton(page, "Pivot Table")).click();
   const dialog = page.getByTestId("pivot-create-dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel("Table/Range")).toHaveValue(
