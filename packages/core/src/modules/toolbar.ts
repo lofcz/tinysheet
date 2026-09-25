@@ -42,6 +42,7 @@ import { showLinkCard } from "./hyperlink";
 import { cfSplitRange } from "./conditionalFormat";
 import { getCellTextInfo } from "./text";
 import { setFormulaCellInfo } from "./formulaHelper";
+import { FreezeMode, freezePanes, toggleSplitPanes } from "./freeze";
 
 type ToolbarItemClickHandler = (
   ctx: Context,
@@ -1519,23 +1520,36 @@ export function handleSort(ctx: Context, isAsc: boolean) {
   sortSelection(ctx, isAsc);
 }
 
-export function handleFreeze(ctx: Context, type: string) {
+// Excel's Freeze Panes menu (see freezePanes) and Split.
+const FREEZE_MENU_MODES: Record<string, FreezeMode> = {
+  "freeze-panes": "panes",
+  "freeze-top-row": "topRow",
+  "freeze-first-column": "firstColumn",
+  unfreeze: "unfreeze",
+};
+
+export function handleFreeze(
+  ctx: Context,
+  type: string
+): "ok" | "tooLarge" | "noop" | undefined {
   const allowEdit = isAllowEdit(ctx);
-  if (!allowEdit) return;
+  if (!allowEdit) return undefined;
+  if (FREEZE_MENU_MODES[type]) return freezePanes(ctx, FREEZE_MENU_MODES[type]);
+  if (type === "split") return toggleSplitPanes(ctx) ? "ok" : "noop";
 
   const file = ctx.luckysheetfile[getSheetIndex(ctx, ctx.currentSheetId)!];
-  if (!file) return;
+  if (!file) return "noop";
 
   if (type === "freeze-cancel") {
     delete file.frozen;
-    return;
+    return "ok";
   }
 
   const firstSelection = ctx.luckysheet_select_save?.[0];
-  if (!firstSelection) return;
+  if (!firstSelection) return "noop";
 
   let { row_focus, column_focus } = firstSelection;
-  if (row_focus == null || column_focus == null) return;
+  if (row_focus == null || column_focus == null) return "noop";
 
   const m = ctx.config.merge?.[`${row_focus}_${column_focus}`];
   if (m) {
@@ -1549,6 +1563,7 @@ export function handleFreeze(ctx: Context, type: string) {
   } else if (type === "freeze-col") {
     file.frozen.type = "rangeColumn";
   }
+  return "ok";
 }
 
 export function handleTextSize(

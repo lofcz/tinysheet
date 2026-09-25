@@ -723,3 +723,31 @@ export function applyGoToSpecial(
   );
   return ranges.length;
 }
+
+// ---------------------------------------------------------------------------
+// Keyboard
+// ---------------------------------------------------------------------------
+
+/**
+ * Ctrl+F (Find), Ctrl+H (Replace), Ctrl+G and F5 (Go To). Returns true when
+ * the key was handled.
+ */
+export function handleNavigationShortcut(ctx: Context, e: KeyboardEvent) {
+  const mod = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey;
+  const plain = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+  if (mod && e.code === "KeyF") {
+    ctx.showSearch = true;
+    ctx.showReplace = false;
+    return true;
+  }
+  if (mod && e.code === "KeyH") {
+    ctx.showSearch = true;
+    ctx.showReplace = true;
+    return true;
+  }
+  if ((mod && e.code === "KeyG") || (plain && e.key === "F5")) {
+    ctx.showGoTo = true;
+    return true;
+  }
+  return false;
+}

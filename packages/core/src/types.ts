@@ -155,6 +155,11 @@ export type Sheet = {
   frozen?: {
     type: "row" | "column" | "both" | "rangeRow" | "rangeColumn" | "rangeBoth";
     range?: { row_focus: number; column_focus: number };
+    /** Split panes (not frozen): the top/left pane scrolls on its own. */
+    split?: boolean;
+    /** Split panes: first row / column shown in the top / left pane. */
+    top?: number;
+    left?: number;
   };
 };
 
