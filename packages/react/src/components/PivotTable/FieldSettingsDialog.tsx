@@ -367,7 +367,7 @@ export const FieldSettingsDialog: React.FC<{
                 checked={sortDesc}
                 disabled={sort !== "value"}
                 onChange={(e) => setSortDesc(e.target.checked)}
-                label={t.sortDesc}
+                label={t.descending}
               />
             </div>
           )}
@@ -527,7 +527,12 @@ export const FieldSettingsDialog: React.FC<{
               </div>
             </>
           )}
-          <div className="fortune-pivot-items" role="group">
+          <div className="fortune-pivot-dialog-subtitle">{t.showItems}</div>
+          <div
+            className="fortune-pivot-items"
+            role="group"
+            aria-label={t.showItems}
+          >
             <PivotCheck
               type="checkbox"
               checked={allChecked}

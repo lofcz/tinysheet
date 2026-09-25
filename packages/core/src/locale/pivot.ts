@@ -68,6 +68,8 @@ const en = {
   sortDesc: "Sort Z to A",
   sortNone: "Data source order",
   sortByValue: "Sort by value",
+  descending: "Descending",
+  showItems: "Show items",
   sortBy: "Sort by",
   labelFilter: "Label Filter",
   valueFilter: "Value Filter",

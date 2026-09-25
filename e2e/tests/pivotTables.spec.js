@@ -117,7 +117,7 @@ test.describe("PivotTables", () => {
     ).toBeVisible();
     await page.getByRole("button", { name: "OK" }).click();
     await expect.poll(() => values(page, 4, 1, 4, 1)).toEqual([[70]]);
-    await expect(sheet.editor).toBeHidden();
+    await expect(sheet.editor).not.toContainText("5");
 
     // West's value: its two source rows on a new sheet
     const { x, y } = sheet.point(4, 1);

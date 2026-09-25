@@ -97,6 +97,9 @@ describe("model and creation", () => {
     expect(sheet.order).toBe(0);
     expect(sheet.pivotTables[0].anchor).toEqual({ r: 2, c: 0 });
     expect(sheet.data[2][0].v).toBe("PivotTable1");
+    // the UI activates the new sheet with the report selected (Fields pane)
+    const remembered = ctx.sheetScrollRecord.pv.luckysheet_select_save;
+    expect(remembered[0].row).toEqual([2, 2]);
   });
 
   test("source suggestion: current region or table", () => {

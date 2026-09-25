@@ -1941,7 +1941,7 @@ export function createPivotTable(
   }
   if (newSheet) changeSheet(ctx, sheetId);
   const created = sheet.pivotTables.find((p) => p.id === pivot.id)!;
-  ctx.luckysheet_select_save = [
+  const selection = [
     {
       row: [created.anchor.r, created.anchor.r],
       column: [created.anchor.c, created.anchor.c],
@@ -1949,6 +1949,19 @@ export function createPivotTable(
       column_focus: created.anchor.c,
     },
   ];
+  ctx.luckysheet_select_save = selection;
+  // the UI activates a new sheet with the selection it remembers
+  if (newSheet) {
+    ctx.sheetScrollRecord = {
+      ...(ctx.sheetScrollRecord ?? {}),
+      [sheetId]: {
+        scrollLeft: 0,
+        scrollTop: 0,
+        luckysheet_select_status: false,
+        luckysheet_select_save: _.cloneDeep(selection),
+      },
+    };
+  }
   delete ctx.pivotFieldListHidden;
   return { pivot: created, sheetId };
 }
