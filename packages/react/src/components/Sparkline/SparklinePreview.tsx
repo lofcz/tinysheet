@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from "react";
-import { drawSparkline } from "@lofcz/tinysheet-core";
+import React, { useContext, useEffect, useRef } from "react";
+import { drawSparkline, resolveCellTextColor } from "@lofcz/tinysheet-core";
 import type {
   ComputedSparkline,
   SparklineGroup,
   SparklineGroupOptions,
 } from "@lofcz/tinysheet-core";
+import WorkbookContext from "../../context";
 
 /** Sample data for previews when the real data is not at hand. */
 export const SAMPLE_VALUES = [3, 5, -2, 4, 6, 1, 7, 4, -1, 5];
@@ -41,6 +42,7 @@ const SparklinePreview: React.FC<{
   className?: string;
 }> = ({ options, values = SAMPLE_VALUES, width, height, className }) => {
   const ref = useRef<HTMLCanvasElement>(null);
+  const { theme } = useContext(WorkbookContext).context;
   useEffect(() => {
     const canvas = ref.current;
     let rc: CanvasRenderingContext2D | null = null;
@@ -61,9 +63,11 @@ const SparklinePreview: React.FC<{
       group as SparklineGroup,
       previewSparkline(options, values),
       { x: 0, y: 0, w: width, h: height },
-      1
+      1,
+      // near-black colours read as the theme text colour, like on the grid
+      theme === "dark" ? (c) => resolveCellTextColor("dark", c) : undefined
     );
-  }, [options, values, width, height]);
+  }, [options, values, width, height, theme]);
   return (
     <canvas
       ref={ref}
