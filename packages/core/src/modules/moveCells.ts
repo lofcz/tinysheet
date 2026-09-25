@@ -1,5 +1,4 @@
 import _ from "lodash";
-import { getdatabyselection } from "./cell";
 
 import { Context, getFlowdata } from "../context";
 import {
@@ -14,10 +13,337 @@ import { locale } from "../locale";
 import { getBorderInfoCompute } from "./border";
 import { normalizeSelection } from "./selection";
 import { getSheetIndex, isAllowEdit } from "../utils";
-import { cfSplitRange } from "./conditionalFormat";
-import { GlobalCache } from "../types";
-import { jfrefreshgrid } from "./refresh";
+import { Cell, GlobalCache } from "../types";
 import { CFSplitRange } from "./ConditionFormat";
+import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
+import { expandRowsAndColumns } from "./sheet";
+
+/* -------------------------------------------------------------------------- */
+/*                   Moving a block of cells (cut/paste, drag)                */
+/* -------------------------------------------------------------------------- */
+
+type Rect = { row: [number, number]; column: [number, number] };
+
+function rectContains(outer: Rect, r: number, c: number) {
+  return (
+    r >= outer.row[0] &&
+    r <= outer.row[1] &&
+    c >= outer.column[0] &&
+    c <= outer.column[1]
+  );
+}
+
+function rectsIntersect(a: Rect, b: Rect) {
+  return (
+    a.row[0] <= b.row[1] &&
+    b.row[0] <= a.row[1] &&
+    a.column[0] <= b.column[1] &&
+    b.column[0] <= a.column[1]
+  );
+}
+
+/** `rect` minus `hole`, as up to four rectangles. */
+export function subtractRect(rect: Rect, hole: Rect): Rect[] {
+  if (!rectsIntersect(rect, hole)) return [rect];
+  const out: Rect[] = [];
+  const top = Math.max(rect.row[0], hole.row[0]);
+  const bottom = Math.min(rect.row[1], hole.row[1]);
+  if (rect.row[0] < hole.row[0]) {
+    out.push({ row: [rect.row[0], hole.row[0] - 1], column: rect.column });
+  }
+  if (rect.row[1] > hole.row[1]) {
+    out.push({ row: [hole.row[1] + 1, rect.row[1]], column: rect.column });
+  }
+  if (rect.column[0] < hole.column[0]) {
+    out.push({
+      row: [top, bottom],
+      column: [rect.column[0], hole.column[0] - 1],
+    });
+  }
+  if (rect.column[1] > hole.column[1]) {
+    out.push({
+      row: [top, bottom],
+      column: [hole.column[1] + 1, rect.column[1]],
+    });
+  }
+  return out;
+}
+
+/** Whether a merged area is cut (partly covered) by `rect`. */
+export function rangeCutsMerge(
+  merge: Record<string, { r: number; c: number; rs: number; cs: number }>,
+  rect: Rect
+) {
+  return _.some(merge, (mc) => {
+    const m: Rect = {
+      row: [mc.r, mc.r + mc.rs - 1],
+      column: [mc.c, mc.c + mc.cs - 1],
+    };
+    if (!rectsIntersect(m, rect)) return false;
+    return !(
+      rectContains(rect, m.row[0], m.column[0]) &&
+      rectContains(rect, m.row[1], m.column[1])
+    );
+  });
+}
+
+/** The live config of a sheet (ctx.config for the current sheet). */
+export function liveSheetConfig(ctx: Context, sheetId: string) {
+  const file = ctx.luckysheetfile[getSheetIndex(ctx, sheetId) as number];
+  if (sheetId === ctx.currentSheetId) {
+    if (ctx.config == null) ctx.config = file.config || {};
+    return ctx.config;
+  }
+  if (file.config == null) file.config = {};
+  return file.config;
+}
+
+/** Remove the borders of `rect` from a border list. */
+export function stripBorders(borderInfo: any[] | undefined, rect: Rect) {
+  if (!borderInfo || borderInfo.length === 0) return borderInfo;
+  const out: any[] = [];
+  borderInfo.forEach((b) => {
+    if (b.rangeType === "cell") {
+      if (!rectContains(rect, b.value.row_index, b.value.col_index)) {
+        out.push(b);
+      }
+    } else if (b.rangeType === "range") {
+      let ranges: Rect[] = [];
+      (b.range || []).forEach((r: Rect) => {
+        ranges = ranges.concat(subtractRect(r, rect));
+      });
+      if (ranges.length > 0) out.push({ ...b, range: ranges });
+    } else {
+      out.push(b);
+    }
+  });
+  return out;
+}
+
+/** Border entries reproducing computed borders `bd` at (r, c). */
+export function borderEntriesForCell(bd: any, r: number, c: number) {
+  const out: any[] = [];
+  if (!bd) return out;
+  if (bd.l || bd.r || bd.t || bd.b) {
+    out.push({
+      rangeType: "cell",
+      value: { row_index: r, col_index: c, l: bd.l, r: bd.r, t: bd.t, b: bd.b },
+    });
+  }
+  if (bd.s) {
+    out.push({
+      rangeType: "range",
+      borderType: "border-slash",
+      color: bd.s.color,
+      style: bd.s.style,
+      range: [{ row: [r, r], column: [c, c] }],
+    });
+  }
+  return out;
+}
+
+export type MoveSource = { sheetId: string; range: Rect };
+export type MoveTarget = { sheetId: string; row: number; column: number };
+
+/**
+ * Move a block of cells, like Excel's cut/paste or drag-and-drop: values,
+ * formulas (text unchanged), formats, merges, borders, comments, data
+ * validation, hyperlinks and conditional-format ranges go to the target, the
+ * source becomes empty, and every reference in the workbook that pointed
+ * inside the block now points at its new location (references to the
+ * overwritten target cells become #REF!).
+ *
+ * Throws Error("partMC") when the source or the target would cut a merged
+ * area. Returns false when nothing was moved.
+ */
+export function moveCellRange(
+  ctx: Context,
+  source: MoveSource,
+  target: MoveTarget
+) {
+  const srcIdx = getSheetIndex(ctx, source.sheetId);
+  const dstIdx = getSheetIndex(ctx, target.sheetId);
+  if (srcIdx == null || dstIdx == null) return false;
+  const srcFile = ctx.luckysheetfile[srcIdx];
+  const dstFile = ctx.luckysheetfile[dstIdx];
+  const srcData = srcFile.data;
+  const dstData = dstFile.data;
+  if (!srcData || !dstData) return false;
+
+  const range: Rect = {
+    row: [source.range.row[0], source.range.row[1]],
+    column: [source.range.column[0], source.range.column[1]],
+  };
+  const h = range.row[1] - range.row[0] + 1;
+  const w = range.column[1] - range.column[0] + 1;
+  const dr = target.row - range.row[0];
+  const dc = target.column - range.column[0];
+  const dest: Rect = {
+    row: [target.row, target.row + h - 1],
+    column: [target.column, target.column + w - 1],
+  };
+  const sameSheet = source.sheetId === target.sheetId;
+  if (sameSheet && dr === 0 && dc === 0) return false;
+  if (target.row < 0 || target.column < 0) return false;
+
+  const srcCfg = liveSheetConfig(ctx, source.sheetId);
+  const dstCfg = sameSheet ? srcCfg : liveSheetConfig(ctx, target.sheetId);
+  if (
+    rangeCutsMerge(srcCfg.merge || {}, range) ||
+    rangeCutsMerge(dstCfg.merge || {}, dest)
+  ) {
+    throw new Error("partMC");
+  }
+
+  // grow the target sheet when needed
+  const addr = dest.row[1] - dstData.length + 1;
+  const addc = dest.column[1] - (dstData[0]?.length ?? 0) + 1;
+  if (addr > 0 || addc > 0) {
+    expandRowsAndColumns(dstData, Math.max(addr, 0), Math.max(addc, 0));
+  }
+
+  // 1. references everywhere (moved formulas are rewritten in place)
+  adjustReferences(ctx, {
+    type: "move",
+    sheetId: source.sheetId,
+    range,
+    toSheetId: target.sheetId,
+    toRow: target.row,
+    toColumn: target.column,
+  });
+
+  // 2. snapshot the source block
+  const cells: (Cell | null)[][] = [];
+  for (let i = 0; i < h; i += 1) {
+    const row: (Cell | null)[] = [];
+    for (let j = 0; j < w; j += 1) {
+      const cell = srcData[range.row[0] + i]?.[range.column[0] + j];
+      row.push(cell == null ? null : _.cloneDeep(cell));
+    }
+    cells.push(row);
+  }
+  const borders = getBorderInfoCompute(
+    ctx,
+    source.sheetId === ctx.currentSheetId ? undefined : source.sheetId
+  );
+  const takeKeyed = (obj: Record<string, any> | undefined) => {
+    const moved: Record<string, any> = {};
+    if (!obj) return moved;
+    Object.keys(obj).forEach((key) => {
+      const [r, c] = key.split("_").map(Number);
+      if (rectContains(range, r, c)) {
+        moved[`${r + dr}_${c + dc}`] = obj[key];
+        delete obj[key];
+      }
+    });
+    return moved;
+  };
+  const movedDV = takeKeyed(srcFile.dataVerification);
+  const movedLinks = takeKeyed(srcFile.hyperlink);
+  const srcMerges: any[] = [];
+  _.forEach(srcCfg.merge, (mc, key) => {
+    if (rectContains(range, mc.r, mc.c)) {
+      srcMerges.push(mc);
+      delete srcCfg.merge![key];
+    }
+  });
+
+  // 3. clear the source
+  for (let r = range.row[0]; r <= range.row[1]; r += 1) {
+    for (let c = range.column[0]; c <= range.column[1]; c += 1) {
+      if (srcData[r]) srcData[r][c] = null;
+    }
+  }
+  srcCfg.borderInfo = stripBorders(srcCfg.borderInfo, range);
+
+  // 4. write the target
+  _.forEach(dstCfg.merge, (mc, key) => {
+    if (rectContains(dest, mc.r, mc.c)) delete dstCfg.merge![key];
+  });
+  const dropKeyed = (obj: Record<string, any> | undefined) => {
+    if (!obj) return;
+    Object.keys(obj).forEach((key) => {
+      const [r, c] = key.split("_").map(Number);
+      if (rectContains(dest, r, c)) delete obj[key];
+    });
+  };
+  dropKeyed(dstFile.dataVerification);
+  dropKeyed(dstFile.hyperlink);
+  dstCfg.borderInfo = stripBorders(dstCfg.borderInfo, dest);
+
+  for (let i = 0; i < h; i += 1) {
+    for (let j = 0; j < w; j += 1) {
+      const cell = cells[i][j];
+      if (cell?.mc) {
+        cell.mc = { ...cell.mc, r: cell.mc.r + dr, c: cell.mc.c + dc };
+      }
+      const r = dest.row[0] + i;
+      const c = dest.column[0] + j;
+      dstData[r][c] = cell;
+      const entries = borderEntriesForCell(
+        borders[`${range.row[0] + i}_${range.column[0] + j}`],
+        r,
+        c
+      );
+      if (entries.length > 0) {
+        dstCfg.borderInfo = [...(dstCfg.borderInfo || []), ...entries];
+      }
+    }
+  }
+  if (srcMerges.length > 0) {
+    if (!dstCfg.merge) dstCfg.merge = {};
+    srcMerges.forEach((mc) => {
+      const next = { ...mc, r: mc.r + dr, c: mc.c + dc };
+      dstCfg.merge![`${next.r}_${next.c}`] = next;
+    });
+  }
+  if (!_.isEmpty(movedDV)) {
+    dstFile.dataVerification = {
+      ...(dstFile.dataVerification || {}),
+      ...movedDV,
+    };
+  }
+  if (!_.isEmpty(movedLinks)) {
+    dstFile.hyperlink = { ...(dstFile.hyperlink || {}), ...movedLinks };
+  }
+
+  // conditional formats: the moved part of a rule goes with the cells
+  const srcCF = srcFile.luckysheet_conditionformat_save;
+  if (srcCF && srcCF.length > 0) {
+    const carried: any[] = [];
+    srcFile.luckysheet_conditionformat_save = srcCF
+      .map((rule: any) => {
+        let rest: any[] = [];
+        let moved: any[] = [];
+        (rule.cellrange || []).forEach((cr: Rect) => {
+          if (sameSheet) {
+            rest = rest.concat(CFSplitRange(cr, range, dest, "allPart"));
+          } else {
+            rest = rest.concat(CFSplitRange(cr, range, dest, "restPart"));
+            moved = moved.concat(CFSplitRange(cr, range, dest, "operatePart"));
+          }
+        });
+        if (moved.length > 0) {
+          carried.push({ ..._.cloneDeep(rule), cellrange: moved });
+        }
+        return { ...rule, cellrange: rest };
+      })
+      .filter((rule: any) => rule.cellrange.length > 0);
+    if (carried.length > 0) {
+      dstFile.luckysheet_conditionformat_save = [
+        ...(dstFile.luckysheet_conditionformat_save || []),
+        ...carried,
+      ];
+    }
+  }
+
+  // keep the workbook copies of the live configs in sync
+  srcFile.config = srcCfg;
+  dstFile.config = dstCfg;
+
+  recalcAfterStructuralChange(ctx);
+  return true;
+}
 
 const dragCellThreshold = 8;
 
@@ -239,8 +565,6 @@ export function onCellsMoveEnd(
   const last =
     ctx.luckysheet_select_save[ctx.luckysheet_select_save.length - 1];
 
-  const data = _.cloneDeep(getdatabyselection(ctx, last, ctx.currentSheetId));
-
   const cfg = ctx.config;
   if (cfg.merge == null) {
     cfg.merge = {};
@@ -319,202 +643,19 @@ export function onCellsMoveEnd(
     // return;
   }
 
-  const borderInfoCompute = getBorderInfoCompute(ctx, ctx.currentSheetId);
-
-  const hyperLinkList: Record<
-    string,
+  // move cells, formats, merges, borders, validation, links and CF, and
+  // rewrite every reference to the moved cells (Excel semantics)
+  moveCellRange(
+    ctx,
     {
-      linkType: string;
-      linkAddress: string;
-    }
-  > = {};
-  // 删除原本位置的数据
-  // const RowlChange = null;
-  const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-  for (let r = last.row[0]; r <= last.row[1]; r += 1) {
-    // if (r in cfg.rowlen) {
-    //   RowlChange = true;
-    // }
-
-    for (let c = last.column[0]; c <= last.column[1]; c += 1) {
-      const cellData = d[r][c];
-
-      if (cellData?.mc != null) {
-        const mergeKey = `${cellData.mc.r}_${c}`;
-        if (cfg.merge[mergeKey] != null) {
-          delete cfg.merge[mergeKey];
-        }
-      }
-
-      d[r][c] = null;
-      if (ctx.luckysheetfile[index].hyperlink?.[`${r}_${c}`]) {
-        hyperLinkList[`${r}_${c}`] =
-          ctx.luckysheetfile[index].hyperlink?.[`${r}_${c}`]!;
-        delete ctx.luckysheetfile[
-          getSheetIndex(ctx, ctx.currentSheetId) as number
-        ].hyperlink?.[`${r}_${c}`];
-      }
-    }
-  }
-  // 边框
-  if (cfg.borderInfo && cfg.borderInfo.length > 0) {
-    const borderInfo = [];
-
-    for (let i = 0; i < cfg.borderInfo.length; i += 1) {
-      const bd_rangeType = cfg.borderInfo[i].rangeType;
-
-      if (
-        bd_rangeType === "range" &&
-        cfg.borderInfo[i].borderType !== "border-slash"
-      ) {
-        const bd_range = cfg.borderInfo[i].range;
-        let bd_emptyRange: any[] = [];
-        for (let j = 0; j < bd_range.length; j += 1) {
-          bd_emptyRange = bd_emptyRange.concat(
-            cfSplitRange(
-              bd_range[j],
-              { row: last.row, column: last.column },
-              { row: [row_s, row_e], column: [col_s, col_e] },
-              "restPart"
-            )
-          );
-        }
-
-        cfg.borderInfo[i].range = bd_emptyRange;
-        borderInfo.push(cfg.borderInfo[i]);
-      } else if (bd_rangeType === "cell") {
-        const bd_r = cfg.borderInfo[i].value.row_index;
-        const bd_c = cfg.borderInfo[i].value.col_index;
-
-        if (
-          !(
-            bd_r >= last.row[0] &&
-            bd_r <= last.row[1] &&
-            bd_c >= last.column[0] &&
-            bd_c <= last.column[1]
-          )
-        ) {
-          borderInfo.push(cfg.borderInfo[i]);
-        }
-      } else if (
-        bd_rangeType === "range" &&
-        cfg.borderInfo[i].borderType === "border-slash" &&
-        !(
-          cfg.borderInfo[i].range[0].row[0] >= last.row[0] &&
-          cfg.borderInfo[i].range[0].row[0] <= last.row[1] &&
-          cfg.borderInfo[i].range[0].column[0] >= last.column[0] &&
-          cfg.borderInfo[i].range[0].column[0] <= last.column[1]
-        )
-      ) {
-        borderInfo.push(cfg.borderInfo[i]);
-      }
-    }
-
-    cfg.borderInfo = borderInfo;
-  }
-  // 替换位置数据更新
-  const offsetMC: Record<string, any> = {};
-  for (let r = 0; r < data.length; r += 1) {
-    for (let c = 0; c < data[0].length; c += 1) {
-      if (
-        borderInfoCompute[`${r + last.row[0]}_${c + last.column[0]}`] &&
-        !borderInfoCompute[`${r + last.row[0]}_${c + last.column[0]}`].s
-      ) {
-        const bd_obj = {
-          rangeType: "cell",
-          value: {
-            row_index: r + row_s,
-            col_index: c + col_s,
-            l: borderInfoCompute[`${r + last.row[0]}_${c + last.column[0]}`].l,
-            r: borderInfoCompute[`${r + last.row[0]}_${c + last.column[0]}`].r,
-            t: borderInfoCompute[`${r + last.row[0]}_${c + last.column[0]}`].t,
-            b: borderInfoCompute[`${r + last.row[0]}_${c + last.column[0]}`].b,
-          },
-        };
-
-        if (cfg.borderInfo == null) {
-          cfg.borderInfo = [];
-        }
-
-        cfg.borderInfo.push(bd_obj);
-      } else if (
-        borderInfoCompute[`${r + last.row[0]}_${c + last.column[0]}`]
-      ) {
-        const bd_obj = {
-          rangeType: "range",
-          borderType: "border-slash",
-          color:
-            borderInfoCompute[`${r + last.row[0]}_${c + last.column[0]}`].s
-              .color!,
-          style:
-            borderInfoCompute[`${r + last.row[0]}_${c + last.column[0]}`].s
-              .style!,
-          range: normalizeSelection(ctx, [
-            { row: [r + row_s, r + row_s], column: [c + col_s, c + col_s] },
-          ]),
-        };
-
-        if (cfg.borderInfo == null) {
-          cfg.borderInfo = [];
-        }
-
-        cfg.borderInfo.push(bd_obj);
-      }
-
-      let value = null;
-      if (data[r] != null && data[r][c] != null) {
-        value = data[r][c];
-      }
-
-      if (value?.mc != null) {
-        const mc = _.assign({}, value.mc);
-        if ("rs" in value.mc) {
-          _.set(offsetMC, `${mc.r}_${mc.c}`, [r + row_s, c + col_s]);
-
-          value.mc.r = r + row_s;
-          value.mc.c = c + col_s;
-
-          _.set(cfg.merge, `${r + row_s}_${c + col_s}`, value.mc);
-        } else {
-          _.set(value.mc, "r", offsetMC[`${mc.r}_${mc.c}`][0]);
-          _.set(value.mc, "c", offsetMC[`${mc.r}_${mc.c}`][1]);
-        }
-      }
-      d[r + row_s][c + col_s] = value;
-      if (hyperLinkList?.[`${r + last.row[0]}_${c + last.column[0]}`]) {
-        ctx.luckysheetfile[index].hyperlink![`${r + row_s}_${c + col_s}`] =
-          hyperLinkList?.[`${r + last.row[0]}_${c + last.column[0]}`] as {
-            linkType: string;
-            linkAddress: string;
-          };
-      }
-    }
-  }
-
-  // if (RowlChange) {
-  //   cfg = rowlenByRange(d, last.row[0], last.row[1], cfg);
-  //   cfg = rowlenByRange(d, row_s, row_e, cfg);
-  // }
-  // 条件格式
-  const cdformat =
-    ctx.luckysheetfile[getSheetIndex(ctx, ctx.currentSheetId) as number]
-      .luckysheet_conditionformat_save ?? [];
-  if (cdformat != null && cdformat.length > 0) {
-    for (let i = 0; i < cdformat.length; i += 1) {
-      const cdformat_cellrange = cdformat[i].cellrange;
-      let emptyRange: any = [];
-      for (let j = 0; j < cdformat_cellrange.length; j += 1) {
-        const range = CFSplitRange(
-          cdformat_cellrange[j],
-          { row: last.row, column: last.column },
-          { row: [row_s, row_e], column: [col_s, col_e] },
-          "allPart"
-        );
-        emptyRange = emptyRange.concat(range);
-      }
-      cdformat[i].cellrange = emptyRange;
-    }
-  }
+      sheetId: ctx.currentSheetId,
+      range: {
+        row: [last.row[0], last.row[1]],
+        column: [last.column[0], last.column[1]],
+      },
+    },
+    { sheetId: ctx.currentSheetId, row: row_s, column: col_s }
+  );
 
   let rf;
   if (
@@ -536,27 +677,11 @@ export function onCellsMoveEnd(
     cf = col_e;
   }
 
-  const range = [];
-  range.push({ row: last.row, column: last.column });
-  range.push({ row: [row_s, row_e], column: [col_s, col_e] });
-
   last.row = [row_s, row_e];
   last.column = [col_s, col_e];
   last.row_focus = rf;
   last.column_focus = cf;
   ctx.luckysheet_select_save = normalizeSelection(ctx, [last]);
-  const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
-  if (sheetIndex != null) {
-    ctx.luckysheetfile[sheetIndex].config = _.assign({}, cfg);
-  }
-
-  // const allParam = {
-  //   cfg,
-  //   RowlChange,
-  //   cdformat,
-  // };
-
-  jfrefreshgrid(ctx, d, range);
 
   // selectHightlightShow();
 
