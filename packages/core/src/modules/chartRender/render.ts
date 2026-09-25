@@ -1,140 +1,104 @@
 /**
  * Pure SVG chart renderer: column, bar, line, area (clustered, stacked and
- * 100% stacked), pie, doughnut and scatter. Output is a standalone SVG string
- * so it can be inlined in the sheet's chart layer, turned into a data URI for
- * an image, or rasterised for xlsx export.
+ * 100% stacked), combo (per-series column/line/area with a secondary axis),
+ * pie, doughnut, scatter, bubble, radar, waterfall, histogram, Pareto,
+ * funnel and stock. Output is a standalone SVG string so it can be inlined
+ * in the sheet's chart layer, turned into a data URI for an image, or
+ * rasterised for export.
  */
-import { computeAxisScale, formatAxisTick, AxisScale } from "./axis";
-import { escapeXml, roundSvgNumber as n } from "./legacy";
+import { computeErrorAmounts } from "./stats";
+import {
+  layoutCategoryFrame,
+  layoutXYFrame,
+  makeValueAxis,
+  CategoryFrame,
+} from "./frame";
+import {
+  barLabelPlace,
+  drawErrorBars,
+  drawTrendlines,
+  drawTrendNotes,
+  pointLabelPlace,
+  TrendContext,
+  trendlineTypeLabel,
+} from "./marks";
+import {
+  renderFunnel,
+  renderHistogram,
+  renderRadar,
+  renderStock,
+  renderWaterfall,
+} from "./special";
+import {
+  categoryCount,
+  categoryLabel,
+  circle,
+  dataLabelText,
+  escapeXml,
+  estimateTextWidth,
+  fillExtra,
+  finite,
+  formatChartNumber,
+  GAP_WIDTH,
+  LABEL_SIZE,
+  LEGEND_SIZE,
+  line,
+  n,
+  PAD,
+  pointColor,
+  rect,
+  Rect,
+  renderLabels,
+  svgText,
+  TITLE_SIZE,
+  truncateText,
+} from "./svg";
 import { chartThemes } from "./theme";
 import type {
   ChartRenderModel,
   ChartRenderSeries,
+  ChartSeriesType,
   ChartTheme,
   ChartType,
 } from "./types";
 
-type Rect = { x: number; y: number; width: number; height: number };
+export { estimateTextWidth, formatChartNumber };
 
-type LegendItem = { label: string; color: string; line: boolean };
+type LegendKind = "box" | "line" | "lineMarker" | "marker" | "dotted";
+type LegendItem = { label: string; color: string; kind: LegendKind };
 
-const TITLE_SIZE = 14;
-const LABEL_SIZE = 10;
-const LEGEND_SIZE = 10;
-const AXIS_TITLE_SIZE = 10;
-const PAD = 8;
-/** Excel's default gap width (150% of a bar). */
-const GAP_WIDTH = 1.5;
 const DOUGHNUT_HOLE = 0.5;
 
-/** Rough text width for Calibri/Arial-like fonts (no DOM measuring). */
-export function estimateTextWidth(str: string, fontSize: number) {
-  let units = 0;
-  for (let i = 0; i < str.length; i += 1) {
-    const code = str.charCodeAt(i);
-    if (code > 0x2e80) units += 1;
-    else if ("iljtfI.,:;'!| ".indexOf(str[i]) >= 0) units += 0.32;
-    else if ("mwMW".indexOf(str[i]) >= 0) units += 0.85;
-    else if (str[i] >= "A" && str[i] <= "Z") units += 0.64;
-    else units += 0.54;
+const CATEGORY_TYPES: ChartType[] = ["column", "bar", "line", "area", "combo"];
+
+function isCategoryChart(type: ChartType) {
+  return CATEGORY_TYPES.includes(type);
+}
+
+type Kind = "column" | "bar" | "line" | "area";
+
+function seriesKind(model: ChartRenderModel, s: ChartRenderSeries): Kind {
+  switch (model.type) {
+    case "bar":
+      return "bar";
+    case "combo":
+      return (s.type ?? "column") as ChartSeriesType;
+    case "line":
+    case "area":
+      return model.type;
+    default:
+      return "column";
   }
-  return units * fontSize;
 }
 
-function truncateText(str: string, maxWidth: number, fontSize: number) {
-  if (maxWidth <= 0) return "";
-  if (estimateTextWidth(str, fontSize) <= maxWidth) return str;
-  let out = str;
-  while (out.length > 1 && estimateTextWidth(`${out}…`, fontSize) > maxWidth) {
-    out = out.slice(0, -1);
-  }
-  return out.length <= 1 ? "" : `${out}…`;
-}
-
-/** Excel "General"-like number text for data labels. */
-export function formatChartNumber(value: number) {
-  if (!Number.isFinite(value)) return "";
-  if (Number.isInteger(value)) return String(value);
-  const abs = Math.abs(value);
-  if (abs >= 1e11 || abs < 1e-9) return value.toExponential(2);
-  const digits = Math.max(0, 10 - Math.floor(Math.log10(abs) + 1));
-  return String(parseFloat(value.toFixed(Math.min(digits, 9))));
-}
-
-function svgText(
-  x: number,
-  y: number,
-  content: string,
-  opts: {
-    size: number;
-    fill: string;
-    anchor?: "start" | "middle" | "end";
-    weight?: string;
-    baseline?: string;
-    rotate?: number;
-    family: string;
-  }
-) {
-  if (!content) return "";
-  const rotate =
-    opts.rotate != null
-      ? ` transform="rotate(${opts.rotate} ${n(x)} ${n(y)})"`
-      : "";
-  return `<text x="${n(x)}" y="${n(y)}" font-family="${escapeXml(
-    opts.family
-  )}" font-size="${opts.size}"${
-    opts.weight ? ` font-weight="${opts.weight}"` : ""
-  } fill="${escapeXml(opts.fill)}" text-anchor="${opts.anchor || "start"}"${
-    opts.baseline ? ` dominant-baseline="${opts.baseline}"` : ""
-  }${rotate}>${escapeXml(content)}</text>`;
-}
-
-function line(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  stroke: string,
-  width = 1
-) {
-  return `<line x1="${n(x1)}" y1="${n(y1)}" x2="${n(x2)}" y2="${n(
-    y2
-  )}" stroke="${escapeXml(stroke)}" stroke-width="${width}"/>`;
-}
-
-function rect(r: Rect, fill: string, extra = "") {
-  return `<rect x="${n(r.x)}" y="${n(r.y)}" width="${n(
-    Math.max(0, r.width)
-  )}" height="${n(Math.max(0, r.height))}" fill="${escapeXml(fill)}"${extra}/>`;
-}
-
-function isCartesian(type: ChartType) {
-  return type !== "pie" && type !== "doughnut";
-}
-
-function finite(v: number | null | undefined): v is number {
-  return v != null && Number.isFinite(v);
-}
-
-function categoryCount(model: ChartRenderModel) {
-  let count = model.categories.length;
-  model.series.forEach((s) => {
-    count = Math.max(count, s.values.length);
-  });
-  return count;
-}
-
-function categoryLabel(model: ChartRenderModel, i: number) {
-  const label = model.categories[i];
-  return label != null && label !== "" ? label : String(i + 1);
-}
-
-function pointColor(
-  model: ChartRenderModel,
-  series: ChartRenderSeries,
-  index: number
-) {
-  return series.pointColors?.[index] || series.color;
+function onSecondary(model: ChartRenderModel, s: ChartRenderSeries) {
+  return (
+    !!s.secondary &&
+    (model.type === "combo" ||
+      model.type === "column" ||
+      model.type === "line" ||
+      model.type === "area")
+  );
 }
 
 function usesPointLegend(model: ChartRenderModel) {
@@ -146,7 +110,22 @@ function usesPointLegend(model: ChartRenderModel) {
   );
 }
 
+function trendLegendItems(model: ChartRenderModel): LegendItem[] {
+  const out: LegendItem[] = [];
+  model.series.forEach((s) => {
+    s.trendlines?.forEach((t) => {
+      out.push({
+        label: t.name || `${trendlineTypeLabel(t)} (${s.name})`,
+        color: t.color || s.color,
+        kind: "dotted",
+      });
+    });
+  });
+  return out;
+}
+
 function legendItems(model: ChartRenderModel): LegendItem[] {
+  const labels = renderLabels(model);
   if (usesPointLegend(model)) {
     const first = model.series[0];
     if (!first) return [];
@@ -155,49 +134,103 @@ function legendItems(model: ChartRenderModel): LegendItem[] {
     for (let i = 0; i < count; i += 1) {
       items.push({
         label: categoryLabel(model, i),
-        color: pointColor(model, first, i),
-        line: false,
+        color: pointColor(first, i),
+        kind: "box",
       });
     }
     return items;
   }
-  const lineLike =
-    model.type === "line" ||
-    (model.type === "scatter" && model.scatterLines === true);
-  return model.series.map((s) => ({
-    label: s.name,
-    color: s.color,
-    line: lineLike,
-  }));
+  const first = model.series[0];
+  switch (model.type) {
+    case "waterfall": {
+      const [inc, dec, tot] = model.waterfallColors ?? [
+        "#4472C4",
+        "#ED7D31",
+        "#A5A5A5",
+      ];
+      return [
+        { label: labels.increase, color: inc, kind: "box" },
+        { label: labels.decrease, color: dec, kind: "box" },
+        { label: labels.total, color: tot, kind: "box" },
+      ];
+    }
+    case "histogram":
+    case "funnel":
+      return first
+        ? [{ label: first.name, color: first.color, kind: "box" }]
+        : [];
+    case "pareto":
+      return first
+        ? [
+            { label: first.name, color: first.color, kind: "box" },
+            {
+              label: labels.cumulative,
+              color: model.series[1]?.color ?? "#ED7D31",
+              kind: "line",
+            },
+          ]
+        : [];
+    case "stock":
+    case "bubble":
+      return model.series.map((s) => ({
+        label: s.name,
+        color: s.color,
+        kind: "marker" as LegendKind,
+      }));
+    case "radar": {
+      const style = model.radarStyle ?? "marker";
+      let kind: LegendKind = "line";
+      if (style === "filled") kind = "box";
+      else if (style === "marker") kind = "lineMarker";
+      return model.series.map((s) => ({ label: s.name, color: s.color, kind }));
+    }
+    case "scatter": {
+      let kind: LegendKind = "marker";
+      if (model.scatterLines)
+        kind = model.markers !== false ? "lineMarker" : "line";
+      return [
+        ...model.series.map((s) => ({ label: s.name, color: s.color, kind })),
+        ...trendLegendItems(model),
+      ];
+    }
+    default:
+      break;
+  }
+  return [
+    ...model.series.map((s) => {
+      const k = seriesKind(model, s);
+      let kind: LegendKind = "box";
+      if (k === "line") kind = model.markers !== false ? "lineMarker" : "line";
+      return { label: s.name, color: s.color, kind };
+    }),
+    ...trendLegendItems(model),
+  ];
 }
 
-function renderLegendSwatch(
-  item: LegendItem,
-  x: number,
-  cy: number,
-  model: ChartRenderModel
-) {
-  if (item.line) {
-    let out = line(x, cy, x + 16, cy, item.color, 2);
-    if (model.markers !== false) {
-      out += `<circle cx="${n(x + 8)}" cy="${n(cy)}" r="3" fill="${escapeXml(
-        item.color
-      )}"/>`;
+function renderLegendSwatch(item: LegendItem, x: number, cy: number) {
+  const c = escapeXml(item.color);
+  switch (item.kind) {
+    case "line":
+    case "lineMarker": {
+      let out = line(x, cy, x + 16, cy, item.color, 2);
+      if (item.kind === "lineMarker") out += circle(x + 8, cy, 3, item.color);
+      return { svg: out, width: 16 };
     }
-    return { svg: out, width: 16 };
+    case "dotted":
+      return {
+        svg: `<line x1="${n(x)}" y1="${n(cy)}" x2="${n(x + 16)}" y2="${n(
+          cy
+        )}" stroke="${c}" stroke-width="1.75" stroke-dasharray="2 3"/>`,
+        width: 16,
+      };
+    case "marker":
+      return { svg: circle(x + 4, cy, 3.5, item.color), width: 8 };
+    default:
+      return {
+        svg: rect({ x, y: cy - 4, width: 8, height: 8 }, item.color),
+        width: 8,
+      };
   }
-  if (model.type === "scatter") {
-    return {
-      svg: `<circle cx="${n(x + 4)}" cy="${n(cy)}" r="3.5" fill="${escapeXml(
-        item.color
-      )}"/>`,
-      width: 8,
-    };
-  }
-  return {
-    svg: rect({ x, y: cy - 4, width: 8, height: 8 }, item.color),
-    width: 8,
-  };
 }
 
 /**
@@ -217,7 +250,10 @@ function layoutLegend(
     const maxText = Math.max(
       ...items.map((it) => estimateTextWidth(it.label, LEGEND_SIZE))
     );
-    const legendW = Math.min(maxText + 26, area.width * 0.4);
+    const swatchW = Math.max(
+      ...items.map((it) => renderLegendSwatch(it, 0, 0).width)
+    );
+    const legendW = Math.min(maxText + swatchW + 12, area.width * 0.4);
     const visibleRows = Math.max(1, Math.floor(area.height / rowH));
     const shown = items.slice(0, visibleRows);
     const totalH = shown.length * rowH;
@@ -225,13 +261,17 @@ function layoutLegend(
       position === "right" ? area.x + area.width - legendW + 4 : area.x + 2;
     let y = area.y + Math.max(0, (area.height - totalH) / 2) + rowH / 2;
     shown.forEach((item) => {
-      const swatch = renderLegendSwatch(item, x0, y, model);
+      const swatch = renderLegendSwatch(item, x0, y);
       out.push(swatch.svg);
       out.push(
         svgText(
           x0 + swatch.width + 5,
           y,
-          truncateText(item.label, legendW - swatch.width - 10, LEGEND_SIZE),
+          truncateText(
+            item.label,
+            legendW - swatch.width - 7 + 0.01,
+            LEGEND_SIZE
+          ),
           {
             size: LEGEND_SIZE,
             fill: theme.text,
@@ -280,7 +320,7 @@ function layoutLegend(
         estimateTextWidth(item.label, LEGEND_SIZE) + 30,
         maxRowW
       );
-      const swatch = renderLegendSwatch(item, x, y, model);
+      const swatch = renderLegendSwatch(item, x, y);
       out.push(swatch.svg);
       out.push(
         svgText(
@@ -305,364 +345,291 @@ function layoutLegend(
 }
 
 // ---------------------------------------------------------------------------
-// Cartesian charts
+// Category charts: column, bar, line, area, combo
 // ---------------------------------------------------------------------------
 
-type StackInfo = {
-  /** Plotted [start, end] per series per category (after stacking). */
-  spans: ([number, number] | null)[][];
-  min: number;
-  max: number;
+type Spans = ([number, number] | null)[];
+
+type Group = {
+  kind: Kind;
+  secondary: boolean;
+  /** Series indices in the group. */
+  members: number[];
+  spans: Map<number, Spans>;
 };
 
-function computeStacks(model: ChartRenderModel, count: number): StackInfo {
+function stackGroup(
+  model: ChartRenderModel,
+  group: Group,
+  count: number,
+  track: (v: number, secondary: boolean) => void
+) {
   const grouping = model.grouping ?? "clustered";
-  const spans: ([number, number] | null)[][] = model.series.map(() => []);
-  let min = Infinity;
-  let max = -Infinity;
-  const track = (v: number) => {
-    if (v < min) min = v;
-    if (v > max) max = v;
-  };
-  if (grouping === "clustered" || model.type === "scatter") {
-    model.series.forEach((s, si) => {
+  const bars = group.kind === "column" || group.kind === "bar";
+  group.members.forEach((si) => group.spans.set(si, []));
+  if (grouping === "clustered") {
+    group.members.forEach((si) => {
+      const s = model.series[si];
+      const spans = group.spans.get(si)!;
       for (let i = 0; i < count; i += 1) {
         const v = s.values[i];
         if (finite(v)) {
-          spans[si][i] = [0, v];
-          track(v);
-        } else spans[si][i] = null;
+          spans[i] = [0, v];
+          track(v, group.secondary);
+        } else spans[i] = null;
       }
     });
-  } else {
-    for (let i = 0; i < count; i += 1) {
-      let total = 0;
-      if (grouping === "percentStacked") {
-        model.series.forEach((s) => {
-          const v = s.values[i];
-          if (finite(v)) total += Math.abs(v);
-        });
-      }
-      // Bars stack positives up and negatives down from zero; lines and
-      // areas keep one running total and treat blanks as zero.
-      const bars = model.type === "column" || model.type === "bar";
-      let pos = 0;
-      let neg = 0;
-      let running = 0;
-      model.series.forEach((s, si) => {
-        let v = s.values[i];
-        if (!finite(v)) {
-          if (bars) {
-            spans[si][i] = null;
-            return;
-          }
-          v = 0;
-        }
-        if (grouping === "percentStacked") v = total === 0 ? 0 : v / total;
-        let start: number;
-        if (!bars) {
-          start = running;
-          running += v;
-        } else if (v >= 0) {
-          start = pos;
-          pos += v;
-        } else {
-          start = neg;
-          neg += v;
-        }
-        spans[si][i] = [start, start + v];
-        track(start + v);
+    return;
+  }
+  for (let i = 0; i < count; i += 1) {
+    let total = 0;
+    if (grouping === "percentStacked") {
+      group.members.forEach((si) => {
+        const v = model.series[si].values[i];
+        if (finite(v)) total += Math.abs(v);
       });
-      track(0);
     }
-  }
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    min = 0;
-    max = 1;
-  }
-  return { spans, min, max };
-}
-
-function valueScale(model: ChartRenderModel, stacks: StackInfo): AxisScale {
-  if (model.grouping === "percentStacked" && model.type !== "scatter") {
-    const min = stacks.min < 0 ? -1 : 0;
-    const max = stacks.max > 0 || min === 0 ? 1 : 0;
-    const ticks: number[] = [];
-    for (let v = min; v <= max + 1e-9; v += 0.1) {
-      ticks.push(Math.round(v * 10) / 10);
-    }
-    return { min, max, step: 0.1, ticks };
-  }
-  return computeAxisScale(stacks.min, stacks.max, model.valueAxis);
-}
-
-function formatValueTick(model: ChartRenderModel, v: number, step: number) {
-  if (model.grouping === "percentStacked" && model.type !== "scatter") {
-    return `${Math.round(v * 100)}%`;
-  }
-  return formatAxisTick(v, step);
-}
-
-function dataLabelText(series: ChartRenderSeries, i: number, value: number) {
-  const label = series.labels?.[i];
-  if (label != null && label !== "") return label;
-  return formatChartNumber(value);
-}
-
-/** Data label position for a bar: centred inside (stacked) or past its end. */
-function barLabelPlacement(
-  r: Rect,
-  horizontal: boolean,
-  inside: boolean,
-  positive: boolean
-): {
-  x: number;
-  y: number;
-  anchor: "start" | "middle" | "end";
-  baseline?: string;
-} {
-  if (inside) {
-    return {
-      x: r.x + r.width / 2,
-      y: r.y + r.height / 2,
-      anchor: "middle",
-      baseline: "central",
-    };
-  }
-  if (horizontal) {
-    return positive
-      ? {
-          x: r.x + r.width + 3,
-          y: r.y + r.height / 2,
-          anchor: "start",
-          baseline: "central",
+    // Bars stack positives up and negatives down from zero; lines and
+    // areas keep one running total and treat blanks as zero.
+    let pos = 0;
+    let neg = 0;
+    let running = 0;
+    group.members.forEach((si) => {
+      const spans = group.spans.get(si)!;
+      let v = model.series[si].values[i];
+      if (!finite(v)) {
+        if (bars) {
+          spans[i] = null;
+          return;
         }
-      : {
-          x: r.x - 3,
-          y: r.y + r.height / 2,
-          anchor: "end",
-          baseline: "central",
-        };
+        v = 0;
+      }
+      if (grouping === "percentStacked") v = total === 0 ? 0 : v / total;
+      let start: number;
+      if (!bars) {
+        start = running;
+        running += v;
+      } else if (v >= 0) {
+        start = pos;
+        pos += v;
+      } else {
+        start = neg;
+        neg += v;
+      }
+      spans[i] = [start, start + v];
+      track(start + v, group.secondary);
+    });
+    track(0, group.secondary);
   }
-  return positive
-    ? { x: r.x + r.width / 2, y: r.y - 3, anchor: "middle" }
-    : {
-        x: r.x + r.width / 2,
-        y: r.y + r.height + LABEL_SIZE,
-        anchor: "middle",
-      };
 }
 
-function renderCartesian(
+function renderCategory(
   model: ChartRenderModel,
   area: Rect,
   theme: ChartTheme,
   out: string[]
 ) {
-  const { type } = model;
-  const horizontal = type === "bar";
-  const scatter = type === "scatter";
+  const style = model.style ?? {};
   const count = categoryCount(model);
-  const stacks = computeStacks(model, count);
-  const vScale = valueScale(model, stacks);
-
-  let xScale: AxisScale | null = null;
-  if (scatter) {
-    let xmin = Infinity;
-    let xmax = -Infinity;
-    model.series.forEach((s) => {
-      for (let i = 0; i < s.values.length; i += 1) {
-        const x = s.xValues ? s.xValues[i] : i + 1;
-        if (finite(x)) {
-          xmin = Math.min(xmin, x);
-          xmax = Math.max(xmax, x);
-        }
-      }
-    });
-    if (!Number.isFinite(xmin)) {
-      xmin = 0;
-      xmax = 1;
-    }
-    xScale = computeAxisScale(xmin, xmax);
-  }
-
-  const valueLabels = vScale.ticks.map((t) =>
-    formatValueTick(model, t, vScale.step)
-  );
-  const valueLabelW = Math.max(
-    ...valueLabels.map((l) => estimateTextWidth(l, LABEL_SIZE)),
-    8
-  );
-
-  const catAxisTitle = model.categoryAxisTitle?.trim() || "";
-  const valAxisTitle = model.valueAxisTitle?.trim() || "";
-  // Titles on the left (vertical axis) and bottom (horizontal axis).
-  const leftTitle = horizontal ? catAxisTitle : valAxisTitle;
-  const bottomTitle = horizontal ? valAxisTitle : catAxisTitle;
-
-  let categoryLabels: string[] = [];
-  if (!scatter) {
-    for (let i = 0; i < count; i += 1)
-      categoryLabels.push(categoryLabel(model, i));
-  } else {
-    categoryLabels = xScale!.ticks.map((t) => formatAxisTick(t, xScale!.step));
-  }
-
-  let leftLabelW: number;
-  if (horizontal) {
-    const maxCat = Math.max(
-      ...categoryLabels.map((l) => estimateTextWidth(l, LABEL_SIZE)),
-      8
-    );
-    leftLabelW = Math.min(maxCat, area.width * 0.3);
-  } else {
-    leftLabelW = valueLabelW;
-  }
-  const leftTitleW = leftTitle ? AXIS_TITLE_SIZE + 8 : 0;
-  const bottomTitleH = bottomTitle ? AXIS_TITLE_SIZE + 8 : 0;
-  const bottomLabelH = LABEL_SIZE + 8;
-
-  const plot: Rect = {
-    x: area.x + leftTitleW + leftLabelW + 6,
-    y: area.y + 6,
-    width: 0,
-    height: 0,
-  };
-  // Leave room for the last horizontal tick label to overhang.
-  const rightPad = horizontal || scatter ? valueLabelW / 2 : 6;
-  plot.width = Math.max(10, area.x + area.width - rightPad - plot.x);
-  plot.height = Math.max(
-    10,
-    area.y + area.height - bottomTitleH - bottomLabelH - plot.y
-  );
-
-  const vSpan = vScale.max - vScale.min || 1;
-  const clampV = (v: number) => Math.min(vScale.max, Math.max(vScale.min, v));
-  // value → pixel along the value axis
-  const vPos = (v: number) =>
-    horizontal
-      ? plot.x + ((clampV(v) - vScale.min) / vSpan) * plot.width
-      : plot.y + plot.height - ((clampV(v) - vScale.min) / vSpan) * plot.height;
-  const baselineValue = clampV(0);
-
-  const family = theme.fontFamily;
-
-  // Gridlines and value-axis labels
-  vScale.ticks.forEach((t, i) => {
-    if (t < vScale.min - 1e-9 || t > vScale.max + 1e-9) return;
-    const p = vPos(t);
-    if (horizontal) {
-      if (model.gridlines !== false)
-        out.push(line(p, plot.y, p, plot.y + plot.height, theme.gridline));
-      out.push(
-        svgText(p, plot.y + plot.height + LABEL_SIZE + 4, valueLabels[i], {
-          size: LABEL_SIZE,
-          fill: theme.mutedText,
-          anchor: "middle",
-          family,
-        })
-      );
-    } else {
-      if (model.gridlines !== false)
-        out.push(line(plot.x, p, plot.x + plot.width, p, theme.gridline));
-      out.push(
-        svgText(plot.x - 5, p, valueLabels[i], {
-          size: LABEL_SIZE,
-          fill: theme.mutedText,
-          anchor: "end",
-          baseline: "central",
-          family,
-        })
-      );
-    }
-  });
-
-  const labels: string[] = [];
+  const horizontal = model.type === "bar";
   const grouping = model.grouping ?? "clustered";
-  const seriesCount = Math.max(1, model.series.length);
-  const catSpan = horizontal ? plot.height : plot.width;
-  const band = catSpan / Math.max(1, count);
-  // Excel bar charts list the first category at the bottom.
-  const bandStart = (i: number) =>
-    horizontal ? plot.y + plot.height - (i + 1) * band : plot.x + i * band;
+  const percent = grouping === "percentStacked";
+  const stacked = grouping !== "clustered";
 
-  if (type === "column" || type === "bar") {
-    const clustered = grouping === "clustered";
-    const barW = clustered
-      ? band / (seriesCount + GAP_WIDTH)
-      : band / (1 + GAP_WIDTH);
-    model.series.forEach((s, si) => {
-      for (let i = 0; i < count; i += 1) {
-        const span = stacks.spans[si][i];
-        if (!span) continue;
-        const [a, b] = clustered ? [baselineValue, span[1]] : span;
-        const p1 = vPos(a);
-        const p2 = vPos(b);
-        const offset =
-          bandStart(i) +
-          (clustered
-            ? (GAP_WIDTH / 2) * barW + si * barW
-            : (GAP_WIDTH / 2) * barW);
-        const color =
-          model.varyColors && model.series.length === 1
-            ? pointColor(model, s, i)
-            : s.pointColors?.[i] || s.color;
-        const r: Rect = horizontal
-          ? {
-              x: Math.min(p1, p2),
-              y: offset,
-              width: Math.abs(p2 - p1),
-              height: barW,
-            }
-          : {
-              x: offset,
-              y: Math.min(p1, p2),
-              width: barW,
-              height: Math.abs(p2 - p1),
-            };
-        out.push(rect(r, color));
-        if (model.dataLabels) {
-          const raw = s.values[i] as number;
-          const place = barLabelPlacement(r, horizontal, !clustered, b >= a);
-          labels.push(
-            svgText(place.x, place.y, dataLabelText(s, i, raw), {
-              size: LABEL_SIZE,
-              fill: clustered ? theme.text : "#ffffff",
-              anchor: place.anchor,
-              baseline: place.baseline,
-              family,
-            })
-          );
-        }
-      }
+  // Group series by how they are drawn and which axis they use.
+  const groupMap = new Map<string, Group>();
+  model.series.forEach((s, si) => {
+    const kind = seriesKind(model, s);
+    const secondary = onSecondary(model, s);
+    const key = `${kind}:${secondary ? 1 : 0}`;
+    let g = groupMap.get(key);
+    if (!g) {
+      g = { kind, secondary, members: [], spans: new Map() };
+      groupMap.set(key, g);
+    }
+    g.members.push(si);
+  });
+  const groups = Array.from(groupMap.values());
+  const ext = {
+    p: [Infinity, -Infinity],
+    s: [Infinity, -Infinity],
+  };
+  const track = (v: number, secondary: boolean) => {
+    const e = secondary ? ext.s : ext.p;
+    if (v < e[0]) e[0] = v;
+    if (v > e[1]) e[1] = v;
+  };
+  groups.forEach((g) => stackGroup(model, g, count, track));
+  // error bars extend the value axis
+  model.series.forEach((s) => {
+    if (!s.errorBars || stacked) return;
+    computeErrorAmounts(s.errorBars, s.values).forEach((a) => {
+      if (!a) return;
+      track(a.center + a.plus, onSecondary(model, s));
+      track(a.center - a.minus, onSecondary(model, s));
     });
-  } else if (type === "line" || type === "area") {
-    const isArea = type === "area";
-    const xAt = (i: number) => {
-      if (!isArea) return bandStart(i) + band / 2;
-      if (count <= 1) return plot.x + plot.width / 2;
-      return plot.x + (i * plot.width) / (count - 1);
-    };
-    const stacked = grouping !== "clustered";
-    const drawOrder = model.series.map((_, i) => i);
-    drawOrder.forEach((si) => {
+  });
+  const hasSecondary = groups.some((g) => g.secondary);
+  const fixExt = (e: number[]) => (Number.isFinite(e[0]) ? e : [0, 1]);
+  const [pmin, pmax] = fixExt(ext.p);
+  const primary = makeValueAxis(pmin, pmax, model.valueAxis, percent);
+  const secondary = hasSecondary
+    ? makeValueAxis(
+        fixExt(ext.s)[0],
+        fixExt(ext.s)[1],
+        model.secondaryValueAxis,
+        percent
+      )
+    : undefined;
+  const labels: string[] = [];
+  for (let i = 0; i < count; i += 1) labels.push(categoryLabel(model, i));
+  const allArea = groups.every((g) => g.kind === "area");
+  const frame = layoutCategoryFrame(area, theme, {
+    count,
+    labels,
+    primary,
+    secondary,
+    horizontal,
+    edgeToEdge: allArea,
+    categoryTitle: model.categoryAxisTitle,
+    valueTitle: model.valueAxisTitle,
+    secondaryTitle: model.secondaryValueAxisTitle,
+    gridlines: model.gridlines,
+    style,
+  });
+  out.push(...frame.pre);
+
+  const dataLabels: string[] = [];
+  const overlays: string[] = [];
+  const tc: TrendContext = { plot: frame.plot, theme, notes: [] };
+  const family = theme.fontFamily;
+  const opts = model.dataLabelOptions ?? {};
+  const gap = style.gapWidth ?? GAP_WIDTH;
+  const order: Kind[] = ["area", "column", "bar", "line"];
+  const sorted = groups
+    .slice()
+    .sort(
+      (a, b) =>
+        order.indexOf(a.kind) - order.indexOf(b.kind) ||
+        Number(a.secondary) - Number(b.secondary)
+    );
+
+  sorted.forEach((g) => {
+    const vPos = (v: number) => frame.vPos(v, g.secondary);
+    const base = frame.baseline(g.secondary);
+    if (g.kind === "column" || g.kind === "bar") {
+      const clustered = !stacked;
+      const size = frame.band;
+      const barW = clustered
+        ? size / (g.members.length + gap)
+        : size / (1 + gap);
+      g.members.forEach((si, gi) => {
+        const s = model.series[si];
+        const spans = g.spans.get(si)!;
+        const centers: (number | null)[] = [];
+        for (let i = 0; i < count; i += 1) {
+          const span = spans[i];
+          if (!span) {
+            centers[i] = null;
+            continue;
+          }
+          const [a, b] = clustered ? [base, span[1]] : span;
+          const p1 = vPos(a);
+          const p2 = vPos(b);
+          const offset =
+            frame.bandStart(i) +
+            (clustered ? (gap / 2) * barW + gi * barW : (gap / 2) * barW);
+          centers[i] = offset + barW / 2;
+          const color =
+            model.varyColors && model.series.length === 1
+              ? pointColor(s, i)
+              : s.pointColors?.[i] || s.color;
+          const r: Rect = horizontal
+            ? {
+                x: Math.min(p1, p2),
+                y: offset,
+                width: Math.abs(p2 - p1),
+                height: barW,
+              }
+            : {
+                x: offset,
+                y: Math.min(p1, p2),
+                width: barW,
+                height: Math.abs(p2 - p1),
+              };
+          out.push(rect(r, color, fillExtra(style, style.barRadius)));
+          if (model.dataLabels) {
+            const raw = s.values[i] as number;
+            const place = barLabelPlace(
+              r,
+              horizontal,
+              opts.position,
+              !clustered,
+              b >= a
+            );
+            dataLabels.push(
+              svgText(place.x, place.y, dataLabelText(model, s, i, raw), {
+                size: LABEL_SIZE,
+                fill: place.inside && !clustered ? "#ffffff" : theme.text,
+                anchor: place.anchor,
+                baseline: place.baseline,
+                family,
+              })
+            );
+          }
+        }
+        if (!stacked)
+          drawErrorBars(
+            overlays,
+            s,
+            s.values,
+            (i) => centers[i] ?? null,
+            vPos,
+            horizontal,
+            theme
+          );
+        if (!stacked)
+          drawTrendlines(
+            overlays,
+            s,
+            s.values.map((_, i) => i + 1),
+            s.values,
+            (x, y) => {
+              const c = frame.catCoord(x - 1);
+              return frame.point(c, vPos(y));
+            },
+            tc
+          );
+      });
+      return;
+    }
+    // line and area
+    const isArea = g.kind === "area";
+    const lineW = style.lineWidth ?? 2.25;
+    const markerR = style.markerSize ?? 3.5;
+    g.members.forEach((si) => {
       const s = model.series[si];
-      const spans = stacks.spans[si];
+      const spans = g.spans.get(si)!;
+      const xAt = (i: number) => frame.catCoord(i);
       if (isArea) {
         const top: string[] = [];
         const bottom: string[] = [];
         for (let i = 0; i < count; i += 1) {
           const span = spans[i];
-          const a = span && stacked ? span[0] : baselineValue;
+          const a = span && stacked ? span[0] : base;
           const b = span ? span[1] : a;
           top.push(`${n(xAt(i))},${n(vPos(b))}`);
           bottom.unshift(`${n(xAt(i))},${n(vPos(a))}`);
         }
         if (top.length) {
+          const extra = fillExtra({
+            ...style,
+            fillOpacity: style.fillOpacity ?? 0.85,
+          });
           out.push(
             `<polygon points="${top.join(" ")} ${bottom.join(
               " "
-            )}" fill="${escapeXml(s.color)}" fill-opacity="0.85"/>`
+            )}" fill="${escapeXml(s.color)}"${extra}/>`
           );
         }
       } else {
@@ -681,7 +648,7 @@ function renderCartesian(
           out.push(
             `<path d="${d.trim()}" fill="none" stroke="${escapeXml(
               s.color
-            )}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/>`
+            )}" stroke-width="${lineW}" stroke-linejoin="round" stroke-linecap="round"/>`
           );
         }
         if (model.markers !== false) {
@@ -689,11 +656,13 @@ function renderCartesian(
             const span = spans[i];
             if (!span || !finite(s.values[i])) continue;
             out.push(
-              `<circle cx="${n(xAt(i))}" cy="${n(
-                vPos(span[1])
-              )}" r="3.5" fill="${escapeXml(s.color)}" stroke="${escapeXml(
-                theme.background
-              )}" stroke-width="0.75"/>`
+              circle(
+                xAt(i),
+                vPos(span[1]),
+                markerR,
+                s.color,
+                ` stroke="${escapeXml(theme.background)}" stroke-width="0.75"`
+              )
             );
           }
         }
@@ -703,161 +672,196 @@ function renderCartesian(
           const span = spans[i];
           const raw = s.values[i];
           if (!span || !finite(raw)) continue;
-          labels.push(
-            svgText(xAt(i), vPos(span[1]) - 7, dataLabelText(s, i, raw), {
+          const place = pointLabelPlace(xAt(i), vPos(span[1]), opts.position);
+          dataLabels.push(
+            svgText(place.x, place.y, dataLabelText(model, s, i, raw), {
               size: LABEL_SIZE,
               fill: theme.text,
-              anchor: "middle",
+              anchor: place.anchor,
+              baseline: place.baseline,
               family,
             })
           );
         }
       }
-    });
-  } else if (scatter && xScale) {
-    const xs = xScale;
-    const xSpan = xs.max - xs.min || 1;
-    const xPos = (x: number) =>
-      plot.x +
-      ((Math.min(xs.max, Math.max(xs.min, x)) - xs.min) / xSpan) * plot.width;
-    model.series.forEach((s) => {
-      const pts: [number, number, number][] = [];
-      for (let i = 0; i < s.values.length; i += 1) {
-        const x = s.xValues ? s.xValues[i] : i + 1;
-        const y = s.values[i];
-        if (finite(x) && finite(y)) pts.push([xPos(x), vPos(y), i]);
+      if (!stacked) {
+        drawErrorBars(overlays, s, s.values, xAt, vPos, false, theme);
+        drawTrendlines(
+          overlays,
+          s,
+          s.values.map((_, i) => i + 1),
+          s.values,
+          (x, y) => [frame.catCoord(x - 1), vPos(y)],
+          tc
+        );
       }
+    });
+  });
+
+  out.push(...overlays);
+  out.push(...frame.post);
+  drawTrendNotes(out, tc);
+  out.push(...dataLabels);
+}
+
+// ---------------------------------------------------------------------------
+// XY charts: scatter and bubble
+// ---------------------------------------------------------------------------
+
+function renderXY(
+  model: ChartRenderModel,
+  area: Rect,
+  theme: ChartTheme,
+  out: string[]
+) {
+  const style = model.style ?? {};
+  const bubble = model.type === "bubble";
+  let xmin = Infinity;
+  let xmax = -Infinity;
+  let ymin = Infinity;
+  let ymax = -Infinity;
+  const xsOf = (s: ChartRenderSeries) =>
+    s.values.map((_, i) => (s.xValues ? s.xValues[i] : i + 1));
+  model.series.forEach((s) => {
+    const xs = xsOf(s);
+    s.values.forEach((y, i) => {
+      const x = xs[i];
+      if (!finite(x) || !finite(y)) return;
+      xmin = Math.min(xmin, x);
+      xmax = Math.max(xmax, x);
+      ymin = Math.min(ymin, y);
+      ymax = Math.max(ymax, y);
+    });
+    s.trendlines?.forEach((t) => {
+      if (t.type === "movingAverage" || !Number.isFinite(xmin)) return;
+      if (t.forward) xmax += Math.max(0, t.forward);
+      if (t.backward) xmin -= Math.max(0, t.backward);
+    });
+    if (s.errorBars) {
+      computeErrorAmounts(s.errorBars, s.values).forEach((a) => {
+        if (!a) return;
+        ymin = Math.min(ymin, a.center - a.minus);
+        ymax = Math.max(ymax, a.center + a.plus);
+      });
+    }
+  });
+  if (!Number.isFinite(xmin)) {
+    xmin = 0;
+    xmax = 1;
+  }
+  if (!Number.isFinite(ymin)) {
+    ymin = 0;
+    ymax = 1;
+  }
+  const frame = layoutXYFrame(area, theme, {
+    x: makeValueAxis(xmin, xmax),
+    y: makeValueAxis(ymin, ymax, model.valueAxis),
+    xTitle: model.categoryAxisTitle,
+    yTitle: model.valueAxisTitle,
+    gridlines: model.gridlines,
+    style,
+  });
+  out.push(...frame.pre);
+  const { plot, xPos, yPos } = frame;
+  const labels: string[] = [];
+  const overlays: string[] = [];
+  const tc: TrendContext = { plot, theme, notes: [] };
+  const opts = model.dataLabelOptions ?? {};
+  let maxSize = 0;
+  if (bubble) {
+    model.series.forEach((s) =>
+      s.sizes?.forEach((v) => {
+        if (finite(v) && v > maxSize) maxSize = v;
+      })
+    );
+  }
+  const rMax =
+    Math.min(plot.width, plot.height) *
+    0.125 *
+    ((model.bubbleScale ?? 100) / 100);
+  model.series.forEach((s) => {
+    const xs = xsOf(s);
+    const pts: [number, number, number][] = [];
+    for (let i = 0; i < s.values.length; i += 1) {
+      const x = xs[i];
+      const y = s.values[i];
+      if (finite(x) && finite(y)) pts.push([xPos(x), yPos(y), i]);
+    }
+    if (bubble) {
+      pts.forEach(([x, y, i]) => {
+        const size = s.sizes?.[i];
+        if (!finite(size) || size <= 0 || maxSize <= 0) return;
+        const r = Math.max(1.5, rMax * Math.sqrt(size / maxSize));
+        out.push(
+          circle(
+            x,
+            y,
+            r,
+            pointColor(s, i),
+            fillExtra({
+              ...style,
+              fillOpacity: style.fillOpacity ?? 0.75,
+              seriesOutline: style.seriesOutline ?? s.color,
+            })
+          )
+        );
+      });
+    } else {
       if (model.scatterLines && pts.length > 1) {
         out.push(
           `<path d="${pts
             .map((p, i) => `${i ? "L" : "M"}${n(p[0])} ${n(p[1])}`)
             .join(" ")}" fill="none" stroke="${escapeXml(
             s.color
-          )}" stroke-width="2"/>`
+          )}" stroke-width="${style.lineWidth ?? 2}"/>`
         );
       }
       if (model.markers !== false || !model.scatterLines) {
         pts.forEach(([x, y]) => {
-          out.push(
-            `<circle cx="${n(x)}" cy="${n(y)}" r="3.5" fill="${escapeXml(
-              s.color
-            )}"/>`
-          );
+          out.push(circle(x, y, style.markerSize ?? 3.5, s.color));
         });
-      }
-      if (model.dataLabels) {
-        pts.forEach(([x, y, i]) => {
-          labels.push(
-            svgText(x + 5, y - 5, dataLabelText(s, i, s.values[i] as number), {
-              size: LABEL_SIZE,
-              fill: theme.text,
-              family,
-            })
-          );
-        });
-      }
-    });
-    // X-axis tick labels
-    xs.ticks.forEach((t, i) => {
-      if (t < xs.min - 1e-9 || t > xs.max + 1e-9) return;
-      out.push(
-        svgText(
-          xPos(t),
-          plot.y + plot.height + LABEL_SIZE + 4,
-          categoryLabels[i],
-          {
-            size: LABEL_SIZE,
-            fill: theme.mutedText,
-            anchor: "middle",
-            family,
-          }
-        )
-      );
-    });
-  }
-
-  // Axis lines: the category axis crosses at zero.
-  const base = vPos(baselineValue);
-  if (horizontal) {
-    out.push(line(base, plot.y, base, plot.y + plot.height, theme.axisLine));
-  } else {
-    out.push(line(plot.x, base, plot.x + plot.width, base, theme.axisLine));
-  }
-
-  // Category labels
-  if (!scatter && count > 0) {
-    const maxLabel = horizontal ? leftLabelW : band - 2;
-    const needed = Math.max(
-      ...categoryLabels.map((l) => estimateTextWidth(l, LABEL_SIZE))
-    );
-    const every = horizontal
-      ? Math.max(1, Math.ceil((LABEL_SIZE + 2) / Math.max(1, band)))
-      : Math.max(1, Math.ceil(Math.min(needed, 80) / Math.max(1, band - 2)));
-    const areaEdge = type === "area" && count > 1;
-    for (let i = 0; i < count; i += every) {
-      const label = truncateText(
-        categoryLabels[i],
-        horizontal ? maxLabel : Math.max(maxLabel * every, 20),
-        LABEL_SIZE
-      );
-      if (horizontal) {
-        out.push(
-          svgText(plot.x - 5, bandStart(i) + band / 2, label, {
-            size: LABEL_SIZE,
-            fill: theme.mutedText,
-            anchor: "end",
-            baseline: "central",
-            family,
-          })
-        );
-      } else {
-        const cx = areaEdge
-          ? plot.x + (i * plot.width) / (count - 1)
-          : bandStart(i) + band / 2;
-        out.push(
-          svgText(cx, plot.y + plot.height + LABEL_SIZE + 4, label, {
-            size: LABEL_SIZE,
-            fill: theme.mutedText,
-            anchor: "middle",
-            family,
-          })
-        );
       }
     }
-  }
-
-  if (leftTitle) {
-    const x = area.x + AXIS_TITLE_SIZE / 2 + 2;
-    const y = plot.y + plot.height / 2;
-    out.push(
-      svgText(x, y, truncateText(leftTitle, plot.height, AXIS_TITLE_SIZE), {
-        size: AXIS_TITLE_SIZE,
-        fill: theme.mutedText,
-        anchor: "middle",
-        baseline: "central",
-        weight: "600",
-        rotate: -90,
-        family,
-      })
+    if (model.dataLabels) {
+      pts.forEach(([x, y, i]) => {
+        const place = pointLabelPlace(
+          x,
+          y,
+          opts.position ?? (bubble ? "center" : "right"),
+          5
+        );
+        labels.push(
+          svgText(
+            place.x,
+            bubble || opts.position ? place.y : y - 5,
+            dataLabelText(model, s, i, s.values[i] as number, {
+              category: formatChartNumber(xs[i] as number),
+            }),
+            {
+              size: LABEL_SIZE,
+              fill: theme.text,
+              anchor: place.anchor,
+              baseline: bubble || opts.position ? place.baseline : undefined,
+              family: theme.fontFamily,
+            }
+          )
+        );
+      });
+    }
+    drawErrorBars(
+      overlays,
+      s,
+      s.values,
+      (i) => (finite(xs[i]) ? xPos(xs[i] as number) : null),
+      yPos,
+      false,
+      theme
     );
-  }
-  if (bottomTitle) {
-    out.push(
-      svgText(
-        plot.x + plot.width / 2,
-        area.y + area.height - 3,
-        truncateText(bottomTitle, plot.width, AXIS_TITLE_SIZE),
-        {
-          size: AXIS_TITLE_SIZE,
-          fill: theme.mutedText,
-          anchor: "middle",
-          weight: "600",
-          family,
-        }
-      )
-    );
-  }
-
+    drawTrendlines(overlays, s, xs, s.values, (x, y) => [xPos(x), yPos(y)], tc);
+  });
+  out.push(...overlays);
+  out.push(...frame.post);
+  drawTrendNotes(out, tc);
   out.push(...labels);
 }
 
@@ -907,12 +911,19 @@ function renderPie(
   const doughnut = model.type === "doughnut";
   const rings = doughnut ? model.series : model.series.slice(0, 1);
   if (rings.length === 0) return;
+  const opts = model.dataLabelOptions ?? {};
+  const outside = !doughnut && opts.position === "outsideEnd";
   const cx = area.x + area.width / 2;
   const cy = area.y + area.height / 2;
-  const radius = Math.max(4, Math.min(area.width, area.height) / 2 - 4);
+  const radius = Math.max(
+    4,
+    Math.min(area.width, area.height) / 2 - (outside ? LABEL_SIZE + 10 : 4)
+  );
   const hole = doughnut ? radius * DOUGHNUT_HOLE : 0;
   const ringW = (radius - hole) / rings.length;
   const labels: string[] = [];
+  const outline = model.style?.seriesOutline ?? theme.sliceSeparator;
+  const outlineW = model.style?.seriesOutlineWidth ?? 1;
   rings.forEach((s, ri) => {
     const r0 = hole + ri * ringW;
     const r1 = r0 + ringW;
@@ -925,7 +936,7 @@ function renderPie(
     s.values.forEach((v, i) => {
       if (!finite(v) || v === 0) return;
       const sweep = (Math.abs(v) / total) * Math.PI * 2;
-      const color = pointColor(model, s, i);
+      const color = pointColor(s, i);
       out.push(
         `<path d="${arcPath(
           cx,
@@ -935,21 +946,29 @@ function renderPie(
           angle,
           angle + sweep
         )}" fill="${escapeXml(color)}" fill-rule="evenodd" stroke="${escapeXml(
-          theme.sliceSeparator
-        )}" stroke-width="1"/>`
+          outline
+        )}" stroke-width="${outlineW}"/>`
       );
       if (model.dataLabels) {
         const mid = angle + sweep / 2;
-        const lr = doughnut ? (r0 + r1) / 2 : radius * 0.65;
+        let lr = doughnut ? (r0 + r1) / 2 : radius * 0.65;
+        if (!doughnut && opts.position === "center") lr = radius * 0.5;
+        if (!doughnut && opts.position === "insideEnd") lr = radius * 0.82;
+        if (outside) lr = radius + 8;
+        const lx = cx + lr * Math.cos(mid);
+        let anchor: "start" | "middle" | "end" = "middle";
+        if (outside) anchor = Math.cos(mid) >= 0 ? "start" : "end";
         labels.push(
           svgText(
-            cx + lr * Math.cos(mid),
+            lx,
             cy + lr * Math.sin(mid),
-            dataLabelText(s, i, v),
+            dataLabelText(model, s, i, v, {
+              percent: Math.abs(v) / total,
+            }),
             {
               size: LABEL_SIZE,
-              fill: "#ffffff",
-              anchor: "middle",
+              fill: outside ? theme.text : "#ffffff",
+              anchor,
               baseline: "central",
               family: theme.fontFamily,
             }
@@ -1002,6 +1021,7 @@ export function renderChartSvg(
           size: TITLE_SIZE,
           fill: theme.text,
           anchor: "middle",
+          weight: model.style?.titleBold ? "700" : undefined,
           family: theme.fontFamily,
         }
       )
@@ -1015,7 +1035,16 @@ export function renderChartSvg(
 
   if (area.width > 20 && area.height > 20 && model.series.length > 0) {
     area = layoutLegend(model, area, theme, out);
-    if (isCartesian(model.type)) renderCartesian(model, area, theme, out);
+    const { type } = model;
+    if (isCategoryChart(type)) renderCategory(model, area, theme, out);
+    else if (type === "scatter" || type === "bubble")
+      renderXY(model, area, theme, out);
+    else if (type === "radar") renderRadar(model, area, theme, out);
+    else if (type === "waterfall") renderWaterfall(model, area, theme, out);
+    else if (type === "histogram" || type === "pareto")
+      renderHistogram(model, area, theme, out);
+    else if (type === "funnel") renderFunnel(model, area, theme, out);
+    else if (type === "stock") renderStock(model, area, theme, out);
     else renderPie(model, area, theme, out);
   }
 
@@ -1024,3 +1053,5 @@ export function renderChartSvg(
     ""
   )}</svg>`;
 }
+
+export type { CategoryFrame };
