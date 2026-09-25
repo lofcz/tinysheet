@@ -13,6 +13,7 @@ import {
   evaluateDefinedName,
   getDefinedNames,
   locale,
+  refersToForActiveCell,
   saveDefinedName,
   selectionAsNameRange,
   sheetNameById,
@@ -69,7 +70,9 @@ const NameEditor: React.FC<{
   const { context, setContext } = useContext(WorkbookContext);
   const { definedNames: t, button } = locale(context);
   const defaultRefersTo = useMemo(() => {
-    if (entry) return entry.refersTo;
+    // relative references show as seen from the active cell (Excel), so
+    // saving the text unchanged keeps the definition
+    if (entry) return refersToForActiveCell(context, entry.refersTo);
     const range = selectionAsNameRange(context);
     if (!range) return "=";
     return `=${absoluteRangeText(
@@ -389,7 +392,7 @@ export const NameManager: React.FC<{ initialMode?: "fromSelection" }> = ({
               >
                 <td>{row.entry.name}</td>
                 <td>{row.value}</td>
-                <td>{row.entry.refersTo}</td>
+                <td>{refersToForActiveCell(context, row.entry.refersTo)}</td>
                 <td>{row.scopeName}</td>
                 <td>{row.entry.comment ?? ""}</td>
               </tr>
@@ -404,7 +407,15 @@ export const NameManager: React.FC<{ initialMode?: "fromSelection" }> = ({
       </div>
       <div className="fortune-name-manager-refers">
         <span>{t.refersTo}</span>
-        <input type="text" readOnly value={current?.entry.refersTo ?? ""} />
+        <input
+          type="text"
+          readOnly
+          value={
+            current
+              ? refersToForActiveCell(context, current.entry.refersTo)
+              : ""
+          }
+        />
       </div>
       <div className="fortune-name-manager-footer">
         <TextButton onClick={() => setMode({ kind: "fromSelection" })}>

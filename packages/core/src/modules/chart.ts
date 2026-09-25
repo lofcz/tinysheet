@@ -9,6 +9,8 @@
 import type { Context } from "../context";
 import type { Cell, CellMatrix, Sheet } from "../types";
 import { getSheetIndex, indexToColumnChar } from "../utils";
+import { locateRangeForChange, ReferenceChange } from "./refAdjust";
+import { columnLeftPx, insertedSizePx, rowTopPx } from "./sheetGeometry";
 import {
   chartPaletteColor,
   getChartTheme,
@@ -959,6 +961,59 @@ export function shiftSpanForDelete(
 }
 
 /**
+ * Keep charts in sync with a structural change (registered with refAdjust,
+ * see modelSync.ts): series, category, name and source ranges follow their
+ * cells (a range moved to another sheet by cut/paste follows it there; a
+ * deleted one becomes null, i.e. #REF!), and charts sitting below/right of
+ * inserted or deleted rows/columns move with the cells, as Excel's "move and
+ * size with cells" objects do. Called before the cells move.
+ */
+export function adjustChartsForChange(ctx: Context, change: ReferenceChange) {
+  const hasCharts = ctx.luckysheetfile.some((s) => s.charts?.length);
+  if (!hasCharts || change.type === "renameSheet") return;
+  forEachChartRange(ctx, (range) => {
+    const next = locateRangeForChange(range, change, range.sheetId);
+    if (!next) return null;
+    if (
+      next.sheetId === range.sheetId &&
+      next.range.row[0] === range.row[0] &&
+      next.range.row[1] === range.row[1] &&
+      next.range.column[0] === range.column[0] &&
+      next.range.column[1] === range.column[1]
+    ) {
+      return range;
+    }
+    return { sheetId: next.sheetId, ...next.range };
+  });
+  if (change.type !== "insert" && change.type !== "delete") return;
+  const sheet = sheetById(ctx, change.sheetId);
+  if (!sheet?.charts?.length) return;
+  const { sheetId, axis } = change;
+  const edgeOf = (i: number) =>
+    axis === "row" ? rowTopPx(ctx, sheetId, i) : columnLeftPx(ctx, sheetId, i);
+  if (change.type === "insert") {
+    const edge = edgeOf(change.index);
+    const size = insertedSizePx(ctx, axis, change.count);
+    sheet.charts.forEach((chart) => {
+      if (axis === "row" && chart.top >= edge - 0.5) chart.top += size;
+      if (axis === "column" && chart.left >= edge - 0.5) chart.left += size;
+    });
+    return;
+  }
+  const from = edgeOf(change.start);
+  const to = edgeOf(change.end + 1);
+  const removed = to - from;
+  sheet.charts.forEach((chart) => {
+    const pos = axis === "row" ? chart.top : chart.left;
+    let next = pos;
+    if (pos >= to) next = pos - removed;
+    else if (pos > from) next = from;
+    if (axis === "row") chart.top = next;
+    else chart.left = next;
+  });
+}
+
+/**
  * Rewrite chart references after `count` rows/columns were inserted at `at`
  * (the index of the first new line) on sheet `sheetId`, and move charts on
  * that sheet that sit below/right of the insertion point.
@@ -970,27 +1025,13 @@ export function adjustChartsForInsert(
   at: number,
   count: number
 ) {
-  const hasCharts = ctx.luckysheetfile.some((s) => s.charts?.length);
-  if (!hasCharts || count <= 0) return;
-  forEachChartRange(ctx, (range) => {
-    if (range.sheetId !== sheetId) return range;
-    return type === "row"
-      ? { ...range, row: shiftSpanForInsert(range.row, at, count) }
-      : { ...range, column: shiftSpanForInsert(range.column, at, count) };
-  });
-  // Charts move with their cells (only computable for the laid-out sheet).
-  if (sheetId !== ctx.currentSheetId) return;
-  const sheet = sheetById(ctx, sheetId);
-  if (!sheet?.charts?.length) return;
-  const edge = type === "row" ? rowTop(ctx, at) : colLeft(ctx, at);
-  const size =
-    type === "row"
-      ? (ctx.defaultrowlen || 19) + 1
-      : (ctx.defaultcollen || 73) + 1;
-  sheet.charts.forEach((chart) => {
-    if (type === "row" && chart.top >= edge - 0.5) chart.top += count * size;
-    if (type === "column" && chart.left >= edge - 0.5)
-      chart.left += count * size;
+  if (count <= 0) return;
+  adjustChartsForChange(ctx, {
+    type: "insert",
+    sheetId,
+    axis: type,
+    index: at,
+    count,
   });
 }
 
@@ -1002,32 +1043,39 @@ export function adjustChartsForDelete(
   start: number,
   end: number
 ) {
-  const hasCharts = ctx.luckysheetfile.some((s) => s.charts?.length);
-  if (!hasCharts || end < start) return;
-  forEachChartRange(ctx, (range) => {
-    if (range.sheetId !== sheetId) return range;
-    const span = shiftSpanForDelete(
-      type === "row" ? range.row : range.column,
-      start,
-      end
-    );
-    if (!span) return null;
-    return type === "row"
-      ? { ...range, row: span }
-      : { ...range, column: span };
+  if (end < start) return;
+  adjustChartsForChange(ctx, {
+    type: "delete",
+    sheetId,
+    axis: type,
+    start,
+    end,
   });
-  if (sheetId !== ctx.currentSheetId) return;
-  const sheet = sheetById(ctx, sheetId);
-  if (!sheet?.charts?.length) return;
-  const from = type === "row" ? rowTop(ctx, start) : colLeft(ctx, start);
-  const to = type === "row" ? rowTop(ctx, end + 1) : colLeft(ctx, end + 1);
-  const removed = to - from;
-  sheet.charts.forEach((chart) => {
-    const pos = type === "row" ? chart.top : chart.left;
-    let next = pos;
-    if (pos >= to) next = pos - removed;
-    else if (pos > from) next = from;
-    if (type === "row") chart.top = next;
-    else chart.left = next;
-  });
+}
+
+/**
+ * Charts of a duplicated sheet: new ids, and ranges on the original sheet
+ * point at the copy (Excel's copied charts plot the copied data).
+ */
+export function remapDuplicatedCharts(
+  charts: Chart[] | undefined,
+  fromSheetId: string,
+  toSheetId: string
+): Chart[] | undefined {
+  if (!charts?.length) return charts;
+  const remap = <T extends ChartRange | null | undefined>(range: T): T =>
+    range && range.sheetId === fromSheetId
+      ? ({ ...range, sheetId: toSheetId } as T)
+      : range;
+  return charts.map((chart) => ({
+    ...chart,
+    id: generateChartId(),
+    source: remap(chart.source),
+    series: chart.series.map((s) => ({
+      ...s,
+      values: remap(s.values),
+      nameRef: remap(s.nameRef),
+      categories: remap(s.categories),
+    })),
+  }));
 }
