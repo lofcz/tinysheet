@@ -77,18 +77,40 @@ export function borderIndexAt(edges: number[], pos: number, slop = 4) {
   if (edges.length === 0) return -1;
   // the first row/column ending at an edge (skipping hidden ones after it)
   const first = (edge: number) => _.sortedIndex(edges, edge);
+  // Excel: just past an edge with hidden rows/columns before it (the double
+  // line) the border is the last hidden one's, and dragging unhides it
+  const lastHidden = (edge: number) => {
+    const last = _.sortedLastIndex(edges, edge) - 1;
+    const start = edge === 0 ? -1 : first(edge);
+    return last > start ? last : -1;
+  };
   const i = Math.min(_.sortedIndex(edges, pos), edges.length - 1);
   let best = -1;
   let bestDist = slop + 1;
   [i, i - 1].forEach((k) => {
     if (k < 0) return;
-    const dist = Math.abs(edges[k] - pos);
-    if (dist < bestDist && edges[k] > 0) {
+    const edge = edges[k];
+    const dist = Math.abs(edge - pos);
+    if (dist >= bestDist) return;
+    const hidden = pos > edge ? lastHidden(edge) : -1;
+    if (hidden >= 0) {
       bestDist = dist;
-      best = first(edges[k]);
+      best = hidden;
+    } else if (edge > 0) {
+      bestDist = dist;
+      best = first(edge);
     }
   });
   return best;
+}
+
+/**
+ * Whether row/column `index` is hidden (no size): its border is the double
+ * line Excel unhides it from.
+ */
+export function isHiddenAt(edges: number[], index: number) {
+  if (index < 0 || index >= edges.length) return false;
+  return edges[index] === (index > 0 ? edges[index - 1] : 0);
 }
 
 /** The visible cell area (headers excluded) that `container` is or holds. */

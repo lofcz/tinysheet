@@ -142,6 +142,13 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
 
 ## Implementation map (for contributors)
 
+- **Drags**: chrome and floating objects use `trackPointerDrag`
+  (`packages/react/src/hooks/pointerDrag.ts`: pointer capture, Esc /
+  pointercancel / blur cancel). Grid drags (selection, fill handle, moving
+  cells, header borders, freeze handles, pictures, notes) run in core
+  `events/mouse.ts`; `cancelGridDrag` is their Esc. E2e:
+  `e2e/tests/draggers.*.spec.js` (helpers in `e2e/dragHelpers.js`).
+
 - **Tokens**: `--ts-*` on `.fortune-container`, `.fortune-modal-container` and
   `.ts-theme-root` (light, `data-theme="dark"`), in
   `packages/react/src/components/Workbook/index.css`. The old `--fortune-*`

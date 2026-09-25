@@ -38,6 +38,8 @@ import {
   ReferenceDragHandle,
   getDragAutoScroll,
   frozenScrollMin,
+  isCancelableGridDrag,
+  cancelGridDrag,
   api,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
@@ -570,6 +572,30 @@ const SheetOverlay: React.FC = () => {
     };
   }, [onMouseUp]);
 
+  // Esc while dragging the selection's border, the fill handle, a header
+  // border, a freeze line or a picture cancels the drag (Excel)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key !== "Escape" ||
+        !isCancelableGridDrag(context, refs.globalCache)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      const scrolling = autoScroll.current;
+      if (scrolling.frame != null) cancelAnimationFrame(scrolling.frame);
+      scrolling.frame = null;
+      scrolling.event = null;
+      setContext((draftCtx) => {
+        cancelGridDrag(draftCtx, refs.globalCache, containerRef.current!);
+      });
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [context, refs.globalCache, setContext]);
+
   useEffect(() => {
     document.addEventListener("keydown", onKeyDownForZoom);
     return () => {
@@ -767,9 +793,13 @@ const SheetOverlay: React.FC = () => {
           style={{
             width: context.cellmainWidth,
             height: context.cellmainHeight,
+            // Excel: the thick cross over cells, the thin one while
+            // filling, the move arrows while moving the selection
             cursor: context.luckysheet_cell_selected_extend
               ? "crosshair"
-              : "default",
+              : context.luckysheet_cell_selected_move
+                ? "move"
+                : "cell",
           }}
         >
           <div id="fortune-formula-functionrange" />

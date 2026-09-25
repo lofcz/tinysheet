@@ -629,6 +629,10 @@ export function startReferenceDrag(
   const end = start + text.length;
   const full = editorText(editor);
   const caret = getCaretOffset(editor);
+  // the border straddles the box's edge: the grabbed cell is the box's
+  // cell nearest the pointer, so the box moves by whole cells from there
+  const inside = (i: number, span: [number, number] | null) =>
+    span ? Math.min(Math.max(i, span[0]), span[1]) : i;
   ctx.formulaCache.referenceDrag = {
     handle,
     start,
@@ -636,7 +640,7 @@ export function startReferenceDrag(
     text,
     row: ref.row,
     column: ref.column,
-    grab: cell,
+    grab: [inside(cell[0], ref.row), inside(cell[1], ref.column)],
     caret:
       caret == null
         ? null

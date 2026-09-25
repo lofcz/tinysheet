@@ -124,39 +124,86 @@ export function insertImage(ctx: Context, image: HTMLImageElement) {
   }
 }
 
-function getImagePosition() {
-  const box = document.getElementById("luckysheet-modal-dialog-activeImage");
-  if (!box) return undefined;
-  const { width, height } = box.getBoundingClientRect();
-  const left = box.offsetLeft;
-  const top = box.offsetTop;
-  return { left, top, width, height };
+/** The active picture's box in screen px (zoomed), from its data. */
+function activeImageRect(ctx: Context, id = ctx.activeImg) {
+  const img = _.find(ctx.insertedImgs, (v) => v.id === id);
+  if (!img) return undefined;
+  const zoom = ctx.zoomRatio || 1;
+  return {
+    left: img.left * zoom,
+    top: img.top * zoom,
+    width: img.width * zoom,
+    height: img.height * zoom,
+  };
 }
+
+/** Show `rect` (screen px) on the active picture while it is dragged. */
+function showImageRect(rect: {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}) {
+  const box = document.getElementById("luckysheet-modal-dialog-activeImage");
+  if (!box) return;
+  box.style.left = `${rect.left}px`;
+  box.style.top = `${rect.top}px`;
+  box.style.width = `${rect.width}px`;
+  box.style.height = `${rect.height}px`;
+  const content = box.querySelector<HTMLElement>(
+    ".luckysheet-modal-dialog-content"
+  );
+  if (content) {
+    content.style.width = `${rect.width}px`;
+    content.style.height = `${rect.height}px`;
+    content.style.backgroundSize = `${rect.width}px ${rect.height}px`;
+  }
+}
+
+/** The nearest row / column edge (sheet px, zoomed) to `pos`: Alt snaps. */
+function snapToGrid(edges: number[], pos: number) {
+  let best = 0;
+  let bestDist = Math.abs(pos);
+  const i = _.sortedIndex(edges, pos);
+  [i - 1, i].forEach((k) => {
+    const edge = edges[k];
+    if (edge == null) return;
+    const dist = Math.abs(edge - pos);
+    if (dist < bestDist) {
+      best = edge;
+      bestDist = dist;
+    }
+  });
+  return best;
+}
+
+/** A picture moves or resizes only once the pointer moved this far (px). */
+const IMAGE_DRAG_THRESHOLD = 3;
 
 export function cancelActiveImgItem(ctx: Context, globalCache: GlobalCache) {
   ctx.activeImg = undefined;
   globalCache.image = undefined;
 }
 
+/**
+ * Mouse down on a picture: select it (`id`, when it is not the active one)
+ * and start moving it. Like Excel, one gesture selects and drags.
+ */
 export function onImageMoveStart(
   ctx: Context,
   globalCache: GlobalCache,
-  e: MouseEvent
-  // { r, c, rc }: { r: number; c: number; rc: string },
+  e: MouseEvent,
+  id?: string
 ) {
+  if (id != null) ctx.activeImg = id;
   if (!checkProtection(ctx, "editObjects")) return;
-  const position = getImagePosition();
+  const position = activeImageRect(ctx);
   if (position) {
-    const { top, left } = position;
-    _.set(globalCache, "image", {
-      cursorMoveStartPosition: {
-        x: e.pageX,
-        y: e.pageY,
-      },
-      // movingId,
-      // imageRC: { r, c, rc },
-      imgInitialPosition: { left, top },
-    });
+    globalCache.image = {
+      cursorMoveStartPosition: { x: e.pageX, y: e.pageY },
+      imgInitialPosition: position,
+      resizingSide: undefined,
+    };
   }
 }
 
@@ -167,49 +214,130 @@ export function onImageMove(
 ) {
   if (ctx.allowEdit === false) return false;
   const image = globalCache?.image;
-  const img = document.getElementById("luckysheet-modal-dialog-activeImage");
-  if (img && image && !image.resizingSide) {
-    const { x: startX, y: startY } = image.cursorMoveStartPosition!;
-    let { top, left } = image.imgInitialPosition!;
-    left += e.pageX - startX;
-    top += e.pageY - startY;
-    if (top < 0) top = 0;
-    (img as HTMLDivElement).style.left = `${left}px`;
-    (img as HTMLDivElement).style.top = `${top}px`;
+  if (!image || image.resizingSide) return false;
+  const { x: startX, y: startY } = image.cursorMoveStartPosition!;
+  let dx = e.pageX - startX;
+  let dy = e.pageY - startY;
+  if (
+    !image.current &&
+    Math.abs(dx) < IMAGE_DRAG_THRESHOLD &&
+    Math.abs(dy) < IMAGE_DRAG_THRESHOLD
+  ) {
     return true;
   }
-  return false;
+  // Shift: only horizontally or vertically (Excel)
+  if (e.shiftKey) {
+    if (Math.abs(dx) >= Math.abs(dy)) dy = 0;
+    else dx = 0;
+  }
+  const init = image.imgInitialPosition!;
+  let left = init.left + dx;
+  let top = init.top + dy;
+  // Alt: the top-left corner snaps to the cell grid (Excel)
+  if (e.altKey) {
+    left = snapToGrid(ctx.visibledatacolumn, left);
+    top = snapToGrid(ctx.visibledatarow, top);
+  }
+  image.current = {
+    ...init,
+    left: Math.max(0, left),
+    top: Math.max(0, top),
+  };
+  showImageRect(image.current);
+  return true;
 }
 
 export function onImageMoveEnd(ctx: Context, globalCache: GlobalCache) {
-  const position = getImagePosition();
-  if (!globalCache.image?.resizingSide) {
-    globalCache.image = undefined;
-
-    if (position) {
-      const img = _.find(ctx.insertedImgs, (v) => v.id === ctx.activeImg);
-      if (img) {
-        img.left = position.left / ctx.zoomRatio;
-        img.top = position.top / ctx.zoomRatio;
-        saveImage(ctx);
-      }
-    }
-  }
+  const image = globalCache.image;
+  if (!image || image.resizingSide) return;
+  globalCache.image = undefined;
+  const img = _.find(ctx.insertedImgs, (v) => v.id === ctx.activeImg);
+  if (!img || !image.current) return;
+  const zoom = ctx.zoomRatio || 1;
+  img.left = image.current.left / zoom;
+  img.top = image.current.top / zoom;
+  saveImage(ctx);
 }
 
 export function onImageResizeStart(
+  ctx: Context,
   globalCache: GlobalCache,
   e: MouseEvent,
   resizingSide: string
 ) {
-  const position = getImagePosition();
+  if (!checkProtection(ctx, "editObjects")) return;
+  const position = activeImageRect(ctx);
   if (position) {
-    _.set(globalCache, "image", {
+    globalCache.image = {
       cursorMoveStartPosition: { x: e.pageX, y: e.pageY },
       resizingSide,
       imgInitialPosition: position,
-    });
+    };
   }
+}
+
+/**
+ * The picture's box after dragging handle `side` ("lt", "mt", "rb"...) by
+ * (dx, dy) screen px. Corners keep the aspect ratio (a picture's aspect is
+ * locked in Excel), edges stretch; Alt snaps a dragged edge to the grid.
+ */
+function resizedImageRect(
+  ctx: Context,
+  init: { left: number; top: number; width: number; height: number },
+  side: string,
+  dx: number,
+  dy: number,
+  alt: boolean
+) {
+  const min = 8;
+  const leftSide = side[0] === "l";
+  const rightSide = side[0] === "r";
+  const topSide = side[1] === "t";
+  const bottomSide = side[1] === "b";
+  let width = init.width;
+  let height = init.height;
+  if (rightSide) width += dx;
+  if (leftSide) width -= dx;
+  if (bottomSide) height += dy;
+  if (topSide) height -= dy;
+  const corner = (leftSide || rightSide) && (topSide || bottomSide);
+  if (alt && !corner) {
+    if (rightSide) {
+      width = snapToGrid(ctx.visibledatacolumn, init.left + width) - init.left;
+    }
+    if (leftSide) {
+      const edge = init.left + init.width;
+      width = edge - snapToGrid(ctx.visibledatacolumn, edge - width);
+    }
+    if (bottomSide) {
+      height = snapToGrid(ctx.visibledatarow, init.top + height) - init.top;
+    }
+    if (topSide) {
+      const edge = init.top + init.height;
+      height = edge - snapToGrid(ctx.visibledatarow, edge - height);
+    }
+  }
+  width = Math.max(min, width);
+  height = Math.max(min, height);
+  if (corner && init.width > 0 && init.height > 0) {
+    // the axis dragged the most (relative to the size) sets the scale
+    const sw = width / init.width;
+    const sh = height / init.height;
+    const scale = Math.abs(sw - 1) >= Math.abs(sh - 1) ? sw : sh;
+    width = Math.max(min, init.width * scale);
+    height = Math.max(min, init.height * scale);
+  }
+  let left = leftSide ? init.left + init.width - width : init.left;
+  let top = topSide ? init.top + init.height - height : init.top;
+  if (left < 0) {
+    width += left;
+    left = 0;
+  }
+  if (top < 0) {
+    height += top;
+    top = 0;
+  }
+  return { left, top, width, height };
 }
 
 export function onImageResize(
@@ -219,72 +347,48 @@ export function onImageResize(
 ) {
   if (ctx.allowEdit === false) return false;
   const image = globalCache?.image;
-  if (image?.resizingSide) {
-    const imgContainer = document.getElementById(
-      "luckysheet-modal-dialog-activeImage"
-    );
-    const img = imgContainer?.querySelector(".luckysheet-modal-dialog-content");
-    if (img == null) return false;
-    const { x: startX, y: startY } = image.cursorMoveStartPosition!;
-    let { top, left, width, height } = image.imgInitialPosition!;
-    const dx = e.pageX - startX;
-    const dy = e.pageY - startY;
-    const minHeight = 60 * ctx.zoomRatio;
-    const minWidth = 1.5 * 60 * ctx.zoomRatio;
-    if (["lm", "lt", "lb"].includes(image.resizingSide)) {
-      if (width - dx < minWidth) {
-        left += width - minWidth;
-        width = minWidth;
-      } else {
-        left += dx;
-        width -= dx;
-      }
-      if (left < 0) left = 0;
-      (img as HTMLDivElement).style.left = `${left}px`;
-      (imgContainer as HTMLDivElement).style.left = `${left}px`;
-    }
-    if (["rm", "rt", "rb"].includes(image.resizingSide)) {
-      width = width + dx < minWidth ? minWidth : width + dx;
-    }
-    if (["mt", "lt", "rt"].includes(image.resizingSide)) {
-      if (height - dy < minHeight) {
-        top += height - minHeight;
-        height = minHeight;
-      } else {
-        top += dy;
-        height -= dy;
-      }
-      if (top < 0) top = 0;
-      (img as HTMLDivElement).style.top = `${top}px`;
-      (imgContainer as HTMLDivElement).style.top = `${top}px`;
-    }
-    if (["mb", "lb", "rb"].includes(image.resizingSide)) {
-      height = height + dy < minHeight ? minHeight : height + dy;
-    }
-    (img as HTMLDivElement).style.width = `${width}px`;
-    (imgContainer as HTMLDivElement).style.width = `${width}px`;
-    (img as HTMLDivElement).style.height = `${height}px`;
-    (imgContainer as HTMLDivElement).style.height = `${height}px`;
-    (img as HTMLDivElement).style.backgroundSize = `${width}px ${height}px`;
-
+  if (!image?.resizingSide) return false;
+  const { x: startX, y: startY } = image.cursorMoveStartPosition!;
+  const dx = e.pageX - startX;
+  const dy = e.pageY - startY;
+  if (
+    !image.current &&
+    Math.abs(dx) < IMAGE_DRAG_THRESHOLD &&
+    Math.abs(dy) < IMAGE_DRAG_THRESHOLD
+  ) {
     return true;
   }
-  return false;
+  image.current = resizedImageRect(
+    ctx,
+    image.imgInitialPosition!,
+    image.resizingSide,
+    dx,
+    dy,
+    e.altKey
+  );
+  showImageRect(image.current);
+  return true;
 }
 
 export function onImageResizeEnd(ctx: Context, globalCache: GlobalCache) {
-  if (globalCache.image?.resizingSide) {
-    globalCache.image = undefined;
-    const position = getImagePosition();
-    if (position) {
-      const img = _.find(ctx.insertedImgs, (v) => v.id === ctx.activeImg);
-      if (img) {
-        img.left = position.left / ctx.zoomRatio;
-        img.top = position.top / ctx.zoomRatio;
-        img.width = position.width / ctx.zoomRatio;
-        img.height = position.height / ctx.zoomRatio;
-        saveImage(ctx);
-      }
-    }
-  }
+  const image = globalCache.image;
+  if (!image?.resizingSide) return;
+  globalCache.image = undefined;
+  const img = _.find(ctx.insertedImgs, (v) => v.id === ctx.activeImg);
+  if (!img || !image.current) return;
+  const zoom = ctx.zoomRatio || 1;
+  img.left = image.current.left / zoom;
+  img.top = image.current.top / zoom;
+  img.width = image.current.width / zoom;
+  img.height = image.current.height / zoom;
+  saveImage(ctx);
+}
+
+/** Esc while a picture is moved or resized: it goes back (Excel). */
+export function cancelImageDrag(globalCache: GlobalCache) {
+  const image = globalCache.image;
+  if (!image) return false;
+  globalCache.image = undefined;
+  if (image.imgInitialPosition) showImageRect(image.imgInitialPosition);
+  return true;
 }

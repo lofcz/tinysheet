@@ -387,11 +387,13 @@ export function pointToAnchor(
   x: number,
   y: number
 ): ShapeAnchor {
-  const px = Math.max(0, x);
-  const py = Math.max(0, y);
+  // hundredths of a px: a position computed through a zoom (x / 1.5) that
+  // lands a hair before a cell edge is on the edge
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const px = round(Math.max(0, x));
+  const py = round(Math.max(0, y));
   const c = indexAt(geo.colLeft, px, MAX_INDEX.column);
   const r = indexAt(geo.rowTop, py, MAX_INDEX.row);
-  const round = (n: number) => Math.round(n * 100) / 100;
   return {
     r,
     c,

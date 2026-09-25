@@ -19,13 +19,11 @@ import {
   activeCellTable,
   addTableSlicers,
   clearSlicerFilter,
-  colLocation,
   findSlicer,
   getSlicerItems,
   getTables,
   locale,
   removeSlicer,
-  rowLocation,
   selectSlicerItem,
   slicerHasFilter,
   SLICER_DEFAULTS,
@@ -40,6 +38,7 @@ import type {
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
+import { trackPointerDrag } from "../../hooks/pointerDrag";
 import { activateOnKey } from "../Toolbar/Button";
 import { Button as UiButton, DialogShell } from "../ui";
 import SVGIcon from "../SVGIcon";
@@ -134,8 +133,13 @@ function anchorOf(ctx: Context, box: Box) {
   const zoom = ctx.zoomRatio || 1;
   const left = Math.max(0, box.left);
   const top = Math.max(0, box.top);
-  const [colPre, , c] = colLocation(left, ctx.visibledatacolumn);
-  const [rowPre, , r] = rowLocation(top, ctx.visibledatarow);
+  // the cell the corner is in (an edge starts the next cell, as in Excel)
+  const cellAt = (edges: number[], pos: number) => {
+    const i = Math.min(_.sortedLastIndex(edges, pos), edges.length - 1);
+    return [i > 0 ? edges[i - 1] : 0, i] as const;
+  };
+  const [colPre, c] = cellAt(ctx.visibledatacolumn, left);
+  const [rowPre, r] = cellAt(ctx.visibledatarow, top);
   return {
     r,
     c,
@@ -879,11 +883,12 @@ export const SlicerLayer: React.FC = () => {
     setPreview({ name: d.name, box: d.current });
   }, []);
 
+  const stopTracking = useRef<(() => void) | null>(null);
+
   const onMouseUp = useCallback(() => {
     const d = drag.current;
     drag.current = null;
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup", onMouseUp);
+    stopTracking.current = null;
     setPreview(null);
     if (!d?.moved) return;
     setContext((ctx) => {
@@ -903,13 +908,14 @@ export const SlicerLayer: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onMouseMove, setContext]);
 
-  useEffect(
-    () => () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    },
-    [onMouseMove, onMouseUp]
-  );
+  // Esc (or a lost pointer): the slicer stays where it was
+  const onDragCancel = useCallback(() => {
+    drag.current = null;
+    stopTracking.current = null;
+    setPreview(null);
+  }, []);
+
+  useEffect(() => () => stopTracking.current?.(), []);
 
   const startDrag = useCallback(
     (e: React.MouseEvent, slicer: TableSlicer, mode: DragMode) => {
@@ -941,10 +947,22 @@ export const SlicerLayer: React.FC = () => {
         current: box,
         moved: false,
       };
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
+      stopTracking.current?.();
+      stopTracking.current = trackPointerDrag(e, {
+        onMove: onMouseMove,
+        onEnd: onMouseUp,
+        onCancel: onDragCancel,
+      });
     },
-    [context, onMouseMove, onMouseUp, readonly, setContext, tables]
+    [
+      context,
+      onDragCancel,
+      onMouseMove,
+      onMouseUp,
+      readonly,
+      setContext,
+      tables,
+    ]
   );
 
   const openMenu = useCallback(

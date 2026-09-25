@@ -14,6 +14,7 @@ import React, {
   useState,
 } from "react";
 import WorkbookContext from "../../context";
+import { trackPointerDrag } from "../../hooks/pointerDrag";
 
 /** localStorage key prefix of a workbook's formula bar state. */
 export const FORMULA_BAR_STORAGE_KEY = "tinysheet.formulaBar";
@@ -139,13 +140,8 @@ export function useFormulaBarSize() {
       const startY = e.clientY;
       const start = expanded ? height : FORMULA_BAR_COLLAPSED_HEIGHT;
       let current = start;
-      try {
-        handle.setPointerCapture(e.pointerId);
-      } catch (err) {
-        // synthetic events without an active pointer
-      }
       handle.classList.add("fortune-fx-resize-handle-active");
-      const move = (ev: PointerEvent) => {
+      const move = (ev: MouseEvent) => {
         current = Math.min(
           maxHeight(),
           Math.max(FORMULA_BAR_COLLAPSED_HEIGHT, start + ev.clientY - startY)
@@ -153,18 +149,19 @@ export function useFormulaBarSize() {
         setDragHeight(current);
       };
       const up = () => {
-        handle.removeEventListener("pointermove", move);
-        handle.removeEventListener("pointerup", up);
-        handle.removeEventListener("pointercancel", up);
-        handle.removeEventListener("lostpointercapture", up);
         handle.classList.remove("fortune-fx-resize-handle-active");
         if (current !== start) commit(current);
         else setDragHeight(null);
       };
-      handle.addEventListener("pointermove", move);
-      handle.addEventListener("pointerup", up);
-      handle.addEventListener("pointercancel", up);
-      handle.addEventListener("lostpointercapture", up);
+      // pointer capture; Esc: the bar keeps its height
+      trackPointerDrag(e, {
+        onMove: move,
+        onEnd: up,
+        onCancel: () => {
+          handle.classList.remove("fortune-fx-resize-handle-active");
+          setDragHeight(null);
+        },
+      });
     },
     [commit, expanded, height]
   );

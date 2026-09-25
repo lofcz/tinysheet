@@ -813,6 +813,8 @@ export type GlobalCache = {
     imgInitialPosition: Rect | undefined;
     cursorMoveStartPosition: { x: number; y: number } | undefined;
     resizingSide: string | undefined;
+    /** the box shown while dragging (screen px), once the pointer moved */
+    current?: { left: number; top: number; width: number; height: number };
   };
   commentBox?: {
     movingId: string | undefined;

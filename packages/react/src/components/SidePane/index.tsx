@@ -32,6 +32,7 @@ import { ribbonLocale } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { ICON_STROKE, Tabs, Tooltip } from "../ui";
 import "../ui/form.css";
+import { trackPointerDrag } from "../../hooks/pointerDrag";
 import "./index.css";
 
 export const SIDE_PANE_MIN = 260;
@@ -317,24 +318,22 @@ export const SidePaneSlot: React.FC = () => {
         onPointerDown={(e) => {
           if (e.button !== 0) return;
           e.preventDefault();
-          e.currentTarget.setPointerCapture(e.pointerId);
-          drag.current = { x: e.clientX, w: width };
+          const start = { x: e.clientX, w: width };
+          drag.current = start;
           setDragging(true);
-        }}
-        onPointerMove={(e) => {
-          if (!drag.current) return;
-          setWidth(drag.current.w + drag.current.x - e.clientX);
-        }}
-        onPointerUp={(e) => {
-          drag.current = null;
-          setDragging(false);
-          if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-            e.currentTarget.releasePointerCapture(e.pointerId);
-          }
-        }}
-        onPointerCancel={() => {
-          drag.current = null;
-          setDragging(false);
+          const end = () => {
+            drag.current = null;
+            setDragging(false);
+          };
+          trackPointerDrag(e, {
+            onMove: (ev) => setWidth(start.w + start.x - ev.clientX),
+            onEnd: end,
+            // Esc: the pane keeps its width
+            onCancel: () => {
+              setWidth(start.w);
+              end();
+            },
+          });
         }}
       />
       {/* the pane keeps its keys and clicks from the grid's handlers */}

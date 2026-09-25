@@ -8,9 +8,21 @@ import {
 import _ from "lodash";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import WorkbookContext from "../../context";
+import { trackPointerDrag } from "../../hooks/pointerDrag";
 import "./index.css";
 
 const BAR = 6;
+
+/**
+ * The row / column whose far edge is nearest `pos`: a split bar snaps to
+ * the nearest boundary (Excel), so a click on the bar leaves it there.
+ */
+function nearestEdge(edges: number[], pos: number) {
+  const i = _.sortedIndex(edges, pos);
+  if (i >= edges.length) return edges.length - 1;
+  if (i > 0 && pos - edges[i - 1] < edges[i] - pos) return i - 1;
+  return i;
+}
 
 /**
  * Split panes (View > Split): draggable split bars over the sheet, and
@@ -95,10 +107,12 @@ const SplitPanes: React.FC = () => {
         axis === "row" ? ev.clientY - rect.top : ev.clientX - rect.left;
       setDrag({ axis, pos: posOf(e) });
       const onMove = (ev: MouseEvent) => setDrag({ axis, pos: posOf(ev) });
+      // the keyboard goes back to the grid (Excel)
+      const focusGrid = () =>
+        refs.cellInput.current?.focus({ preventScroll: true });
       const onUp = (ev: MouseEvent) => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
         setDrag(null);
+        focusGrid();
         const pos = posOf(ev);
         setContext((ctx) => {
           const i = getSheetIndex(ctx, ctx.currentSheetId);
@@ -112,8 +126,8 @@ const SplitPanes: React.FC = () => {
             }
             const offset =
               (f.top ?? 0) > 0 ? ctx.visibledatarow[f.top! - 1] : 0;
-            const r = _.sortedIndex(ctx.visibledatarow, offset + inPane);
-            setSplitPosition(ctx, "row", Math.max(0, r - 1));
+            const r = nearestEdge(ctx.visibledatarow, offset + inPane);
+            setSplitPosition(ctx, "row", Math.max(0, r));
           } else {
             const inPane = pos - ctx.rowHeaderWidth;
             if (inPane < 8) {
@@ -122,15 +136,22 @@ const SplitPanes: React.FC = () => {
             }
             const offset =
               (f.left ?? 0) > 0 ? ctx.visibledatacolumn[f.left! - 1] : 0;
-            const c = _.sortedIndex(ctx.visibledatacolumn, offset + inPane);
-            setSplitPosition(ctx, "column", Math.max(0, c - 1));
+            const c = nearestEdge(ctx.visibledatacolumn, offset + inPane);
+            setSplitPosition(ctx, "column", Math.max(0, c));
           }
         });
       };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+      // Esc: the split stays where it was
+      trackPointerDrag(e, {
+        onMove,
+        onEnd: onUp,
+        onCancel: () => {
+          setDrag(null);
+          focusGrid();
+        },
+      });
     },
-    [setContext]
+    [refs.cellInput, setContext]
   );
 
   if (!split) return null;

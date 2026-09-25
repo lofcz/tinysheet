@@ -11,6 +11,7 @@ import {
   getSheetIndex,
   getGridPoint,
   borderIndexAt,
+  isHiddenAt,
   isAllowEdit,
   autofitRows,
   getAutofitTargets,
@@ -25,6 +26,10 @@ import React, {
   useMemo,
 } from "react";
 import WorkbookContext from "../../context";
+
+/** The resize handle: 8px, centred on the border (see borderIndexAt). */
+const HANDLE_SIZE = 8;
+const ROW_HANDLE_OFFSET = 2;
 
 const RowHeader: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -153,6 +158,14 @@ const RowHeader: React.FC = () => {
       if (index < 0) return;
       setContext((draftCtx) => {
         if (!isAllowEdit(draftCtx)) return;
+        // on the double line of a hidden row: unhide it and fit it
+        if (isHiddenAt(draftCtx.visibledatarow, index)) {
+          delete draftCtx.config.rowhidden?.[index];
+          const i = getSheetIndex(draftCtx, draftCtx.currentSheetId);
+          if (i != null) draftCtx.luckysheetfile[i].config = draftCtx.config;
+          autofitRows(draftCtx, [index]);
+          return;
+        }
         autofitRows(draftCtx, getAutofitTargets(draftCtx, "row", index));
       });
     },
@@ -247,16 +260,22 @@ const RowHeader: React.FC = () => {
         onMouseDown={onRowSizeHandleMouseDown}
         onDoubleClick={onRowSizeHandleDoubleClick}
         style={{
-          // straddles the border (the header's padding puts row 0 at 2px)
+          // straddles the border, 4px each side like the hover test (the
+          // header's padding puts row 0 at 2px)
           top:
             (context.visibledatarow[border.index] ?? 0) -
-            1 +
+            ROW_HANDLE_OFFSET +
             (border.inFreeze ? context.scrollTop : 0),
+          height: HANDLE_SIZE,
           display:
             border.index >= 0 || context.luckysheet_rows_change_size
               ? "block"
               : "none",
           opacity: context.luckysheet_rows_change_size ? 1 : 0,
+          // the double line of a hidden row (Excel's split cursor)
+          cursor: isHiddenAt(context.visibledatarow, border.index)
+            ? "row-resize"
+            : undefined,
         }}
       />
       {!context.luckysheet_rows_change_size && hoverLocation.row_index >= 0 ? (

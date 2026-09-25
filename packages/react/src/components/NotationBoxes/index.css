@@ -22,6 +22,8 @@
 
 .fortune-note-box {
   position: absolute;
+  /* the frame around the text moves the note (Excel); the text is edited */
+  cursor: move;
   box-sizing: border-box;
   padding: 5px 6px;
   border: 1px solid var(--fortune-note-border);

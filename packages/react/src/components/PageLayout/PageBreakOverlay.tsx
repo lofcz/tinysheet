@@ -11,6 +11,7 @@ import {
   updatePageSetup,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
+import { trackPointerDrag } from "../../hooks/pointerDrag";
 import WorkbookContext from "../../context";
 import { useWorkbookSelector } from "../../context/store";
 import { usePageLayoutDialogs } from "./dialogs";
@@ -109,8 +110,6 @@ const PageBreaks: React.FC<{ preview: boolean; pageView?: boolean }> = ({
       setDrag((cur) => (cur && cur.to !== to ? { ...cur, to } : cur));
     };
     const up = (ev: MouseEvent) => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
       const to = pointerIndex(ev);
       setDrag(null);
       const areaRange = layout.areas[d.area]?.range;
@@ -136,8 +135,21 @@ const PageBreaks: React.FC<{ preview: boolean; pageView?: boolean }> = ({
         updatePageSetup(ctx, { printArea: areas });
       });
     };
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
+    // Esc: the break / print area edge stays where it was
+    // the keyboard goes back to the grid afterwards
+    const focusGrid = () =>
+      refs.cellInput.current?.focus({ preventScroll: true });
+    trackPointerDrag(e, {
+      onMove: move,
+      onEnd: (ev) => {
+        up(ev);
+        focusGrid();
+      },
+      onCancel: () => {
+        setDrag(null);
+        focusGrid();
+      },
+    });
   };
 
   // what is visible (the mask and watermarks only cover the viewport)

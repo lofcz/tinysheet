@@ -13,6 +13,7 @@ import {
   getSheetIndex,
   getGridPoint,
   borderIndexAt,
+  isHiddenAt,
   autofitColumns,
   getAutofitTargets,
 } from "@lofcz/tinysheet-core";
@@ -27,6 +28,10 @@ import React, {
 } from "react";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
+
+/** The resize handle: 8px, centred on the border (see borderIndexAt). */
+const HANDLE_SIZE = 8;
+const COL_HANDLE_OFFSET = 5;
 
 const ColumnHeader: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -167,6 +172,14 @@ const ColumnHeader: React.FC = () => {
       if (index < 0) return;
       setContext((draftCtx) => {
         if (!isAllowEdit(draftCtx)) return;
+        // on the double line of a hidden column: unhide it and fit it
+        if (isHiddenAt(draftCtx.visibledatacolumn, index)) {
+          delete draftCtx.config.colhidden?.[index];
+          const i = getSheetIndex(draftCtx, draftCtx.currentSheetId);
+          if (i != null) draftCtx.luckysheetfile[i].config = draftCtx.config;
+          autofitColumns(draftCtx, [index]);
+          return;
+        }
         autofitColumns(draftCtx, getAutofitTargets(draftCtx, "column", index));
       });
     },
@@ -263,16 +276,22 @@ const ColumnHeader: React.FC = () => {
         onMouseDown={onColSizeHandleMouseDown}
         onDoubleClick={onColumnSizeHandleDoubleClick}
         style={{
-          // straddles the border (the header starts 1px right of the cells)
+          // straddles the border, 4px each side like the hover test (the
+          // header starts 1px right of the cells)
           left:
             (context.visibledatacolumn[border.index] ?? 0) -
-            3 +
+            COL_HANDLE_OFFSET +
             (border.inFreeze ? context.scrollLeft : 0),
+          width: HANDLE_SIZE,
           display:
             border.index >= 0 || context.luckysheet_cols_change_size
               ? "block"
               : "none",
           opacity: context.luckysheet_cols_change_size ? 1 : 0,
+          // the double line of a hidden column (Excel's split cursor)
+          cursor: isHiddenAt(context.visibledatacolumn, border.index)
+            ? "col-resize"
+            : undefined,
         }}
       />
       {!context.luckysheet_cols_change_size && hoverLocation.col_index >= 0 ? (

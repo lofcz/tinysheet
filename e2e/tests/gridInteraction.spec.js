@@ -183,7 +183,7 @@ test.describe("drag auto-scroll", () => {
     // dropped with the pointer in the right part of the last whole column
     for (const [r, c, dx] of [
       [nearBottom, 1, 0],
-      [5, 20, 30],
+      [5, 19, 30],
     ]) {
       await sheet.click(from[0], from[1]);
       const border = await page

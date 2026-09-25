@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { trackPointerDrag } from "./pointerDrag";
 
 const FOCUSABLE = [
   "a[href]",
@@ -193,10 +194,22 @@ export function useDialogBehavior(
       el.style.transform = `translate(${x}px, ${y}px)`;
       el.dataset.dialogOffset = `${x},${y}`;
     };
+    let stopDrag: (() => void) | null = null;
     const onMouseUp = () => {
       drag = null;
-      window.removeEventListener("mousemove", onMouseMove, true);
-      window.removeEventListener("mouseup", onMouseUp, true);
+      stopDrag?.();
+      stopDrag = null;
+    };
+    // Esc while dragging: the dialog goes back (and stays open)
+    const onDragCancel = () => {
+      if (drag) {
+        const { el, baseX, baseY } = drag;
+        el.style.transform =
+          baseX || baseY ? `translate(${baseX}px, ${baseY}px)` : "";
+        el.dataset.dialogOffset = `${baseX},${baseY}`;
+      }
+      drag = null;
+      stopDrag = null;
     };
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
@@ -211,8 +224,12 @@ export function useDialogBehavior(
         .split(",")
         .map(Number);
       drag = { el, startX: e.clientX, startY: e.clientY, baseX, baseY };
-      window.addEventListener("mousemove", onMouseMove, true);
-      window.addEventListener("mouseup", onMouseUp, true);
+      stopDrag?.();
+      stopDrag = trackPointerDrag(
+        e,
+        { onMove: onMouseMove, onEnd: onMouseUp, onCancel: onDragCancel },
+        handle
+      );
     };
 
     document.addEventListener("keydown", onKeyDownCapture, true);

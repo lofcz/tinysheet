@@ -59,6 +59,7 @@ import {
 import { getShapeClipboard, setShapeClipboard } from "./shapeClipboard";
 import { ContextMenuPopup, MenuItem } from "../ui";
 import { menuIcon } from "../ContextMenu/icons";
+import { trackPointerDrag } from "../../hooks/pointerDrag";
 import "./index.css";
 
 type DragMode = "move" | Side | "rotate" | "start" | "end" | "adjust";
@@ -80,6 +81,10 @@ type DragState = {
   union: ShapeBox;
   moved: boolean;
   patches: Record<string, Patch> | null;
+  /** Ctrl / Shift + press on this shape: a click toggles it */
+  toggle?: string;
+  /** Ctrl held: the drag copies */
+  copy?: boolean;
 };
 
 const EMPTY: Shape[] = [];
@@ -309,20 +314,47 @@ const ShapeLayer: React.FC = () => {
   // Dragging (move, resize, rotate, line ends, adjust handle)
   // ---------------------------------------------------------------------
 
+  // the nearest row / column edge to `pos` (sheet px at 100%): Alt snaps
+  const snapToGrid = useCallback(
+    (pos: number, axis: "x" | "y") => {
+      const edges =
+        axis === "x" ? context.visibledatacolumn : context.visibledatarow;
+      let best = 0;
+      edges.forEach((edge) => {
+        if (Math.abs(edge / zoom - pos) < Math.abs(best - pos)) {
+          best = edge / zoom;
+        }
+      });
+      return best;
+    },
+    [context.visibledatacolumn, context.visibledatarow, zoom]
+  );
+
   const onMouseMove = useCallback(
     (e: MouseEvent) => {
       const d = drag.current;
       if (!d) return;
       const p = toSheet(e);
-      const dx = p.x - d.start.x;
-      const dy = p.y - d.start.y;
+      let dx = p.x - d.start.x;
+      let dy = p.y - d.start.y;
       if (!d.moved && Math.hypot(dx, dy) * zoom < 3) return;
       d.moved = true;
       const next: Record<string, Patch> = {};
       const { mode, shape } = d;
       if (mode === "move") {
+        // Shift: only horizontally or vertically (Excel)
+        if (e.shiftKey) {
+          if (Math.abs(dx) >= Math.abs(dy)) dy = 0;
+          else dx = 0;
+        }
+        // Alt: the top-left corner snaps to the cell grid (Excel)
+        if (e.altKey) {
+          dx = snapToGrid(d.union.left + dx, "x") - d.union.left;
+          dy = snapToGrid(d.union.top + dy, "y") - d.union.top;
+        }
         const mx = Math.max(dx, -d.union.left);
         const my = Math.max(dy, -d.union.top);
+        d.copy = e.ctrlKey || e.metaKey;
         d.ids.forEach((id) => {
           const b = d.boxes[id];
           next[id] = { box: { ...b, left: b.left + mx, top: b.top + my } };
@@ -334,7 +366,11 @@ const ShapeLayer: React.FC = () => {
       } else if ((mode === "start" || mode === "end") && shape) {
         const ends = lineEnds(d.boxes[shape.id], shape);
         const fixed = mode === "start" ? ends.end : ends.start;
-        const moving = e.shiftKey ? snapLine(fixed, p) : p;
+        // the grabbed end follows the pointer's movement (grabbing the
+        // handle off its centre does not make the end jump)
+        const grabbed = mode === "start" ? ends.start : ends.end;
+        const to = { x: grabbed.x + dx, y: grabbed.y + dy };
+        const moving = e.shiftKey ? snapLine(fixed, to) : to;
         const line =
           mode === "start"
             ? lineFromEnds(moving, fixed)
@@ -373,60 +409,78 @@ const ShapeLayer: React.FC = () => {
       d.patches = next;
       setPatches(next);
     },
-    [toSheet, zoom]
+    [snapToGrid, toSheet, zoom]
   );
 
-  // The window listeners stay the same functions for the whole drag (the
+  // The drag's handlers stay the same functions for the whole drag (the
   // first mousedown re-renders the layer when it selects the shape).
   const moveRef = useRef(onMouseMove);
   moveRef.current = onMouseMove;
-  const upRef = useRef<() => void>(() => {});
-  const windowMove = useCallback((e: MouseEvent) => moveRef.current(e), []);
-  const windowUp = useCallback(() => upRef.current(), []);
+  const upRef = useRef<(e: MouseEvent) => void>(() => {});
+  const stopTracking = useRef<(() => void) | null>(null);
 
-  const onMouseUp = useCallback(() => {
-    const d = drag.current;
-    drag.current = null;
-    window.removeEventListener("mousemove", windowMove);
-    window.removeEventListener("mouseup", windowUp);
-    if (d?.moved && d.patches) {
-      const done = d.patches;
-      setContext((ctx) => {
-        const boxes: Record<string, ShapeBox> = {};
-        Object.entries(done).forEach(([id, patch]) => {
-          if (patch.box) boxes[id] = patch.box;
-        });
-        setShapeBoxes(ctx, boxes);
-        Object.entries(done).forEach(([id, patch]) => {
-          updateShapes(ctx, [id], (s) => {
-            if (patch.rot != null) {
-              if (patch.rot) s.rot = patch.rot;
-              else delete s.rot;
-            }
-            if (patch.flipH != null) {
-              if (patch.flipH) s.flipH = true;
-              else delete s.flipH;
-            }
-            if (patch.flipV != null) {
-              if (patch.flipV) s.flipV = true;
-              else delete s.flipV;
-            }
-            if (patch.adj) s.adj = patch.adj;
+  const onMouseUp = useCallback(
+    (e: MouseEvent) => {
+      const d = drag.current;
+      drag.current = null;
+      stopTracking.current = null;
+      if (d && !d.moved && d.toggle) {
+        // Ctrl / Shift + click: add or remove the shape
+        setContext((ctx) => selectShapes(ctx, [d.toggle!], true));
+      }
+      if (d?.moved && d.patches) {
+        const done = d.patches;
+        // Ctrl held on release: the shapes are copied there (Excel)
+        const copy = d.mode === "move" && (e.ctrlKey || e.metaKey);
+        setContext((ctx) => {
+          if (copy) {
+            const clip = copyShapes(ctx, d.ids);
+            const union = unionBox(
+              Object.values(done)
+                .map((patch) => patch.box)
+                .filter((b): b is ShapeBox => !!b)
+            );
+            if (clip && union) pasteShapes(ctx, clip, union);
+            return;
+          }
+          const boxes: Record<string, ShapeBox> = {};
+          Object.entries(done).forEach(([id, patch]) => {
+            if (patch.box) boxes[id] = patch.box;
+          });
+          setShapeBoxes(ctx, boxes);
+          Object.entries(done).forEach(([id, patch]) => {
+            updateShapes(ctx, [id], (s) => {
+              if (patch.rot != null) {
+                if (patch.rot) s.rot = patch.rot;
+                else delete s.rot;
+              }
+              if (patch.flipH != null) {
+                if (patch.flipH) s.flipH = true;
+                else delete s.flipH;
+              }
+              if (patch.flipV != null) {
+                if (patch.flipV) s.flipV = true;
+                else delete s.flipV;
+              }
+              if (patch.adj) s.adj = patch.adj;
+            });
           });
         });
-      });
-    }
-    setPatches(null);
-  }, [setContext, windowMove, windowUp]);
+      }
+      setPatches(null);
+    },
+    [setContext]
+  );
   upRef.current = onMouseUp;
 
-  useEffect(
-    () => () => {
-      window.removeEventListener("mousemove", windowMove);
-      window.removeEventListener("mouseup", windowUp);
-    },
-    [windowMove, windowUp]
-  );
+  // Esc (or a lost pointer): the shapes stay where they were
+  const onDragCancel = useCallback(() => {
+    drag.current = null;
+    stopTracking.current = null;
+    setPatches(null);
+  }, []);
+
+  useEffect(() => () => stopTracking.current?.(), []);
 
   const focusShape = (id: string) => {
     focusTarget.current = id;
@@ -439,14 +493,18 @@ const ShapeLayer: React.FC = () => {
     e.preventDefault();
     setMenu(null);
     let ids = selected;
+    let toggle: string | undefined;
     if (mode === "move") {
       const group = expandShapeGroups(shapes, [shape.id]);
+      const inSelection = group.every((id) => selectedSet.has(id));
       if (e.ctrlKey || e.metaKey || e.shiftKey) {
-        setContext((ctx) => selectShapes(ctx, [shape.id], true));
-        focusShape(shape.id);
-        return;
-      }
-      if (!group.every((id) => selectedSet.has(id))) {
+        // a click toggles the shape, a drag moves (Shift) or copies (Ctrl)
+        // the selection with it
+        toggle = shape.id;
+        if (!inSelection) {
+          ids = expandShapeGroups(shapes, [...selected, shape.id]);
+        }
+      } else if (!inSelection) {
         ids = group;
         setContext((ctx) => selectShapes(ctx, [shape.id]));
       }
@@ -457,6 +515,7 @@ const ShapeLayer: React.FC = () => {
     shapes.forEach((s) => {
       if (ids.includes(s.id)) boxes[s.id] = boxOf(s);
     });
+    stopTracking.current?.();
     drag.current = {
       mode,
       ids,
@@ -466,9 +525,13 @@ const ShapeLayer: React.FC = () => {
       union: unionBox(Object.values(boxes)) ?? boxOf(shape),
       moved: false,
       patches: null,
+      toggle,
     };
-    window.addEventListener("mousemove", windowMove);
-    window.addEventListener("mouseup", windowUp);
+    stopTracking.current = trackPointerDrag(e, {
+      onMove: (ev) => moveRef.current(ev),
+      onEnd: (ev) => upRef.current(ev),
+      onCancel: onDragCancel,
+    });
   };
 
   // ---------------------------------------------------------------------
@@ -517,8 +580,6 @@ const ShapeLayer: React.FC = () => {
       setDraw({ start, end: last });
     };
     const up = () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
       setDraw(null);
       const kind = drawKind;
       const item = galleryItem(kind);
@@ -541,8 +602,12 @@ const ShapeLayer: React.FC = () => {
         if (shape && item.textBox) ctx.editingShape = shape.id;
       });
     };
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
+    // Esc while drawing: nothing is inserted (the draw mode stays)
+    trackPointerDrag(e, {
+      onMove: move,
+      onEnd: up,
+      onCancel: () => setDraw(null),
+    });
   };
 
   // ---------------------------------------------------------------------

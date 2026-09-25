@@ -66,9 +66,13 @@ const ImgBoxs: React.FC = () => {
             }}
             onMouseDown={(e) => {
               e.stopPropagation();
-              if (e.button === 2) return;
+              if (e.button !== 0) return;
+              // no text selection or native image drag while moving it
+              e.preventDefault();
               const { nativeEvent } = e;
-              onImageMoveStart(context, refs.globalCache, nativeEvent);
+              setContext((ctx) => {
+                onImageMoveStart(ctx, refs.globalCache, nativeEvent);
+              });
             }}
             onContextMenu={(e) => openImageMenu(e, activeImg.id)}
           />
@@ -79,9 +83,13 @@ const ImgBoxs: React.FC = () => {
                 className={`luckysheet-modal-dialog-resize-item luckysheet-modal-dialog-resize-item-${v}`}
                 data-type={v}
                 onMouseDown={(e) => {
-                  const { nativeEvent } = e;
-                  onImageResizeStart(refs.globalCache, nativeEvent, v);
                   e.stopPropagation();
+                  if (e.button !== 0) return;
+                  e.preventDefault();
+                  const { nativeEvent } = e;
+                  setContext((ctx) => {
+                    onImageResizeStart(ctx, refs.globalCache, nativeEvent, v);
+                  });
                 }}
               />
             ))}
@@ -135,7 +143,16 @@ const ImgBoxs: React.FC = () => {
                 top: top * context.zoomRatio,
                 zIndex: 200,
               }}
-              onMouseDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                if (e.button !== 0) return;
+                // one gesture selects the picture and moves it (Excel)
+                e.preventDefault();
+                const { nativeEvent } = e;
+                setContext((ctx) => {
+                  onImageMoveStart(ctx, refs.globalCache, nativeEvent, id);
+                });
+              }}
               onContextMenu={(e) => openImageMenu(e, id)}
               onClick={(e) => {
                 setContext((ctx) => {

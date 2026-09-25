@@ -9,14 +9,17 @@ import {
   onCommentBoxMoveEnd,
   onCommentBoxResize,
   onCommentBoxResizeEnd,
+  cancelCommentBoxDrag,
   onImageMove,
   onImageMoveEnd,
   onImageResize,
   onImageResizeEnd,
+  cancelImageDrag,
   removeEditingComment,
   overShowComment,
   onFormulaRangeDragEnd,
   onCellsMoveEnd,
+  cancelCellsMove,
   onCellsMove,
   cellFocus,
   clearEditMode,
@@ -62,7 +65,11 @@ import {
 import { Settings } from "../settings";
 import { GlobalCache } from "../types";
 import { getSheetIndex, isAllowEdit } from "../utils";
-import { onDropCellSelectEnd, onDropCellSelect } from "../modules/dropCell";
+import {
+  onDropCellSelectEnd,
+  onDropCellSelect,
+  hideDropCellSelection,
+} from "../modules/dropCell";
 import {
   handleFormulaInput,
   rangeDragColumn,
@@ -2260,7 +2267,7 @@ function mouseRender(
     }
     const changeSizeCol = container.querySelector(".fortune-cols-change-size");
     if (changeSizeCol) {
-      (changeSizeCol as HTMLDivElement).style.left = `${edge - 3}px`;
+      (changeSizeCol as HTMLDivElement).style.left = `${edge - 5}px`;
     }
   } else if (ctx.luckysheet_rows_change_size) {
     // 调整行高拖动: the border follows the pointer
@@ -2277,7 +2284,7 @@ function mouseRender(
     }
     const changeSizeRow = container.querySelector(".fortune-rows-change-size");
     if (changeSizeRow) {
-      (changeSizeRow as HTMLDivElement).style.top = `${edge - 1}px`;
+      (changeSizeRow as HTMLDivElement).style.top = `${edge - 2}px`;
     }
   } else if (ctx.luckysheet_cols_freeze_drag) {
     // 调整列冻结
@@ -3541,6 +3548,49 @@ export function handleOverlayMouseMove(
   }
 }
 
+/** Whether a grid drag that Esc cancels is going on. */
+export function isCancelableGridDrag(ctx: Context, globalCache?: GlobalCache) {
+  return !!(
+    globalCache?.image ||
+    globalCache?.commentBox?.movingId ||
+    globalCache?.commentBox?.resizingId ||
+    ctx.luckysheet_cell_selected_move ||
+    ctx.luckysheet_cell_selected_extend ||
+    ctx.luckysheet_cols_change_size ||
+    ctx.luckysheet_rows_change_size ||
+    ctx.luckysheet_cols_freeze_drag ||
+    ctx.luckysheet_rows_freeze_drag
+  );
+}
+
+/**
+ * Esc during a drag of the selection's border, the fill handle, a header
+ * border, a freeze line or a picture: the drag ends and changes nothing (Excel). The
+ * release that follows does nothing either. Returns whether a drag was
+ * cancelled. `container` is the sheet overlay.
+ */
+export function cancelGridDrag(
+  ctx: Context,
+  globalCache: GlobalCache,
+  container: HTMLElement
+) {
+  if (!isCancelableGridDrag(ctx, globalCache)) return false;
+  cancelImageDrag(globalCache);
+  cancelCommentBoxDrag(globalCache);
+  cancelCellsMove(ctx, globalCache);
+  if (ctx.luckysheet_cell_selected_extend) {
+    ctx.luckysheet_cell_selected_extend = false;
+    hideDropCellSelection(container as HTMLDivElement);
+  }
+  ctx.luckysheet_cols_change_size = false;
+  ctx.luckysheet_rows_change_size = false;
+  ctx.luckysheet_cols_freeze_drag = false;
+  ctx.luckysheet_rows_freeze_drag = false;
+  ctx.luckysheet_scroll_status = false;
+  ctx.luckysheet_select_status = false;
+  return true;
+}
+
 /** Where the border of `index` is (sheet px) while it is dragged by `delta`. */
 function resizedEdge(
   edges: number[],
@@ -3551,9 +3601,19 @@ function resizedEdge(
   const zoom = zoomRatio || 1;
   const start = index > 0 ? (edges[index - 1] ?? 0) : 0;
   if (delta === 0) return edges[index] ?? start;
+  if (resizeHides(edges, index, delta)) return start;
   return (
     start + Math.round((resizedLength(edges, index, delta, zoom) + 1) * zoom)
   );
+}
+
+/**
+ * Whether dragging the border of `index` by `delta` screen px puts it at
+ * or before the row's / column's start: Excel hides the row / column.
+ */
+function resizeHides(edges: number[], index: number, delta: number) {
+  const drawn = edges[index] - (index > 0 ? edges[index - 1] : 0);
+  return drawn + delta <= 0;
 }
 
 /**
@@ -3974,9 +4034,17 @@ export function handleOverlayMouseUp(
             _.range(select.row[0], select.row[1] + 1)
           )
         : [changeRowIndex];
+      // dragged up to its top: hidden; a hidden row dragged open: shown
+      const hide = resizeHides(ctx.visibledatarow, changeRowIndex, dy);
+      cfg.rowhidden ||= {};
       rows.forEach((r) => {
+        if (hide) {
+          cfg.rowhidden![r] = 0;
+          return;
+        }
         cfg.rowlen![r] = size;
         cfg.customHeight![r] = 1;
+        delete cfg.rowhidden![r];
       });
       ctx.config = cfg;
       const idx = getSheetIndex(ctx, ctx.currentSheetId);
@@ -4013,9 +4081,18 @@ export function handleOverlayMouseUp(
             _.range(select.column[0], select.column[1] + 1)
           )
         : [changeColumnIndex];
+      // dragged left to its start: hidden; a hidden column dragged open:
+      // shown (Excel)
+      const hide = resizeHides(ctx.visibledatacolumn, changeColumnIndex, dx);
+      cfg.colhidden ||= {};
       columns.forEach((c) => {
+        if (hide) {
+          cfg.colhidden![c] = 0;
+          return;
+        }
         cfg.columnlen![c] = size;
         cfg.customWidth![c] = 1;
+        delete cfg.colhidden![c];
       });
       ctx.config = cfg;
       const idx = getSheetIndex(ctx, ctx.currentSheetId);
