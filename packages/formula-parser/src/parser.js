@@ -6,6 +6,7 @@ import {
 } from "./grammar-parser/grammar-parser";
 import { collectReferences } from "./grammar-parser/references";
 import { isLambda } from "./functions/lambda";
+import { isReference } from "./helper/reference";
 import { trimEdges } from "./helper/string";
 import { toNumber, invertNumber } from "./helper/number";
 import errorParser, {
@@ -50,6 +51,8 @@ class Parser extends Emitter {
           endAbs
         ),
       hasFunction: (name) => this.getFunction(name) !== void 0,
+      getFunction: (name) => this.getFunction(name),
+      resolveReference: (value) => this._resolveReference(value),
       getLambdaVariable: (name) => this._getLambdaVariable(name),
       getOptions: () => this.options,
     };
@@ -250,6 +253,32 @@ class Parser extends Emitter {
     );
 
     return value === void 0 ? evaluateByOperator(name, params) : value;
+  }
+
+  /**
+   * Resolve a host value (e.g. a reference marker string returned by a
+   * host function or variable) to a reference descriptor, through the
+   * `resolveReference` event: `(value, options, done(descriptor))`.
+   * Values made with `createReference` need no listener.
+   *
+   * @param {*} value
+   * @returns {Object|null} {sheetName, startRow, startColumn, endRow,
+   *   endColumn} or null when the value is not a reference.
+   * @private
+   */
+  _resolveReference(value) {
+    if (isReference(value)) {
+      return value;
+    }
+    let info = null;
+
+    this.emit("resolveReference", value, this.options, (descriptor) => {
+      if (descriptor) {
+        info = descriptor;
+      }
+    });
+
+    return info;
   }
 
   /**

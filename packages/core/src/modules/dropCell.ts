@@ -11,6 +11,7 @@ import { isRealNum } from "./validation";
 import { CFSplitRange } from "./ConditionFormat";
 import { normalizeSelection } from "./selection";
 import { jfrefreshgrid } from "./refresh";
+import { reconcileSpills } from "./spill";
 import { classifyFillValue, FillSource, generateFillSeries } from "./autofill";
 import { cellHasValue } from "./navigation";
 
@@ -418,6 +419,7 @@ export function updateDropCell(ctx: Context) {
   }
 
   jfrefreshgrid(ctx, d, ctx.luckysheet_select_save);
+  reconcileSpills(ctx, ctx.currentSheetId, { pasted: [applyRange] });
 }
 
 function rangeHasMerge(d: CellMatrix, rows: number[], cols: number[]): boolean {

@@ -12,6 +12,7 @@ import {
   isRealNum,
 } from "..";
 import { jfrefreshgrid } from "./refresh";
+import { reconcileSpills } from "./spill";
 
 export function orderbydata(
   isAsc: boolean,
@@ -113,6 +114,9 @@ export function sortDataRange(
   //   };
   // }
   jfrefreshgrid(ctx, sheetData, [{ row: [str, edr], column: [stc, edc] }]);
+  reconcileSpills(ctx, ctx.currentSheetId, {
+    changed: [{ row: [str, edr], column: [stc, edc] }],
+  });
 }
 
 export function sortSelection(
