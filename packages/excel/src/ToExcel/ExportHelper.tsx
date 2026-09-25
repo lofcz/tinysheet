@@ -1,4 +1,5 @@
 import React from "react";
+import { excelIoLocale } from "@lofcz/tinysheet-core";
 import { transformFortuneToExcel } from "../common/Transform";
 import { IFileType } from "../common/ICommon";
 import type { SheetExportOptions } from "./ExcelFile";
@@ -66,10 +67,15 @@ const getExportButton = (
 interface ExportHelperProps {
   sheetRef: React.RefObject<any>;
   config: { xlsx?: boolean; csv?: boolean; tsv?: boolean };
+  /** UI language (English fallback). */
+  lang?: string | null;
+  /** Called when an export fails (default: console and window.alert). */
+  onError?: (error: unknown, message: string) => void;
 }
 
 export const ExportHelper: React.FC<ExportHelperProps> = (props) => {
-  const { sheetRef, config } = props;
+  const { sheetRef, config, lang, onError } = props;
+  const t = excelIoLocale(lang);
   const onMouseLeave = () => {
     const exportHelper = document.querySelector(
       ".export-helper"
@@ -77,27 +83,41 @@ export const ExportHelper: React.FC<ExportHelperProps> = (props) => {
     if (exportHelper) exportHelper.style.visibility = "hidden";
   };
   const onClick = (entry: ExportEntry) => {
-    transformFortuneToExcel(sheetRef, entry.fileType, true, entry.options);
     onMouseLeave();
+    transformFortuneToExcel(
+      sheetRef,
+      entry.fileType,
+      true,
+      entry.options
+    ).catch((error) => {
+      if (onError) {
+        onError(error, t.exportFailed);
+        return;
+      }
+      // eslint-disable-next-line no-console
+      console.error(error);
+      if (typeof window !== "undefined" && typeof window.alert === "function")
+        window.alert(t.exportFailed);
+    });
   };
 
   const entries: ExportEntry[] = [];
   if (config.xlsx) {
     entries.push({
       key: "xlsx",
-      label: "Export as .xlsx",
+      label: t.exportXlsx,
       fileType: IFileType.XLSX,
     });
   }
   if (config.csv) {
     entries.push({
       key: "csv",
-      label: "Export as .csv",
+      label: t.exportCsv,
       fileType: IFileType.CSV,
     });
     entries.push({
       key: "csv-raw",
-      label: "Export as .csv (raw values)",
+      label: t.exportCsvRaw,
       fileType: IFileType.CSV,
       options: { csv: { values: "raw" } },
     });
@@ -105,7 +125,7 @@ export const ExportHelper: React.FC<ExportHelperProps> = (props) => {
   if (config.tsv) {
     entries.push({
       key: "tsv",
-      label: "Export as .tsv",
+      label: t.exportTsv,
       fileType: IFileType.TSV,
     });
   }

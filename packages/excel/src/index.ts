@@ -151,3 +151,5 @@ export { IFileType } from "./common/ICommon";
 // Optional React toolbar helpers (peer: react)
 export * from "./common/ToolbarItem";
 export * from "./common/FortuneExcelHelper";
+export { importErrorMessage } from "./ToFortuneSheet/ImportHelper";
+export type { ImportErrorHandler } from "./ToFortuneSheet/ImportHelper";
