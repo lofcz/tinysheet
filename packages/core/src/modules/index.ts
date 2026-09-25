@@ -28,6 +28,7 @@ export * from "./merge";
 export * from "./sort";
 export * from "./screenshot";
 export * from "./searchReplace";
+export * from "./goTo";
 export * from "./hyperlink";
 export * from "./filter";
 export * from "./moveCells";

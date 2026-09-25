@@ -34,6 +34,7 @@ import {
 } from "../modules/rowcol";
 import * as nav from "../modules/navigation";
 import { openFormatCells } from "../modules/formatCells";
+import { handleNavigationShortcut } from "../modules/goTo";
 
 const ARROW_DIRECTIONS: Record<string, nav.NavDirection> = {
   ArrowUp: "up",
@@ -731,6 +732,12 @@ export function handleGlobalKeyDown(
   }
   // Keys typed into toolbar buttons, menus or dialog controls are theirs
   if (isKeyFromForeignControl(e, cellInput, fxInput)) {
+    return;
+  }
+  // Ctrl+F / Ctrl+H / Ctrl+G / F5: Find, Replace, Go To (navigation stream)
+  if (handleNavigationShortcut(ctx, e)) {
+    e.preventDefault();
+    e.stopPropagation();
     return;
   }
   if (kstr === "Enter") {

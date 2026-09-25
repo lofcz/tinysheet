@@ -44,6 +44,8 @@ import InputBox from "./InputBox";
 import ScrollBar from "./ScrollBar";
 import SearchReplace from "../SearchReplace";
 import PasteSpecial from "../PasteSpecial";
+import GoTo from "../GoTo";
+import SplitPanes from "../SplitPanes";
 import LinkEditCard from "../LinkEidtCard";
 import FilterOptions from "../FilterOption";
 import { useAlert } from "../../hooks/useAlert";
@@ -509,6 +511,8 @@ const SheetOverlay: React.FC = () => {
         <SearchReplace getContainer={() => containerRef.current!} />
       )}
       {context.showPasteSpecial && <PasteSpecial />}
+      {context.showGoTo && <GoTo />}
+      <SplitPanes />
       <div className="fortune-row-body">
         <RowHeader />
         <ScrollBar axis="x" />

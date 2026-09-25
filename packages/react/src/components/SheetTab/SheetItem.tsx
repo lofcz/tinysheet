@@ -4,6 +4,10 @@ import {
   cancelNormalSelected,
   cancelActiveImgItem,
   locale,
+  getGroupedSheetIds,
+  onSheetTabActivated,
+  selectSheetRange,
+  toggleSheetInGroup,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
@@ -31,6 +35,8 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   const [dragOver, setDragOver] = useState(false);
   const { showAlert } = useAlert();
   const { info } = locale(context);
+  const isGrouped =
+    !isDropPlaceholder && getGroupedSheetIds(context).includes(sheet.id!);
 
   useEffect(() => {
     setContext((draftCtx) => {
@@ -140,7 +146,7 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   return (
     <div
       role="tab"
-      aria-selected={context.currentSheetId === sheet.id}
+      aria-selected={context.currentSheetId === sheet.id || isGrouped}
       onKeyDown={activateOnKey}
       onDragOver={(e) => {
         e.preventDefault();
@@ -170,11 +176,20 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
               context.currentSheetId === sheet.id
                 ? " luckysheet-sheets-item-active"
                 : ""
-            }`
+            }${isGrouped ? " luckysheet-sheets-item-grouped" : ""}`
       }
-      onClick={() => {
+      onClick={(e) => {
         if (isDropPlaceholder) return;
+        // Ctrl/Cmd+click and Shift+click group sheets (Excel)
+        if (e.ctrlKey || e.metaKey || e.shiftKey) {
+          setContext((draftCtx) => {
+            if (e.shiftKey) selectSheetRange(draftCtx, sheet.id!);
+            else toggleSheetInGroup(draftCtx, sheet.id!);
+          });
+          return;
+        }
         setContext((draftCtx) => {
+          onSheetTabActivated(draftCtx, sheet.id!);
           draftCtx.sheetScrollRecord[draftCtx.currentSheetId] = {
             scrollLeft: draftCtx.scrollLeft,
             scrollTop: draftCtx.scrollTop,
@@ -195,10 +210,13 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         const rect = refs.workbookContainer.current!.getBoundingClientRect();
         const { pageX, pageY } = e;
         setContext((ctx) => {
-          // 右击的时候先进行跳转
-          ctx.dataVerificationDropDownList = false;
-          ctx.currentSheetId = sheet.id!;
-          ctx.zoomRatio = sheet.zoomRatio || 1;
+          // 右击的时候先进行跳转 (a right-click inside a group keeps it)
+          if (!getGroupedSheetIds(ctx).includes(sheet.id!)) {
+            onSheetTabActivated(ctx, sheet.id!);
+            ctx.dataVerificationDropDownList = false;
+            ctx.currentSheetId = sheet.id!;
+            ctx.zoomRatio = sheet.zoomRatio || 1;
+          }
           ctx.sheetTabContextMenu = {
             x: pageX - rect.left - window.scrollX,
             y: pageY - rect.top - window.scrollY,

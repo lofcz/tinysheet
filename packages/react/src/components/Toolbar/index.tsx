@@ -25,6 +25,8 @@ import {
   handleBorder,
   toolbarItemSelectedFunc,
   handleFreeze,
+  freezePanes,
+  getPaneState,
   insertImage,
   showImgChooser,
   updateFormat,
@@ -1146,50 +1148,70 @@ const Toolbar: React.FC<{
       }
 
       if (name === "freeze") {
+        // Excel's View > Freeze Panes menu, plus Split
+        const panes = getPaneState(context);
         const items = [
+          panes === "frozen"
+            ? {
+                text: freezen.unfreezePanes,
+                value: "unfreeze",
+                icon: "freeze-cancel",
+              }
+            : {
+                text: freezen.freezePanes,
+                value: "freeze-panes",
+                icon: "freeze-row-col",
+              },
           {
-            text: freezen.freezenRowRange,
-            value: "freeze-row",
+            text: freezen.freezeTopRow,
+            value: "freeze-top-row",
+            icon: "freeze-row",
           },
           {
-            text: freezen.freezenColumnRange,
-            value: "freeze-col",
+            text: freezen.freezeFirstColumn,
+            value: "freeze-first-column",
+            icon: "freeze-col",
           },
           {
-            text: freezen.freezenRCRange,
-            value: "freeze-row-col",
-          },
-          {
-            text: freezen.freezenCancel,
-            value: "freeze-cancel",
+            text: panes === "split" ? freezen.removeSplit : freezen.splitPanes,
+            value: "split",
+            icon: "freeze-row-col",
           },
         ];
+        const runFreeze = (value: string) => {
+          if (
+            value === "freeze-panes" &&
+            freezePanes(context, "panes", { dryRun: true }) === "tooLarge"
+          ) {
+            showDialog(freezen.rangeRCOverError, "ok");
+            return;
+          }
+          setContext((ctx) => {
+            handleFreeze(ctx, value);
+          });
+        };
         return (
           <Combo
             iconId="freeze-row-col"
             key={name}
             tooltip={tooltip}
             onClick={() =>
-              setContext((ctx) => {
-                handleFreeze(ctx, "freeze-row-col");
-              })
+              runFreeze(panes === "frozen" ? "unfreeze" : "freeze-panes")
             }
           >
             {(setOpen) => (
               <Select>
-                {items.map(({ text, value }) => (
+                {items.map(({ text, value, icon }) => (
                   <Option
                     key={value}
                     onClick={() => {
-                      setContext((ctx) => {
-                        handleFreeze(ctx, value);
-                      });
+                      runFreeze(value);
                       setOpen(false);
                     }}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
-                      <SVGIcon name={value} />
+                      <SVGIcon name={icon} />
                     </div>
                   </Option>
                 ))}

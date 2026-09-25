@@ -1,0 +1,98 @@
+/* Go To dialog */
+.fortune-goto-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 1003;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 60px;
+}
+
+#fortune-goto {
+  width: 340px;
+  max-width: calc(100% - 16px);
+  padding: var(--fortune-space-3) var(--fortune-space-4) var(--fortune-space-4);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+}
+
+#fortune-goto .goto-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--fortune-space-2);
+}
+
+#fortune-goto .goto-list {
+  height: 150px;
+  overflow-y: auto;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input);
+  padding: var(--fortune-space-1) 0;
+}
+
+#fortune-goto .goto-list > div {
+  padding: 0 var(--fortune-space-2);
+  line-height: 24px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+#fortune-goto .goto-list > div:hover {
+  background: var(--fortune-bg-hover);
+}
+
+#fortune-goto .goto-list > div.on {
+  background: var(--fortune-accent-soft);
+  color: var(--fortune-accent-text);
+}
+
+#fortune-goto .goto-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1);
+  margin-top: var(--fortune-space-3);
+  color: var(--fortune-text-muted);
+}
+
+#fortune-goto .goto-field input {
+  height: var(--fortune-control-height);
+  box-sizing: border-box;
+  padding: 0 var(--fortune-space-2);
+  font: inherit;
+  color: var(--fortune-text);
+  background: var(--fortune-bg-input);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  outline: none;
+}
+
+#fortune-goto .goto-field input:focus {
+  border-color: var(--fortune-accent);
+  box-shadow: var(--fortune-focus-ring);
+}
+
+#fortune-goto .goto-field input[aria-invalid="true"] {
+  border-color: var(--fortune-danger);
+}
+
+#fortune-goto .goto-error {
+  min-height: 18px;
+  margin-top: var(--fortune-space-1);
+  color: var(--fortune-danger);
+  font-size: var(--fortune-font-size-sm);
+}
+
+#fortune-goto .goto-buttons {
+  display: flex;
+  gap: var(--fortune-space-2);
+  margin-top: var(--fortune-space-2);
+}
+
+#fortune-goto .goto-buttons .spacer {
+  flex: 1;
+}

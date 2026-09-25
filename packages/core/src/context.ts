@@ -230,6 +230,10 @@ export type Context = {
   formulaCache: FormulaCache;
   hooks: Hooks;
   showSheetList?: Boolean;
+  /** Grouped sheets (Ctrl/Shift+click on tabs); edits apply to all of them. */
+  groupedSheetIds?: string[];
+  /** Go To dialog (Ctrl+G / F5) visibility. */
+  showGoTo?: boolean;
   // 只读模式公式被引用单元格强制高光
   forceFormulaRef?: Boolean;
 
