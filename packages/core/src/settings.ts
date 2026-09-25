@@ -1,6 +1,14 @@
 import { v4 as uuidv4 } from "uuid";
 import React from "react";
-import { Sheet, Selection, CellMatrix, Cell } from "./types";
+import {
+  Sheet,
+  Selection,
+  CellMatrix,
+  Cell,
+  CommentUser,
+  ThreadedComment,
+  ThreadedCommentPost,
+} from "./types";
 import type { ThemeSetting } from "./theme";
 
 export type Hooks = {
@@ -121,6 +129,39 @@ export type Hooks = {
     newName: string
   ) => boolean;
   afterUpdateSheetName?: (id: string, oldName: string, newName: string) => void;
+  /**
+   * A threaded comment was added, replied to, edited, deleted, resolved or
+   * reopened from the UI (for back-end persistence / collaboration).
+   */
+  // eslint-disable-next-line no-use-before-define
+  onCommentChange?: (change: ThreadedCommentChange) => void;
+  /** A posted comment @mentions `users` (e.g. to notify them). */
+  onMention?: (
+    // eslint-disable-next-line no-use-before-define
+    comment: ThreadedCommentEvent,
+    users: CommentUser[]
+  ) => void;
+};
+
+/** A post of a threaded comment together with where it lives. */
+export type ThreadedCommentEvent = {
+  sheetId: string;
+  /** The thread after the change (null once deleted). */
+  thread: ThreadedComment | null;
+  threadId: string;
+  /** The post concerned (the thread's first post for thread events). */
+  post?: ThreadedCommentPost;
+};
+
+export type ThreadedCommentChange = ThreadedCommentEvent & {
+  type:
+    | "add"
+    | "reply"
+    | "edit"
+    | "delete"
+    | "deleteThread"
+    | "resolve"
+    | "reopen";
 };
 
 export type Settings = {
@@ -170,6 +211,14 @@ export type Settings = {
    * @default "light"
    */
   theme?: ThemeSetting;
+  /** Author of new threaded comments (who may edit/delete their posts). */
+  currentUser?: CommentUser | null;
+  /** People offered by the @mention picker of threaded comments. */
+  users?: CommentUser[];
+  /** Looks people up for the @mention picker (instead of `users`). */
+  searchUsers?:
+    | ((query: string) => CommentUser[] | Promise<CommentUser[]>)
+    | null;
 };
 
 export const defaultSettings: Required<Settings> = {
@@ -243,6 +292,7 @@ export const defaultSettings: Required<Settings> = {
     "chart",
     "link",
     "comment",
+    "threaded-comment", // New Comment, Previous/Next, Comments pane
     "|",
     // Formulas / Data
     "nameManager",
@@ -269,6 +319,7 @@ export const defaultSettings: Required<Settings> = {
     "filter-menu",
     "sort-menu",
     "|",
+    "new-comment", // threaded comments: new / reply / delete
     "comment", // insert / edit / delete / show notes
     "|",
     "cell-format", // Format Cells…
@@ -322,4 +373,7 @@ export const defaultSettings: Required<Settings> = {
   customToolbarItems: [],
   currency: "¥",
   theme: "light", // "light" | "dark" | "auto"
+  currentUser: null,
+  users: [],
+  searchUsers: null,
 };

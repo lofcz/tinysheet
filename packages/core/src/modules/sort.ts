@@ -370,6 +370,38 @@ export function shiftFormula(ctx: Context, f: string, dr: number, dc: number) {
 }
 
 /**
+ * How a sort moved the cells: the line (row, or column when sorting left to
+ * right) `from[i]` now is line `to[i]`, for the cells `span[0]..span[1]`
+ * across it. Models keyed by cell (threaded comments, ...) follow it.
+ */
+export type SortMove = {
+  sheetId: string;
+  byColumns: boolean;
+  from: number[];
+  to: number[];
+  span: [number, number];
+};
+
+export type SortListener = (ctx: Context, move: SortMove) => void;
+
+// on a hoisted function, so registering during an import cycle is safe
+function sortListeners(): Map<string, SortListener> {
+  const holder = sortListeners as unknown as {
+    map?: Map<string, SortListener>;
+  };
+  if (!holder.map) holder.map = new Map();
+  return holder.map;
+}
+
+/** Run `listener` after every sort; returns a function unregistering it. */
+export function registerSortListener(key: string, listener: SortListener) {
+  sortListeners().set(key, listener);
+  return () => {
+    if (sortListeners().get(key) === listener) sortListeners().delete(key);
+  };
+}
+
+/**
  * Sort a range in place. Returns an error message, or null on success.
  * Hidden rows (columns when sorting left to right) keep their place.
  */
@@ -493,6 +525,14 @@ export function sortRange(ctx: Context, options: SortOptions): string | null {
     }
     if (file.hyperlink) file.hyperlink = moveKeyed(file.hyperlink) as any;
   }
+  const sortMove: SortMove = {
+    sheetId: ctx.currentSheetId,
+    byColumns,
+    from: order,
+    to: lines,
+    span: [k1, k2],
+  };
+  sortListeners().forEach((listener) => listener(ctx, sortMove));
 
   jfrefreshgrid(ctx, data, [{ row: [r1, r2], column: [c1, c2] }]);
   reconcileSpills(ctx, ctx.currentSheetId, {

@@ -38,6 +38,7 @@ import {
   rewriteFormula,
 } from "./refAdjust";
 import { columnLeftPx, insertedSizePx, rowTopPx } from "./sheetGeometry";
+import { copyThreadedComment } from "./threadedComments";
 import {
   adjustTablesForChange,
   mapStructuredReferences,
@@ -163,7 +164,8 @@ installModelAdjusters();
  * - data-validation and conditional-format formulas pointing at the
  *   original sheet point at the copy (cell formulas are handled by
  *   duplicateSheet);
- * - charts get new ids and plot the copied cells.
+ * - charts get new ids and plot the copied cells;
+ * - threaded comments get new ids.
  */
 export function prepareDuplicatedSheet(
   ctx: Context,
@@ -227,5 +229,11 @@ export function prepareDuplicatedSheet(
 
   if (copy.charts?.length) {
     copy.charts = remapDuplicatedCharts(copy.charts, source.id, copy.id);
+  }
+  // threaded comments are found by id: the copy's get their own
+  if (copy.threadedComments?.length) {
+    copy.threadedComments = copy.threadedComments.map((t) =>
+      copyThreadedComment(t)
+    );
   }
 }

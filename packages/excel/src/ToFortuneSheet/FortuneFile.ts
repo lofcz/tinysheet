@@ -718,6 +718,10 @@ export class FortuneFile {
         sheetout.tables = (sheet as any).tables;
       }
 
+      if ((sheet as any).threadedComments != null) {
+        sheetout.threadedComments = (sheet as any).threadedComments;
+      }
+
       if (sheet.hyperlink != null) {
         sheetout.hyperlink = sheet.hyperlink;
       }

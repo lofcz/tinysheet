@@ -348,7 +348,16 @@ test("notes and threaded comments", async () => {
   const cells = cellMap(result.sheets[0]);
   assert.equal(cells.get("0_0").ps.value, "plain note");
   assert.equal(cells.get("0_0").v, "x");
-  assert.equal(cells.get("1_1").ps.value, "Thread start\nA reply & more");
+  // the thread's legacy note is not a note: the thread is read instead
+  assert.equal(cells.get("1_1")?.ps, undefined);
+  const [thread] = result.sheets[0].threadedComments;
+  assert.equal(thread.r, 1);
+  assert.equal(thread.c, 1);
+  assert.equal(thread.text, "Thread start");
+  assert.deepEqual(
+    thread.replies.map((p) => p.text),
+    ["A reply & more"]
+  );
 });
 
 test("imported spills and shared formulas recalculate without #SPILL!", async () => {

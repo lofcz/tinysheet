@@ -16,6 +16,7 @@ import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
+import { readThreadedComments, threadedCommentCells } from "./threadedComments";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -121,7 +122,6 @@ function setNote(
 }
 
 const COMMENTS_REL = /\/comments$/;
-const THREADED_REL = /\/threadedComment$/;
 const VML_REL = /\/vmlDrawing$/;
 
 /** Cells ("r_c", 0-based) whose note shape is visible (`<x:Visible/>`). */
@@ -137,7 +137,10 @@ export function visibleVmlNotes(vml: string): Set<string> {
   return out;
 }
 
-/** Notes (legacy comments) and threaded comments -> `cell.ps`. */
+/**
+ * Notes (legacy comments) -> `cell.ps`. The legacy placeholders of threaded
+ * comments are skipped: threads are read by readThreadedComments.
+ */
 export function readNotes(ctx: SheetImportContext) {
   const rels = partRelationships(ctx.files, ctx.sheetFile);
   const notes = new Map<string, string>();
@@ -155,28 +158,16 @@ export function readNotes(ctx: SheetImportContext) {
         });
     });
 
-  // Threaded comments replace their legacy placeholder text.
-  rels
-    .filter((x) => THREADED_REL.test(x.type) && ctx.files[x.target])
-    .forEach((rel) => {
-      const threads = new Map<string, string[]>();
-      const items = ctx.readXml.getElementsByTagName(
-        "ThreadedComments/threadedComment",
-        rel.target
-      );
-      items.forEach((item) => {
-        const { ref } = item.attributeList;
-        const text = item.getInnerElements("text");
-        if (!ref || text == null) return;
-        const value = escapeCharacter(text[0].value || "").replace(
-          /\r\n/g,
-          "\n"
-        );
-        if (!threads.has(ref)) threads.set(ref, []);
-        threads.get(ref)!.push(value);
-      });
-      threads.forEach((texts, ref) => notes.set(ref, texts.join("\n")));
+  // cells with a threaded comment: their note is its legacy placeholder
+  const threaded = threadedCommentCells(ctx);
+  if (threaded.size > 0) {
+    Array.from(notes.keys()).forEach((ref) => {
+      const range = getcellrange(ref);
+      if (range && threaded.has(`${range.row[0]}_${range.column[0]}`)) {
+        notes.delete(ref);
+      }
     });
+  }
 
   // notes shown permanently (Show/Hide Note)
   const shown = new Set<string>();
@@ -325,6 +316,7 @@ export function readTables(ctx: SheetImportContext) {
 /** Per-sheet readers, in order. */
 export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "notes", read: readNotes },
+  { name: "threadedComments", read: readThreadedComments },
   { name: "tables", read: readTables },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];

@@ -10,7 +10,8 @@
  * charts, ...) add a writer to `sheetExportFeatures` /
  * `workbookExportFeatures` (or call `registerSheetExportFeature`) instead of
  * editing the cell writer. Writers run in array order; the built-in order is
- * sheet properties -> sizes -> cells -> tables -> notes -> merges ->
+ * sheet properties -> sizes -> cells -> tables -> notes -> threaded comments
+ * -> merges ->
  * borders -> images -> data validation -> views.
  */
 import ExcelJS from "@protobi/exceljs";
@@ -21,6 +22,7 @@ import { setBorder } from "./ExcelBorder";
 import { setImages } from "./ExcelImage";
 import { setDataValidations } from "./ExcelValidation";
 import { writeTables } from "./ExcelTable";
+import { writeThreadedComments } from "./ExcelThreadedComments";
 import {
   writeColumnsAndRows,
   writeMerges,
@@ -98,6 +100,8 @@ export const sheetExportFeatures: SheetExportFeature[] = [
   { name: "cells", write: writeCells },
   { name: "tables", write: writeTables },
   { name: "notes", write: writeNotes },
+  // after notes: a thread's legacy note replaces a note on the same cell
+  { name: "threaded-comments", write: writeThreadedComments },
   { name: "merges", write: writeMerges },
   { name: "borders", write: borders },
   {

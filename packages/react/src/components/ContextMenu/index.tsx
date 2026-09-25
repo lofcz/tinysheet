@@ -52,7 +52,11 @@ import Menu from "./Menu";
 import MenuIcon from "./icons";
 import CustomSort from "../CustomSort";
 import DataVerification from "../DataVerification";
-import { getContextMenuAction, ContextMenuActionKey } from "./actions";
+import {
+  getContextMenuAction,
+  getContextMenuItem,
+  ContextMenuActionKey,
+} from "./actions";
 import { registerDefaultContextMenuActions } from "./defaultActions";
 import {
   InsertDeleteDialog,
@@ -60,8 +64,12 @@ import {
   useInsertDeleteRunner,
 } from "./dialogs";
 import PickList, { PickListState } from "./PickList";
+import { installThreadedCommentsUI } from "../ThreadedComments";
 
 registerDefaultContextMenuActions();
+// threaded comments: cell menu entries, toolbar item, card overlay and
+// shortcut (an explicit call: a bare import would be tree-shaken)
+installThreadedCommentsUI();
 
 type MenuEntry =
   | {
@@ -794,8 +802,20 @@ const ContextMenu: React.FC = () => {
       case "insert-row":
       case "insert-column":
         return legacyInsertRowCol(name === "insert-row" ? "row" : "column");
-      default:
-        return [];
+      default: {
+        // entries contributed by features (actions.ts)
+        const build = getContextMenuItem(name);
+        if (!build) return [];
+        return build({
+          ...workbookCtx,
+          showDialog: (content) => showDialog(content),
+          hideDialog,
+          r: activeR,
+          c: activeC,
+          headerType,
+          close,
+        }).map((entry) => ({ type: "item" as const, ...entry }));
+      }
     }
   };
 

@@ -1,0 +1,450 @@
+/* Threaded comments: the comment card, hover preview and Comments pane. */
+.fortune-container {
+  --fortune-thread-accent: #8e3fd6; /* matches the cell corner marker */
+  --fortune-thread-accent-soft: rgba(142, 63, 214, 0.12);
+}
+
+.fortune-container[data-theme="dark"] {
+  --fortune-thread-accent: #c58af9;
+  --fortune-thread-accent-soft: rgba(197, 138, 249, 0.16);
+}
+
+.fortune-thread-card {
+  position: absolute;
+  z-index: 100;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2);
+  padding: var(--fortune-space-3);
+  border: 1px solid var(--fortune-border);
+  border-top: 3px solid var(--fortune-thread-accent);
+  border-radius: var(--fortune-radius-lg);
+  background: var(--fortune-bg-elevated);
+  box-shadow: var(--fortune-shadow-lg);
+  color: var(--fortune-text);
+  font-family: var(--fortune-font-family);
+  font-size: var(--fortune-font-size);
+  line-height: 1.4;
+  text-align: left;
+  cursor: default;
+  user-select: text;
+}
+
+.fortune-thread-card-preview {
+  cursor: pointer;
+  max-height: 260px;
+  overflow: hidden;
+}
+
+.fortune-thread-card-resolved {
+  border-top-color: var(--fortune-text-subtle);
+}
+
+.fortune-thread-header {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-1);
+  margin: calc(-1 * var(--fortune-space-1)) 0 0;
+}
+
+.fortune-thread-cell {
+  flex: 1;
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+  font-weight: 600;
+}
+
+.fortune-thread-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--fortune-radius-sm);
+  background: transparent;
+  color: var(--fortune-icon);
+  cursor: pointer;
+}
+
+.fortune-thread-icon-button:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-thread-icon-button:focus-visible,
+.fortune-thread-button:focus-visible,
+.fortune-thread-link:focus-visible,
+.fortune-comments-filter:focus-visible,
+.fortune-comments-item:focus-visible {
+  outline: none;
+  box-shadow: var(--fortune-focus-ring);
+}
+
+.fortune-thread-resolved-badge,
+.fortune-comments-item-badge {
+  align-self: flex-start;
+  padding: 0 var(--fortune-space-2);
+  border-radius: 999px;
+  background: var(--fortune-bg-muted);
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-thread-posts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-3);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.fortune-thread-post {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1);
+}
+
+.fortune-thread-post + .fortune-thread-post {
+  padding-top: var(--fortune-space-3);
+  border-top: 1px solid var(--fortune-divider);
+}
+
+.fortune-thread-post-head {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  min-width: 0;
+}
+
+.fortune-thread-post-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fortune-thread-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #ffffff;
+  font-weight: 600;
+  object-fit: cover;
+  user-select: none;
+}
+
+.fortune-thread-author {
+  overflow: hidden;
+  color: var(--fortune-text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fortune-thread-time {
+  color: var(--fortune-text-subtle);
+  font-size: var(--fortune-font-size-sm);
+  white-space: nowrap;
+}
+
+.fortune-thread-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.fortune-thread-mention {
+  padding: 0 2px;
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-thread-accent-soft);
+  color: var(--fortune-thread-accent);
+  font-weight: 600;
+}
+
+.fortune-thread-post-actions {
+  display: flex;
+  gap: var(--fortune-space-3);
+}
+
+.fortune-thread-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--fortune-accent-text);
+  font: inherit;
+  font-size: var(--fortune-font-size-sm);
+  cursor: pointer;
+}
+
+.fortune-thread-link:hover {
+  text-decoration: underline;
+}
+
+.fortune-thread-reply,
+.fortune-thread-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2);
+}
+
+.fortune-thread-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--fortune-space-2);
+}
+
+.fortune-thread-hint {
+  flex: 1;
+  color: var(--fortune-text-subtle);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-thread-button {
+  height: var(--fortune-control-height);
+  padding: 0 var(--fortune-space-3);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  background: var(--fortune-bg);
+  color: var(--fortune-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.fortune-thread-button:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-thread-button-primary {
+  border-color: var(--fortune-accent);
+  background: var(--fortune-accent);
+  color: var(--fortune-on-accent);
+}
+
+.fortune-thread-button-primary:hover {
+  background: var(--fortune-accent-hover);
+}
+
+.fortune-thread-button:disabled {
+  border-color: var(--fortune-border);
+  background: var(--fortune-bg-muted);
+  color: var(--fortune-text-disabled);
+  cursor: default;
+}
+
+/* @mention text box and people picker */
+.fortune-mention-input {
+  position: relative;
+}
+
+.fortune-mention-textarea {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  max-height: 160px;
+  padding: var(--fortune-space-2);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  background: var(--fortune-bg-input);
+  color: var(--fortune-text);
+  font: inherit;
+  resize: none;
+}
+
+.fortune-mention-textarea::placeholder {
+  color: var(--fortune-text-subtle);
+}
+
+.fortune-mention-textarea:focus {
+  outline: none;
+  border-color: var(--fortune-accent);
+  box-shadow: var(--fortune-focus-ring);
+}
+
+.fortune-mention-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 1;
+  margin: 0;
+  padding: var(--fortune-space-1) 0;
+  list-style: none;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  background: var(--fortune-bg-elevated);
+  box-shadow: var(--fortune-shadow);
+}
+
+.fortune-mention-option {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  padding: var(--fortune-space-1) var(--fortune-space-2);
+  cursor: pointer;
+}
+
+.fortune-mention-option-active {
+  background: var(--fortune-accent-soft);
+}
+
+.fortune-mention-option-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fortune-mention-option-name {
+  color: var(--fortune-text);
+}
+
+.fortune-mention-option-email,
+.fortune-mention-empty {
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-mention-empty {
+  padding: var(--fortune-space-1) var(--fortune-space-2);
+}
+
+/* Comments pane */
+.fortune-comments-pane {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  max-width: 100%;
+  border-left: 1px solid var(--fortune-border);
+  background: var(--fortune-bg);
+  box-shadow: var(--fortune-shadow);
+  color: var(--fortune-text);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-comments-pane-header {
+  display: flex;
+  align-items: center;
+  padding: var(--fortune-space-2) var(--fortune-space-2) var(--fortune-space-2)
+    var(--fortune-space-4);
+  border-bottom: 1px solid var(--fortune-divider);
+}
+
+.fortune-comments-pane-title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fortune-font-size-lg);
+  font-weight: 600;
+}
+
+.fortune-comments-pane-filter {
+  display: flex;
+  gap: var(--fortune-space-1);
+  padding: var(--fortune-space-2) var(--fortune-space-4);
+}
+
+.fortune-comments-filter {
+  padding: var(--fortune-space-1) var(--fortune-space-3);
+  border: 1px solid var(--fortune-border);
+  border-radius: 999px;
+  background: var(--fortune-bg);
+  color: var(--fortune-text-muted);
+  font: inherit;
+  font-size: var(--fortune-font-size-sm);
+  cursor: pointer;
+}
+
+.fortune-comments-filter:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-comments-filter-active,
+.fortune-comments-filter-active:hover {
+  border-color: var(--fortune-accent);
+  background: var(--fortune-accent-soft);
+  color: var(--fortune-accent-text);
+}
+
+.fortune-comments-pane-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--fortune-space-2);
+  padding: var(--fortune-space-2) var(--fortune-space-3) var(--fortune-space-3);
+  overflow-y: auto;
+}
+
+.fortune-comments-pane-empty {
+  margin: var(--fortune-space-4) var(--fortune-space-2);
+  color: var(--fortune-text-muted);
+  text-align: center;
+}
+
+.fortune-comments-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1);
+  padding: var(--fortune-space-2) var(--fortune-space-3);
+  border: 1px solid var(--fortune-border);
+  border-left: 3px solid var(--fortune-thread-accent);
+  border-radius: var(--fortune-radius);
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fortune-comments-item:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-comments-item-selected {
+  border-color: var(--fortune-accent);
+  border-left-color: var(--fortune-thread-accent);
+}
+
+.fortune-comments-item-resolved {
+  border-left-color: var(--fortune-text-subtle);
+}
+
+.fortune-comments-item-resolved .fortune-comments-item-text {
+  color: var(--fortune-text-muted);
+}
+
+.fortune-comments-item-top,
+.fortune-comments-item-author {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  min-width: 0;
+}
+
+.fortune-comments-item-cell {
+  flex: 1;
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+  font-weight: 600;
+}
+
+.fortune-comments-item-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.fortune-comments-item-replies {
+  color: var(--fortune-accent-text);
+  font-size: var(--fortune-font-size-sm);
+}

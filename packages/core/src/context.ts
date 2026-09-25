@@ -96,6 +96,18 @@ export type Context = {
   dataVerificationCircles?: Record<string, boolean>;
   /** the data validation rules sidebar is open */
   dataVerificationSidebar?: boolean;
+  /**
+   * The threaded comment card open on a cell (see
+   * modules/threadedComments.ts): "new" starts a thread, "view" shows it.
+   */
+  threadedCommentCard?: {
+    sheetId: string;
+    r: number;
+    c: number;
+    mode: "new" | "view";
+  } | null;
+  /** The Comments pane listing every threaded comment is open. */
+  threadedCommentsPane?: boolean;
   conditionRules: ConditionRulesProps; // 条件格式
 
   contextMenu: {

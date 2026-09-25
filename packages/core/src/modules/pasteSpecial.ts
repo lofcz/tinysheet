@@ -35,6 +35,7 @@ import {
   sheetPrefix,
   transposeFormula,
 } from "./refAdjust";
+import { pasteThreadedComments } from "./threadedComments";
 
 export type PasteSpecialMode =
   | "all"
@@ -388,6 +389,9 @@ export function pasteSpecial(
     });
   }
 
+  // threaded comments to paste: target cell <- source cell
+  const commentCells: { sr: number; sc: number; r: number; c: number }[] = [];
+
   for (let th = 0; th < timesH; th += 1) {
     for (let tw = 0; tw < timesW; tw += 1) {
       for (let i = 0; i < bh; i += 1) {
@@ -521,6 +525,7 @@ export function pasteSpecial(
           if (parts.comments) {
             if (s?.ps) n.ps = _.cloneDeep(s.ps);
             else delete n.ps;
+            commentCells.push({ sr: item.r, sc: item.c, r: R, c: C });
           }
 
           // merges are rebuilt below
@@ -575,6 +580,10 @@ export function pasteSpecial(
         }
       }
     }
+  }
+
+  if (commentCells.length > 0) {
+    pasteThreadedComments(ctx, block.sheetId, dstId, commentCells);
   }
 
   // merged areas: mark the covered cells
