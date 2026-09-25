@@ -144,9 +144,7 @@ export function goalSeek(
     original?.v == null || original.v === "" ? 0 : numeric(original);
   if (start == null || !Number.isFinite(toValue)) return fail("notNumeric");
 
-  let evaluations = 0;
   const f = (x: number) => {
-    evaluations += 1;
     putValue(data, changingCell, x);
     recalcFrom(ctx, data, [changingCell]);
     const y = numeric(setSheet.data![setCell.r]?.[setCell.c]);
@@ -220,7 +218,7 @@ export function goalSeek(
     found,
     value: x,
     result: fx + toValue,
-    iterations: Math.max(iterations, evaluations > 0 ? iterations : 0),
+    iterations,
     original,
   };
 }
@@ -247,6 +245,48 @@ export function setGoalSeekValue(
   if (!data) return;
   putValue(data, changingCell, value);
   recalcFrom(ctx, data, [changingCell]);
+}
+
+/**
+ * Goal Seek from the dialog: seek, leave the solution in the changing cell
+ * and the result in \`ctx.goalSeekStatus\` until OK / Cancel (run it
+ * without recording history; OK then records the change as one step).
+ */
+export function runGoalSeekCommand(ctx: Context, options: GoalSeekOptions) {
+  const res = goalSeek(ctx, options);
+  ctx.goalSeekStatus = {
+    id: (ctx.goalSeekStatus?.id ?? 0) + 1,
+    setCell: options.setCell,
+    setSheetId: options.setSheetId,
+    changingCell: options.changingCell,
+    toValue: options.toValue,
+    found: res.found,
+    value: res.value,
+    result: res.result,
+    iterations: res.iterations,
+    original: res.original,
+    error: res.error,
+  };
+  return res;
+}
+
+/**
+ * Close Goal Seek: "restore" puts the original value back (Cancel, and the
+ * first half of OK, run without history); "apply" writes the solution
+ * (OK, recorded as one undo step).
+ */
+export function finishGoalSeek(ctx: Context, mode: "restore" | "apply") {
+  const status = ctx.goalSeekStatus;
+  if (!status) return;
+  if (mode === "restore") {
+    if (!status.error) {
+      restoreGoalSeek(ctx, status.changingCell, status.original);
+    }
+    if (status.error) delete ctx.goalSeekStatus;
+    return;
+  }
+  setGoalSeekValue(ctx, status.changingCell, status.value);
+  delete ctx.goalSeekStatus;
 }
 
 /* ------------------------------------------------------------------ */
@@ -377,27 +417,33 @@ function typeOf(v: unknown) {
   return "g";
 }
 
-function writeBody(
-  data: CellMatrix,
-  values: { r: number; c: number; v: unknown; fa?: string }[]
-) {
+type BodyValue = { r: number; c: number; v: unknown; fa?: string };
+
+/** The body cell showing `v`, or null when `prev` already shows it. */
+function bodyCell(prev: Cell | null | undefined, v: unknown, fa?: string) {
+  const bodyFa =
+    prev?.ct?.fa && prev.ct.fa !== "General" ? prev.ct.fa : fa || "General";
+  const m = displayOf(v, bodyFa);
+  if (prev && !prev.f && prev.v === v && prev.m === m) return null;
+  if (!prev && v == null) return null;
+  const cell: Cell = prev ? { ...prev } : {};
+  delete cell.f;
+  if (v == null) {
+    delete cell.v;
+    delete cell.m;
+  } else {
+    cell.v = v as any;
+    cell.m = m;
+    cell.ct = { fa: bodyFa, t: typeOf(v) };
+  }
+  return cell;
+}
+
+function writeBody(data: CellMatrix, values: BodyValue[]) {
   let changed = false;
   values.forEach(({ r, c, v, fa }) => {
-    const prev = data[r][c];
-    const bodyFa =
-      prev?.ct?.fa && prev.ct.fa !== "General" ? prev.ct.fa : fa || "General";
-    const m = displayOf(v, bodyFa);
-    if (prev && !prev.f && prev.v === v && prev.m === m) return;
-    const cell: Cell = prev ? { ...prev } : {};
-    delete cell.f;
-    if (v == null) {
-      delete cell.v;
-      delete cell.m;
-    } else {
-      cell.v = v as any;
-      cell.m = m;
-      cell.ct = { fa: bodyFa, t: typeOf(v) };
-    }
+    const cell = bodyCell(data[r]?.[c], v, fa);
+    if (!cell) return;
     data[r][c] = cell;
     changed = true;
   });
@@ -469,30 +515,77 @@ export function dataTableFormula(t: DataTableSpec) {
   return `{=TABLE(${ref(t.rowInput)},${ref(t.colInput)})}`;
 }
 
+export type DataTableUpdate = {
+  sheetId: string;
+  tableId: string;
+  values: BodyValue[];
+};
+
+function withSheet<T>(ctx: Context, sheetId: string, fn: () => T): T {
+  const prev = ctx.currentSheetId;
+  ctx.currentSheetId = sheetId;
+  try {
+    return fn();
+  } finally {
+    ctx.currentSheetId = prev;
+  }
+}
+
 /**
- * Recompute the data tables of a sheet (default: every sheet with data
- * tables that is loaded). Returns true when a body value changed.
+ * Body values of the data tables (of one sheet, or every loaded sheet)
+ * that differ from what the sheet shows. Computing them substitutes the
+ * inputs and restores them, so it can run on a throw-away draft.
+ */
+export function dataTableUpdates(
+  ctx: Context,
+  sheetId?: string
+): DataTableUpdate[] {
+  const out: DataTableUpdate[] = [];
+  ctx.luckysheetfile.forEach((sheet) => {
+    const { data, id } = sheet;
+    if (!sheet.dataTables?.length || !data || id == null) return;
+    if (sheetId != null && id !== sheetId) return;
+    withSheet(ctx, id, () => {
+      sheet.dataTables!.forEach((t) => {
+        const values = computeTable(ctx, data, t).filter(
+          ({ r, c, v, fa }) => bodyCell(data[r]?.[c], v, fa) != null
+        );
+        if (values.length) out.push({ sheetId: id, tableId: t.id, values });
+      });
+    });
+  });
+  return out;
+}
+
+/** Write computed body values and recalculate what depends on them. */
+export function applyDataTableUpdates(
+  ctx: Context,
+  updates: DataTableUpdate[]
+) {
+  updates.forEach((u) => {
+    const sheet = sheetById(ctx, u.sheetId);
+    if (!sheet?.data) return;
+    const { data } = sheet;
+    withSheet(ctx, u.sheetId, () => {
+      if (writeBody(data, u.values)) {
+        recalcFrom(
+          ctx,
+          data,
+          u.values.map(({ r, c }) => ({ r, c }))
+        );
+      }
+    });
+  });
+}
+
+/**
+ * Recompute the data tables of a sheet (default: every loaded sheet with
+ * data tables). Returns true when a body value changed.
  */
 export function recalcDataTables(ctx: Context, sheetId?: string) {
-  let changed = false;
-  const prev = ctx.currentSheetId;
-  ctx.luckysheetfile.forEach((sheet) => {
-    if (!sheet.dataTables?.length || !sheet.data || sheet.id == null) return;
-    if (sheetId != null && sheet.id !== sheetId) return;
-    ctx.currentSheetId = sheet.id;
-    try {
-      sheet.dataTables.forEach((t) => {
-        const values = computeTable(ctx, sheet.data!, t);
-        if (writeBody(sheet.data!, values)) {
-          changed = true;
-          recalcFrom(ctx, sheet.data!, bodyCells(t));
-        }
-      });
-    } finally {
-      ctx.currentSheetId = prev;
-    }
-  });
-  return changed;
+  const updates = dataTableUpdates(ctx, sheetId);
+  applyDataTableUpdates(ctx, updates);
+  return updates.length > 0;
 }
 
 /** Whether any loaded sheet has data tables. */

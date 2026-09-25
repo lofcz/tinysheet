@@ -350,3 +350,34 @@ export function advancedFilter(
   ]);
   return { matched: matches.length, total };
 }
+
+/** Advanced Filter from the dialog; the result goes to ctx.cellToolsNotice. */
+export function runAdvancedFilterCommand(
+  ctx: Context,
+  options: AdvancedFilterOptions
+) {
+  const res = advancedFilter(ctx, options);
+  ctx.cellToolsNotice = {
+    id: (ctx.cellToolsNotice?.id ?? 0) + 1,
+    kind: "advancedFilter",
+    count: res.matched,
+    total: res.total,
+    range: {
+      row: [options.list.row[0], options.list.row[1]],
+      column: [options.list.column[0], options.list.column[1]],
+    },
+    error: res.error,
+  };
+  if (!res.error && options.action !== "copy") {
+    // the list stays selected, like Excel
+    ctx.luckysheet_select_save = [
+      {
+        row: [options.list.row[0], options.list.row[1]],
+        column: [options.list.column[0], options.list.column[1]],
+        row_focus: options.list.row[0],
+        column_focus: options.list.column[0],
+      },
+    ];
+  }
+  return res;
+}

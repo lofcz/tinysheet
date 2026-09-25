@@ -62,11 +62,30 @@ export type Context = {
   rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
   // 提醒弹窗
   warnDialog?: string;
-  /** Result of the last Flash Fill, shown next to the filled cells. */
-  flashFillNotice?: {
+  /**
+   * Result of the last Flash Fill / Advanced Filter, shown next to the
+   * cells (see modules/flashFill.ts, advancedFilter.ts).
+   */
+  cellToolsNotice?: {
     id: number;
-    filled: number;
+    kind: "flashFill" | "advancedFilter";
+    count: number;
+    total?: number;
     range?: { row: [number, number]; column: [number, number] };
+    error?: string;
+  };
+  /** Goal Seek in progress: its result, awaiting OK / Cancel. */
+  goalSeekStatus?: {
+    id: number;
+    setCell: { r: number; c: number };
+    setSheetId?: string;
+    changingCell: { r: number; c: number };
+    toValue: number;
+    found: boolean;
+    value: number;
+    result: number;
+    iterations: number;
+    original: Cell | null;
     error?: string;
   };
   /** Open Format Cells dialog and its tab (see openFormatCells). */

@@ -243,11 +243,13 @@ export const defaultSettings: Required<Settings> = {
     "chart",
     "link",
     "comment",
+    "checkbox", // Insert › Checkbox (cell controls)
     "|",
     // Formulas / Data
     "nameManager",
     "dataVerification",
     "splitColumn",
+    "data-tools", // Flash Fill, Advanced Filter, What-If Analysis
     "locationCondition",
     "screenshot",
   ], // 自定义工具栏

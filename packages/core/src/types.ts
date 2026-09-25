@@ -177,6 +177,7 @@ export type Sheet = {
   // eslint-disable-next-line no-use-before-define
   tables?: SheetTable[];
   /** What-If data tables of this sheet (see modules/whatIf.ts). */
+  // eslint-disable-next-line no-use-before-define
   dataTables?: DataTableSpec[];
   /** In-place Advanced Filter (see modules/advancedFilter.ts). */
   advancedFilter?: {

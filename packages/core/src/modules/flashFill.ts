@@ -715,18 +715,16 @@ export function flashFill(ctx: Context): FlashFillResult {
   return { filled, range };
 }
 
-let noticeId = 0;
-
 /**
  * Data › Flash Fill / Ctrl+E: fill, then leave the result for the UI
- * (`ctx.flashFillNotice`: cells changed, or why nothing was filled).
+ * (\`ctx.cellToolsNotice\`: cells changed, or why nothing was filled).
  */
 export function runFlashFillCommand(ctx: Context): FlashFillResult {
   const res = flashFill(ctx);
-  noticeId += 1;
-  ctx.flashFillNotice = {
-    id: noticeId,
-    filled: res.filled,
+  ctx.cellToolsNotice = {
+    id: (ctx.cellToolsNotice?.id ?? 0) + 1,
+    kind: "flashFill",
+    count: res.filled,
     range: res.range,
     error: res.error,
   };
