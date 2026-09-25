@@ -52,7 +52,12 @@ import Menu from "./Menu";
 import MenuIcon from "./icons";
 import CustomSort from "../CustomSort";
 import DataVerification from "../DataVerification";
-import { getContextMenuAction, ContextMenuActionKey } from "./actions";
+import {
+  getContextMenuAction,
+  getContextMenuItem,
+  ContextMenuActionKey,
+  ContextMenuItem,
+} from "./actions";
 import { registerDefaultContextMenuActions } from "./defaultActions";
 import {
   InsertDeleteDialog,
@@ -60,8 +65,10 @@ import {
   useInsertDeleteRunner,
 } from "./dialogs";
 import PickList, { PickListState } from "./PickList";
+import { installBuiltinFeatures } from "../features";
 
 registerDefaultContextMenuActions();
+installBuiltinFeatures();
 
 type MenuEntry =
   | {
@@ -794,8 +801,31 @@ const ContextMenu: React.FC = () => {
       case "insert-row":
       case "insert-column":
         return legacyInsertRowCol(name === "insert-row" ? "row" : "column");
-      default:
-        return [];
+      default: {
+        // entries registered by features (actions.ts registerContextMenuItem)
+        const build = getContextMenuItem(name);
+        if (!build) return [];
+        const toEntry = (it: ContextMenuItem, k: number): ItemEntry => ({
+          type: "item",
+          key: it.key ?? `${name}-${k}`,
+          label: it.label,
+          icon: it.icon,
+          shortcut: it.shortcut,
+          disabled: it.disabled,
+          children: it.children?.map(toEntry),
+          onSelect: it.onSelect
+            ? () => {
+                close();
+                it.onSelect!();
+              }
+            : undefined,
+        });
+        return build({
+          ...workbookCtx,
+          showDialog: (content) => showDialog(content),
+          hideDialog,
+        }).map(toEntry);
+      }
     }
   };
 

@@ -57,3 +57,45 @@ export function getContextMenuAction(key: ContextMenuActionKey) {
   const list = registry[key];
   return list?.[list.length - 1];
 }
+
+/**
+ * A context-menu entry contributed by a feature (with its own label), shown
+ * wherever its name appears in `settings.cellContextMenu` /
+ * `headerContextMenu`. The menu closes before `onSelect` runs; entries with
+ * `children` open a submenu.
+ */
+export type ContextMenuItem = {
+  key?: string;
+  label: string;
+  /** A name from ContextMenu/icons.tsx. */
+  icon?: string;
+  shortcut?: string;
+  disabled?: boolean;
+  onSelect?: () => void;
+  children?: ContextMenuItem[];
+};
+
+/** Builds the entries of a named item for the current state (none: []). */
+export type ContextMenuItemBuilder = (
+  helpers: ContextMenuActionHelpers
+) => ContextMenuItem[];
+
+const itemBuilders = new Map<string, ContextMenuItemBuilder>();
+
+/**
+ * Register the entries shown for `name` in the context menu settings.
+ * Returns a function that removes them again.
+ */
+export function registerContextMenuItem(
+  name: string,
+  build: ContextMenuItemBuilder
+) {
+  itemBuilders.set(name, build);
+  return () => {
+    if (itemBuilders.get(name) === build) itemBuilders.delete(name);
+  };
+}
+
+export function getContextMenuItem(name: string) {
+  return itemBuilders.get(name);
+}
