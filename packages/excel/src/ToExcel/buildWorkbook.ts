@@ -29,6 +29,7 @@ import {
 import { colorToArgb } from "../common/units";
 import { setDefinedNames } from "../common/definedNames";
 import { addChartsToXlsx } from "../chart/exportXlsx";
+import { writeOutline } from "../common/outline";
 import {
   finalizeConditionalFormatting,
   setConditionalFormatting,
@@ -96,6 +97,7 @@ function borders(ctx: SheetExportContext) {
 export const sheetExportFeatures: SheetExportFeature[] = [
   { name: "columns-rows", write: writeColumnsAndRows },
   { name: "cells", write: writeCells },
+  { name: "outline", write: writeOutline },
   { name: "tables", write: writeTables },
   { name: "notes", write: writeNotes },
   { name: "merges", write: writeMerges },

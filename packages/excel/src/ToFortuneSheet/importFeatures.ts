@@ -16,6 +16,7 @@ import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
+import { readOutline } from "../common/outline";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -326,6 +327,7 @@ export function readTables(ctx: SheetImportContext) {
 export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "notes", read: readNotes },
   { name: "tables", read: readTables },
+  { name: "outline", read: readOutline },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 
