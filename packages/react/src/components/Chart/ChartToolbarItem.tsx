@@ -5,6 +5,8 @@ import Combo from "../Toolbar/Combo";
 import Select, { Option } from "../Toolbar/Select";
 import { useAlert } from "../../hooks/useAlert";
 import {
+  applyChartTypeOption,
+  CHART_TYPE_GROUPS,
   CHART_TYPE_OPTIONS,
   ChartTypeIcon,
   ChartTypeOption,
@@ -13,7 +15,7 @@ import {
 export const CHART_TOOLBAR_ICON = "fortune-insert-chart";
 
 /** Toolbar "Insert chart": the button inserts a clustered column chart, the
- * arrow opens the list of chart types. */
+ * arrow opens the list of chart types (grouped like Excel's Insert Chart). */
 const ChartToolbarItem: React.FC = () => {
   const { context, setContext } = useContext(WorkbookContext);
   const { chart: t } = locale(context);
@@ -31,7 +33,7 @@ const ChartToolbarItem: React.FC = () => {
         grouping: option.grouping,
         markers: option.markers,
       });
-      if (chart && option.scatterLines) chart.scatterLines = true;
+      if (chart) applyChartTypeOption(chart, option);
     });
   };
 
@@ -63,19 +65,28 @@ const ChartToolbarItem: React.FC = () => {
         {(setOpen) => (
           <div className="fortune-chart-type-menu">
             <Select>
-              {CHART_TYPE_OPTIONS.map((option) => (
-                <Option
-                  key={option.key}
-                  onClick={() => {
-                    insert(option);
-                    setOpen(false);
-                  }}
-                >
-                  <div className="fortune-chart-type-option">
-                    <ChartTypeIcon type={option.type} />
-                    <span>{t[option.key]}</span>
+              {CHART_TYPE_GROUPS.map((group) => (
+                <React.Fragment key={group}>
+                  <div className="fortune-chart-type-group" role="presentation">
+                    {t[group]}
                   </div>
-                </Option>
+                  {CHART_TYPE_OPTIONS.filter((o) => o.group === group).map(
+                    (option) => (
+                      <Option
+                        key={option.key}
+                        onClick={() => {
+                          insert(option);
+                          setOpen(false);
+                        }}
+                      >
+                        <div className="fortune-chart-type-option">
+                          <ChartTypeIcon type={option.type} />
+                          <span>{t[option.key]}</span>
+                        </div>
+                      </Option>
+                    )
+                  )}
+                </React.Fragment>
               ))}
             </Select>
           </div>
