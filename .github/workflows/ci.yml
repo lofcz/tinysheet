@@ -8,24 +8,109 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Playwright is not a project dependency (see e2e/run.mjs); pin the CLI
+  # and its browser build here.
+  PLAYWRIGHT_VERSION: 1.56.1
+
 jobs:
-  formula-parser:
-    name: formula-parser tests
+  typecheck:
+    name: typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: oven-sh/setup-bun@v2
         with:
           # bun.lock uses lockfileVersion 2 (Bun canary); stable 1.3.x cannot parse it.
           bun-version: canary
-
       - name: Install dependencies
-        # Vitest imports formula-parser src/ directly; skip postinstall build.
+        # Skip the postinstall build; each job builds only if it needs to.
         run: bun install --frozen-lockfile --ignore-scripts
+      - name: tsc (core, react, stories + excel)
+        run: bun run tsc
 
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: canary
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: ESLint (core, react, excel)
+        run: bun run lint
+      - name: ESLint (formula-parser)
+        run: bun run lint:formula-parser
+      - name: Prettier (e2e, docs scripts)
+        run: bunx prettier --check e2e docs/scripts
+
+  formula-parser:
+    name: formula-parser tests (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: canary
+      - name: Install dependencies
+        # Vitest imports formula-parser src/ directly; no build needed.
+        run: bun install --frozen-lockfile --ignore-scripts
       - name: Run formula-parser tests
         run: bun run test:formula-parser
 
+  jest:
+    name: core/react tests (jest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: canary
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
       - name: Run core/react tests
         run: bun run test:jest
+
+  build:
+    name: build + excel tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: canary
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Build packages
+        run: bun run build
+      - name: Run excel tests (against the built dist)
+        run: bun run test:excel
+
+  e2e:
+    name: e2e (Playwright on Storybook)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: canary
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Install Playwright and Chromium
+        run: |
+          npm install -g playwright@${PLAYWRIGHT_VERSION}
+          npx -y playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium
+      - name: Build Storybook and run e2e tests
+        run: bun run test:e2e
+      - name: Upload traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: test-results/e2e
+          retention-days: 7

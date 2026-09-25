@@ -22,7 +22,7 @@
   },
   "license": "MIT",
   "scripts": {
-    "test": "node --test ./test/parseExcel.test.mjs"
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "@lofcz/tinysheet-core": "^1.0.3",

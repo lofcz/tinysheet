@@ -66,7 +66,9 @@ const toFile = async (filePath, fileName) => {
 };
 
 test("parseExcel converts xls_preview.xlsx into Prospera sheets", async () => {
-  const result = await parseExcel(await toFile(fixturePath, "xls_preview.xlsx"));
+  const result = await parseExcel(
+    await toFile(fixturePath, "xls_preview.xlsx")
+  );
   assert.equal(result.sheets.length, 1);
   const [sheet] = result.sheets;
   assert.equal(sheet.name, "Feuille1");
@@ -74,7 +76,7 @@ test("parseExcel converts xls_preview.xlsx into Prospera sheets", async () => {
 
   const b2 = getCell(sheet, 1, 1);
   assert.ok(b2);
-  assert.equal(b2.v.v, "552150");
+  assert.equal(b2.v.v, 552150);
 });
 
 test("parseExcel keeps one-cell anchored drawing objects visible", async () => {
@@ -179,10 +181,17 @@ test("applyExcelImportHydration calculates formulas and refreshes chart SVGs", a
   assert.ok(chartImage.chartSpec.title);
   assert.ok(chartImage.chartSpec.categoryAxisTitle);
   assert.ok(chartImage.chartSpec.valueAxisTitle);
-  assert.match(chartSvg, new RegExp(chartImage.chartSpec.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(
     chartSvg,
-    new RegExp(chartImage.chartSpec.valueAxisTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    new RegExp(
+      chartImage.chartSpec.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    )
+  );
+  assert.match(
+    chartSvg,
+    new RegExp(
+      chartImage.chartSpec.valueAxisTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    )
   );
 });
 
@@ -206,7 +215,7 @@ test("chart axis uses Excel-like 1-2-5 step ticks", () => {
       { label: "B", value: 2.67, color: DEFAULT_CHART_COLORS[1] },
     ],
     320,
-    200,
+    200
   );
   assert.match(svg, />0\.5<\/text>/);
   assert.match(svg, />1\.5<\/text>/);
@@ -243,7 +252,7 @@ test("chart axis honors explicit min/max/majorUnit overrides", () => {
     ],
     320,
     200,
-    { valueAxis: { min: 0, max: 4, majorUnit: 1 } },
+    { valueAxis: { min: 0, max: 4, majorUnit: 1 } }
   );
   assert.match(svg, />4<\/text>/);
   assert.doesNotMatch(svg, />0\.5<\/text>/);
@@ -254,7 +263,7 @@ test("parseExcel imports value-axis scaling overrides from chart XML", async () 
   const fixture = await fs.readFile(openpyxlBarChartFixturePath);
   const zip = await JSZip.loadAsync(fixture);
   const chartPath = Object.keys(zip.files).find((name) =>
-    /xl\/charts\/chart\d*\.xml$/i.test(name),
+    /xl\/charts\/chart\d*\.xml$/i.test(name)
   );
   assert.ok(chartPath, "expected chart xml in fixture");
   let chartXml = await zip.file(chartPath).async("string");
@@ -272,7 +281,7 @@ test("parseExcel imports value-axis scaling overrides from chart XML", async () 
         `<${ns}majorUnit val="1"/>` +
         valClose
       );
-    },
+    }
   );
   assert.match(chartXml, /min val="0"/);
   assert.match(chartXml, /majorUnit val="1"/);
@@ -282,10 +291,10 @@ test("parseExcel imports value-axis scaling overrides from chart XML", async () 
   const result = await parseExcel(
     new File([patched], "openpyxl_bar_chart_axis.xlsx", {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }),
+    })
   );
   const chartImage = (result.sheets[0].images || []).find(
-    (image) => image.chartSpec,
+    (image) => image.chartSpec
   );
   assert.ok(chartImage);
   assert.deepEqual(chartImage.chartSpec.valueAxis, {
