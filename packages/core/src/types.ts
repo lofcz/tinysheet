@@ -164,8 +164,10 @@ export type Sheet = {
    * `local: true` are scoped to this sheet; the others are workbook-scoped
    * (they live on whichever sheet stores them, normally the first one).
    */
+  // eslint-disable-next-line no-use-before-define
   definedNames?: DefinedName[];
   /** Excel-style tables ("Format as Table") of this sheet, see modules/tables.ts */
+  // eslint-disable-next-line no-use-before-define
   tables?: SheetTable[];
 };
 

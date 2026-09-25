@@ -28,7 +28,7 @@ import {
   isInlineStringCT,
 } from "./inline-string";
 import { isRealNull, isRealNum, valueIsError } from "./validation";
-import { getCellTextInfo } from "./text";
+import { autoGrowRowAfterEdit } from "./autofit";
 import { setFormulaCellInfo } from "./formulaHelper";
 import { onTableCellEdited } from "./tables";
 
@@ -940,48 +940,9 @@ export function updateCell(
   }
   */
 
-  if ((curv?.tb === "2" && curv.v) || isInlineStringCell(d[r][c])) {
-    // 自动换行
-    const { defaultrowlen } = ctx;
-
-    // const canvas = $("#luckysheetTableContent").get(0).getContext("2d");
-    // offlinecanvas.textBaseline = 'top'; //textBaseline以top计算
-
-    // let fontset = luckysheetfontformat(d[r][c]);
-    // offlinecanvas.font = fontset;
-
-    const cfg =
-      ctx.luckysheetfile[
-        getSheetIndex(ctx, ctx.currentSheetId as string) as number
-      ].config || {};
-    if (!(cfg.columnlen?.[c] && cfg.rowlen?.[r])) {
-      // let currentRowLen = defaultrowlen;
-      // if(!_.isNil(cfg["rowlen"][r])){
-      //     currentRowLen = cfg["rowlen"][r];
-      // }
-
-      const cellWidth = cfg.columnlen?.[c] || ctx.defaultcollen;
-
-      const textInfo = canvas
-        ? getCellTextInfo(d[r][c] as Cell, canvas, ctx, {
-            r,
-            c,
-            cellWidth,
-          })
-        : null;
-
-      let currentRowLen = defaultrowlen;
-      // console.log("rowlen", textInfo);
-      if (textInfo) {
-        currentRowLen = textInfo.textHeightAll + 2;
-      }
-
-      if (currentRowLen > defaultrowlen && !cfg.customHeight?.[r]) {
-        if (_.isNil(cfg.rowlen)) cfg.rowlen = {};
-        cfg.rowlen[r] = currentRowLen;
-      }
-    }
-  }
+  // wrapped text: rows without a custom height follow their content (Excel)
+  // (measured on an offscreen canvas when the caller has none)
+  autoGrowRowAfterEdit(ctx, r, c, { renderCtx: canvas });
 
   // 动态数组
   /*

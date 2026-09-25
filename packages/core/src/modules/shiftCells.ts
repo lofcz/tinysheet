@@ -252,7 +252,7 @@ function shiftCells(ctx: Context, sheetId: string, spec: ShiftSpec) {
  */
 export function insertCells(
   ctx: Context,
-  range: Rect,
+  range: { row: number[]; column: number[] },
   shift: "down" | "right",
   sheetId: string = ctx.currentSheetId
 ) {
@@ -273,7 +273,7 @@ export function insertCells(
  */
 export function deleteCells(
   ctx: Context,
-  range: Rect,
+  range: { row: number[]; column: number[] },
   shift: "up" | "left",
   sheetId: string = ctx.currentSheetId
 ) {

@@ -12,6 +12,8 @@ import {
   handleColFreezeHandleMouseDown,
   getSheetIndex,
   fixPositionOnFrozenCells,
+  autofitColumns,
+  getAutofitTargets,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
@@ -140,6 +142,21 @@ const ColumnHeader: React.FC = () => {
     [refs.cellArea, refs.globalCache, refs.workbookContainer, setContext]
   );
 
+  // double-click a column border: autofit (every selected column when the
+  // border belongs to the selection)
+  const onColumnSizeHandleDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+      e.stopPropagation();
+      const index = hoverLocation.col_index;
+      if (index < 0) return;
+      setContext((draftCtx) => {
+        if (!isAllowEdit(draftCtx)) return;
+        autofitColumns(draftCtx, getAutofitTargets(draftCtx, "column", index));
+      });
+    },
+    [hoverLocation.col_index, setContext]
+  );
+
   const onColFreezeHandleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       const { nativeEvent } = e;
@@ -228,6 +245,7 @@ const ColumnHeader: React.FC = () => {
         ref={colChangeSizeRef}
         id="fortune-cols-change-size"
         onMouseDown={onColSizeHandleMouseDown}
+        onDoubleClick={onColumnSizeHandleDoubleClick}
         style={{
           left:
             hoverLocation.col - 5 + (hoverInFreeze ? context.scrollLeft : 0),

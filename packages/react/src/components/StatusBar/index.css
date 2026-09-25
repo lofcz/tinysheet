@@ -1,0 +1,128 @@
+.fortune-container .fortune-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  padding: 0 var(--fortune-space-2);
+  font-size: var(--fortune-font-size-sm);
+  color: var(--fortune-text-muted);
+  background-color: var(--fortune-bg-subtle);
+  border-top: 1px solid var(--fortune-divider);
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.fortune-status-bar-left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.fortune-status-bar-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-1);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.fortune-status-bar-item {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 2px var(--fortune-space-2);
+  border: none;
+  border-radius: var(--fortune-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--fortune-transition);
+}
+
+.fortune-status-bar-item:hover {
+  background-color: var(--fortune-bg-hover);
+  color: var(--fortune-text);
+}
+
+.fortune-status-bar-item:focus-visible {
+  outline: none;
+  box-shadow: var(--fortune-focus-ring);
+}
+
+.fortune-status-bar-value {
+  color: var(--fortune-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.fortune-status-bar-calculating {
+  padding: 2px var(--fortune-space-2);
+  font-style: italic;
+}
+
+.fortune-status-bar-copied {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  padding: 2px var(--fortune-space-2);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-tooltip-bg);
+  color: var(--fortune-tooltip-text);
+  pointer-events: none;
+  z-index: 1005;
+}
+
+.fortune-status-bar-menu {
+  position: fixed;
+  z-index: 1004;
+  min-width: 240px;
+  padding: var(--fortune-space-1) 0;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
+  box-shadow: var(--fortune-shadow);
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-status-bar-menu-title {
+  padding: 6px var(--fortune-space-3);
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+  font-weight: 600;
+}
+
+.fortune-status-bar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  padding: 5px var(--fortune-space-3);
+  cursor: pointer;
+  outline: none;
+}
+
+.fortune-status-bar-menu-item:hover,
+.fortune-status-bar-menu-item:focus-visible {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-status-bar-menu-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--fortune-accent);
+}
+
+.fortune-status-bar-check {
+  width: 14px;
+  color: var(--fortune-accent);
+  text-align: center;
+}
+
+.fortune-status-bar-menu-label {
+  flex: 1;
+}
+
+.fortune-status-bar-menu-value {
+  color: var(--fortune-text-muted);
+  font-variant-numeric: tabular-nums;
+}
