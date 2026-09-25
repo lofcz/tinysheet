@@ -52,6 +52,8 @@ sheet and the toolbar.
 | <kbd>Ctrl</kbd>+<kbd>;</kbd> | Insert today's date |
 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>;</kbd> | Insert the current time |
 | <kbd>Ctrl</kbd>+<kbd>D</kbd> / <kbd>Ctrl</kbd>+<kbd>R</kbd> | Fill down / right from the first row / column of the selection |
+| <kbd>Ctrl</kbd>+<kbd>E</kbd> | Flash Fill the column of the active cell from the examples typed in it |
+| <kbd>Space</kbd> | Toggle the selected checkboxes (cells with the checkbox format) |
 | <kbd>Ctrl</kbd>+<kbd>Z</kbd> | Undo |
 | <kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> | Redo |
 

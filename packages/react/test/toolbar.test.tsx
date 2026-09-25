@@ -2,6 +2,8 @@ import { render } from "@testing-library/react";
 import React from "react";
 import { defaultSettings } from "@lofcz/tinysheet-core";
 import Workbook from "../src/components/Workbook";
+// feature toolbar items register themselves when their module loads
+import "../src/components/CellTools";
 
 function toolbarItems(lang = "en") {
   const { container } = render(
@@ -53,8 +55,8 @@ describe("default toolbar", () => {
       "format currency-format percentage-format number-increase number-decrease",
       "conditionFormat formatAsTable cell-styles",
       "quick-formula clear-format filter search",
-      "freeze image chart link comment",
-      "nameManager dataVerification splitColumn locationCondition screenshot",
+      "freeze image chart link comment checkbox",
+      "nameManager dataVerification splitColumn data-tools locationCondition screenshot",
     ]);
   });
 
