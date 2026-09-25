@@ -55,7 +55,7 @@ describe(".parse() text formulas", () => {
   xit("DOLLAR", () => {
     expect(
       parser.parse("DOLLAR()")
-    ).toMatchObject({ error: null, result: "$0.00" });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DOLLAR(1100)")
     ).toMatchObject({ error: null, result: "$1,100.00" });

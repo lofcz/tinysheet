@@ -92,16 +92,16 @@ describe(".parse() financial formulas", () => {
   it("DB", () => {
     expect(
       parser.parse("DB()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DB(10000)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DB(10000, 1000)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DB(10000, 1000, 6)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("DB(10000, 1000, 6, 1)")
     ).toMatchObject({ error: null, result: 3190 });

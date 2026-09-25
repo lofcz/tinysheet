@@ -117,7 +117,7 @@ describe(".parse() math-trig formulas", () => {
   it("ARABIC", () => {
     expect(
       parser.parse("ARABIC()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ARABIC("ABC")')
     ).toMatchObject({ error: "#VALUE!", result: null });
@@ -498,7 +498,7 @@ describe(".parse() math-trig formulas", () => {
   it("FACT", () => {
     expect(
       parser.parse("FACT()")
-    ).toMatchObject({ error: null, result: 1 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('FACT("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });
@@ -1004,7 +1004,7 @@ describe(".parse() math-trig formulas", () => {
   it("ROMAN", () => {
     expect(
       parser.parse("ROMAN()")
-    ).toMatchObject({ error: null, result: "" });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse('ROMAN("value")')
     ).toMatchObject({ error: "#VALUE!", result: null });

@@ -289,18 +289,13 @@ describe(".parse() statistical formulas", () => {
   });
 
   it("CONFIDENCE", () => {
-    expect(
-      parser.parse("CONFIDENCE()")
-    ).toMatchObject({ error: "#NAME?", result: null });
-    expect(
-      parser.parse("CONFIDENCE(0.5)")
-    ).toMatchObject({ error: "#NAME?", result: null });
-    expect(
-      parser.parse("CONFIDENCE(0.5, 1)")
-    ).toMatchObject({ error: "#NAME?", result: null });
-    expect(
-      parser.parse("CONFIDENCE(0.5, 1, 5)")
-    ).toBeMatchCloseTo({ error: "#NAME?", result: null });
+    // Compatibility alias of CONFIDENCE.NORM.
+    expect(parser.parse("CONFIDENCE()").error).not.toBeNull();
+    expect(parser.parse("CONFIDENCE(0.5, 1)").error).not.toBeNull();
+    expect(parser.parse("CONFIDENCE(0.5, 1, 5)")).toBeMatchCloseTo({
+      error: null,
+      result: 0.301640986,
+    });
     expect(
       parser.parse("CONFIDENCE.NORM(0.5, 1, 5)")
     ).toBeMatchCloseTo({ error: null, result: 0.30164098631305825 });
@@ -309,13 +304,13 @@ describe(".parse() statistical formulas", () => {
   it("CONFIDENCE.T", () => {
     expect(
       parser.parse("CONFIDENCE.T()")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("CONFIDENCE.T(0.5)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("CONFIDENCE.T(0.5, 1)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("CONFIDENCE.T(0.5, 1, 5)")
     ).toBeMatchCloseTo({ error: null, result: 0.33124980616238564 });
@@ -485,19 +480,19 @@ describe(".parse() statistical formulas", () => {
   it("FDIST", () => {
     expect(
       parser.parse("FDIST()")
-    ).toMatchObject({ error: null, result: Infinity });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("FDIST(15)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("FDIST(15, 6)")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("FDIST(15, 6, 4)")
-    ).toBeMatchCloseTo({ error: null, result: 0.0012714469079329002 });
+    ).toBeMatchCloseTo({ error: null, result: 0.010258047605980813 });
     expect(
       parser.parse("FDIST(15, 6, 4, TRUE)")
-    ).toBeMatchCloseTo({ error: null, result: 0.9897419523940192 });
+    ).toBeMatchCloseTo({ error: null, result: 0.010258047605980813 });
     expect(
       parser.parse("F.DIST(15, 6, 4, TRUE)")
     ).toBeMatchCloseTo({ error: null, result: 0.9897419523940192 });
@@ -524,16 +519,16 @@ describe(".parse() statistical formulas", () => {
   it("FINV", () => {
     expect(
       parser.parse("FINV()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("FINV(0.1)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("FINV(0.1, 6)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("FINV(0.1, 6, 4)")
-    ).toBeMatchCloseTo({ error: null, result: 0.31438998832176823 });
+    ).toBeMatchCloseTo({ error: null, result: 4.009749312673945 });
     expect(
       parser.parse("F.INV(0.1, 6, 4)")
     ).toBeMatchCloseTo({ error: null, result: 0.31438998832176823 });
@@ -808,16 +803,16 @@ describe(".parse() statistical formulas", () => {
   it("LOGNORMDIST", () => {
     expect(
       parser.parse("LOGNORMDIST()")
-    ).toMatchObject({ error: null, result: 0 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("LOGNORMDIST(4)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("LOGNORMDIST(4, 3.5)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("LOGNORMDIST(4, 3.5, 1.2)")
-    ).toBeMatchCloseTo({ error: null, result: 0.01761759668181924 });
+    ).toBeMatchCloseTo({ error: null, result: 0.03908355570680047 });
     expect(
       parser.parse("LOGNORMDIST(4, 3.5, 1.2, TRUE)")
     ).toBeMatchCloseTo({ error: null, result: 0.0390835557068005 });
@@ -981,10 +976,10 @@ describe(".parse() statistical formulas", () => {
   it("NORMSDIST", () => {
     expect(
       parser.parse("NORMSDIST()")
-    ).toMatchObject({ error: null, result: 0.3989422804014327 });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("NORMSDIST(1)")
-    ).toBeMatchCloseTo({ error: null, result: 0.24197072451914337 });
+    ).toBeMatchCloseTo({ error: null, result: 0.8413447460685429 });
     expect(
       parser.parse("NORMSDIST(1, TRUE)")
     ).toBeMatchCloseTo({ error: null, result: 0.8413447460685429 });
@@ -1509,28 +1504,28 @@ describe(".parse() statistical formulas", () => {
   it("TDIST", () => {
     expect(
       parser.parse("TDIST()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("TDIST(1)")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("TDIST(1, 3)")
-    ).toBeMatchCloseTo({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("TDIST(1, 3, TRUE)")
-    ).toBeMatchCloseTo({ error: "#NUM!", result: null });
+    ).toBeMatchCloseTo({ error: null, result: 0.19550110947788524 });
     expect(
       parser.parse("T.DIST(1, 3, TRUE)")
-    ).toBeMatchCloseTo({ error: "#NUM!", result: null });
+    ).toBeMatchCloseTo({ error: null, result: 0.8044988905221148 });
   });
 
   it("T.DIST.2T", () => {
     expect(
       parser.parse("T.DIST.2T()")
-    ).toMatchObject({ error: "#N/A", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("T.DIST.2T(1)")
-    ).toMatchObject({ error: "#N/A", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("T.DIST.2T(1, 6)")
     ).toBeMatchCloseTo({ error: null, result: 0.3559176837495821 });
@@ -1539,10 +1534,10 @@ describe(".parse() statistical formulas", () => {
   it("T.DIST.RT", () => {
     expect(
       parser.parse("T.DIST.RT()")
-    ).toMatchObject({ error: "#N/A", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("T.DIST.RT(1)")
-    ).toMatchObject({ error: "#N/A", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("T.DIST.RT(1, 6)")
     ).toBeMatchCloseTo({ error: null, result: 0.17795884187479105 });
@@ -1551,13 +1546,13 @@ describe(".parse() statistical formulas", () => {
   it("TINV", () => {
     expect(
       parser.parse("TINV()")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("TINV(0.1)")
-    ).toMatchObject({ error: null, result: NaN });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("TINV(0.1, 6)")
-    ).toBeMatchCloseTo({ error: null, result: -1.4397557472652731 });
+    ).toBeMatchCloseTo({ error: null, result: 1.9431802805153042 });
     expect(
       parser.parse("T.INV(0.1, 6)")
     ).toBeMatchCloseTo({ error: null, result: -1.4397557472652731 });
@@ -1566,10 +1561,10 @@ describe(".parse() statistical formulas", () => {
   it("T.INV.2T", () => {
     expect(
       parser.parse("T.INV.2T()")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("T.INV.2T(0.1)")
-    ).toMatchObject({ error: "#NUM!", result: null });
+    ).toMatchObject({ error: "#VALUE!", result: null });
     expect(
       parser.parse("T.INV.2T(0.1, 6)")
     ).toBeMatchCloseTo({ error: null, result: 1.9431802743487374 });
