@@ -14,6 +14,7 @@ import { ReadXml, Element, IStyleCollections } from "./ReadXml";
 import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
 import type { FortuneSheet } from "./FortuneSheet";
+import { unqualifyStructuredReferences } from "../common/structuredRefs";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -92,7 +93,12 @@ function textOf(element: Element) {
     .replace(/\r\n/g, "\n");
 }
 
-function setNote(sheet: FortuneSheet, ref: string, value: string) {
+function setNote(
+  sheet: FortuneSheet,
+  ref: string,
+  value: string,
+  shown: Set<string>
+) {
   const range = getcellrange(ref);
   if (range == null) return;
   const r = range.row[0];
@@ -109,12 +115,26 @@ function setNote(sheet: FortuneSheet, ref: string, value: string) {
     width: null,
     height: null,
     value,
-    isShow: false,
+    isShow: shown.has(`${r}_${c}`),
   };
 }
 
 const COMMENTS_REL = /\/comments$/;
 const THREADED_REL = /\/threadedComment$/;
+const VML_REL = /\/vmlDrawing$/;
+
+/** Cells ("r_c", 0-based) whose note shape is visible (`<x:Visible/>`). */
+export function visibleVmlNotes(vml: string): Set<string> {
+  const out = new Set<string>();
+  (vml.match(/<v:shape\b[\s\S]*?<\/v:shape>/g) || []).forEach((shape) => {
+    if (!/ObjectType="Note"/.test(shape) || !/<x:Visible\s*\/?>/.test(shape))
+      return;
+    const row = /<x:Row>\s*(\d+)\s*<\/x:Row>/.exec(shape)?.[1];
+    const col = /<x:Column>\s*(\d+)\s*<\/x:Column>/.exec(shape)?.[1];
+    if (row != null && col != null) out.add(`${row}_${col}`);
+  });
+  return out;
+}
 
 /** Notes (legacy comments) and threaded comments -> `cell.ps`. */
 export function readNotes(ctx: SheetImportContext) {
@@ -157,12 +177,117 @@ export function readNotes(ctx: SheetImportContext) {
       threads.forEach((texts, ref) => notes.set(ref, texts.join("\n")));
     });
 
-  notes.forEach((value, ref) => setNote(ctx.sheet, ref, value));
+  // notes shown permanently (Show/Hide Note)
+  const shown = new Set<string>();
+  rels
+    .filter((x) => VML_REL.test(x.type) && ctx.files[x.target])
+    .forEach((rel) => {
+      visibleVmlNotes(ctx.files[rel.target]).forEach((k) => shown.add(k));
+    });
+
+  notes.forEach((value, ref) => setNote(ctx.sheet, ref, value, shown));
+}
+
+const TABLE_REL = /\/table$/;
+
+const TOTAL_FUNCTIONS = new Set([
+  "sum",
+  "average",
+  "count",
+  "countNums",
+  "max",
+  "min",
+  "stdDev",
+  "var",
+  "custom",
+]);
+
+function xmlAttrs(tag: string) {
+  const attrs: Record<string, string> = {};
+  const re = /([\w:]+)="([^"]*)"/g;
+  let m = re.exec(tag);
+  while (m) {
+    attrs[m[1]] = escapeCharacter(m[2]);
+    m = re.exec(tag);
+  }
+  return attrs;
+}
+
+const isOn = (v: string | undefined) => v === "1" || v === "true";
+
+/** One table part (xl/tables/tableN.xml) as a TinySheet table, or null. */
+export function parseTablePart(xml: string) {
+  const open = /<(?:\w+:)?table\b[^>]*>/.exec(xml)?.[0];
+  if (!open) return null;
+  const attrs = xmlAttrs(open);
+  const range = getcellrange(attrs.ref ?? "");
+  const name = attrs.displayName || attrs.name;
+  if (!range || !name) return null;
+  const columns = (xml.match(/<(?:\w+:)?tableColumn\b[^>]*>/g) || []).map(
+    (tag) => {
+      const a = xmlAttrs(tag);
+      const fn = TOTAL_FUNCTIONS.has(a.totalsRowFunction)
+        ? a.totalsRowFunction
+        : "none";
+      const col: Record<string, any> = {
+        name: a.name ?? "",
+        totalFunction: fn,
+      };
+      if (a.totalsRowLabel) col.totalLabel = a.totalsRowLabel;
+      return col;
+    }
+  );
+  const styleTag = /<(?:\w+:)?tableStyleInfo\b[^>]*>/.exec(xml)?.[0];
+  const style = styleTag ? xmlAttrs(styleTag) : {};
+  return {
+    name,
+    range: {
+      row: [range.row[0], range.row[1]] as [number, number],
+      column: [range.column[0], range.column[1]] as [number, number],
+    },
+    headerRow: attrs.headerRowCount !== "0",
+    totalRow: Number(attrs.totalsRowCount ?? 0) > 0,
+    bandedRows: isOn(style.showRowStripes),
+    bandedColumns: isOn(style.showColumnStripes),
+    firstColumn: isOn(style.showFirstColumn),
+    lastColumn: isOn(style.showLastColumn),
+    style: style.name || "TableStyleMedium2",
+    columns,
+  };
+}
+
+/**
+ * Table parts -> `sheet.tables`. Formulas inside a table refer to it
+ * unqualified, as in Excel's formula bar (`[@Price]`, `[Sales]`).
+ */
+export function readTables(ctx: SheetImportContext) {
+  const tables = partRelationships(ctx.files, ctx.sheetFile)
+    .filter((x) => TABLE_REL.test(x.type) && ctx.files[x.target])
+    .map((rel) => parseTablePart(ctx.files[rel.target]))
+    .filter((t): t is NonNullable<typeof t> => t != null)
+    .filter(
+      (t) => t.columns.length === t.range.column[1] - t.range.column[0] + 1
+    );
+  if (tables.length === 0) return;
+  (ctx.sheet as any).tables = tables;
+  ctx.sheet.celldata.forEach((cell) => {
+    const v = cell.v as any;
+    if (!v || typeof v.f !== "string" || v.f.indexOf("[") < 0) return;
+    const table = tables.find(
+      (t) =>
+        cell.r >= t.range.row[0] &&
+        cell.r <= t.range.row[1] &&
+        cell.c >= t.range.column[0] &&
+        cell.c <= t.range.column[1]
+    );
+    if (table) v.f = unqualifyStructuredReferences(v.f, table.name);
+  });
 }
 
 /** Per-sheet readers, in order. */
 export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "notes", read: readNotes },
+  { name: "tables", read: readTables },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 

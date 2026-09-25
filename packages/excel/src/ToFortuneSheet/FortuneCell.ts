@@ -168,7 +168,17 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
         textRotation,
         shrinkToFit,
         indent,
-        applyProtection;
+        applyProtection,
+        locked,
+        formulaHidden;
+      // <protection locked=".." hidden=".."/> of a style record
+      const readProtection = (xf: Element) => {
+        const protection = xf.getInnerElements("protection");
+        if (protection == null || protection.length === 0) return;
+        const attrs = protection[0].attributeList;
+        if (attrs.locked != null) locked = attrs.locked;
+        if (attrs.hidden != null) formulaHidden = attrs.hidden;
+      };
 
       if (xfId != null) {
         let cellStyleXf =
@@ -184,6 +194,9 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
 
         applyProtection = attrList.applyProtection;
         quotePrefix = attrList.quotePrefix;
+        if (applyProtection != null && applyProtection != "0") {
+          readProtection(cellStyleXf);
+        }
 
         if (applyNumberFormat != "0" && attrList.numFmtId != null) {
           // if(attrList.numFmtId!="0"){
@@ -233,6 +246,9 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
 
       if (cellXf.attributeList.applyProtection != null) {
         applyProtection = cellXf.attributeList.applyProtection;
+      }
+      if (applyProtection != "0") {
+        readProtection(cellXf);
       }
 
       if (cellXf.attributeList.quotePrefix != null) {
@@ -462,12 +478,22 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
         }
       }
 
-      if (shrinkToFit != undefined) {
-        //fortunesheet unsupport
+      const isTrue = (v: any) => v == "1" || v == "true";
+      if (shrinkToFit != undefined && isTrue(shrinkToFit)) {
+        cellValue.sk = 1;
       }
 
       if (indent != undefined) {
-        //fortunesheet unsupport
+        const level = parseInt(indent, 10);
+        if (level > 0) cellValue.ind = Math.min(level, 250);
+      }
+
+      // Excel cells are locked unless the style says otherwise
+      if (locked != undefined && !isTrue(locked)) {
+        cellValue.lo = 0;
+      }
+      if (formulaHidden != undefined && isTrue(formulaHidden)) {
+        cellValue.hi = 1;
       }
 
       if (borderId != undefined) {
