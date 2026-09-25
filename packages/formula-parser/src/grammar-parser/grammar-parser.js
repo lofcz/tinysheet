@@ -4,15 +4,16 @@
  *
  * Operator precedence (lowest → highest), matching Excel:
  *   comparison (= <> < > <= >=) → & → + - → * / → ^ → % (postfix)
- *   → unary - + → call suffix `f(...)(...)` → intersection (space)
- *   → reference / literal / (expression)
+ *   → unary - + → intersection (space) → range (`:`)
+ *   → call suffix `f(...)(...)` → reference / literal / (expression)
+ *   / reference union `(A1:A2,C1:C2)`
  *
  * so `-2^2` = 4, `1+2&3` = "33" and `2^3^2` = 64 (left associative).
  *
  * Parsed ASTs are cached per formula string (LRU), so recalculating the same
  * formula does not lex or parse again.
  */
-import { EmbeddedActionsParser } from "chevrotain";
+import { EmbeddedActionsParser, tokenMatcher } from "chevrotain";
 import {
   allTokens,
   tokenize,
@@ -143,13 +144,28 @@ class FormulaParser extends EmbeddedActionsParser {
     );
 
     $.RULE("intersection", () => {
-      let left = $.SUBRULE($.postfix);
+      let left = $.SUBRULE($.rangeOperator);
 
       $.MANY(() => {
         $.CONSUME(Intersect);
-        const right = $.SUBRULE2($.postfix);
+        const right = $.SUBRULE2($.rangeOperator);
 
         left = $.ACTION(() => ast.intersect(left, right));
+      });
+
+      return left;
+    });
+
+    // `:` between operands that are not two plain cells (those are lexed as
+    // one `reference`): A1:INDEX(B:B,5), IF(x,A1,B1):C5, A1:B2:C3.
+    $.RULE("rangeOperator", () => {
+      let left = $.SUBRULE($.postfix);
+
+      $.MANY(() => {
+        $.CONSUME(Colon);
+        const right = $.SUBRULE2($.postfix);
+
+        left = $.ACTION(() => ast.rangeRef(left, right));
       });
 
       return left;
@@ -197,11 +213,18 @@ class FormulaParser extends EmbeddedActionsParser {
         {
           ALT: () => {
             $.CONSUME(LParen);
-            const value = $.SUBRULE($.expression);
+            const items = [$.SUBRULE($.expression)];
 
+            // (A1:A2,C1:C2) is a reference union.
+            $.MANY(() => {
+              $.CONSUME(Comma);
+              items.push($.SUBRULE2($.expression));
+            });
             $.CONSUME(RParen);
 
-            return value;
+            return $.ACTION(() =>
+              items.length === 1 ? items[0] : ast.union(items)
+            );
           },
         },
         { ALT: () => $.SUBRULE($.arrayConstant) },
@@ -229,10 +252,14 @@ class FormulaParser extends EmbeddedActionsParser {
         {
           ALT: () => {
             const start = $.CONSUME(CellReference);
-            const end = $.OPTION(() => {
-              $.CONSUME(Colon);
+            const end = $.OPTION({
+              // A1:INDEX(...) is left to the range operator.
+              GATE: () => tokenMatcher($.LA(2), CellReference),
+              DEF: () => {
+                $.CONSUME(Colon);
 
-              return $.CONSUME2(CellReference);
+                return $.CONSUME2(CellReference);
+              },
             });
 
             return $.ACTION(() =>
