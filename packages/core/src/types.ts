@@ -174,6 +174,29 @@ export type Sheet = {
   /** Excel-style tables ("Format as Table") of this sheet, see modules/tables.ts */
   // eslint-disable-next-line no-use-before-define
   tables?: SheetTable[];
+  /**
+   * Workbook calculation options (Formulas > Calculation Options), stored
+   * on every sheet; see modules/calculation.ts.
+   */
+  // eslint-disable-next-line no-use-before-define
+  calcSettings?: CalcSettings;
+};
+
+/** Excel's calculation modes. */
+export type CalcMode = "auto" | "autoNoTable" | "manual";
+
+/** Calculation options of a workbook (xlsx `<calcPr>`). */
+export type CalcSettings = {
+  /** @default "auto" */
+  mode?: CalcMode;
+  /** Iterative calculation of circular references. @default false */
+  iterate?: boolean;
+  /** @default 100 */
+  maxIterations?: number;
+  /** @default 0.001 */
+  maxChange?: number;
+  /** Recalculate everything when the workbook is opened. */
+  fullCalcOnLoad?: boolean;
 };
 
 /** A defined name (Excel Name Manager entry). */

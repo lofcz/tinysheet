@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import React from "react";
-import { Sheet, Selection, CellMatrix, Cell } from "./types";
+import { Sheet, Selection, CellMatrix, Cell, CalcSettings } from "./types";
 import type { ThemeSetting } from "./theme";
 
 export type Hooks = {
@@ -170,6 +170,11 @@ export type Settings = {
    * @default "light"
    */
   theme?: ThemeSetting;
+  /**
+   * Calculation options used while the workbook data carries none
+   * (`sheet.calcSettings`, set from Formulas > Calculation Options).
+   */
+  calculation?: CalcSettings;
 };
 
 export const defaultSettings: Required<Settings> = {
@@ -322,4 +327,5 @@ export const defaultSettings: Required<Settings> = {
   customToolbarItems: [],
   currency: "¥",
   theme: "light", // "light" | "dark" | "auto"
+  calculation: {},
 };

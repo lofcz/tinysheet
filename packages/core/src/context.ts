@@ -20,6 +20,7 @@ import {
   DataRegulationProps,
   ConditionRulesProps,
   GlobalCache,
+  CalcSettings,
 } from "./types";
 import { getSheetIndex } from "./utils";
 
@@ -262,6 +263,11 @@ export type Context = {
   forceFormulaRef?: Boolean;
 
   sheetFocused: boolean; // property to track sheet focus for keyboard navigation
+
+  /** Calculation options used while no sheet stores any (`calculation` setting). */
+  calcDefaults?: CalcSettings;
+  /** Manual calculation: changes wait for F9 (status bar "Calculate"). */
+  calculationPending?: boolean;
 
   getRefs: () => RefValues;
 };
