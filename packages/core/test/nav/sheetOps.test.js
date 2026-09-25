@@ -103,6 +103,24 @@ describe("rewriteSheetReferences", () => {
       "=SUM(Y!A:A)"
     );
   });
+
+  test("spill references (A1#) are references too", () => {
+    expect(rewriteSheetReferences("=SUM(Sheet1!B2#)", "Sheet1", "Z Z")).toBe(
+      "=SUM('Z Z'!B2#)"
+    );
+    expect(rewriteSheetReferences("=COUNT(B2#)", "Sheet1", "Z")).toBe(
+      "=COUNT(B2#)"
+    );
+  });
+
+  test("duplicating a sheet keeps spill references pointing at the copy", () => {
+    const ctx = makeContext({ rows: 8, cols: 6 });
+    input(ctx, "A1", "=SEQUENCE(3)");
+    input(ctx, "C1", "=SUM(Sheet1!A1#)");
+    const id = duplicateSheet(ctx, "id_1");
+    expect(cell(ctx, "C1", id).f).toBe("=SUM('Sheet1 (2)'!A1#)");
+    expect(value(ctx, "C1", id)).toBe(6);
+  });
 });
 
 describe("duplicate / move", () => {
