@@ -10,7 +10,7 @@ import {
 } from "../types";
 import { getSheetIndex, indexToColumnChar, rgbToHex } from "../utils";
 import { checkCF, getComputeMap } from "./ConditionFormat";
-import { getFailureText, validateCellData } from "./dataVerification";
+import { checkDataVerificationInput } from "./dataVerification";
 import { formatValue, is_date, resolveTypedInput } from "./format";
 import {
   delFunctionGroup,
@@ -631,23 +631,10 @@ export function updateCell(
   //   return;
   // }
 
-  // 数据验证 输入数据无效时禁止输入
-  const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-  const { dataVerification } = ctx.luckysheetfile[index];
-  if (!_.isNil(dataVerification)) {
-    const dvItem = dataVerification[`${r}_${c}`];
-    if (
-      !_.isNil(dvItem) &&
-      dvItem.prohibitInput &&
-      !validateCellData(ctx, dvItem, inputText)
-    ) {
-      const failureText = getFailureText(ctx, dvItem);
-
-      cancelNormalSelected(ctx);
-      ctx.warnDialog = failureText;
-
-      return;
-    }
+  // 数据验证: invalid input raises the rule's error alert instead
+  if (!checkDataVerificationInput(ctx, r, c, inputText ?? value)) {
+    cancelNormalSelected(ctx);
+    return;
   }
 
   let curv = flowdata[r][c];

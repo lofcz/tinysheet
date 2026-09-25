@@ -67,9 +67,25 @@ export type Context = {
     optionLabel_hi: any;
     optionLabel_ru: any;
     dataRegulation?: DataRegulationProps; // 数据验证规则
+    /** rule edited from the rules sidebar (see getDataVerificationRules) */
+    editingRuleId?: string;
   };
   // 数据验证下拉列表
   dataVerificationDropDownList?: boolean;
+  /** pending data validation error alert (see checkDataVerificationInput) */
+  dataVerificationAlert?: {
+    sheetId: string;
+    r: number;
+    c: number;
+    value: string;
+    style: "stop" | "warning" | "information";
+    title: string;
+    message: string;
+  };
+  /** sheets whose invalid cells are circled (Circle Invalid Data) */
+  dataVerificationCircles?: Record<string, boolean>;
+  /** the data validation rules sidebar is open */
+  dataVerificationSidebar?: boolean;
   conditionRules: ConditionRulesProps; // 条件格式
 
   contextMenu: {
