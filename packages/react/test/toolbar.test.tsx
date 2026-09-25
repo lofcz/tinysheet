@@ -20,6 +20,26 @@ const buttonNames = (item: HTMLElement) =>
       : item.querySelectorAll<HTMLElement>("[role=button]")
   ).map((el) => el.getAttribute("aria-label") ?? "");
 
+describe("translated chrome", () => {
+  it.each([
+    ["zh", "就绪", "名称管理器"],
+    ["zh-TW", "就緒", "名稱管理員"],
+    ["es", "Listo", "Administrador de nombres"],
+    ["ru", "Готово", "Диспетчер имён"],
+    ["hi", "तैयार", "नाम प्रबंधक"],
+  ])("%s: mode indicator and Name Manager button", (lang, ready, names) => {
+    const { container } = render(
+      <Workbook lang={lang} data={[{ name: "Sheet1" }]} />
+    );
+    expect(container.querySelector(".fortune-edit-mode")?.textContent).toBe(
+      ready
+    );
+    expect(
+      container.querySelector(`.fortune-toolbar [aria-label="${names}"]`)
+    ).toBeTruthy();
+  });
+});
+
 describe("default toolbar", () => {
   it("is grouped Excel-like with separators", () => {
     const items = defaultSettings.toolbarItems;
