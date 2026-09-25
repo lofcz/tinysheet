@@ -713,7 +713,7 @@ const ContextMenu: React.FC = () => {
           key: name,
           label: type === "row" ? cellMenu.rowHeight : cellMenu.columnWidth,
           icon: type === "row" ? "rowHeight" : "columnWidth",
-          disabled: !editable,
+          disabled: !context.allowEdit,
           onSelect: () => {
             close();
             showModal(
@@ -743,7 +743,7 @@ const ContextMenu: React.FC = () => {
               ? cellMenu.autofitRowHeight
               : cellMenu.autofitColumnWidth,
           icon: "autofit",
-          disabled: !editable,
+          disabled: !context.allowEdit,
           onSelect: () =>
             run((draftCtx) =>
               (type === "row" ? autofitRows : autofitColumns)(draftCtx, targets)
@@ -771,7 +771,7 @@ const ContextMenu: React.FC = () => {
             key: `${name}-hide`,
             label: cellMenu.hide,
             icon: "hide",
-            disabled: !editable,
+            disabled: !context.allowEdit,
             onSelect: act(true),
           },
           {
@@ -779,7 +779,7 @@ const ContextMenu: React.FC = () => {
             key: `${name}-unhide`,
             label: cellMenu.unhide,
             icon: "unhide",
-            disabled: !editable,
+            disabled: !context.allowEdit,
             onSelect: act(false),
           },
         ];

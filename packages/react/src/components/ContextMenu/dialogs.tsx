@@ -23,6 +23,16 @@ export type InsertDeleteChoice =
 
 type Range = { row: number[]; column: number[] };
 
+/** Some selections carry a single index; make them [start, end]. */
+export function normalizeRange(range: Range): Range {
+  const pair = (a: number[]) => {
+    const start = a[0];
+    const end = a[1] ?? start;
+    return [Math.min(start, end), Math.max(start, end)];
+  };
+  return { row: pair(range.row), column: pair(range.column) };
+}
+
 /**
  * Runs Insert / Delete for `range`. Entire rows / columns go through the
  * row-column ops so undo and collaboration see a structural change.
@@ -32,8 +42,9 @@ export function runInsertDelete(
   draftCtx: Context,
   mode: "insert" | "delete",
   choice: InsertDeleteChoice,
-  range: Range
+  selection: Range
 ): string | null {
+  const range = normalizeRange(selection);
   const [r1, r2] = range.row;
   const [c1, c2] = range.column;
   const id = draftCtx.currentSheetId;
@@ -68,9 +79,10 @@ export function insertDeleteOptions(
   ctx: Context,
   mode: "insert" | "delete",
   choice: InsertDeleteChoice,
-  range: Range
+  selection: Range
 ): SetContextOptions {
   if (choice !== "entireRow" && choice !== "entireColumn") return {};
+  const range = normalizeRange(selection);
   const type = choice === "entireRow" ? "row" : "column";
   const [start, end] = type === "row" ? range.row : range.column;
   const id = ctx.currentSheetId;
@@ -124,12 +136,18 @@ export const InsertDeleteDialog: React.FC<{
   mode: "insert" | "delete";
   range: Range;
 }> = ({ mode, range }) => {
-  const { context } = useContext(WorkbookContext);
-  const { hideModal } = useContext(ModalContext);
+  const { context, refs } = useContext(WorkbookContext);
+  const { hideModal: hide } = useContext(ModalContext);
+  // give the keyboard back to the sheet when the dialog closes
+  const hideModal = () => {
+    hide();
+    refs.cellInput.current?.focus({ preventScroll: true });
+  };
   const { cellMenu } = locale(context);
   const run = useInsertDeleteRunner();
-  const rows = range.row[1] - range.row[0] + 1;
-  const cols = range.column[1] - range.column[0] + 1;
+  const { row, column } = normalizeRange(range);
+  const rows = row[1] - row[0] + 1;
+  const cols = column[1] - column[0] + 1;
   const choices: InsertDeleteChoice[] =
     mode === "insert"
       ? ["shiftRight", "shiftDown", "entireRow", "entireColumn"]
@@ -201,8 +219,12 @@ export const SizeDialog: React.FC<{
   initial: number | "";
   targets: number[];
 }> = ({ type, initial, targets }) => {
-  const { context, setContext } = useContext(WorkbookContext);
-  const { hideModal } = useContext(ModalContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
+  const { hideModal: hide } = useContext(ModalContext);
+  const hideModal = () => {
+    hide();
+    refs.cellInput.current?.focus({ preventScroll: true });
+  };
   const { showAlert } = useAlert();
   const { cellMenu, info } = locale(context);
   const [value, setValue] = useState(initial === "" ? "" : String(initial));

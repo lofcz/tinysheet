@@ -940,7 +940,8 @@ export function updateCell(
   */
 
   // wrapped text: rows without a custom height follow their content (Excel)
-  if (canvas) autoGrowRowAfterEdit(ctx, r, c, { renderCtx: canvas });
+  // (measured on an offscreen canvas when the caller has none)
+  autoGrowRowAfterEdit(ctx, r, c, { renderCtx: canvas });
 
   // 动态数组
   /*
