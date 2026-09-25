@@ -24,6 +24,7 @@ import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { useAlert } from "../../hooks/useAlert";
 import { activateOnKey } from "../Toolbar/Button";
+import { useDialogBehavior } from "../../hooks/useDialogBehavior";
 import "./index.css";
 
 type Options = Required<
@@ -72,6 +73,9 @@ const SearchReplace: React.FC<{
   const [status, setStatus] = useState("");
   const { showAlert } = useAlert();
   const findInput = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // modeless, as in Excel: the sheet stays usable, Tab cycles in the dialog
+  useDialogBehavior(dialogRef, { modal: false });
 
   useEffect(() => {
     setShowReplace(!!context.showReplace);
@@ -280,6 +284,7 @@ const SearchReplace: React.FC<{
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div
+      ref={dialogRef}
       id="fortune-search-replace"
       className="fortune-search-replace fortune-dialog"
       role="dialog"

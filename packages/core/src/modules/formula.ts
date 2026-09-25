@@ -53,6 +53,7 @@ import {
   ChangedCell,
 } from "./formulaHelper";
 import type { DependencyGraph } from "./dependencyGraph";
+import type { ReferenceDrag } from "./editMode";
 import { COL_STRIDE } from "./dependencyGraph";
 import { registerFormatFunctions } from "./formatFunctions";
 import {
@@ -137,6 +138,9 @@ export class FormulaCache {
   rangedrag_column_start?: boolean;
 
   rangedrag_row_start?: boolean;
+
+  /** a reference's colour box being dragged (see startReferenceDrag) */
+  referenceDrag?: ReferenceDrag;
 
   functionRangeIndex?: number[];
 
@@ -1514,218 +1518,6 @@ export function execFunctionGroup(
   settleSpillGrowth(ctx);
 }
 
-function findrangeindex(ctx: Context, v: string, vp: string) {
-  const re = /<span.*?>/g;
-  const v_a = v.replace(re, "").split("</span>");
-  const vp_a = vp.replace(re, "").split("</span>");
-  v_a.pop();
-  if (vp_a[vp_a.length - 1] === "") vp_a.pop();
-
-  let pfri = ctx.formulaCache.functionRangeIndex;
-  if (pfri == null) return [];
-
-  const vplen = vp_a.length;
-  const vlen = v_a.length;
-  // 不增加元素输入
-  if (vplen === vlen) {
-    const i = pfri[0];
-    const p = vp_a[i];
-    const n = v_a[i];
-
-    if (_.isNil(p)) {
-      if (vp_a.length <= i) {
-        pfri = [vp_a.length - 1, vp_a.length - 1];
-      } else if (v_a.length <= i) {
-        pfri = [v_a.length - 1, v_a.length - 1];
-      }
-
-      return pfri;
-    }
-    if (p.length === n.length) {
-      if (
-        !_.isNil(vp_a[i + 1]) &&
-        !_.isNil(v_a[i + 1]) &&
-        vp_a[i + 1].length < v_a[i + 1].length
-      ) {
-        pfri[0] += 1;
-        pfri[1] = 1;
-      }
-
-      return pfri;
-    }
-    if (p.length > n.length) {
-      if (
-        !_.isNil(p) &&
-        !_.isNil(v_a[i + 1]) &&
-        v_a[i + 1].substring(0, 1) === '"' &&
-        (p.indexOf("{") > -1 || p.indexOf("}") > -1)
-      ) {
-        pfri[0] += 1;
-        pfri[1] = 1;
-      }
-
-      return pfri;
-    }
-    if (p.length < n.length) {
-      if (pfri[1] > n.length) {
-        pfri[1] = n.length;
-      }
-
-      return pfri;
-    }
-  }
-  // 减少元素输入
-  else if (vplen > vlen) {
-    const i = pfri[0];
-    const p = vp_a[i];
-    const n = v_a[i];
-
-    if (_.isNil(n)) {
-      if (v_a[i - 1].indexOf("{") > -1) {
-        pfri[0] -= 1;
-        const start = v_a[i - 1].search("{");
-        pfri[1] += start;
-      } else {
-        pfri[0] = 0;
-        pfri[1] = 0;
-      }
-    } else if (p.length === n.length) {
-      if (
-        !_.isNil(v_a[i + 1]) &&
-        (v_a[i + 1].substring(0, 1) === '"' ||
-          v_a[i + 1].substring(0, 1) === "{" ||
-          v_a[i + 1].substring(0, 1) === "}")
-      ) {
-        pfri[0] += 1;
-        pfri[1] = 1;
-      } else if (
-        !_.isNil(p) &&
-        p.length > 2 &&
-        p.substring(0, 1) === '"' &&
-        p.substring(p.length - 1, 1) === '"'
-      ) {
-        // pfri[1] = n.length-1;
-      } else if (!_.isNil(v_a[i]) && v_a[i] === '")') {
-        pfri[1] = 1;
-      } else if (!_.isNil(v_a[i]) && v_a[i] === '"}') {
-        pfri[1] = 1;
-      } else if (!_.isNil(v_a[i]) && v_a[i] === "{)") {
-        pfri[1] = 1;
-      } else {
-        pfri[1] = n.length;
-      }
-
-      return pfri;
-    } else if (p.length > n.length) {
-      if (
-        !_.isNil(v_a[i + 1]) &&
-        (v_a[i + 1].substring(0, 1) === '"' ||
-          v_a[i + 1].substring(0, 1) === "{" ||
-          v_a[i + 1].substring(0, 1) === "}")
-      ) {
-        pfri[0] += 1;
-        pfri[1] = 1;
-      }
-
-      return pfri;
-    } else if (p.length < n.length) {
-      return pfri;
-    }
-
-    return pfri;
-  }
-  // 增加元素输入
-  else if (vplen < vlen) {
-    const i = pfri[0];
-    const p = vp_a[i];
-    const n = v_a[i];
-
-    if (_.isNil(p)) {
-      pfri[0] = v_a.length - 1;
-
-      if (!_.isNil(n)) {
-        pfri[1] = n.length;
-      } else {
-        pfri[1] = 1;
-      }
-    } else if (p.length === n.length) {
-      if (
-        vp_a[i + 1] != null &&
-        (vp_a[i + 1].substring(0, 1) === '"' ||
-          vp_a[i + 1].substring(0, 1) === "{" ||
-          vp_a[i + 1].substring(0, 1) === "}")
-      ) {
-        pfri[1] = n.length;
-      } else if (
-        !_.isNil(v_a[i + 1]) &&
-        v_a[i + 1].substring(0, 1) === '"' &&
-        (v_a[i + 1].substring(0, 1) === "{" ||
-          v_a[i + 1].substring(0, 1) === "}")
-      ) {
-        pfri[0] += 1;
-        pfri[1] = 1;
-      } else if (
-        !_.isNil(n) &&
-        n.substring(0, 1) === '"' &&
-        n.substring(n.length - 1, 1) === '"' &&
-        p.substring(0, 1) === '"' &&
-        p.substring(p.length - 1, 1) === ")"
-      ) {
-        pfri[1] = n.length;
-      } else if (
-        !_.isNil(n) &&
-        n.substring(0, 1) === "{" &&
-        n.substring(n.length - 1, 1) === "}" &&
-        p.substring(0, 1) === "{" &&
-        p.substring(p.length - 1, 1) === ")"
-      ) {
-        pfri[1] = n.length;
-      } else {
-        pfri[0] = pfri[0] + vlen - vplen;
-        if (v_a.length > vp_a.length) {
-          pfri[1] = v_a[i + 1].length;
-        } else {
-          pfri[1] = 1;
-        }
-      }
-
-      return pfri;
-    } else if (p.length > n.length) {
-      if (!_.isNil(p) && p.substring(0, 1) === '"') {
-        pfri[1] = n.length;
-      } else if (_.isNil(v_a[i + 1]) && /{.*?}/.test(v_a[i + 1])) {
-        pfri[0] += 1;
-        pfri[1] = v_a[i + 1].length;
-      } else if (
-        !_.isNil(p) &&
-        v_a[i + 1].substring(0, 1) === '"' &&
-        (p.indexOf("{") > -1 || p.indexOf("}") > -1)
-      ) {
-        pfri[0] += 1;
-        pfri[1] = 1;
-      } else if (!_.isNil(p) && (p.indexOf("{") > -1 || p.indexOf("}") > -1)) {
-      } else if (
-        !_.isNil(p) &&
-        !_.startsWith(p[0], "=") &&
-        _.startsWith(n, "=")
-      ) {
-        return [vlen - 1, v_a[vlen - 1].length];
-      } else {
-        pfri[0] = pfri[0] + vlen - vplen - 1;
-        pfri[1] = v_a[(i || 1) - 1].length;
-      }
-
-      return pfri;
-    } else if (p.length < n.length) {
-      return pfri;
-    }
-
-    return pfri;
-  }
-
-  return null;
-}
-
 export function createFormulaRangeSelect(
   ctx: Context,
   select: { rangeIndex: number } & Rect
@@ -1806,36 +1598,6 @@ export function setCaretPosition(
   } catch (err) {
     console.error(err);
     moveToEnd(ctx.formulaCache.rangeResizeTo[0]);
-  }
-}
-
-function functionRange(
-  ctx: Context,
-  obj: HTMLDivElement,
-  v: string,
-  vp: string
-) {
-  if (window.getSelection) {
-    // ie11 10 9 ff safari
-    const currSelection = window.getSelection();
-    if (!currSelection) return;
-    const fri = findrangeindex(ctx, v, vp);
-
-    if (_.isNil(fri)) {
-      currSelection.selectAllChildren(obj);
-      currSelection.collapseToEnd();
-    } else {
-      setCaretPosition(ctx, obj.querySelectorAll("span")[fri[0]], 0, fri[1]);
-    }
-    // @ts-ignore
-  } else if (document.selection) {
-    // ie10 9 8 7 6 5
-    // @ts-ignore
-    ctx.formulaCache.functionRangeIndex.moveToElementText(obj); // range定位到obj
-    // @ts-ignore
-    ctx.formulaCache.functionRangeIndex.collapse(false); // 光标移至最后
-    // @ts-ignore
-    ctx.formulaCache.functionRangeIndex.select();
   }
 }
 
@@ -1955,44 +1717,15 @@ export function handleFormulaInput(
 
     rangeIndexes = [];
 
-    if (caret == null && window.getSelection) {
-      // legacy caret tracking, used when the selection is outside the editor
-      const currSelection = window.getSelection();
-      if (!currSelection) return;
-      if (currSelection.anchorNode?.nodeName.toLowerCase() === "div") {
-        const editorlen = $editor.querySelectorAll("span").length;
-        if (editorlen > 0)
-          ctx.formulaCache.functionRangeIndex = [
-            editorlen - 1,
-            $editor.querySelectorAll("span").item(editorlen - 1).textContent
-              ?.length!,
-          ];
-      } else {
-        ctx.formulaCache.functionRangeIndex = [
-          _.indexOf(
-            currSelection.anchorNode?.parentNode?.parentNode?.childNodes,
-            // @ts-ignore
-            currSelection.anchorNode?.parentNode
-          ),
-          currSelection.anchorOffset,
-        ];
-      }
-    }
-
     $editor.innerHTML = html;
     if ($copyTo) $copyTo.innerHTML = html;
 
     // the cursor will be set to the beginning of input box after set innerHTML,
-    // restoring it to the correct position
+    // restoring it to the correct position. When the caret is elsewhere (the
+    // editor lost the focus) it stays there: the editor must not take the
+    // focus back.
     if (caret != null) {
       setCaretOffset($editor, caret);
-    } else {
-      functionRange(
-        ctx,
-        $editor,
-        html,
-        formulaTextToHTML(escapeScriptTag(value1txt)).html
-      );
     }
 
     if (refreshRangeSelect) {
@@ -2268,10 +2001,10 @@ export function israngeseleciton(ctx: Context, istooltip?: boolean) {
     if (txt.length === 0 && anchor.parentNode.previousSibling) {
       const ahr = anchor.parentNode.previousSibling;
       txt = _.trim(ahr.textContent || "");
-      lasttxt = txt.substring(txt.length - 1, 1);
+      lasttxt = txt.slice(-1);
       ctx.formulaCache.rangeSetValueTo = anchor.parentNode;
     } else {
-      lasttxt = txt.substring(anchorOffset - 1, 1);
+      lasttxt = txt.substring(anchorOffset - 1, anchorOffset);
       ctx.formulaCache.rangeSetValueTo = anchor.parentNode;
     }
 
@@ -2304,7 +2037,7 @@ export function israngeseleciton(ctx: Context, istooltip?: boolean) {
       ctx.formulaCache.rangeSetValueTo = ahr;
     }
 
-    const lasttxt = txt.substring(txt.length - 1, 1);
+    const lasttxt = txt.slice(-1);
 
     if (
       (istooltip && (lasttxt === "(" || lasttxt === ",")) ||
@@ -2329,7 +2062,7 @@ export function israngeseleciton(ctx: Context, istooltip?: boolean) {
     if (anchor.previousSibling?.textContent == null) return false;
     if (anchor.previousSibling) {
       const txt = _.trim(anchor.previousSibling.textContent);
-      const lasttxt = txt.substring(txt.length - 1, 1);
+      const lasttxt = txt.slice(-1);
 
       ctx.formulaCache.rangeSetValueTo = anchor.previousSibling;
 

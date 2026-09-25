@@ -45,7 +45,8 @@ The following are all supported setting parameters
 - The height of the column header area [columnHeaderHeight](#columnheaderheight)
 - Whether to show the formula bar [showFormulaBar](#showformulabar)
 - Initialize the default font size [defaultFontSize](#defaultfontsize)
-- Colour theme [theme](#theme)
+- Colour theme [theme](#theme), [defaultTheme](#defaulttheme),
+  [onThemeChange](#onthemechange)
 
 ### lang
 
@@ -141,6 +142,7 @@ The following are all supported setting parameters
   "search",
   "|",
   "freeze",
+  "theme",
   "image",
   "chart",
   "link",
@@ -269,20 +271,66 @@ The following are all supported setting parameters
 ### theme
 
 - Type: `"light" | "dark" | "auto"`
-- Default: `"light"`
+- Default: `undefined` (uncontrolled, see [defaultTheme](#defaulttheme))
 - Usage: Colour theme of the whole workbook: toolbar, formula bar, menus,
-  dialogs, sheet tabs and the canvas grid (cell background, default text
-  colour, grid lines and headers). `"auto"` follows the operating system's
-  `prefers-color-scheme` and switches live when it changes. The resolved theme
-  is exposed as `data-theme="light|dark"` on `.fortune-container` (and on
-  dialogs rendered outside it).
+  dialogs, tooltips, sheet tabs and the canvas grid (cell background, default
+  text colour, grid lines and headers). `"auto"` follows the operating
+  system's `prefers-color-scheme` and switches live when it changes. The
+  resolved theme is exposed as `data-theme="light|dark"` on
+  `.fortune-container` (and on dialogs rendered outside it).
+
+  Users switch the theme with the toolbar item `"theme"` (View › Light /
+  Dark / System; on by default in [toolbarItems](#toolbaritems)). Everything
+  repaints immediately.
+
+  Setting `theme` makes it **controlled**, like `value` on an `<input>`: the
+  workbook always shows this theme, and a choice in the toolbar only calls
+  [onThemeChange](#onthemechange). Pass the new value back to apply it:
 
   ```jsx
-  <Workbook data={data} theme="dark" />
+  const [theme, setTheme] = useState("auto");
+  <Workbook data={data} theme={theme} onThemeChange={setTheme} />;
   ```
 
-  Colours are CSS custom properties, so you can restyle either theme without
-  touching the component. Override them on `.fortune-container` and
+  Leave `theme` unset (use [defaultTheme](#defaulttheme)) to let the workbook
+  keep the user's choice itself.
+
+---
+
+### defaultTheme
+
+- Type: `"light" | "dark" | "auto"`
+- Default: `"light"`
+- Usage: Initial theme of an **uncontrolled** workbook (no `theme` prop). The
+  toolbar's theme switch changes it afterwards; the choice lives in the
+  workbook's state and is not persisted. To remember it between visits, store
+  the value from [onThemeChange](#onthemechange) and pass it back as
+  `defaultTheme`:
+
+  ```jsx
+  <Workbook
+    data={data}
+    defaultTheme={localStorage.getItem("theme") ?? "auto"}
+    onThemeChange={(t) => localStorage.setItem("theme", t)}
+  />
+  ```
+
+---
+
+### onThemeChange
+
+- Type: `(theme: "light" | "dark" | "auto") => void`
+- Default: undefined
+- Usage: Called when the user picks a theme in the toolbar. An uncontrolled
+  workbook has already switched; a controlled one switches once the new value
+  is passed back as [theme](#theme).
+
+---
+
+### Customizing the theme colours
+
+- Usage: Colours are CSS custom properties, so you can restyle either theme
+  without touching the component. Override them on `.fortune-container` and
   `.fortune-modal-container`, for example a green accent:
 
   ```css

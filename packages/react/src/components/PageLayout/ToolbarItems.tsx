@@ -18,8 +18,8 @@ import {
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
-import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { activateOnKey } from "../Toolbar/Button";
+import { useToolbarPopup } from "../Toolbar/usePopup";
 import Select, { Option } from "../Toolbar/Select";
 import { MenuDivider } from "../Toolbar/Divider";
 import { usePageLayoutDialogs } from "./dialogs";
@@ -55,12 +55,24 @@ const Check: React.FC<{ on: boolean }> = ({ on }) => (
 
 /** Toolbar item "pageLayout": Excel's Page Layout tab as a menu. */
 export const PageLayoutMenu: React.FC = () => {
-  const { context, setContext, settings } = useContext(WorkbookContext);
+  const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const t = usePageLayoutText();
   const { openPrintPreview, openPageSetup } = usePageLayoutDialogs();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useOutsideClick(ref, () => setOpen(false));
+  const popupRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const { onPopupKeyDown, onTriggerClick, onTriggerKeyDown } = useToolbarPopup(
+    open,
+    setOpen,
+    {
+      containerRef: ref,
+      popupRef,
+      triggerRef,
+      restoreFocus: () =>
+        refs?.cellInput?.current?.focus({ preventScroll: true }),
+    }
+  );
   const setup = resolvePageSetup(getPageSetup(context));
   const preview = isPageBreakPreview(context);
   const shown = isShowingPageBreaks(context);
@@ -109,8 +121,12 @@ export const PageLayoutMenu: React.FC = () => {
         aria-haspopup
         aria-expanded={open}
         data-tips={t.pageLayout}
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={activateOnKey}
+        ref={triggerRef}
+        onClick={(e) => onTriggerClick(e, () => setOpen((o) => !o))}
+        onKeyDown={(e) => {
+          onTriggerKeyDown(e);
+          if (!e.defaultPrevented) activateOnKey(e);
+        }}
       >
         <PageLayoutIcon />
         <div className="fortune-tooltip" aria-hidden="true">
@@ -118,7 +134,11 @@ export const PageLayoutMenu: React.FC = () => {
         </div>
       </div>
       {open && (
-        <div className="fortune-toolbar-combo-popup">
+        <div
+          ref={popupRef}
+          className="fortune-toolbar-combo-popup"
+          onKeyDown={onPopupKeyDown}
+        >
           <Select>
             {item("pageSetup", t.pageSetup, () =>
               run(() => openPageSetup("page"))

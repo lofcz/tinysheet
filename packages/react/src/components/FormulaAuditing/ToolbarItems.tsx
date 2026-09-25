@@ -10,8 +10,8 @@ import type { CalcMode } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import { useAlert } from "../../hooks/useAlert";
-import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { activateOnKey } from "../Toolbar/Button";
+import { useToolbarPopup } from "../Toolbar/usePopup";
 import AuditIcon from "./icons";
 import {
   AuditHelpers,
@@ -87,10 +87,24 @@ const ToolCombo: React.FC<{
   onClick?: () => void;
   items: MenuItem[];
 }> = ({ tooltip, icon, name, onClick, items }) => {
-  const { context } = useContext(WorkbookContext);
+  const { context, refs } = useContext(WorkbookContext);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useOutsideClick(ref, () => setOpen(false), [ref]);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const arrowRef = useRef<HTMLDivElement>(null);
+  const { onPopupKeyDown, onTriggerClick, onTriggerKeyDown } = useToolbarPopup(
+    open,
+    setOpen,
+    {
+      containerRef: ref,
+      popupRef,
+      triggerRef: onClick ? arrowRef : mainRef,
+      restoreFocus: () =>
+        refs?.cellInput?.current?.focus({ preventScroll: true }),
+    }
+  );
+  const toggle = () => setOpen((o) => !o);
   const { info } = locale(context);
   return (
     <div
@@ -100,9 +114,13 @@ const ToolCombo: React.FC<{
     >
       <div className="fortune-toolbar-combo">
         <div
+          ref={mainRef}
           className="fortune-toolbar-combo-button"
-          onClick={() => (onClick ? onClick() : setOpen((o) => !o))}
-          onKeyDown={activateOnKey}
+          onClick={(e) => (onClick ? onClick() : onTriggerClick(e, toggle))}
+          onKeyDown={(e) => {
+            if (!onClick) onTriggerKeyDown(e);
+            if (!e.defaultPrevented) activateOnKey(e);
+          }}
           tabIndex={0}
           data-tips={tooltip}
           role="button"
@@ -113,9 +131,13 @@ const ToolCombo: React.FC<{
           <AuditIcon name={icon} />
         </div>
         <div
+          ref={arrowRef}
           className="fortune-toolbar-combo-arrow"
-          onClick={() => setOpen((o) => !o)}
-          onKeyDown={activateOnKey}
+          onClick={(e) => onTriggerClick(e, toggle)}
+          onKeyDown={(e) => {
+            onTriggerKeyDown(e);
+            if (!e.defaultPrevented) activateOnKey(e);
+          }}
           tabIndex={0}
           role="button"
           aria-haspopup
@@ -131,7 +153,11 @@ const ToolCombo: React.FC<{
         </div>
       </div>
       {open && (
-        <div className="fortune-toolbar-combo-popup fortune-audit-menu">
+        <div
+          ref={popupRef}
+          className="fortune-toolbar-combo-popup fortune-audit-menu"
+          onKeyDown={onPopupKeyDown}
+        >
           <div className="fortune-toolbar-select" role="menu">
             {items.map((item) =>
               item.divider ? (

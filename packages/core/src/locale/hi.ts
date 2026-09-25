@@ -79,6 +79,10 @@ export default {
     toolLess: "कम",
     toolClose: "बंद करें",
     toolMoreTip: "अधिक सुविधाएँ",
+    theme: "थीम",
+    themeLight: "हल्की",
+    themeDark: "गहरी",
+    themeAuto: "सिस्टम",
     moreOptions: "अधिक विकल्प",
 
     cellFormat: "सेल फॉर्मेट कॉन्फ़िगरेशन",

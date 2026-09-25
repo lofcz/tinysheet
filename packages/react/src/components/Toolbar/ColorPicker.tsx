@@ -12,15 +12,16 @@ const palette = [
     "#f3f3f3",
     "#ffffff",
   ],
+  // the bright row: red, orange, yellow, green, cyan, blue, purple, magenta
   [
-    "#f00f00",
-    "#f90f90",
-    "#ff0ff0",
-    "#0f00f0",
-    "#0ff0ff",
-    "#00f00f",
-    "#90f90f",
-    "#f0ff0f",
+    "#ff0000",
+    "#ff9900",
+    "#ffff00",
+    "#00ff00",
+    "#00ffff",
+    "#0000ff",
+    "#9900ff",
+    "#ff00ff",
   ],
   [
     "#f4cccc",
@@ -53,7 +54,7 @@ const palette = [
     "#c27ba0",
   ],
   [
-    "#c00c00",
+    "#cc0000",
     "#e69138",
     "#f1c232",
     "#6aa84f",
@@ -63,7 +64,7 @@ const palette = [
     "#a64d79",
   ],
   [
-    "#900900",
+    "#990000",
     "#b45f06",
     "#bf9000",
     "#38761d",
@@ -73,7 +74,7 @@ const palette = [
     "#741b47",
   ],
   [
-    "#600600",
+    "#660000",
     "#783f04",
     "#7f6000",
     "#274e13",

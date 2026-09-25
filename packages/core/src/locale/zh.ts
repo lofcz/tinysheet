@@ -79,6 +79,10 @@ export default {
     toolLess: "少于",
     toolClose: "收起",
     toolMoreTip: "更多功能",
+    theme: "主题",
+    themeLight: "浅色",
+    themeDark: "深色",
+    themeAuto: "跟随系统",
     moreOptions: "更多选项",
 
     cellFormat: "设置单元格格式",

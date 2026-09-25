@@ -1,5 +1,6 @@
 import {
   getSheetIndex,
+  isWheelOverPopup,
   locale,
   scrollSplitPane,
   setSplitPosition,
@@ -49,6 +50,7 @@ const SplitPanes: React.FC = () => {
     const area = refs.cellArea.current;
     if (!area || !split) return undefined;
     const onWheel = (e: WheelEvent) => {
+      if (isWheelOverPopup(e, area)) return;
       const rect = area.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;

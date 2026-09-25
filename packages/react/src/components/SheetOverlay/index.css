@@ -58,6 +58,15 @@
   flex-direction: row;
 }
 
+/* Dragging over the headers selects rows/columns, never their text: a
+   text selection there would turn the next header drag into a native
+   drag-and-drop, which swallows the mouse moves. */
+.fortune-col-header-wrap,
+.fortune-row-header {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .fortune-col-header {
   color: var(--fortune-header-text);
   overflow: hidden;
@@ -821,25 +830,25 @@
 .fortune-selection-highlight-lt {
   left: -3px;
   top: -3px;
-  cursor: se-resize;
+  cursor: nwse-resize;
 }
 
 .fortune-selection-highlight-rt {
   right: -3px;
   top: -3px;
-  cursor: ne-resize;
+  cursor: nesw-resize;
 }
 
 .fortune-selection-highlight-lb {
   left: -3px;
   bottom: -3px;
-  cursor: ne-resize;
+  cursor: nesw-resize;
 }
 
 .fortune-selection-highlight-rb {
   right: -3px;
   bottom: -3px;
-  cursor: se-resize;
+  cursor: nwse-resize;
 }
 
 .fortune-formula-functionrange-highlight .luckysheet-highlight {

@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import React from "react";
 import { defaultSettings } from "@lofcz/tinysheet-core";
 // the package entry, which also registers the built-in toolbar features
@@ -54,7 +54,7 @@ describe("default toolbar", () => {
       "format currency-format percentage-format number-increase number-decrease",
       "conditionFormat formatAsTable cell-styles",
       "quick-formula clear-format filter search",
-      "freeze image picture-in-cell chart sparkline shapes pivotTable slicer link comment threaded-comment checkbox",
+      "freeze theme image picture-in-cell chart sparkline shapes pivotTable slicer link comment threaded-comment checkbox",
       "nameManager dataVerification splitColumn outline data-tools locationCondition screenshot",
       "pageLayout print",
       "trace-precedents trace-dependents remove-arrows show-formulas error-checking evaluate-formula watch-window calculation-options",
@@ -87,4 +87,89 @@ describe("default toolbar", () => {
       expect(unnamed).toEqual([]);
     }
   );
+});
+
+describe("theme switch", () => {
+  const themeOf = (container: HTMLElement) =>
+    container.querySelector(".fortune-container")?.getAttribute("data-theme");
+  const themeButton = (container: HTMLElement) =>
+    container.querySelector<HTMLElement>(
+      '.fortune-toolbar [aria-label^="Theme: "]'
+    )!;
+  /** Toolbar > Theme > `label` (Light / Dark / System). */
+  const pickTheme = (container: HTMLElement, label: string) => {
+    fireEvent.click(themeButton(container));
+    const option = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        ".fortune-toolbar-combo-popup [role=menuitemradio]"
+      )
+    ).find((el) => el.textContent?.includes(label))!;
+    fireEvent.click(option);
+  };
+
+  it("switches an uncontrolled workbook and reports the choice", () => {
+    const onThemeChange = jest.fn();
+    const { container } = render(
+      <Workbook
+        lang="en"
+        data={[{ name: "Sheet1" }]}
+        onThemeChange={onThemeChange}
+      />
+    );
+    expect(themeOf(container)).toBe("light");
+    pickTheme(container, "Dark");
+    expect(themeOf(container)).toBe("dark");
+    expect(onThemeChange).toHaveBeenLastCalledWith("dark");
+    expect(themeButton(container).getAttribute("aria-label")).toBe(
+      "Theme: Dark"
+    );
+    pickTheme(container, "Light");
+    expect(themeOf(container)).toBe("light");
+  });
+
+  it("starts from defaultTheme", () => {
+    const { container } = render(
+      <Workbook lang="en" data={[{ name: "Sheet1" }]} defaultTheme="dark" />
+    );
+    expect(themeOf(container)).toBe("dark");
+  });
+
+  it("marks the chosen setting in the menu", () => {
+    const { container } = render(
+      <Workbook lang="en" data={[{ name: "Sheet1" }]} defaultTheme="auto" />
+    );
+    fireEvent.click(themeButton(container));
+    const checked = Array.from(
+      container.querySelectorAll(
+        ".fortune-toolbar-combo-popup [role=menuitemradio]"
+      )
+    )
+      .filter((el) => el.getAttribute("aria-checked") === "true")
+      .map((el) => el.textContent);
+    expect(checked).toEqual([expect.stringContaining("System")]);
+  });
+
+  it("only reports the choice while the theme prop controls it", () => {
+    const onThemeChange = jest.fn();
+    const { container, rerender } = render(
+      <Workbook
+        lang="en"
+        data={[{ name: "Sheet1" }]}
+        theme="light"
+        onThemeChange={onThemeChange}
+      />
+    );
+    pickTheme(container, "Dark");
+    expect(onThemeChange).toHaveBeenLastCalledWith("dark");
+    expect(themeOf(container)).toBe("light");
+    rerender(
+      <Workbook
+        lang="en"
+        data={[{ name: "Sheet1" }]}
+        theme="dark"
+        onThemeChange={onThemeChange}
+      />
+    );
+    expect(themeOf(container)).toBe("dark");
+  });
 });

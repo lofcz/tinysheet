@@ -6,8 +6,11 @@ import {
   updateContextWithCanvas,
   updateContextWithSheetData,
   handleGlobalWheel,
+  isWheelOverPopup,
+  handleWheelZoom,
   initFreeze,
   lowerBound,
+  upperBound,
   getSheetIndex,
   getOutlineGutterSize,
   hasCellDecorators,
@@ -116,6 +119,55 @@ const OVERLAY_ONLY_KEYS = new Set<string>([
   // status bar only
   "recalcProgress",
 ]);
+
+/**
+ * A scroll offset as the row (column) at the top (left) of the window and
+ * how far into it, so it can be restored after the sizes change (zoom).
+ */
+function scrollAnchor(edges: number[], scroll: number) {
+  if (scroll <= 0 || edges.length === 0) return { index: 0, fraction: 0 };
+  const index = Math.min(upperBound(edges, scroll), edges.length - 1);
+  const start = index > 0 ? edges[index - 1] : 0;
+  const size = edges[index] - start;
+  return { index, fraction: size > 0 ? (scroll - start) / size : 0 };
+}
+
+function scrollAt(
+  edges: number[],
+  anchor: { index: number; fraction: number }
+) {
+  if (edges.length === 0) return 0;
+  const index = Math.min(anchor.index, edges.length - 1);
+  const start = index > 0 ? edges[index - 1] : 0;
+  return Math.round(start + (edges[index] - start) * anchor.fraction);
+}
+
+/**
+ * Whether a wheel event is over an element inside the sheet that can scroll
+ * that way itself (a dropdown or suggestion list over the cells).
+ */
+function inScrollableList(e: WheelEvent, container: HTMLElement | null) {
+  let el = e.target instanceof Element ? e.target : null;
+  while (el && el !== container) {
+    if (
+      el.classList.contains("fortune-cell-area") ||
+      el.classList.contains("luckysheet-scrollbars")
+    ) {
+      return false;
+    }
+    const style = window.getComputedStyle(el);
+    const scrollsY =
+      /(auto|scroll)/.test(style.overflowY) &&
+      el.scrollHeight > el.clientHeight;
+    const scrollsX =
+      /(auto|scroll)/.test(style.overflowX) && el.scrollWidth > el.clientWidth;
+    if ((scrollsY && e.deltaY !== 0) || (scrollsX && e.deltaX !== 0)) {
+      return true;
+    }
+    el = el.parentElement;
+  }
+  return false;
+}
 
 /** Whether anything the canvas renderer reads differs between two contexts. */
 function canvasInputsChanged(prev: Context, next: Context) {
@@ -658,10 +710,37 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
   dataRef.current = data;
   const rowCount = data?.length ?? 0;
   const colCount = data?.[0]?.length ?? 0;
+  // The zoom and scroll the geometry was last computed for: a zoom keeps
+  // the top-left cell at the top-left, like Excel (unless whatever changed
+  // the zoom also set the scroll position, e.g. Zoom to Selection).
+  const zoomView = useRef({
+    zoom: context.zoomRatio,
+    scrollLeft: context.scrollLeft,
+    scrollTop: context.scrollTop,
+    sheetId: sheet.id,
+  });
   useEffect(() => {
     const currentData = dataRef.current;
     if (!currentData) return;
-    setContext((draftCtx) => updateContextWithSheetData(draftCtx, currentData));
+    const prev = zoomView.current;
+    setContext((draftCtx) => {
+      const keepTopLeft =
+        prev.sheetId === draftCtx.currentSheetId &&
+        prev.zoom !== draftCtx.zoomRatio &&
+        prev.scrollLeft === draftCtx.scrollLeft &&
+        prev.scrollTop === draftCtx.scrollTop;
+      const anchor = keepTopLeft
+        ? {
+            row: scrollAnchor(draftCtx.visibledatarow, draftCtx.scrollTop),
+            col: scrollAnchor(draftCtx.visibledatacolumn, draftCtx.scrollLeft),
+          }
+        : null;
+      updateContextWithSheetData(draftCtx, currentData);
+      if (anchor) {
+        draftCtx.scrollTop = scrollAt(draftCtx.visibledatarow, anchor.row);
+        draftCtx.scrollLeft = scrollAt(draftCtx.visibledatacolumn, anchor.col);
+      }
+    });
   }, [
     context.config?.rowlen,
     context.config?.columnlen,
@@ -675,6 +754,14 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     context.defaultcollen,
     setContext,
   ]);
+  useEffect(() => {
+    zoomView.current = {
+      zoom: context.zoomRatio,
+      scrollLeft: context.scrollLeft,
+      scrollTop: context.scrollTop,
+      sheetId: sheet.id,
+    };
+  }, [context.zoomRatio, context.scrollLeft, context.scrollTop, sheet.id]);
 
   // Outline (Data › Group) gutters left of the row headers and above the
   // column headers: the sheet area shrinks by their size.
@@ -805,18 +892,39 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     }
   }, [context, refs.canvas, refs.globalCache.freezen, sheet.id]);
 
+  const contextRef = useRef(context);
+  contextRef.current = context;
   const onWheel = useCallback(
     (e: WheelEvent) => {
-      setContext((draftCtx) => {
-        handleGlobalWheel(
-          draftCtx,
-          e,
-          refs.globalCache,
-          refs.scrollbarX.current!,
-          refs.scrollbarY.current!
-        );
-      });
+      // a popup or list over the grid (autocomplete, argument hint,
+      // dropdown...) scrolls itself
+      if (
+        !e.ctrlKey &&
+        (isWheelOverPopup(e, containerRef.current) ||
+          inScrollableList(e, containerRef.current))
+      ) {
+        return;
+      }
+      // the sheet scrolls (or zooms), never the page
       e.preventDefault();
+      if (e.ctrlKey) {
+        // Ctrl+wheel, and a trackpad pinch
+        setContext(
+          (draftCtx) => {
+            handleWheelZoom(draftCtx, e);
+          },
+          { noHistory: true }
+        );
+        return;
+      }
+      // moves the scrollbars, whose scroll events update the context
+      handleGlobalWheel(
+        contextRef.current,
+        e,
+        refs.globalCache,
+        refs.scrollbarX.current!,
+        refs.scrollbarY.current!
+      );
     },
     [refs.globalCache, refs.scrollbarX, refs.scrollbarY, setContext]
   );

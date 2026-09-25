@@ -1,0 +1,478 @@
+const { test, expect, toolbarButton } = require("../fixtures");
+
+// The toolbar's theme switch, drop-downs, "More" overflow, the context menu
+// and dialogs: how they open, close and hand the keyboard around (Excel /
+// Google Sheets behaviour).
+
+// Relative luminance (0 = black, 1 = white) of a CSS rgb()/rgba() colour.
+const luminance = (css) => {
+  const [r, g, b] = css
+    .match(/\d+(\.\d+)?/g)
+    .slice(0, 3)
+    .map(Number);
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+};
+
+/** Luminance of the canvas pixel at the centre of cell (r, c). */
+async function canvasLuminance(sheet, r, c) {
+  const { x, y } = sheet.point(r, c);
+  return sheet.page.evaluate(
+    ([px, py]) => {
+      const canvas = document.querySelector(".fortune-sheet-canvas");
+      const rect = canvas.getBoundingClientRect();
+      const ratio = canvas.width / rect.width;
+      const [red, green, blue] = canvas
+        .getContext("2d")
+        .getImageData(
+          Math.round((px - rect.left) * ratio),
+          Math.round((py - rect.top) * ratio),
+          1,
+          1
+        ).data;
+      return (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+    },
+    [x, y]
+  );
+}
+
+const popup = (page) => page.locator(".fortune-toolbar-combo-popup");
+
+/** Toolbar > Theme > `label`. */
+async function pickTheme(page, label) {
+  await (await toolbarButton(page, /^Theme: /)).click();
+  await popup(page).getByRole("menuitemradio", { name: label }).click();
+}
+
+test.describe("theme switch", () => {
+  test("Light / Dark from the toolbar repaint chrome, canvas and dialogs", async ({
+    sheet,
+    page,
+  }) => {
+    const container = page.locator(".fortune-container");
+    await expect(container).toHaveAttribute("data-theme", "light");
+    expect(await canvasLuminance(sheet, 3, 3)).toBeGreaterThan(0.9);
+
+    await pickTheme(page, "Dark");
+    await expect(container).toHaveAttribute("data-theme", "dark");
+    await expect(popup(page)).toHaveCount(0);
+    const toolbarBg = await page
+      .locator(".fortune-toolbar")
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(luminance(toolbarBg)).toBeLessThan(0.3);
+    await expect.poll(() => canvasLuminance(sheet, 3, 3)).toBeLessThan(0.2);
+    // the button shows the theme in effect
+    await expect(await toolbarButton(page, /^Theme: /)).toHaveAttribute(
+      "aria-label",
+      "Theme: Dark"
+    );
+
+    // dialogs rendered outside the workbook follow
+    await sheet.click(0, 0);
+    await page.keyboard.press("Control+1");
+    const modal = page.locator(".fortune-modal-container");
+    await expect(modal).toHaveAttribute("data-theme", "dark");
+    const dialogBg = await page
+      .locator(".fortune-format-cells")
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(luminance(dialogBg)).toBeLessThan(0.3);
+    await page.keyboard.press("Escape");
+    await expect(modal).toHaveCount(0);
+
+    await pickTheme(page, "Light");
+    await expect(container).toHaveAttribute("data-theme", "light");
+    await expect.poll(() => canvasLuminance(sheet, 3, 3)).toBeGreaterThan(0.9);
+  });
+
+  test("System follows prefers-color-scheme live", async ({ sheet, page }) => {
+    const container = page.locator(".fortune-container");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await pickTheme(page, "System");
+    await expect(container).toHaveAttribute("data-theme", "dark");
+    await page.emulateMedia({ colorScheme: "light" });
+    await expect(container).toHaveAttribute("data-theme", "light");
+    await expect.poll(() => canvasLuminance(sheet, 2, 2)).toBeGreaterThan(0.9);
+    // the menu marks the chosen setting, not the resolved theme
+    await (await toolbarButton(page, /^Theme: /)).click();
+    await expect(
+      popup(page).getByRole("menuitemradio", { name: "System" })
+    ).toHaveAttribute("aria-checked", "true");
+  });
+});
+
+test.describe("toolbar drop-downs", () => {
+  test("the arrow toggles the menu; Escape and a click outside close it", async ({
+    sheet,
+    page,
+  }) => {
+    const arrow = page.getByRole("button", { name: "Font size: Dropdown" });
+    await arrow.click();
+    await expect(popup(page)).toHaveCount(1);
+    await arrow.click();
+    await expect(popup(page)).toHaveCount(0);
+
+    await arrow.click();
+    await page.keyboard.press("Escape");
+    await expect(popup(page)).toHaveCount(0);
+    // Escape hands the keyboard back to the button
+    await expect(arrow).toBeFocused();
+
+    await arrow.click();
+    const { x, y } = sheet.point(6, 6);
+    await page.mouse.click(x, y);
+    await expect(popup(page)).toHaveCount(0);
+  });
+
+  test("only one menu is open at a time, also from the keyboard", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.click(0, 0);
+    await page.getByRole("button", { name: "Font: Dropdown" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(popup(page)).toHaveCount(1);
+    await page.getByRole("button", { name: "Font size: Dropdown" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(popup(page)).toHaveCount(1);
+    await expect(
+      popup(page).getByRole("menuitemradio", { name: "36" })
+    ).toBeVisible();
+  });
+
+  test("keyboard: open, arrow to an item, pick it, type into the sheet", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.click(1, 1);
+    await page.getByRole("button", { name: "Font size: Dropdown" }).focus();
+    await page.keyboard.press("Enter");
+    // the current size has the focus (and is checked); arrows move on
+    const current = popup(page).getByRole("menuitemradio", { name: "10" });
+    await expect(current).toBeFocused();
+    await expect(current).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("End");
+    await expect(
+      popup(page).getByRole("menuitemradio", { name: "72" })
+    ).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      popup(page).getByRole("menuitemradio", { name: "8", exact: true })
+    ).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      popup(page).getByRole("menuitemradio", { name: "11" })
+    ).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(popup(page)).toHaveCount(0);
+    await expect(
+      page.getByRole("textbox", { name: "Font size", exact: true })
+    ).toHaveValue("11");
+    // the sheet has the keyboard again, as after picking in Excel
+    await expect(page.locator(".luckysheet-cell-input")).toBeFocused();
+    await page.keyboard.type("42");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => sheet.value(1, 1)).toBe(42);
+  });
+
+  test("a font size can be typed into the size box", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.click(3, 1);
+    const box = page.getByRole("textbox", { name: "Font size", exact: true });
+    await expect(box).toHaveValue("10");
+    await box.click();
+    await box.fill("15");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => sheet.value(3, 1, "fs")).toBe(15);
+    await expect(box).toHaveValue("15");
+    // out of range (Excel: 1 to 409) or Escape: nothing changes
+    await box.fill("999");
+    await page.keyboard.press("Enter");
+    await box.fill("20");
+    await page.keyboard.press("Escape");
+    await expect.poll(() => sheet.value(3, 1, "fs")).toBe(15);
+    await expect(box).toHaveValue("15");
+    // Enter and Escape hand the keyboard back to the sheet
+    await expect(page.locator(".luckysheet-cell-input")).toBeFocused();
+    await page.keyboard.type("5");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => sheet.value(3, 1)).toBe(5);
+  });
+
+  test("picking with the mouse gives the keyboard back to the sheet", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.click(2, 0);
+    await page.getByRole("button", { name: "Font: Dropdown" }).click();
+    await popup(page).getByRole("menuitemradio", { name: "Verdana" }).click();
+    await expect(
+      page.getByRole("button", { name: "Font: Verdana", exact: true })
+    ).toBeVisible();
+    await expect(page.locator(".luckysheet-cell-input")).toBeFocused();
+    await page.keyboard.type("x");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => sheet.value(2, 0)).toBe("x");
+  });
+
+  test("bold reflects the selected cell", async ({ sheet, page }) => {
+    const bold = page.getByRole("button", { name: "Bold (Ctrl+B)" });
+    await sheet.click(0, 0);
+    await bold.click();
+    await expect(bold).toHaveAttribute("aria-pressed", "true");
+    await sheet.click(1, 0);
+    await expect(bold).toHaveAttribute("aria-pressed", "false");
+    await sheet.click(0, 0);
+    await expect(bold).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("colour buttons: Excel's red / yellow before any pick, palette colours", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.click(0, 0);
+    await page.getByRole("button", { name: "Font color", exact: true }).click();
+    await expect.poll(() => sheet.value(0, 0, "fc")).toBe("#ff0000");
+    await page.getByRole("button", { name: "Fill color", exact: true }).click();
+    await expect.poll(() => sheet.value(0, 0, "bg")).toBe("#ffff00");
+    // the palette's bright row is red, orange, yellow, ...
+    await page.getByRole("button", { name: "Fill color: Dropdown" }).click();
+    await popup(page).getByRole("button", { name: "#ff9900" }).click();
+    await expect.poll(() => sheet.value(0, 0, "bg")).toBe("#ff9900");
+    // the button now applies the colour picked last
+    await sheet.click(1, 0);
+    await page.getByRole("button", { name: "Fill color", exact: true }).click();
+    await expect.poll(() => sheet.value(1, 0, "bg")).toBe("#ff9900");
+  });
+
+  test("border menu: line colour submenu from the keyboard, kept between openings", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.click(0, 0);
+    const arrow = page.getByRole("button", { name: "Border: Dropdown" });
+    await arrow.click();
+    const lineColor = popup(page).getByRole("menuitem", {
+      name: "Border color",
+    });
+    await lineColor.focus();
+    await page.keyboard.press("Enter");
+    const swatch = popup(page).getByRole("button", { name: "#0000ff" });
+    await expect(swatch).toBeVisible();
+    await swatch.click();
+    await page.keyboard.press("Escape");
+    await arrow.click();
+    await expect(
+      popup(page).locator(".fortune-border-color-preview")
+    ).toHaveCSS("background-color", "rgb(0, 0, 255)");
+  });
+});
+
+test.describe("More overflow", () => {
+  test.use({ viewport: { width: 400, height: 700 } });
+
+  test("toggles, keeps items live, closes on Escape, follows the width", async ({
+    sheet,
+    page,
+  }) => {
+    const more = page.getByRole("button", { name: "More" });
+    const panel = page.locator(".fortune-toolbar-more-container");
+    await more.click();
+    await expect(panel).toBeVisible();
+    await more.click();
+    await expect(panel).toHaveCount(0);
+
+    // an item in the overflow shows the state it changed
+    await sheet.click(0, 0);
+    const strike = await toolbarButton(page, "Strikethrough (Alt+Shift+5)");
+    await expect(panel).toBeVisible();
+    await expect(strike).toHaveAttribute("aria-pressed", "false");
+    await strike.click();
+    await expect(strike).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => sheet.value(0, 0, "cl")).toBe(1);
+
+    // Escape closes an inner drop-down first, then the panel
+    await panel.getByRole("button", { name: /^Theme: Dropdown$/ }).click();
+    await expect(popup(page)).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(popup(page)).toHaveCount(0);
+    await expect(panel).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+
+    // a dialog opened from the panel closes it
+    await (await toolbarButton(page, "Find and replace")).click();
+    await expect(page.locator("#fortune-search-replace")).toBeVisible();
+    await expect(panel).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#fortune-search-replace")).toHaveCount(0);
+
+    // nothing overflows the bar, and a wide window needs no More
+    const bar = page.locator(".fortune-toolbar");
+    const overflow = await bar.evaluate(
+      (el) => el.scrollWidth - el.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    await page.setViewportSize({ width: 4000, height: 700 });
+    await expect(more).toHaveCount(0);
+    await page.setViewportSize({ width: 400, height: 700 });
+    await expect(more).toBeVisible();
+  });
+});
+
+test.describe("context menu", () => {
+  test("stays inside the window and closes on Escape, scroll and resize", async ({
+    sheet,
+    page,
+  }) => {
+    const menu = page.locator(".fortune-cell-menu").first();
+    const viewport = page.viewportSize();
+    const open = async (x, y) => {
+      await page.mouse.click(x, y, { button: "right" });
+      await expect(menu).toBeVisible();
+      const box = await menu.boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+      expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+      return box;
+    };
+
+    const area = await page.locator(".fortune-cell-area").boundingBox();
+    await open(area.x + area.width - 20, area.y + area.height - 10);
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+
+    // not enough room below or above: kept against the bottom edge
+    const box = await open(area.x + 200, area.y + area.height / 2);
+    expect(box.y + box.height).toBeGreaterThan(viewport.height - 40);
+
+    const { x, y } = sheet.point(5, 5);
+    await page.mouse.move(x, y);
+    await page.mouse.wheel(0, 200);
+    await expect(menu).toHaveCount(0);
+
+    await open(x, y);
+    await page.setViewportSize({ width: 1400, height: 800 });
+    await expect(menu).toHaveCount(0);
+  });
+
+  test("row and column header menus open inside the window", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.click(0, 0);
+    const menu = page.locator(".fortune-cell-menu").first();
+    const rows = await page.locator(".fortune-row-header").boundingBox();
+    await page.mouse.click(rows.x + 10, rows.y + rows.height - 20, {
+      button: "right",
+    });
+    await expect(menu).toBeVisible();
+    let box = await menu.boundingBox();
+    expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize().height);
+    await page.keyboard.press("Escape");
+
+    const cols = await page.locator(".fortune-col-header").boundingBox();
+    const right = Math.min(cols.x + cols.width, page.viewportSize().width);
+    await page.mouse.click(right - 40, cols.y + 8, { button: "right" });
+    await expect(menu).toBeVisible();
+    box = await menu.boundingBox();
+    expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize().width);
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+  });
+});
+
+test.describe("dialogs", () => {
+  const focusInside = (page, selector) =>
+    page.evaluate(
+      (sel) => !!document.querySelector(sel)?.contains(document.activeElement),
+      selector
+    );
+
+  test("Format Cells from Ctrl+1 keeps Tab inside and gives the sheet back", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.click(2, 2);
+    await page.keyboard.press("Control+1");
+    const dialog = ".fortune-format-cells";
+    await expect(page.locator(dialog)).toBeVisible();
+    await expect.poll(() => focusInside(page, dialog)).toBe(true);
+    for (let i = 0; i < 12; i += 1) {
+      await page.keyboard.press("Tab");
+      expect(await focusInside(page, dialog)).toBe(true);
+    }
+    for (let i = 0; i < 4; i += 1) {
+      await page.keyboard.press("Shift+Tab");
+      expect(await focusInside(page, dialog)).toBe(true);
+    }
+    // Tab never reached the grid: the selection did not move
+    await sheet.waitForSelection(2, 2);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(dialog)).toHaveCount(0);
+    await expect(page.locator(".luckysheet-cell-input")).toBeFocused();
+    await page.keyboard.type("7");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => sheet.value(2, 2)).toBe(7);
+  });
+
+  test("message boxes: focus inside, Enter confirms, Escape cancels", async ({
+    sheet,
+    page,
+  }) => {
+    // Text to Columns on two columns: "only one column can be split"
+    await sheet.select(0, 0, 0, 1);
+    await (await toolbarButton(page, "Text to columns")).click();
+    const dialog = page.locator(".fortune-modal-container [role=dialog]");
+    await expect(dialog).toBeVisible();
+    await expect
+      .poll(() => focusInside(page, ".fortune-modal-container"))
+      .toBe(true);
+    await page.keyboard.press("Enter");
+    await expect(dialog).toHaveCount(0);
+
+    await (await toolbarButton(page, "Text to columns")).click();
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+  });
+
+  test("a dialog can be dragged by its title bar", async ({ sheet, page }) => {
+    await sheet.click(0, 0);
+    await page.keyboard.press("Control+1");
+    const dialog = page.locator(".fortune-format-cells");
+    const before = await dialog.boundingBox();
+    const title = page.locator("#fortune-format-cells-title");
+    const t = await title.boundingBox();
+    await page.mouse.move(t.x + 5, t.y + t.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(t.x + 105, t.y + t.height / 2 + 60, { steps: 5 });
+    await page.mouse.up();
+    const after = await dialog.boundingBox();
+    expect(Math.round(after.x - before.x)).toBe(100);
+    expect(Math.round(after.y - before.y)).toBe(60);
+    // the controls in it still work
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+
+  test("Find and Replace keeps Tab in the dialog and closes on Escape", async ({
+    sheet,
+    page,
+  }) => {
+    await sheet.click(4, 4);
+    await (await toolbarButton(page, "Find and replace")).click();
+    const dialog = "#fortune-search-replace";
+    await expect(page.locator(dialog)).toBeVisible();
+    for (let i = 0; i < 15; i += 1) {
+      await page.keyboard.press("Tab");
+      expect(await focusInside(page, dialog)).toBe(true);
+    }
+    await sheet.waitForSelection(4, 4);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(dialog)).toHaveCount(0);
+  });
+});

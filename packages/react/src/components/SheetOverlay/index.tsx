@@ -34,6 +34,10 @@ import {
   fixRowStyleOverflowInFreeze,
   fixColumnStyleOverflowInFreeze,
   handleKeydownForZoom,
+  handleReferenceBoxMouseDown,
+  ReferenceDragHandle,
+  getDragAutoScroll,
+  frozenScrollMin,
   api,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
@@ -105,10 +109,16 @@ const SheetOverlay: React.FC = () => {
 
           if (
             !_.isEmpty(draftCtx.luckysheet_select_save?.[0]) &&
-            refs.cellInput.current
+            refs.cellInput.current &&
+            // a formula edited in the formula bar keeps the focus there
+            // while cells are clicked into it (Point mode)
+            !(
+              draftCtx.luckysheetCellUpdate.length > 0 &&
+              document.activeElement === refs.fxInput.current
+            )
           ) {
             setTimeout(() => {
-              refs.cellInput.current?.focus();
+              refs.cellInput.current?.focus({ preventScroll: true });
             });
           }
         });
@@ -157,11 +167,57 @@ const SheetOverlay: React.FC = () => {
     [refs.cellArea, refs.globalCache, setContext, settings]
   );
 
+  // dragging the border of a formula reference's box moves the reference, a
+  // corner resizes it; the editor keeps the focus
+  const referenceBoxMouseDown = useCallback(
+    (
+      e: React.MouseEvent<HTMLDivElement>,
+      rangeIndex: number,
+      handle: ReferenceDragHandle
+    ) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const { nativeEvent } = e;
+      setContext((draftCtx) => {
+        handleReferenceBoxMouseDown(
+          draftCtx,
+          refs.globalCache,
+          nativeEvent,
+          refs.cellInput.current!,
+          refs.fxInput.current,
+          containerRef.current!,
+          rangeIndex,
+          handle
+        );
+      });
+    },
+    [refs.cellInput, refs.fxInput, refs.globalCache, setContext]
+  );
+
+  // The cell area's DOM scroll mirrors the sheet's scroll (its overlays are
+  // placed in sheet coordinates). The browser may scroll it on its own, e.g.
+  // to bring the focused cell editor into view: that would move every
+  // overlay (selection, editor...) off the cells drawn on the canvas.
+  const onCellAreaScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const el = e.currentTarget;
+      if (el.scrollTop !== context.scrollTop) el.scrollTop = context.scrollTop;
+      if (el.scrollLeft !== context.scrollLeft) {
+        el.scrollLeft = context.scrollLeft;
+      }
+    },
+    [context]
+  );
+
   const onLeftTopClick = useCallback(() => {
     setContext((draftCtx) => {
       selectAll(draftCtx);
     });
-  }, [setContext]);
+    // keyboard (typing, Delete, Ctrl+V) goes on to the grid, as after a
+    // click on a cell
+    refs.cellInput.current?.focus({ preventScroll: true });
+  }, [refs.cellInput, setContext]);
 
   const debouncedShowLinkCard = useMemo(
     () =>
@@ -205,8 +261,84 @@ const SheetOverlay: React.FC = () => {
     [debouncedShowLinkCard]
   );
 
+  // Auto-scroll: while a drag (selecting, filling, moving cells) holds the
+  // pointer past the grid's edge, the sheet keeps scrolling, one step per
+  // frame even when the pointer stays still, and the drag follows.
+  const autoScroll = useRef<{
+    frame: number | null;
+    time: number;
+    event: MouseEvent | null;
+  }>({ frame: null, time: 0, event: null });
+  const autoScrollStep = useRef<() => void>(() => {});
+  autoScrollStep.current = () => {
+    const state = autoScroll.current;
+    state.frame = null;
+    const e = state.event;
+    const container = containerRef.current;
+    const barX = refs.scrollbarX.current;
+    const barY = refs.scrollbarY.current;
+    if (!e || !container || !barX || !barY) return;
+    const now = performance.now();
+    const dt = state.time ? now - state.time : 16;
+    const { dx, dy } = getDragAutoScroll(
+      context,
+      refs.globalCache,
+      e,
+      container,
+      dt
+    );
+    if (!dx && !dy) {
+      state.time = 0;
+      return;
+    }
+    state.time = now;
+    // at least a pixel per frame, whatever the frame rate
+    const px = (d: number) =>
+      d === 0 ? 0 : Math.sign(d) * Math.max(1, Math.round(Math.abs(d)));
+    const min = frozenScrollMin(context);
+    if (dx) barX.scrollLeft = Math.max(min.left, barX.scrollLeft + px(dx));
+    if (dy) barY.scrollTop = Math.max(min.top, barY.scrollTop + px(dy));
+    // the browser clamps them to the scroll range
+    const left = barX.scrollLeft;
+    const top = barY.scrollTop;
+    if (left !== context.scrollLeft || top !== context.scrollTop) {
+      setContext((draftCtx) => {
+        draftCtx.scrollLeft = left;
+        draftCtx.scrollTop = top;
+        // extend the drag to what scrolled into view
+        handleOverlayMouseMove(
+          draftCtx,
+          refs.globalCache,
+          e,
+          refs.cellInput.current!,
+          barX,
+          barY,
+          container,
+          refs.fxInput.current
+        );
+      });
+    }
+    state.frame = requestAnimationFrame(() => autoScrollStep.current());
+  };
+  useEffect(
+    () => () => {
+      const { frame } = autoScroll.current;
+      if (frame != null) cancelAnimationFrame(frame);
+    },
+    []
+  );
+
   const onMouseMove = useCallback(
     (nativeEvent: MouseEvent) => {
+      // a drag with the primary button: auto-scroll past the grid's edge
+      // eslint-disable-next-line no-bitwise
+      if (nativeEvent.buttons & 1) {
+        const state = autoScroll.current;
+        state.event = nativeEvent;
+        if (state.frame == null) {
+          state.frame = requestAnimationFrame(() => autoScrollStep.current());
+        }
+      }
       setContext((draftCtx) => {
         overShowLinkCard(
           draftCtx,
@@ -241,6 +373,11 @@ const SheetOverlay: React.FC = () => {
 
   const onMouseUp = useCallback(
     (nativeEvent: MouseEvent) => {
+      const scrolling = autoScroll.current;
+      if (scrolling.frame != null) cancelAnimationFrame(scrolling.frame);
+      scrolling.frame = null;
+      scrolling.time = 0;
+      scrolling.event = null;
       setContext((draftCtx) => {
         try {
           handleOverlayMouseUp(
@@ -359,7 +496,7 @@ const SheetOverlay: React.FC = () => {
 
       // Only reset selection if there's no existing selection
       if (!currentSheet.luckysheet_select_save?.length) {
-        api.setSelection(draftCtx, [{ row: [0], column: [0] }], {});
+        api.setSelection(draftCtx, [{ row: [0, 0], column: [0, 0] }], {});
       }
     });
   }, [context.currentSheetId, setContext]);
@@ -540,6 +677,7 @@ const SheetOverlay: React.FC = () => {
           onMouseDown={cellAreaMouseDown}
           onDoubleClick={cellAreaDoubleClick}
           onContextMenu={cellAreaContextMenu}
+          onScroll={onCellAreaScroll}
           style={{
             width: context.cellmainWidth,
             height: context.cellmainHeight,
@@ -576,18 +714,22 @@ const SheetOverlay: React.FC = () => {
                     data-type={d}
                     className={`fortune-selection-copy-${d} fortune-copy`}
                     style={{ backgroundColor }}
+                    onMouseDown={(e) =>
+                      referenceBoxMouseDown(e, rangeIndex, "move")
+                    }
                   />
                 ))}
                 <div
                   className="fortune-selection-copy-hc"
                   style={{ backgroundColor }}
                 />
-                {["lt", "rt", "lb", "rb"].map((d) => (
+                {(["lt", "rt", "lb", "rb"] as const).map((d) => (
                   <div
                     key={d}
                     data-type={d}
                     className={`fortune-selection-highlight-${d} luckysheet-highlight`}
                     style={{ backgroundColor }}
+                    onMouseDown={(e) => referenceBoxMouseDown(e, rangeIndex, d)}
                   />
                 ))}
               </div>
@@ -750,7 +892,10 @@ const SheetOverlay: React.FC = () => {
                         createDropCellRange(
                           draftContext,
                           nativeEvent,
-                          containerRef.current!
+                          containerRef.current!,
+                          refs.globalCache.freezen?.[
+                            draftContext.currentSheetId
+                          ]
                         );
                       });
                       e.stopPropagation();

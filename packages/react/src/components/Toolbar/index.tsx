@@ -4,6 +4,7 @@ import React, {
   useMemo,
   useRef,
   useEffect,
+  useLayoutEffect,
   useState,
 } from "react";
 import {
@@ -64,6 +65,9 @@ import { NameManagerButton } from "../NameManager";
 import { FormatAsTableButton } from "../Tables";
 import ChartToolbarItem from "../Chart/ChartToolbarItem";
 import CellStyles from "../CellStyles";
+import ThemeSwitch from "./ThemeSwitch";
+import MoreItemsContainer from "./MoreItemsContainer";
+import { useToolbarPopup } from "./usePopup";
 
 const toolbarTooltipAliases: Record<string, string> = {
   link: "insertLink",
@@ -76,16 +80,29 @@ const toolbarTooltipAliases: Record<string, string> = {
   search: "findAndReplace",
 };
 
-const Toolbar: React.FC<{
-  setMoreItems: React.Dispatch<React.SetStateAction<React.ReactNode>>;
-  moreItemsOpen: boolean;
-}> = ({ setMoreItems, moreItemsOpen }) => {
+const Toolbar: React.FC = () => {
   const { context, setContext, refs, settings, handleUndo, handleRedo } =
     useContext(WorkbookContext);
+  // "More": the items that do not fit the toolbar's width
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const morePanelRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLDivElement>(null);
+  const { onTriggerClick: onMoreClick } = useToolbarPopup(
+    moreOpen,
+    setMoreOpen,
+    {
+      containerRef: moreRef,
+      popupRef: morePanelRef,
+      triggerRef: moreButtonRef,
+      exclusive: false,
+    }
+  );
   const contextRef = useRef(context);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [toolbarWrapIndex, setToolbarWrapIndex] = useState(-1); // -1 means pending for item location calculation
-  const [itemLocations, setItemLocations] = useState<number[]>([]);
+  // how many of settings.toolbarItems fit the bar (null: all shown, to be
+  // measured); the rest go to "More"
+  const [visibleCount, setVisibleCount] = useState<number | null>(null);
   const { showDialog, hideDialog } = useDialog();
   const firstSelection = context.luckysheet_select_save?.[0];
   const flowdata = getFlowdata(context);
@@ -111,7 +128,6 @@ const Toolbar: React.FC<{
     fontarray,
   } = locale(context);
   const { numberFormatMenu, formatCells, cellStyles } = locale(context);
-  const sheetWidth = context.luckysheetTableContentHW[0];
   const currency = context.currency || settings.currency || "$";
   // Excel's Number Format list (Home > Number)
   const numberFormatItems = useMemo(
@@ -147,48 +163,90 @@ const Toolbar: React.FC<{
   const [customColor, setcustomColor] = useState("#000000");
   const [customStyle, setcustomStyle] = useState("1");
 
-  // rerenders the entire toolbar and trigger recalculation of item locations
+  // The toolbar re-renders when the window (and with it the sheet) resizes;
+  // a ResizeObserver also catches a container resized by the host page.
+  const [, setContainerWidth] = useState(0);
   useEffect(() => {
-    setToolbarWrapIndex(-1);
-  }, [settings.toolbarItems, settings.customToolbarItems]);
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() =>
+      setContainerWidth(container.clientWidth)
+    );
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
-  // recalculate item locations
-  useEffect(() => {
-    if (toolbarWrapIndex === -1) {
-      const container = containerRef.current!;
-      if (!container) return;
-      const items = container.querySelectorAll(".fortune-toolbar-item");
-      if (!items) return;
-      const locations: number[] = [];
-      const containerRect = container.getBoundingClientRect();
-      for (let i = 0; i < items.length; i += 1) {
-        const item = items[i] as HTMLElement;
-        const itemRect = item.getBoundingClientRect();
-        locations.push(itemRect.left - containerRect.left + itemRect.width);
-      }
-      setItemLocations(locations);
-    }
-  }, [toolbarWrapIndex, sheetWidth]);
-
-  // calculate the position after which items should be wrapped
-  useEffect(() => {
-    if (itemLocations.length === 0) return;
-    const container = containerRef.current!;
+  // Which items fit. Measured after every render, because items change
+  // width with the selection (font name, number format, ...): the widths
+  // of the items shown are measured, those in "More" are remembered from
+  // when they were last shown (all are shown at first).
+  const itemWidths = useRef<number[]>([]);
+  const measuredItems = useRef<unknown[] | null>(null);
+  const toolbarItemCount = settings.toolbarItems.length;
+  // every render (no dependency list); it only sets state when the number
+  // of items that fit changed, so it settles after one extra render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const container = containerRef.current;
     if (!container) return;
-    const moreButtonWidth = 50;
-    for (let i = itemLocations.length - 1; i >= 0; i -= 1) {
-      const loc = itemLocations[i];
-      if (loc + moreButtonWidth < container.clientWidth) {
-        setToolbarWrapIndex(
-          i - itemLocations.length + settings.toolbarItems.length
-        );
-        if (i === itemLocations.length - 1) {
-          setMoreItems(null);
-        }
+    // a changed item list is measured from scratch (all items shown)
+    const list = [settings.toolbarItems, settings.customToolbarItems];
+    if (
+      measuredItems.current &&
+      (measuredItems.current[0] !== list[0] ||
+        measuredItems.current[1] !== list[1])
+    ) {
+      measuredItems.current = list;
+      itemWidths.current = [];
+      if (visibleCount !== null) {
+        setVisibleCount(null);
+        return;
+      }
+    }
+    measuredItems.current = list;
+    const shown = Math.min(visibleCount ?? toolbarItemCount, toolbarItemCount);
+    const els = Array.from(
+      container.querySelectorAll<HTMLElement>(".fortune-toolbar-item")
+    ).filter((el) => !el.closest(".fortune-toolbar-more"));
+    const customCount = els.length - shown;
+    if (customCount < 0) return;
+    const containerRect = container.getBoundingClientRect();
+    const style = getComputedStyle(container);
+    const padLeft = parseFloat(style.paddingLeft) || 0;
+    const padRight = parseFloat(style.paddingRight) || 0;
+    const rightOf = (el: HTMLElement) =>
+      el.getBoundingClientRect().right - containerRect.left;
+    const start = customCount > 0 ? rightOf(els[customCount - 1]) : padLeft;
+    let prev = start;
+    for (let i = 0; i < shown; i += 1) {
+      const right = rightOf(els[customCount + i]);
+      itemWidths.current[i] = Math.max(0, right - prev);
+      prev = right;
+    }
+    const available = container.clientWidth - padRight;
+    // the More button (and the gap before it)
+    const moreWidth =
+      (container
+        .querySelector<HTMLElement>(".fortune-toolbar-more")
+        ?.getBoundingClientRect().width || 36) + 2;
+    let pos = start;
+    let fit = 0; // items that fit next to the More button
+    let all = true;
+    for (let i = 0; i < toolbarItemCount; i += 1) {
+      pos += itemWidths.current[i] ?? 0;
+      if (pos > available) {
+        all = false;
         break;
       }
+      if (pos + moreWidth <= available) fit = i + 1;
     }
-  }, [itemLocations, setMoreItems, settings.toolbarItems.length, sheetWidth]);
+    // no separator right before the More button
+    while (!all && fit > 0 && settings.toolbarItems[fit - 1] === "|") {
+      fit -= 1;
+    }
+    const next = all ? toolbarItemCount : fit;
+    if (next !== visibleCount) setVisibleCount(next);
+  });
 
   const getToolbarItem = useCallback(
     (name: string, i: number) => {
@@ -217,39 +275,35 @@ const Toolbar: React.FC<{
               color as string
             )
           );
+          // "Reset color" does not change what the button applies
+          if (!color) return;
           if (name === "font-color") {
             refs.globalCache.recentTextColor = color;
           } else {
             refs.globalCache.recentBackgroundColor = color;
           }
         };
+        // Excel's defaults until a colour is picked: red text, yellow fill
+        const recent =
+          (name === "font-color"
+            ? refs.globalCache.recentTextColor
+            : refs.globalCache.recentBackgroundColor) ??
+          (name === "font-color" ? "#ff0000" : "#ffff00");
         return (
           <div style={{ position: "relative" }} key={name}>
             <div
               style={{
                 width: 17,
                 height: 2,
-                backgroundColor:
-                  name === "font-color"
-                    ? refs.globalCache.recentTextColor
-                    : refs.globalCache.recentBackgroundColor,
+                backgroundColor: recent,
                 position: "absolute",
                 bottom: 8,
                 left: 9,
-                zIndex: 100,
+                zIndex: 1,
+                pointerEvents: "none",
               }}
             />
-            <Combo
-              iconId={name}
-              tooltip={tooltip}
-              onClick={() => {
-                const color =
-                  name === "font-color"
-                    ? refs.globalCache.recentTextColor
-                    : refs.globalCache.recentBackgroundColor;
-                if (color) pick(color);
-              }}
-            >
+            <Combo iconId={name} tooltip={tooltip} onClick={() => pick(recent)}>
               {(setOpen) => (
                 <CustomColor
                   onCustomPick={(color) => {
@@ -364,12 +418,11 @@ const Toolbar: React.FC<{
       }
       if (name === "font") {
         let current = fontarray[0];
-        if (cell?.ff != null) {
-          if (_.isNumber(cell.ff)) {
-            current = fontarray[cell.ff];
-          } else {
-            current = cell.ff;
-          }
+        if (cell?.ff != null && cell.ff !== "") {
+          // an index into the font list (as the canvas reads it) or a name
+          current = /^\d+$/.test(String(cell.ff))
+            ? (fontarray[Number(cell.ff)] ?? fontarray[0])
+            : String(cell.ff);
         }
         return (
           <Combo text={current} key={name} tooltip={tooltip}>
@@ -378,9 +431,9 @@ const Toolbar: React.FC<{
                 {fontarray.map((o) => (
                   <Option
                     key={o}
+                    checked={o.toLowerCase() === current.toLowerCase()}
                     onClick={() => {
                       setContext((ctx) => {
-                        current = o;
                         const d = getFlowdata(ctx);
                         if (!d) return;
                         updateFormat(ctx, refs.cellInput.current!, d, "ff", o);
@@ -388,7 +441,8 @@ const Toolbar: React.FC<{
                       setOpen(false);
                     }}
                   >
-                    {o}
+                    {/* each name in its own typeface, as in Excel */}
+                    <span style={{ fontFamily: `"${o}"` }}>{o}</span>
                   </Option>
                 ))}
               </Select>
@@ -397,32 +451,44 @@ const Toolbar: React.FC<{
         );
       }
       if (name === "font-size") {
+        const size = String(
+          cell
+            ? normalizedCellAttr(cell, "fs", context.defaultFontSize)
+            : context.defaultFontSize
+        );
+        const applySize = (num: number) =>
+          setContext((draftContext) =>
+            handleTextSize(
+              draftContext,
+              refs.cellInput.current!,
+              num,
+              refs.canvas.current!.getContext("2d")!
+            )
+          );
         return (
           <Combo
-            text={
-              cell
-                ? normalizedCellAttr(cell, "fs", context.defaultFontSize)
-                : context.defaultFontSize.toString()
-            }
+            text={size}
             key={name}
             tooltip={tooltip}
+            // a typed size, as in Excel (1 to 409 points, halves allowed)
+            onCommit={(typed) => {
+              const num = Math.round(Number(typed.trim()) * 2) / 2;
+              if (Number.isFinite(num) && num >= 1 && num <= 409) {
+                applySize(num);
+              }
+            }}
           >
             {(setOpen) => (
               <Select>
+                {/* Excel's list */}
                 {[
-                  9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72,
+                  8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72,
                 ].map((num) => (
                   <Option
                     key={num}
+                    checked={String(num) === size}
                     onClick={() => {
-                      setContext((draftContext) =>
-                        handleTextSize(
-                          draftContext,
-                          refs.cellInput.current!,
-                          num,
-                          refs.canvas.current!.getContext("2d")!
-                        )
-                      );
+                      applySize(num);
                       setOpen(false);
                     }}
                   >
@@ -1133,9 +1199,11 @@ const Toolbar: React.FC<{
                   )
                 )}
                 <CustomBorder
+                  color={customColor}
+                  style={customStyle}
                   onPick={(color, style) => {
-                    setcustomColor(color as string);
-                    setcustomStyle(style as string);
+                    setcustomColor(color);
+                    setcustomStyle(style);
                   }}
                 />
               </Select>
@@ -1341,6 +1409,9 @@ const Toolbar: React.FC<{
       if (name === "filter") {
         return <SortFilterCombo tooltip={toolbar.sortAndFilter} key={name} />;
       }
+      if (name === "theme") {
+        return <ThemeSwitch key={name} />;
+      }
       return (
         <Button
           iconId={name}
@@ -1397,6 +1468,47 @@ const Toolbar: React.FC<{
     ]
   );
 
+  // Left / Right / Home / End move between the buttons of the bar (as in a
+  // toolbar); inside menus and the More panel the keys stay theirs
+  const onToolbarKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const target = e.target as HTMLElement;
+    if (
+      target.getAttribute("role") !== "button" ||
+      target.closest(
+        ".fortune-toolbar-combo-popup, .fortune-toolbar-more-container"
+      )
+    ) {
+      return;
+    }
+    const buttons = Array.from(
+      e.currentTarget.querySelectorAll<HTMLElement>('[role="button"]')
+    ).filter(
+      (el) =>
+        el.tabIndex >= 0 &&
+        !el.closest(
+          ".fortune-toolbar-combo-popup, .fortune-toolbar-more-container"
+        )
+    );
+    const index = buttons.indexOf(target);
+    if (index < 0) return;
+    let next = index;
+    if (e.key === "ArrowRight") next = (index + 1) % buttons.length;
+    else if (e.key === "ArrowLeft")
+      next = (index - 1 + buttons.length) % buttons.length;
+    else if (e.key === "Home") next = 0;
+    else next = buttons.length - 1;
+    e.preventDefault();
+    e.stopPropagation();
+    buttons[next].focus();
+  };
+
+  const shownCount = Math.min(
+    visibleCount ?? settings.toolbarItems.length,
+    settings.toolbarItems.length
+  );
+
   return (
     <header>
       <div
@@ -1404,6 +1516,7 @@ const Toolbar: React.FC<{
         className="fortune-toolbar"
         role="toolbar"
         aria-label={toolbar.toolbar}
+        onKeyDown={onToolbarKeyDown}
       >
         {settings.customToolbarItems.map((n) => {
           return (
@@ -1421,27 +1534,31 @@ const Toolbar: React.FC<{
         {settings.customToolbarItems?.length > 0 ? (
           <Divider key="customDivider" />
         ) : null}
-        {(toolbarWrapIndex === -1
-          ? settings.toolbarItems
-          : settings.toolbarItems.slice(0, toolbarWrapIndex + 1)
-        ).map((name, i) => getToolbarItem(name, i))}
-        {toolbarWrapIndex !== -1 &&
-        toolbarWrapIndex < settings.toolbarItems.length - 1 ? (
-          <Button
-            iconId="more"
-            tooltip={toolbar.toolMore}
-            onClick={() => {
-              if (moreItemsOpen) {
-                setMoreItems(null);
-              } else {
-                setMoreItems(
-                  settings.toolbarItems
-                    .slice(toolbarWrapIndex + 1)
-                    .map((name, i) => getToolbarItem(name, i))
-                );
-              }
-            }}
-          />
+        {settings.toolbarItems
+          .slice(0, shownCount)
+          .map((name, i) => getToolbarItem(name, i))}
+        {shownCount < settings.toolbarItems.length ? (
+          <div ref={moreRef} className="fortune-toolbar-more">
+            <Button
+              iconId="more"
+              tooltip={toolbar.toolMore}
+              expanded={moreOpen}
+              buttonRef={moreButtonRef}
+              onClick={(e) => onMoreClick(e, () => setMoreOpen((o) => !o))}
+            />
+            {moreOpen && (
+              // rendered with the toolbar, so the overflow items show the
+              // current state (bold, font size, undo, ...) like the bar
+              <MoreItemsContainer
+                ref={morePanelRef}
+                label={toolbar.toolMoreTip}
+              >
+                {settings.toolbarItems
+                  .slice(shownCount)
+                  .map((name, i) => getToolbarItem(name, i + shownCount))}
+              </MoreItemsContainer>
+            )}
+          </div>
         ) : null}
       </div>
     </header>

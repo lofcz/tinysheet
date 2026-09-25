@@ -673,12 +673,6 @@ function offsetOf(sizes: number[], i: number) {
   return i <= 0 ? 0 : (sizes[i - 1] ?? 0);
 }
 
-/** First index whose cumulative end offset is greater than `px`. */
-function indexAtOffset(sizes: number[], px: number, length: number) {
-  const i = _.sortedLastIndex(sizes, px);
-  return clamp(i, 0, length - 1);
-}
-
 /**
  * PageDown/PageUp (axis "row") and Alt+PageDown/PageUp (axis "col"): move the
  * active cell and the viewport by one screen. Shift extends the selection.
@@ -710,12 +704,32 @@ export function moveByPage(
     from = axis === "row" ? active[0] : active[1];
   }
 
+  // Like Excel: scroll by the rows (columns) that fill the window, keeping
+  // the window aligned to them, and move the active cell by as many, so it
+  // stays where it was on screen.
+  const scroll = axis === "row" ? ctx.scrollTop : ctx.scrollLeft;
   let target: number;
+  let nextScroll = scroll;
   if (!sizes || sizes.length === 0) {
     target = clamp(from + dir * 20, 0, length - 1);
   } else {
-    const px = offsetOf(sizes, from) + dir * page;
-    target = px < 0 ? 0 : indexAtOffset(sizes, px, length);
+    // the first row of the scrolling pane in the window, and how many fit
+    const start = scroll + frozenPx;
+    const first = clamp(_.sortedLastIndex(sizes, start), 0, length - 1);
+    // down: the rows from the top of the window; up: the rows that fill
+    // the window above it
+    const top = offsetOf(sizes, first);
+    const fit = Math.max(
+      1,
+      dir > 0
+        ? _.sortedLastIndex(sizes, top + page) - first
+        : top - page <= 0
+          ? first
+          : first - (_.sortedIndex(sizes, top - page) + 1)
+    );
+    const nextFirst = clamp(first + dir * fit, frozenCount, length - 1);
+    nextScroll = Math.max(0, offsetOf(sizes, nextFirst) - frozenPx);
+    target = clamp(from + (nextFirst - first || dir * fit), 0, length - 1);
   }
   if (isHidden(target)) {
     target =
@@ -725,9 +739,9 @@ export function moveByPage(
   }
 
   if (axis === "row") {
-    ctx.scrollTop = Math.max(0, ctx.scrollTop + dir * page);
+    ctx.scrollTop = nextScroll;
   } else {
-    ctx.scrollLeft = Math.max(0, ctx.scrollLeft + dir * page);
+    ctx.scrollLeft = nextScroll;
   }
 
   if (extend && anchorInfo) {

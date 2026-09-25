@@ -228,8 +228,30 @@ const FilterMenu: React.FC = () => {
     });
   }, [setContext]);
 
-  // clicks in the menu or its submenus (rendered beside it) keep it open
+  // clicks in the menu or its submenus (rendered beside it) keep it open;
+  // Escape and a resized window close it
+  const filterMenuOpen = context.filterContextMenu != null;
   useEffect(() => {
+    if (!filterMenuOpen) return undefined;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      // a dialog opened from the menu (Custom Filter…) closes first
+      if ((e.target as Element | null)?.closest?.('[role="dialog"]')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+      refs.cellInput.current?.focus({ preventScroll: true });
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [filterMenuOpen, close, refs.cellInput]);
+
+  useEffect(() => {
+    if (!filterMenuOpen) return undefined;
     const onMouseDown = (e: MouseEvent) => {
       const target = e.target as Node;
       if (
@@ -243,7 +265,7 @@ const FilterMenu: React.FC = () => {
     };
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [close]);
+  }, [close, filterMenuOpen]);
 
   const initialExpand = useCallback((key: string) => {
     const expand = dateTreeExpandState.current[key];
@@ -569,22 +591,17 @@ const FilterMenu: React.FC = () => {
     const menuW = rect.width;
     // menu最小高度
     const menuH = 350;
-    let top = filterContextMenu.y;
-    let left = filterContextMenu.x;
-
-    let hasOverflow = false;
-    if (workbookRect.left + left + menuW > winW) {
-      left -= menuW;
-      hasOverflow = true;
-    }
-    if (workbookRect.top + top + menuH > winH) {
-      top -= menuH;
-      hasOverflow = true;
-    }
-    if (top < 0) {
-      top = 0;
-      hasOverflow = true;
-    }
+    // below / right of the filter button; flipped when it does not fit, and
+    // kept against the window edge when neither side fits
+    const place = (at: number, size: number, offset: number, win: number) => {
+      if (offset + at + size <= win) return at;
+      if (offset + at - size >= 0) return at - size;
+      return Math.max(-offset, win - size - offset);
+    };
+    const left = place(filterContextMenu.x, menuW, workbookRect.left, winW);
+    const top = place(filterContextMenu.y, menuH, workbookRect.top, winH);
+    const hasOverflow =
+      left !== filterContextMenu.x || top !== filterContextMenu.y;
     // 适配小屏
     let containerH = winH - rect.top - 350;
     if (containerH < 0) {

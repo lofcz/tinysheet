@@ -213,6 +213,13 @@ const ContextMenu: React.FC = () => {
     if (!open) setSubmenu(null);
   }, [open]);
 
+  // a resized window moves the grid under the menu: close it, as Excel does
+  useEffect(() => {
+    if (!open) return undefined;
+    window.addEventListener("resize", close);
+    return () => window.removeEventListener("resize", close);
+  }, [open, close]);
+
   const sel = context.luckysheet_select_save;
   const last = sel?.[sel.length - 1];
   const multi = (sel?.length ?? 0) > 1;
@@ -1156,23 +1163,19 @@ const ContextMenu: React.FC = () => {
     }
     const menuW = rect.width;
     const menuH = rect.height;
-    let top = contextMenu.y || 0;
-    let left = contextMenu.x || 0;
-
-    let hasOverflow = false;
-    if (workbookRect.left + left + menuW > winW) {
-      left -= menuW;
-      hasOverflow = true;
-    }
-    if (workbookRect.top + top + menuH > winH) {
-      top -= menuH;
-      hasOverflow = true;
-    }
-    if (top < 0) {
-      top = 0;
-      hasOverflow = true;
-    }
-    if (hasOverflow) {
+    const x = contextMenu.x || 0;
+    const y = contextMenu.y || 0;
+    // As in Excel: open to the right of / below the pointer; flip to the
+    // other side when it does not fit, and when neither side fits keep it
+    // against the window edge. Coordinates are relative to the workbook.
+    const place = (at: number, size: number, offset: number, win: number) => {
+      if (offset + at + size <= win) return at;
+      if (offset + at - size >= 0) return at - size;
+      return Math.max(-offset, win - size - offset);
+    };
+    const left = place(x, menuW, workbookRect.left, winW);
+    const top = place(y, menuH, workbookRect.top, winH);
+    if (left !== x || top !== y) {
       setContext((draftCtx) => {
         draftCtx.contextMenu.x = left;
         draftCtx.contextMenu.y = top;

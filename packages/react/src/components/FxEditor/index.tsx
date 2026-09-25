@@ -197,39 +197,45 @@ const FxEditor: React.FC = () => {
     ]
   );
 
-  const onChange = useCallback(() => {
-    const e = lastKeyDownEventRef.current;
-    if (!e) return;
-    const kcode = e.keyCode;
-    if (!kcode) return;
+  const onChange = useCallback(
+    (__: string, isBlur?: boolean) => {
+      // leaving the bar changes nothing: its text was handled as it was typed
+      // (or written by Point mode / the cell editor)
+      if (isBlur) return;
+      const e = lastKeyDownEventRef.current;
+      if (!e) return;
+      const kcode = e.keyCode;
+      if (!kcode) return;
 
-    if (
-      !(
-        (kcode >= 112 && kcode <= 123) ||
-        kcode <= 46 ||
-        kcode === 144 ||
-        kcode === 108 ||
-        e.ctrlKey ||
-        e.altKey ||
-        (e.shiftKey &&
-          (kcode === 37 || kcode === 38 || kcode === 39 || kcode === 40))
-      ) ||
-      kcode === 8 ||
-      kcode === 32 ||
-      kcode === 46 ||
-      (e.ctrlKey && kcode === 86)
-    ) {
-      setContext((draftCtx) => {
-        handleFormulaInput(
-          draftCtx,
-          refs.cellInput.current!,
-          refs.fxInput.current!,
-          kcode,
-          recentText.current
-        );
-      });
-    }
-  }, [refs.cellInput, refs.fxInput, setContext]);
+      if (
+        !(
+          (kcode >= 112 && kcode <= 123) ||
+          kcode <= 46 ||
+          kcode === 144 ||
+          kcode === 108 ||
+          e.ctrlKey ||
+          e.altKey ||
+          (e.shiftKey &&
+            (kcode === 37 || kcode === 38 || kcode === 39 || kcode === 40))
+        ) ||
+        kcode === 8 ||
+        kcode === 32 ||
+        kcode === 46 ||
+        (e.ctrlKey && kcode === 86)
+      ) {
+        setContext((draftCtx) => {
+          handleFormulaInput(
+            draftCtx,
+            refs.cellInput.current!,
+            refs.fxInput.current!,
+            kcode,
+            recentText.current
+          );
+        });
+      }
+    },
+    [refs.cellInput, refs.fxInput, setContext]
+  );
 
   const allowEdit = useMemo(() => {
     if (context.allowEdit === false) {
@@ -280,6 +286,7 @@ const FxEditor: React.FC = () => {
             onFocus={onFocus}
             onKeyDown={onKeyDown}
             onKeyUp={formulaKeys.onKeyUp}
+            onMouseDown={formulaKeys.onMouseDown}
             onMouseUp={formulaKeys.onMouseUp}
             onChange={onChange}
             onBlur={() => setFocused(false)}

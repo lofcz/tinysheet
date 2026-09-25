@@ -23,6 +23,7 @@ import type {
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
+import { useDialogBehavior } from "../../hooks/useDialogBehavior";
 import NumberTab, { NumberState, numberStateCode } from "./NumberTab";
 import AlignmentTab, { AlignmentState } from "./AlignmentTab";
 import FontTab, { FontState } from "./FontTab";
@@ -123,6 +124,7 @@ const FormatCells: React.FC = () => {
   });
   const [invalid, setInvalid] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const currency = context.currency || "$";
 
   useEffect(() => {
@@ -130,6 +132,12 @@ const FormatCells: React.FC = () => {
       ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
       ?.focus();
   }, []);
+  // keyboard stays in the dialog (Ctrl+1 opens it while the sheet still
+  // holds the focus); the title bar drags it. Escape is handled below.
+  useDialogBehavior(backdropRef, {
+    modal: true,
+    getDragTarget: () => dialogRef.current,
+  });
 
   const close = useCallback(() => {
     setContext((ctx) => closeFormatCells(ctx), { noHistory: true });
@@ -254,6 +262,7 @@ const FormatCells: React.FC = () => {
 
   return (
     <div
+      ref={backdropRef}
       className="fortune-popover-backdrop fortune-modal-container"
       data-theme={context.theme || "light"}
       onMouseDown={(e) => e.stopPropagation()}

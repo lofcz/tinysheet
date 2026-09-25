@@ -24,8 +24,32 @@ const Dialog: React.FC<Props> = ({
 }) => {
   const { context } = useContext(WorkbookContext);
   const { button } = locale(context);
+  // Enter confirms, as a dialog's default button does (controls that use
+  // Enter themselves, e.g. buttons and multi-line inputs, keep it)
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (type == null || e.key !== "Enter" || e.defaultPrevented) return;
+    if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.nativeEvent.isComposing) return;
+    const target = e.target as HTMLElement;
+    if (
+      target.closest(
+        "textarea, select, button, a, [role=button], [role=menuitem], [contenteditable=true]"
+      )
+    ) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    onOk?.();
+  };
   return (
-    <div className="fortune-dialog" style={containerStyle} role="dialog">
+    <div
+      className="fortune-dialog"
+      style={containerStyle}
+      role="dialog"
+      aria-modal="true"
+      onKeyDown={onKeyDown}
+    >
       <div className="fortune-modal-dialog-header">
         <div
           className="fortune-modal-dialog-icon-close"

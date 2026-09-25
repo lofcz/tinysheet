@@ -5,7 +5,7 @@ import { Context, getFlowdata } from "../context";
 import {
   colLocation,
   colLocationByIndex,
-  mousePosition,
+  getGridPoint,
   rowLocation,
   rowLocationByIndex,
 } from "./location";
@@ -487,14 +487,20 @@ const dragCellThreshold = 8;
 
 function getCellLocationByMouse(
   ctx: Context,
+  globalCache: GlobalCache,
   e: MouseEvent,
-  scrollbarX: HTMLDivElement,
-  scrollbarY: HTMLDivElement,
-  container: HTMLDivElement
+  container: HTMLDivElement,
+  clamp = false
 ) {
-  const rect = container.getBoundingClientRect();
-  const x = e.pageX - rect.left - ctx.rowHeaderWidth + scrollbarX.scrollLeft;
-  const y = e.pageY - rect.top - ctx.columnHeaderHeight + scrollbarY.scrollTop;
+  // past the grid's edge (auto-scrolling): the last visible row / column
+  const anchor = _.last(ctx.luckysheet_select_save);
+  const { x, y } = getGridPoint(
+    ctx,
+    globalCache.freezen?.[ctx.currentSheetId],
+    e,
+    container,
+    { clamp, anchorRow: anchor?.row_focus, anchorCol: anchor?.column_focus }
+  );
 
   return {
     row: rowLocation(y, ctx.visibledatarow),
@@ -525,7 +531,7 @@ export function onCellsMoveStart(
   let {
     row: [row_pre, row, row_index],
     column: [col_pre, col, col_index],
-  } = getCellLocationByMouse(ctx, e, scrollbarX, scrollbarY, container);
+  } = getCellLocationByMouse(ctx, globalCache, e, container);
 
   const range = _.last(ctx.luckysheet_select_save);
   if (range == null) return;
@@ -569,18 +575,12 @@ export function onCellsMove(
     }
     globalCache.dragCellStartPos = undefined;
   }
-  const [x, y] = mousePosition(e.pageX, e.pageY, ctx);
-
-  const rect = container.getBoundingClientRect();
-  const winH = rect.height - 20 * ctx.zoomRatio;
-  const winW = rect.width - 60 * ctx.zoomRatio;
-
   const { row: rowL, column } = getCellLocationByMouse(
     ctx,
+    globalCache,
     e,
-    scrollbarX,
-    scrollbarY,
-    container
+    container,
+    true
   );
   let [row_pre, row] = rowL;
   let [col_pre, col] = column;
@@ -600,21 +600,21 @@ export function onCellsMove(
   let col_e =
     ctx.luckysheet_select_save[0].column[1] - col_index_original + col_index;
 
-  if (row_s < 0 || y < 0) {
+  if (row_s < 0) {
     row_s = 0;
     row_e =
       ctx.luckysheet_select_save[0].row[1] -
       ctx.luckysheet_select_save[0].row[0];
   }
 
-  if (col_s < 0 || x < 0) {
+  if (col_s < 0) {
     col_s = 0;
     col_e =
       ctx.luckysheet_select_save[0].column[1] -
       ctx.luckysheet_select_save[0].column[0];
   }
 
-  if (row_e >= ctx.visibledatarow.length - 1 || y > winH) {
+  if (row_e >= ctx.visibledatarow.length - 1) {
     row_s =
       ctx.visibledatarow.length -
       1 -
@@ -623,7 +623,7 @@ export function onCellsMove(
     row_e = ctx.visibledatarow.length - 1;
   }
 
-  if (col_e >= ctx.visibledatacolumn.length - 1 || x > winW) {
+  if (col_e >= ctx.visibledatacolumn.length - 1) {
     col_s =
       ctx.visibledatacolumn.length -
       1 -
@@ -664,25 +664,11 @@ export function onCellsMoveEnd(
     return;
   }
 
-  const [x, y] = mousePosition(e.pageX, e.pageY, ctx);
-
-  // if (
-  //   !checkProtectionLockedRangeList(
-  //     ctx.luckysheet_select_save,
-  //     ctx.currentSheetIndex
-  //   )
-  // ) {
-  //   return;
-  // }
-
-  const rect = container.getBoundingClientRect();
-  const winH = rect.height - 20 * ctx.zoomRatio;
-  const winW = rect.width - 60 * ctx.zoomRatio;
-
+  // released past the grid's edge: the last visible row / column
   const {
     row: [, , row_index],
     column: [, , col_index],
-  } = getCellLocationByMouse(ctx, e, scrollbarX, scrollbarY, container);
+  } = getCellLocationByMouse(ctx, globalCache, e, container, true);
 
   const allowEdit = isAllowEdit(ctx, [
     {
@@ -749,22 +735,22 @@ export function onCellsMoveEnd(
   //   return;
   // }
 
-  if (row_s < 0 || y < 0) {
+  if (row_s < 0) {
     row_s = 0;
     row_e = last.row[1] - last.row[0];
   }
 
-  if (col_s < 0 || x < 0) {
+  if (col_s < 0) {
     col_s = 0;
     col_e = last.column[1] - last.column[0];
   }
 
-  if (row_e >= ctx.visibledatarow.length - 1 || y > winH) {
+  if (row_e >= ctx.visibledatarow.length - 1) {
     row_s = ctx.visibledatarow.length - 1 - last.row[1] + last.row[0];
     row_e = ctx.visibledatarow.length - 1;
   }
 
-  if (col_e >= ctx.visibledatacolumn.length - 1 || x > winW) {
+  if (col_e >= ctx.visibledatacolumn.length - 1) {
     col_s = ctx.visibledatacolumn.length - 1 - last.column[1] + last.column[0];
     col_e = ctx.visibledatacolumn.length - 1;
   }

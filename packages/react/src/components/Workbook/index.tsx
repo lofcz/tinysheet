@@ -33,7 +33,7 @@ import {
   runRecalcSlice,
   setRecalcScheduler,
 } from "@lofcz/tinysheet-core";
-import type { History } from "@lofcz/tinysheet-core";
+import type { History, ThemeSetting } from "@lofcz/tinysheet-core";
 import { flushSync } from "react-dom";
 import React, {
   useMemo,
@@ -62,7 +62,6 @@ import ContextMenu from "../ContextMenu";
 import SVGDefines from "../SVGDefines";
 import SheetTabContextMenu from "../ContextMenu/SheetTab";
 import DataToolsLayer from "../DataVerification/DataToolsLayer";
-import MoreItemsContaier from "../Toolbar/MoreItemsContainer";
 import { generateAPIs } from "./api";
 import { ModalProvider } from "../../context/modal";
 import FilterMenu from "../ContextMenu/FilterMenu";
@@ -76,6 +75,7 @@ enablePatches();
 // Prop-less children as constant elements: React skips them when the
 // Workbook re-renders, and the TrackedScope around each re-renders them only
 // for the context fields they read.
+const TOOLBAR = <Toolbar />;
 const FX_EDITOR = <FxEditor />;
 const SHEET_TAB = <SheetTab />;
 const SHEET_LIST = <SheetList />;
@@ -91,6 +91,12 @@ export type WorkbookInstance = ReturnType<typeof generateAPIs>;
 type AdditionalProps = {
   onChange?: (data: SheetType[]) => void;
   onOp?: (op: Op[]) => void;
+  /**
+   * The user picked a theme with the toolbar's theme switch. Uncontrolled
+   * workbooks (no `theme` prop) have already switched; a controlled one
+   * shows the new theme once the host passes it back as `theme`.
+   */
+  onThemeChange?: (theme: ThemeSetting) => void;
 };
 
 /** Run `cb` when the browser is idle (after paint); returns a canceller. */
@@ -131,7 +137,7 @@ function shallowEqualProps(
 }
 
 const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
-  ({ onChange, onOp, data: originalData, ...props }, ref) => {
+  ({ onChange, onOp, onThemeChange, data: originalData, ...props }, ref) => {
     const globalCache = useRef<GlobalCache>({ undoList: [], redoList: [] });
     const cellInput = useRef<HTMLDivElement>(null);
     const fxInput = useRef<HTMLDivElement>(null);
@@ -161,9 +167,6 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     const [context, setContext] = useState(() => defaultContext(refs));
     const { info } = locale(context);
 
-    const [moreToolbarItems, setMoreToolbarItems] =
-      useState<React.ReactNode>(null);
-
     // Recompute when any prop changes, including props added or removed after
     // mount (a values-array dependency list would change length and be
     // ignored by React).
@@ -173,10 +176,36 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       settingsProps.current = props;
       settingsVersion.current += 1;
     }
-    const mergedSettings = useMemo(
+    const propSettings = useMemo(
       () => _.assign(_.cloneDeep(defaultSettings), props) as Required<Settings>,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [settingsVersion.current]
+    );
+
+    // Colour theme: controlled by the `theme` prop when it is set, otherwise
+    // workbook state that starts from `defaultTheme` and follows the
+    // toolbar's theme switch. `settings.theme` is always the one in effect.
+    const [uncontrolledTheme, setUncontrolledTheme] = useState<ThemeSetting>(
+      () => props.defaultTheme ?? defaultSettings.defaultTheme
+    );
+    const controlledTheme = props.theme;
+    const themeSetting: ThemeSetting = controlledTheme ?? uncontrolledTheme;
+    const mergedSettings = useMemo(
+      () =>
+        propSettings.theme === themeSetting
+          ? propSettings
+          : { ...propSettings, theme: themeSetting },
+      [propSettings, themeSetting]
+    );
+    const onThemeChangeRef = useRef(onThemeChange);
+    onThemeChangeRef.current = onThemeChange;
+    const themeControlled = controlledTheme != null;
+    const setTheme = useCallback(
+      (theme: ThemeSetting) => {
+        if (!themeControlled) setUncontrolledTheme(theme);
+        onThemeChangeRef.current?.(theme);
+      },
+      [themeControlled]
     );
 
     // Keep hooks on a ref so selection / settings effects do not re-subscribe
@@ -383,9 +412,17 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         settings: mergedSettings,
         handleUndo,
         handleRedo,
+        setTheme,
         refs,
       }),
-      [handleRedo, handleUndo, mergedSettings, refs, setContextWithProduce]
+      [
+        handleRedo,
+        handleUndo,
+        mergedSettings,
+        refs,
+        setContextWithProduce,
+        setTheme,
+      ]
     );
     const providerValue = useMemo(
       () => ({ context, ...workbookApi }),
@@ -732,9 +769,14 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       [context, setContextWithProduce]
     );
 
-    const onMoreToolbarItemsClose = useCallback(() => {
-      setMoreToolbarItems(null);
-    }, []);
+    // context menus (cell, header, filter, sheet tab, sheet list)
+    const closePopovers = useCallback(() => {
+      setContextWithProduce((draftCtx) => {
+        draftCtx.contextMenu = {};
+        draftCtx.filterContextMenu = undefined;
+        draftCtx.showSheetList = undefined;
+      });
+    }, [setContextWithProduce]);
 
     useEffect(() => {
       document.addEventListener("paste", onPaste);
@@ -778,25 +820,6 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     // Stable elements, each in its own TrackedScope: a Workbook render (on
     // every context change) skips them, and each re-renders only when the
     // context fields it reads change.
-    const moreItemsOpen = moreToolbarItems !== null;
-    const toolbar = useMemo(
-      () => (
-        <Toolbar
-          moreItemsOpen={moreItemsOpen}
-          setMoreItems={setMoreToolbarItems}
-        />
-      ),
-      [moreItemsOpen]
-    );
-    const moreItems = useMemo(
-      () =>
-        moreToolbarItems && (
-          <MoreItemsContaier onClose={onMoreToolbarItemsClose}>
-            {moreToolbarItems}
-          </MoreItemsContaier>
-        ),
-      [moreToolbarItems, onMoreToolbarItemsClose]
-    );
 
     const i = getSheetIndex(context, context.currentSheetId);
     if (i == null) {
@@ -843,7 +866,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             {svgDefines}
             <div className="fortune-workarea">
               {mergedSettings.showToolbar && (
-                <TrackedScope>{toolbar}</TrackedScope>
+                <TrackedScope>{TOOLBAR}</TrackedScope>
               )}
               {mergedSettings.showFormulaBar && (
                 <TrackedScope>{FX_EDITOR}</TrackedScope>
@@ -861,16 +884,11 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               <TrackedScope>{FORMAT_CELLS}</TrackedScope>
             )}
             {context.showSheetList && <TrackedScope>{SHEET_LIST}</TrackedScope>}
-            {moreItems && <TrackedScope>{moreItems}</TrackedScope>}
             {!_.isEmpty(context.contextMenu) && (
               <div
-                onMouseDown={() => {
-                  setContextWithProduce((draftCtx) => {
-                    draftCtx.contextMenu = {};
-                    draftCtx.filterContextMenu = undefined;
-                    draftCtx.showSheetList = undefined;
-                  });
-                }}
+                onMouseDown={closePopovers}
+                // scrolling the page under an open menu closes it
+                onWheel={closePopovers}
                 onMouseMove={(e) => e.stopPropagation()}
                 onMouseUp={(e) => e.stopPropagation()}
                 onContextMenu={(e) => {

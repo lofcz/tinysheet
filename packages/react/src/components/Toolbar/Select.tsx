@@ -18,6 +18,8 @@ type OptionProps = {
   iconId?: string;
   onMouseLeave?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   onMouseEnter?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
+  /** One of a set of choices (e.g. a theme): announced as a radio item. */
+  checked?: boolean;
 };
 
 const Option: React.FC<React.PropsWithChildren<OptionProps>> = ({
@@ -26,13 +28,15 @@ const Option: React.FC<React.PropsWithChildren<OptionProps>> = ({
   children,
   onMouseLeave,
   onMouseEnter,
+  checked,
 }) => {
   return (
     <div
       onClick={onClick}
       onKeyDown={activateOnKey}
       tabIndex={0}
-      role="menuitem"
+      role={checked === undefined ? "menuitem" : "menuitemradio"}
+      aria-checked={checked}
       className="fortune-toolbar-select-option"
       onMouseLeave={(e) => onMouseLeave?.(e)}
       onMouseEnter={(e) => onMouseEnter?.(e)}

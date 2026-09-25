@@ -12,6 +12,11 @@
   gap: 1px;
 }
 
+.fortune-toolbar .fortune-toolbar-item {
+  /* the overflow into "More" is computed from the items' natural widths */
+  flex-shrink: 0;
+}
+
 .fortune-toolbar-divider {
   width: 1px;
   height: 20px;
@@ -73,6 +78,32 @@
 
 .fortune-toolbar-combo-arrow {
   padding: 0;
+}
+
+/* Excel's font size box: typed into, the arrow opens the list */
+.fortune-toolbar-combo-input {
+  width: 30px;
+  height: calc(100% - 6px);
+  box-sizing: border-box;
+  margin: 0 1px 0 2px;
+  padding: 0 3px;
+  border: 1px solid transparent;
+  border-radius: var(--fortune-radius-sm);
+  background: transparent;
+  color: var(--fortune-text);
+  font: inherit;
+  font-size: var(--fortune-font-size-sm);
+  text-align: center;
+  outline: none;
+}
+
+.fortune-toolbar-combo-input:hover {
+  border-color: var(--fortune-border);
+}
+
+.fortune-toolbar-combo-input:focus {
+  border-color: var(--fortune-accent);
+  background: var(--fortune-bg-elevated);
 }
 
 .fortune-toolbar-button:hover,
@@ -172,8 +203,14 @@
   background: var(--fortune-bg-hover);
 }
 
-.fortune-toolbar-select-option[aria-selected="true"] {
+.fortune-toolbar-select-option[aria-selected="true"],
+.fortune-toolbar-select-option[aria-checked="true"] {
   background: var(--fortune-accent-soft);
+}
+
+.fortune-toolbar-select-option[aria-checked="true"]:hover,
+.fortune-toolbar-select-option[aria-checked="true"]:focus-visible {
+  background: var(--fortune-bg-hover);
 }
 
 .fortune-toolbar-color-picker-row {
@@ -225,15 +262,22 @@
   transition-delay: 0.4s;
 }
 
+.fortune-toolbar-more {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* under the More button, right-aligned to it */
 .fortune-toolbar-more-container {
   position: absolute;
   display: flex;
   flex-direction: row;
   align-items: center;
-  align-self: flex-end;
-  margin-right: 40px;
-  top: 40px;
-  max-width: 348px;
+  top: calc(100% + 4px);
+  right: 0;
+  width: max-content;
+  max-width: min(348px, calc(100vw - 8px));
+  white-space: nowrap;
   padding: var(--fortune-space-1);
   box-shadow: var(--fortune-shadow);
   border: 1px solid var(--fortune-border);
@@ -356,7 +400,29 @@
   padding: 0px 10px;
 }
 
-.fortune-border-style-picker-menu:hover {
+.fortune-border-style-picker-menu:hover,
+.fortune-border-style-picker-menu:focus-visible,
+.fortune-border-select-option:focus-visible {
   background: var(--fortune-bg-hover);
   cursor: pointer;
+  outline: none;
+}
+
+.fortune-border-style-picker-menu.fortune-border-style-current {
+  background: var(--fortune-accent-soft);
+}
+
+.fortune-theme-option {
+  justify-content: flex-start;
+  gap: var(--fortune-space-2);
+  min-width: 120px;
+}
+
+.fortune-theme-option-text {
+  flex: 1;
+}
+
+.fortune-theme-check {
+  width: 12px;
+  color: var(--fortune-accent-text);
 }

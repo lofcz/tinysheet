@@ -2,8 +2,8 @@ import _ from "lodash";
 import { checkProtection } from "./protection";
 
 import { Context, getFlowdata } from "../context";
-import { Cell, CellMatrix, Rect } from "../types";
-import { colLocation, rowLocation } from "./location";
+import { Cell, CellMatrix, Freezen, Rect } from "../types";
+import { colLocation, getGridPoint, rowLocation } from "./location";
 import { getSheetIndex, isAllowEdit } from "../utils";
 import { getBorderInfoCompute } from "./border";
 import { genarate, update } from "./format";
@@ -65,15 +65,13 @@ export function hideDropCellSelection(container: HTMLDivElement) {
 export function createDropCellRange(
   ctx: Context,
   e: MouseEvent,
-  container: HTMLDivElement
+  container: HTMLDivElement,
+  freeze?: Freezen
 ) {
   ctx.luckysheet_cell_selected_extend = true;
   ctx.luckysheet_scroll_status = true;
 
-  const { scrollLeft, scrollTop } = ctx;
-  const rect = container.getBoundingClientRect();
-  const x = e.pageX - rect.left - ctx.rowHeaderWidth + scrollLeft;
-  const y = e.pageY - rect.top - ctx.columnHeaderHeight + scrollTop;
+  const { x, y } = getGridPoint(ctx, freeze, e, container);
 
   const row_location = rowLocation(y, ctx.visibledatarow);
   const row_pre = row_location[0];
@@ -102,13 +100,16 @@ export function onDropCellSelect(
   e: MouseEvent,
   scrollX: HTMLDivElement,
   scrollY: HTMLDivElement,
-  container: HTMLDivElement
+  container: HTMLDivElement,
+  freeze?: Freezen
 ) {
-  const { scrollLeft } = scrollX;
-  const { scrollTop } = scrollY;
-  const rect = container.getBoundingClientRect();
-  const x = e.pageX - rect.left - ctx.rowHeaderWidth + scrollLeft;
-  const y = e.pageY - rect.top - ctx.columnHeaderHeight + scrollTop;
+  // past the grid's edge (auto-scrolling): the last visible row / column
+  const anchor = ctx.luckysheet_select_save?.[0];
+  const { x, y } = getGridPoint(ctx, freeze, e, container, {
+    clamp: true,
+    anchorRow: anchor?.row[0],
+    anchorCol: anchor?.column[0],
+  });
 
   const row_location = rowLocation(y, ctx.visibledatarow);
   const row = row_location[1];
@@ -434,15 +435,19 @@ function rangeHasMerge(d: CellMatrix, rows: number[], cols: number[]): boolean {
 export function onDropCellSelectEnd(
   ctx: Context,
   e: MouseEvent,
-  container: HTMLDivElement
+  container: HTMLDivElement,
+  freeze?: Freezen
 ) {
   ctx.luckysheet_cell_selected_extend = false;
   hideDropCellSelection(container);
 
-  const { scrollLeft, scrollTop } = ctx;
-  const rect = container.getBoundingClientRect();
-  const x = e.pageX - rect.left - ctx.rowHeaderWidth + scrollLeft;
-  const y = e.pageY - rect.top - ctx.columnHeaderHeight + scrollTop;
+  // released past the grid's edge: the last visible row / column
+  const anchor = ctx.luckysheet_select_save?.[0];
+  const { x, y } = getGridPoint(ctx, freeze, e, container, {
+    clamp: true,
+    anchorRow: anchor?.row[0],
+    anchorCol: anchor?.column[0],
+  });
 
   const row_location = rowLocation(y, ctx.visibledatarow);
   const row_pre = row_location[0];

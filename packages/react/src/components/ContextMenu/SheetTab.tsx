@@ -86,31 +86,41 @@ const SheetTabContextMenu: React.FC = () => {
   );
   const closeOnOutsideClick = useCallback(() => close(false), [close]);
 
+  // above the pointer (the tabs are at the bottom), kept inside the window
   useLayoutEffect(() => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (rect && x != null && y != null) {
-      // above the pointer, kept inside the workbook
-      const bounds = refs.workbookContainer.current?.getBoundingClientRect();
-      const maxX = bounds ? bounds.width - rect.width - 4 : x;
-      setPosition({
-        x: Math.max(0, Math.min(x, maxX)),
-        y: Math.max(0, y - rect.height),
-      });
+      const wb = refs?.workbookContainer?.current?.getBoundingClientRect();
+      const offsetX = wb?.left ?? 0;
+      const offsetY = wb?.top ?? 0;
+      const winW = document.documentElement.clientWidth || window.innerWidth;
+      const left = Math.max(-offsetX, Math.min(x, winW - rect.width - offsetX));
+      const top = Math.max(-offsetY, y - rect.height);
+      setPosition({ x: left, y: top });
     }
-  }, [x, y, refs.workbookContainer]);
+  }, [x, y, refs]);
 
+  useOutsideClick(containerRef, closeOnOutsideClick, [closeOnOutsideClick]);
+
+  // Escape and a resized window close the menu
+  const open = x != null && y != null;
   useEffect(() => {
-    if (x == null || y == null) return undefined;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+    if (!open) return undefined;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if ((e.target as Element | null)?.closest?.('[role="dialog"]')) return;
+      e.preventDefault();
       e.stopPropagation();
       close();
     };
-    document.addEventListener("keydown", onKey, true);
-    return () => document.removeEventListener("keydown", onKey, true);
-  }, [close, x, y]);
-
-  useOutsideClick(containerRef, closeOnOutsideClick, [closeOnOutsideClick]);
+    const onResize = () => close();
+    document.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open, close]);
 
   /** Move left / right: past the next visible sheet on that side. */
   const moveBy = useCallback(

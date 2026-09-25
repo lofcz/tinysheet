@@ -210,9 +210,20 @@ export type Settings = {
   /**
    * Colour theme of the workbook UI and canvas. `auto` follows the
    * `prefers-color-scheme` media query and updates live.
-   * @default "light"
+   *
+   * Controlled: when set, the workbook always shows this theme and the
+   * toolbar's theme switch only reports the user's choice through
+   * `onThemeChange`. Leave it unset (and use `defaultTheme`) to let the
+   * user switch themes from the toolbar.
    */
   theme?: ThemeSetting;
+  /**
+   * Initial theme when `theme` is not controlled; the toolbar's theme
+   * switch (toolbar item "theme") changes it afterwards. Nothing is
+   * persisted: store the value from `onThemeChange` to remember it.
+   * @default "light"
+   */
+  defaultTheme?: ThemeSetting;
   /** Author of new threaded comments (who may edit/delete their posts). */
   currentUser?: CommentUser | null;
   /** People offered by the @mention picker of threaded comments. */
@@ -304,6 +315,7 @@ export const defaultSettings: Required<Settings> = {
     "|",
     // View / Insert
     "freeze",
+    "theme", // View › Light / Dark / System theme
     "image",
     "picture-in-cell", // Place picture in cell (pictures in cells)
     "chart",
@@ -427,7 +439,10 @@ export const defaultSettings: Required<Settings> = {
   hooks: {},
   customToolbarItems: [],
   currency: "¥",
-  theme: "light", // "light" | "dark" | "auto"
+  // "light" | "dark" | "auto". A `theme` prop controls it; without one the
+  // workbook starts from `defaultTheme` and the toolbar switch changes it.
+  theme: "light",
+  defaultTheme: "light",
   currentUser: null,
   users: [],
   searchUsers: null,

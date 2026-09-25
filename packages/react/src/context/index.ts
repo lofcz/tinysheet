@@ -6,6 +6,7 @@ import {
   Settings,
   GlobalCache,
   PatchOptions,
+  ThemeSetting,
 } from "@lofcz/tinysheet-core";
 
 export type RefValues = {
@@ -44,6 +45,12 @@ export type WorkbookContextValue = {
   refs: RefValues;
   handleUndo: () => void;
   handleRedo: () => void;
+  /**
+   * Switch the colour theme (the toolbar's theme item). Changes the
+   * workbook's own theme unless the `theme` prop controls it, and reports
+   * the choice through `onThemeChange`.
+   */
+  setTheme?: (theme: ThemeSetting) => void;
 };
 
 /**
@@ -57,6 +64,7 @@ const WorkbookContext = React.createContext<WorkbookContextValue>({
   settings: defaultSettings,
   handleUndo: () => {},
   handleRedo: () => {},
+  setTheme: () => {},
   refs: {
     globalCache: { undoList: [], redoList: [] },
     cellInput: React.createRef<HTMLDivElement | null>(),

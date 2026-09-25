@@ -21,8 +21,12 @@ import type { Context } from "../context";
 import { getRangetxt } from "./cell";
 import { createRangeHightlight, handleFormulaInput } from "./formula";
 import {
+  applyReferenceCycle,
+  formatReferenceLike,
+  FormulaTokenType,
   getCaretOffset,
   parseReference,
+  REFERENCE_SPAN_CLASS,
   setCaretOffset,
   tokenizeFormula,
 } from "./formulaEditor";
@@ -35,7 +39,7 @@ import {
   SheetNavInfo,
   SimpleRange,
 } from "./navigation";
-import { scrollToHighlightCell } from "./selection";
+import { scrollToHighlightCell, seletedHighlistByindex } from "./selection";
 
 export type EditMode = "ready" | "enter" | "edit" | "point";
 
@@ -48,7 +52,12 @@ export type PointState = {
   /** fixed corner and moving corner of the pointed range */
   anchor: [number, number];
   focus: [number, number];
+  /** whole rows / columns picked on the headers (`2:4`, `B:D`) */
+  kind?: PointKind;
 };
+
+/** What is pointed at: cells, or whole rows / columns (on the headers). */
+export type PointKind = "cell" | "row" | "column";
 
 export type EditState = {
   mode: "enter" | "edit";
@@ -87,13 +96,14 @@ export function getEditMode(ctx: Context): EditMode {
   if (!ctx.luckysheetCellUpdate || ctx.luckysheetCellUpdate.length === 0) {
     return "ready";
   }
+  // the session's point state (set by the mouse and the arrow keys, ended by
+  // typing) decides; the mutable formulaCache flags are not rendered from
+  const s = sessionState(ctx);
+  if (s) return s.point ? "point" : s.mode;
   const fc = ctx.formulaCache;
   if (fc?.rangestart || fc?.rangedrag_column_start || fc?.rangedrag_row_start)
     return "point";
-  const s = sessionState(ctx);
-  if (!s) return "edit";
-  if (s.point) return "point";
-  return s.mode;
+  return "edit";
 }
 
 /** Sets the mode of the current edit session (call after starting it). */
@@ -180,6 +190,34 @@ function stepCell(
   return [r, next ?? c];
 }
 
+/**
+ * The range from `anchor` to `focus`: a merged cell is referenced by its
+ * top-left cell, a range covers the merges it touches.
+ */
+function pointedRange(
+  info: SheetNavInfo,
+  anchor: [number, number],
+  focus: [number, number]
+): SimpleRange {
+  const range: SimpleRange = {
+    row: [Math.min(anchor[0], focus[0]), Math.max(anchor[0], focus[0])],
+    column: [Math.min(anchor[1], focus[1]), Math.max(anchor[1], focus[1])],
+  };
+  const block = info.blockAt(focus[0], focus[1]);
+  const inOneBlock =
+    range.row[0] >= block.row[0] &&
+    range.row[1] <= block.row[1] &&
+    range.column[0] >= block.column[0] &&
+    range.column[1] <= block.column[1];
+  if (inOneBlock) {
+    return {
+      row: [block.row[0], block.row[0]],
+      column: [block.column[0], block.column[0]],
+    };
+  }
+  return expandRangeForMerges(range, info.merges);
+}
+
 /** The point state still matching the editor text and caret, if any. */
 function livePoint(
   ctx: Context,
@@ -206,18 +244,30 @@ function pickedReferencePoint(
   text: string,
   caret: number
 ): PointState | undefined {
-  if (!ctx.formulaCache?.rangestart) return undefined;
+  const fc = ctx.formulaCache;
+  if (
+    !fc?.rangestart &&
+    !fc?.rangedrag_column_start &&
+    !fc?.rangedrag_row_start
+  )
+    return undefined;
   const token = tokenizeFormula(text).find(
     (t) => t.end === caret && t.type === "reference"
   );
   const ref = token ? parseReference(token.text) : null;
-  if (!token || !ref?.row || !ref.column) return undefined;
+  if (!token || !ref) return undefined;
+  const row = ref.row ?? [0, 0];
+  const column = ref.column ?? [0, 0];
+  let kind: PointKind = "cell";
+  if (!ref.row) kind = "column";
+  else if (!ref.column) kind = "row";
   return {
     start: token.start,
     end: token.end,
     text: token.text,
-    anchor: [ref.row[0], ref.column[0]],
-    focus: [ref.row[1], ref.column[1]],
+    anchor: [row[0], column[0]],
+    focus: [row[1], column[1]],
+    kind,
   };
 }
 
@@ -286,21 +336,12 @@ export function movePointReference(
 
   const focus = stepCell(info, point.focus, direction, jump);
   const anchor: [number, number] = extend ? point.anchor : focus;
-  let range: SimpleRange = {
-    row: [Math.min(anchor[0], focus[0]), Math.max(anchor[0], focus[0])],
-    column: [Math.min(anchor[1], focus[1]), Math.max(anchor[1], focus[1])],
-  };
-  // a merged cell is referenced by its top-left cell, a range covers merges
-  if (range.row[0] === range.row[1] && range.column[0] === range.column[1]) {
-    const block = info.blockAt(focus[0], focus[1]);
-    range = {
-      row: [block.row[0], block.row[0]],
-      column: [block.column[0], block.column[0]],
-    };
-  } else {
-    range = expandRangeForMerges(range, info.merges);
-  }
-  const ref = referenceText(ctx, range);
+  const range = pointedRange(info, anchor, focus);
+  // a reference made absolute with F4 stays absolute as it moves
+  const ref =
+    (point.text.includes("$") &&
+      formatReferenceLike(point.text, range.row, range.column)) ||
+    referenceText(ctx, range);
   if (!ref) return false;
 
   const next = text.slice(0, point.start) + ref + text.slice(point.end);
@@ -318,6 +359,423 @@ export function movePointReference(
     focus,
   };
   scrollToHighlightCell(ctx, focus[0], focus[1]);
+  return true;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          Point mode with the mouse                          */
+/* -------------------------------------------------------------------------- */
+
+/** Tokens that end a complete operand (a reference after one is a new argument). */
+const OPERAND_END = new Set<FormulaTokenType>([
+  "reference",
+  "number",
+  "rparen",
+  "string",
+  "bool",
+  "error",
+  "array",
+  "name",
+]);
+
+/** Whether the formula text left of `caret` ends with a complete operand. */
+export function endsWithOperand(text: string, caret: number) {
+  const tokens = tokenizeFormula(text.slice(0, caret).replace(/\s+$/, ""));
+  const last = tokens[tokens.length - 1];
+  if (!last || tokens.length === 1) return false;
+  if (last.type === "operator") return last.text === "%";
+  return OPERAND_END.has(last.type);
+}
+
+/**
+ * Writes the reference from `anchor` to `focus` over `[start, end)` of the
+ * editor text (after `separator`), leaves the caret after it and makes it the
+ * reference being pointed at: arrow keys and a mouse drag go on moving it.
+ */
+function writePointReference(
+  ctx: Context,
+  editor: HTMLDivElement,
+  copyTo: HTMLDivElement | null | undefined,
+  info: SheetNavInfo,
+  text: string,
+  start: number,
+  end: number,
+  anchor: [number, number],
+  focus: [number, number],
+  kind: PointKind,
+  separator = ""
+) {
+  let range = pointedRange(info, anchor, focus);
+  let ref = referenceText(ctx, range);
+  if (kind !== "cell") {
+    // whole rows / columns: `2:4`, `B:D`
+    const rows: [number, number] = [
+      Math.min(anchor[0], focus[0]),
+      Math.max(anchor[0], focus[0]),
+    ];
+    const cols: [number, number] = [
+      Math.min(anchor[1], focus[1]),
+      Math.max(anchor[1], focus[1]),
+    ];
+    ref = getRangetxt(
+      ctx,
+      ctx.currentSheetId,
+      (kind === "row"
+        ? { row: rows, column: [null, null] }
+        : { row: [null, null], column: cols }) as unknown as SimpleRange,
+      getEditingSheetId(ctx)
+    );
+    range =
+      kind === "row"
+        ? { row: rows, column: [0, info.cols - 1] }
+        : { row: [0, info.rows - 1], column: cols };
+  }
+  if (!ref) return false;
+  const refStart = start + separator.length;
+  const next = text.slice(0, start) + separator + ref + text.slice(end);
+  // the reference spans are numbered in order (see formulaTextToHTML)
+  const rangeIndex = tokenizeFormula(next).filter(
+    (t) => t.type === "reference" && t.start < refStart
+  ).length;
+  editor.textContent = next;
+  setCaretOffset(editor, refStart + ref.length);
+  // the picked range shows as a marquee instead of a colour box
+  ctx.formulaCache.selectingRangeIndex = rangeIndex;
+  handleFormulaInput(ctx, copyTo, editor, 0, text);
+  ctx.formulaCache.rangestart = true;
+  ctx.formulaCache.func_selectedrange = undefined;
+  if (!sessionState(ctx)) setEditMode(ctx, "enter");
+  ctx.editState!.point = {
+    start: refStart,
+    end: refStart + ref.length,
+    text: ref,
+    anchor,
+    focus,
+    kind,
+  };
+  const rect = seletedHighlistByindex(
+    ctx,
+    range.row[0],
+    range.row[1],
+    range.column[0],
+    range.column[1]
+  );
+  ctx.formulaRangeSelect = rect ? { rangeIndex, ...rect } : undefined;
+  return true;
+}
+
+/**
+ * Point mode with the mouse: a click on `cell` while a formula is edited in
+ * `editor` (`copyTo` mirrors it).
+ *
+ * - The reference being pointed at (just picked, the caret after it) is
+ *   replaced; with `extend` (Shift) it grows from its anchor to the cell.
+ * - `add` (Ctrl / Cmd) adds another reference, after a separator only when
+ *   the caret follows a complete operand: `=SUM(A1` gives `=SUM(A1,B1`,
+ *   `=SUM(` gives `=SUM(B1`.
+ * - Otherwise a reference goes in at the caret when one can go there (after
+ *   `=`, `(`, `,` or an operator).
+ *
+ * Returns false when the click picks no reference (the caller commits).
+ */
+export function pointCellWithMouse(
+  ctx: Context,
+  editor: HTMLDivElement,
+  copyTo: HTMLDivElement | null | undefined,
+  cell: [number, number],
+  {
+    add = false,
+    extend = false,
+    kind = "cell",
+  }: { add?: boolean; extend?: boolean; kind?: PointKind } = {}
+): boolean {
+  const text = editorText(editor);
+  if (!text.startsWith("=")) return false;
+  const caret = getCaretOffset(editor) ?? text.length;
+  const info = getSheetNavInfo(ctx);
+  if (!info) return false;
+  const live =
+    livePoint(ctx, text, caret) ?? pickedReferencePoint(ctx, text, caret);
+  if (add) {
+    if (TOKEN_CONTINUATION.test(text.slice(caret))) return false;
+    let separator = "";
+    if (live || endsWithOperand(text, caret)) separator = ",";
+    else if (!isReferenceInsertPosition(text, caret)) return false;
+    return writePointReference(
+      ctx,
+      editor,
+      copyTo,
+      info,
+      text,
+      caret,
+      caret,
+      cell,
+      cell,
+      kind,
+      separator
+    );
+  }
+  if (live) {
+    return writePointReference(
+      ctx,
+      editor,
+      copyTo,
+      info,
+      text,
+      live.start,
+      live.end,
+      extend ? live.anchor : cell,
+      cell,
+      kind
+    );
+  }
+  if (!isReferenceInsertPosition(text, caret)) return false;
+  return writePointReference(
+    ctx,
+    editor,
+    copyTo,
+    info,
+    text,
+    caret,
+    caret,
+    cell,
+    cell,
+    kind
+  );
+}
+
+/**
+ * Dragging after {@link pointCellWithMouse}: the reference being pointed at
+ * spans from its anchor to `cell`.
+ */
+export function dragPointWithMouse(
+  ctx: Context,
+  editor: HTMLDivElement,
+  copyTo: HTMLDivElement | null | undefined,
+  cell: [number, number]
+) {
+  const point = sessionState(ctx)?.point;
+  const text = editorText(editor);
+  if (!point || text.slice(point.start, point.end) !== point.text) return false;
+  const kind = point.kind ?? "cell";
+  // dragging over the headers picks whole rows / columns
+  const focus: [number, number] = [
+    kind === "column" ? point.anchor[0] : cell[0],
+    kind === "row" ? point.anchor[1] : cell[1],
+  ];
+  if (point.focus[0] === focus[0] && point.focus[1] === focus[1]) return true;
+  const info = getSheetNavInfo(ctx);
+  if (!info) return false;
+  return writePointReference(
+    ctx,
+    editor,
+    copyTo,
+    info,
+    text,
+    point.start,
+    point.end,
+    point.anchor,
+    focus,
+    kind
+  );
+}
+
+/** What dragging a reference's colour box does: move it or resize from a corner. */
+export type ReferenceDragHandle = "move" | "lt" | "rt" | "lb" | "rb";
+
+export type ReferenceDrag = {
+  handle: ReferenceDragHandle;
+  /** the reference's text offsets and text in the editor */
+  start: number;
+  end: number;
+  text: string;
+  /** the range it pointed at when the drag started */
+  row: [number, number] | null;
+  column: [number, number] | null;
+  /** the cell the drag started on */
+  grab: [number, number];
+  /** caret: kept (before the reference), from the end (after it) or after it */
+  caret: { before: number } | { fromEnd: number } | null;
+};
+
+/** Text offset of the start of `node` inside `el`. */
+function textOffsetOf(el: HTMLElement, node: Node) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.setEndBefore(node);
+  return range.toString().length;
+}
+
+/**
+ * Starts dragging the colour box of the reference with `rangeIndex` (the
+ * references of the formula edited in `editor` are highlighted on the
+ * sheet): its border moves the reference, a corner resizes it. Returns false
+ * when there is no such reference.
+ */
+export function startReferenceDrag(
+  ctx: Context,
+  editor: HTMLDivElement,
+  rangeIndex: number,
+  handle: ReferenceDragHandle,
+  cell: [number, number]
+) {
+  const span = editor.querySelector(
+    `span.${REFERENCE_SPAN_CLASS}[rangeindex="${rangeIndex}"]`
+  );
+  const text = span?.textContent ?? "";
+  const ref = parseReference(text);
+  if (!span || !ref) return false;
+  const start = textOffsetOf(editor, span);
+  const end = start + text.length;
+  const full = editorText(editor);
+  const caret = getCaretOffset(editor);
+  ctx.formulaCache.referenceDrag = {
+    handle,
+    start,
+    end,
+    text,
+    row: ref.row,
+    column: ref.column,
+    grab: cell,
+    caret:
+      caret == null
+        ? null
+        : caret <= start
+          ? { before: caret }
+          : caret >= end
+            ? { fromEnd: full.length - caret }
+            : null,
+  };
+  // the edit is no longer picking a reference
+  ctx.formulaCache.rangestart = false;
+  ctx.formulaCache.rangedrag_column_start = false;
+  ctx.formulaCache.rangedrag_row_start = false;
+  endPointMode(ctx);
+  return true;
+}
+
+function shiftSpan(
+  span: [number, number] | null,
+  delta: number,
+  max: number
+): [number, number] | null {
+  if (!span) return null;
+  const d = Math.min(Math.max(delta, -span[0]), max - span[1]);
+  return [span[0] + d, span[1] + d];
+}
+
+function spanTo(
+  span: [number, number] | null,
+  fixed: number,
+  to: number
+): [number, number] | null {
+  if (!span) return null;
+  return [Math.min(fixed, to), Math.max(fixed, to)];
+}
+
+/**
+ * Drags the reference picked by {@link startReferenceDrag} to `cell`: the
+ * formula text changes live, keeping the reference's sheet name and `$`
+ * anchoring, and the caret stays where it was.
+ */
+export function dragReference(
+  ctx: Context,
+  editor: HTMLDivElement,
+  copyTo: HTMLDivElement | null | undefined,
+  cell: [number, number]
+) {
+  const drag = ctx.formulaCache.referenceDrag;
+  if (!drag) return false;
+  const text = editorText(editor);
+  if (text.slice(drag.start, drag.end) !== drag.text) {
+    ctx.formulaCache.referenceDrag = undefined;
+    return false;
+  }
+  const info = getSheetNavInfo(ctx);
+  if (!info) return false;
+  const [r, c] = cell;
+  let { row, column } = drag;
+  if (drag.handle === "move") {
+    row = shiftSpan(row, r - drag.grab[0], info.rows - 1);
+    column = shiftSpan(column, c - drag.grab[1], info.cols - 1);
+  } else {
+    // the opposite corner stays
+    const top = drag.handle[1] === "t";
+    const left = drag.handle[0] === "l";
+    if (row) row = spanTo(row, top ? row[1] : row[0], r);
+    if (column) column = spanTo(column, left ? column[1] : column[0], c);
+  }
+  const ref = formatReferenceLike(drag.text, row, column);
+  if (!ref || ref === drag.text) return true;
+  const next = text.slice(0, drag.start) + ref + text.slice(drag.end);
+  let caret = drag.start + ref.length;
+  if (drag.caret && "before" in drag.caret) caret = drag.caret.before;
+  else if (drag.caret && "fromEnd" in drag.caret)
+    caret = next.length - drag.caret.fromEnd;
+  editor.textContent = next;
+  setCaretOffset(editor, caret);
+  handleFormulaInput(ctx, copyTo, editor, 0, text);
+  drag.end = drag.start + ref.length;
+  drag.text = ref;
+  return true;
+}
+
+/** Ends a drag started by {@link startReferenceDrag}. */
+export function endReferenceDrag(ctx: Context) {
+  if (!ctx.formulaCache.referenceDrag) return false;
+  ctx.formulaCache.referenceDrag = undefined;
+  return true;
+}
+
+/**
+ * A click into the text of `editor` while editing: Enter and Point mode
+ * switch to Edit mode (arrow keys then move the caret), the reference that
+ * was being picked shows as a colour box again.
+ */
+export function clickIntoEditor(ctx: Context, editor: HTMLElement) {
+  const mode = getEditMode(ctx);
+  if (mode === "enter" || mode === "point") setEditMode(ctx, "edit");
+  const fc = ctx.formulaCache;
+  if (fc.rangestart || fc.rangedrag_row_start || fc.rangedrag_column_start) {
+    fc.rangestart = false;
+    fc.rangedrag_row_start = false;
+    fc.rangedrag_column_start = false;
+    fc.selectingRangeIndex = -1;
+    ctx.formulaRangeSelect = undefined;
+    if (editorText(editor).startsWith("=")) {
+      createRangeHightlight(ctx, editor.innerHTML);
+    }
+  }
+}
+
+/**
+ * F4: cycles the `$` anchoring of the reference at the caret in `editor`
+ * (`copyTo` mirrors it). The reference being pointed at stays in Point mode:
+ * arrow keys and the mouse go on moving it. Returns false when there is no
+ * reference at the caret.
+ */
+export function cycleEditorReference(
+  ctx: Context,
+  editor: HTMLDivElement,
+  copyTo: HTMLDivElement | null | undefined
+) {
+  const text = editorText(editor);
+  const caret = getCaretOffset(editor) ?? text.length;
+  const point =
+    livePoint(ctx, text, caret) ?? pickedReferencePoint(ctx, text, caret);
+  const pointing = !!ctx.formulaCache.rangestart;
+  if (!applyReferenceCycle(editor)) return false;
+  handleFormulaInput(ctx, copyTo, editor, 0, text);
+  const token = point
+    ? tokenizeFormula(editorText(editor)).find(
+        (t) => t.type === "reference" && t.start === point.start
+      )
+    : undefined;
+  if (point && token) {
+    if (!sessionState(ctx)) setEditMode(ctx, "enter");
+    ctx.editState!.point = { ...point, end: token.end, text: token.text };
+    ctx.formulaCache.rangestart = pointing;
+  }
   return true;
 }
 
