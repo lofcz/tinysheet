@@ -27,6 +27,10 @@ import {
   writeSheetViews,
 } from "./ExcelConfig";
 import { colorToArgb } from "../common/units";
+import {
+  writeSheetProtection,
+  writeWorkbookProtection,
+} from "./ExcelProtection";
 import { setDefinedNames } from "../common/definedNames";
 import { addChartsToXlsx } from "../chart/exportXlsx";
 import {
@@ -114,6 +118,8 @@ export const sheetExportFeatures: SheetExportFeature[] = [
     write: (ctx) => setConditionalFormatting(ctx.sheet, ctx.worksheet),
   },
   { name: "views", write: writeSheetViews },
+  // sheetProtection / protectedRanges (inserted by the zip fixup)
+  { name: "protection", write: writeSheetProtection },
   // Charts are added to the written zip (addChartsToXlsx).
 ];
 
@@ -123,6 +129,7 @@ export const workbookExportFeatures: WorkbookExportFeature[] = [
     name: "defined-names",
     write: (ctx) => setDefinedNames(ctx.workbook, ctx.sheets),
   },
+  { name: "workbook-protection", write: writeWorkbookProtection },
 ];
 
 export function registerSheetExportFeature(

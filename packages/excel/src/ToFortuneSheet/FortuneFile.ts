@@ -726,6 +726,13 @@ export class FortuneFile {
         sheetout.hide = sheet.hide;
       }
 
+      // set by feature readers (importProtection.ts)
+      ["showRowColHeaders", "rightToLeft", "workbookProtection"].forEach(
+        (key) => {
+          if ((sheet as any)[key] != null) sheetout[key] = (sheet as any)[key];
+        }
+      );
+
       FortuneOutPutFile.sheets.push(sheetout);
     }
 

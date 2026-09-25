@@ -12,6 +12,7 @@
  *   permanently (`ps.isShow`) get `<x:Visible/>` and a visible shape.
  */
 import JSZip from "jszip";
+import { applyProtectionToZip } from "./ExcelProtection";
 
 export type XlsxPostProcessInfo = {
   /** Worksheet id -> addresses of dynamic-array formula cells. */
@@ -19,7 +20,28 @@ export type XlsxPostProcessInfo = {
   worksheetIds: number[];
   /** Worksheet id -> cells (0-based) whose note is always shown. */
   visibleNotes?: Record<number, { r: number; c: number }[]>;
+  /** Data of feature writers for their zip fixups (see xlsxZipFixups). */
+  extras?: Record<string, any>;
 };
+
+/** A zip-level fixup run on every exported file (after the built-in ones). */
+export type XlsxZipFixup = (
+  zip: JSZip,
+  info: XlsxPostProcessInfo
+) => Promise<void> | void;
+
+/**
+ * Zip fixups of features ExcelJS cannot write. Feature writers leave their
+ * data in `info.extras`; add a fixup with registerXlsxZipFixup.
+ */
+export const xlsxZipFixups: XlsxZipFixup[] = [
+  // sheetProtection / protectedRanges / workbookProtection
+  applyProtectionToZip,
+];
+
+export function registerXlsxZipFixup(fixup: XlsxZipFixup) {
+  xlsxZipFixups.push(fixup);
+}
 
 const METADATA_XML =
   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
@@ -200,6 +222,10 @@ export async function postProcessXlsx(
   await markDynamicArrays(zip, info);
   await fixInternalHyperlinks(zip);
   await showNotes(zip, info);
+  for (const fixup of xlsxZipFixups) {
+    // eslint-disable-next-line no-await-in-loop
+    await fixup(zip, info);
+  }
   return zip.generateAsync({
     type: "uint8array",
     compression: "DEFLATE",

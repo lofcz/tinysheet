@@ -95,6 +95,8 @@ export function writeSheetViews(ctx: SheetExportContext) {
   }
   const grid = sheet.showGridLines;
   if (grid === 0 || grid === "0" || grid === false) view.showGridLines = false;
+  if (sheet.showRowColHeaders === false) view.showRowColHeaders = false;
+  if (sheet.rightToLeft) view.rightToLeft = true;
   const zoom = Number(sheet.zoomRatio);
   if (Number.isFinite(zoom) && zoom > 0 && zoom !== 1) {
     view.zoomScale = Math.max(10, Math.min(400, Math.round(zoom * 100)));
