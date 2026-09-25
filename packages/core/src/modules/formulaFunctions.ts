@@ -801,7 +801,7 @@ function resolveIndirect(args: any[], frame: EvalFrame): RefRange | Error {
   if (!_.isString(text)) return errorValue(ERR_REF);
   const a1 = toBoolArg(a1Arg, true);
   if (a1 instanceof Error) return a1;
-  const ref = parseReference(
+  let ref = parseReference(
     frame.ctx,
     text,
     frame.sheetId,
@@ -809,6 +809,22 @@ function resolveIndirect(args: any[], frame: EvalFrame): RefRange | Error {
     frame.r,
     frame.c
   );
+  if (!ref && a1) {
+    // a defined name or a structured reference (INDIRECT("Sales"),
+    // INDIRECT("Table1[Qty]"), INDIRECT("[@Qty]")) that stands for a
+    // reference, resolved from the formula's cell
+    const trimmed = text.trim();
+    const expanded = expandFormulaNames(
+      frame.ctx,
+      trimmed,
+      frame.sheetId,
+      frame.isCell ? frame.r : null,
+      frame.isCell ? frame.c : null
+    );
+    if (expanded !== trimmed) {
+      ref = parseReference(frame.ctx, expanded, frame.sheetId, true);
+    }
+  }
   if (!ref) return errorValue(ERR_REF);
   recordDependency(frame, ref);
   return ref;

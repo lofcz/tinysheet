@@ -775,20 +775,49 @@ export type ReferenceAdjusterApi = {
   rewriteReferenceText: (text: string, hostSheetId: string) => string | null;
   /** new position of a rectangle on `sheetId`; null when deleted */
   adjustRange: (range: RangeRect, sheetId: string) => RangeRect | null;
+  /**
+   * Like `adjustRange`, but also tells on which sheet the rectangle ends up
+   * (a block moved to another sheet takes its contents with it).
+   */
+  locateRange: (
+    range: RangeRect,
+    sheetId: string
+  ) => { range: RangeRect; sheetId: string } | null;
 };
 
 /**
  * Callback run by {@link adjustReferences} for every structural change, so
- * other data models (defined names, tables, charts, ...) keep their
- * references in sync. It is called before the cells are actually moved.
+ * other data models (defined names, tables, charts, notes, ...) keep their
+ * references in sync. It is called once per change, before the cells are
+ * actually moved. It may return a "finisher": a function run once the
+ * caller has moved the cells (see {@link finishReferenceChange}), for work
+ * that needs the new cell layout (e.g. writing the header of a table column
+ * that was just inserted).
  */
 export type ReferenceAdjuster = (
   ctx: Context,
   change: ReferenceChange,
   api: ReferenceAdjusterApi
-) => void;
+) => void | (() => void);
 
-const adjusters = new Map<string, ReferenceAdjuster>();
+/*
+ * The registry lives on a hoisted function so that modules registering
+ * adjusters while this module is still being evaluated (import cycles) do
+ * not hit an uninitialised binding.
+ */
+function registry(): Map<string, ReferenceAdjuster> {
+  const holder = registry as unknown as {
+    adjusters?: Map<string, ReferenceAdjuster>;
+  };
+  if (!holder.adjusters) holder.adjusters = new Map();
+  return holder.adjusters;
+}
+
+function pendingFinishers(): (() => void)[] {
+  const holder = pendingFinishers as unknown as { list?: (() => void)[] };
+  if (!holder.list) holder.list = [];
+  return holder.list;
+}
 
 /**
  * Register a reference adjuster under `key` (re-registering replaces it).
@@ -798,14 +827,33 @@ export function registerReferenceAdjuster(
   key: string,
   adjuster: ReferenceAdjuster
 ) {
-  adjusters.set(key, adjuster);
+  registry().set(key, adjuster);
   return () => {
-    if (adjusters.get(key) === adjuster) adjusters.delete(key);
+    if (registry().get(key) === adjuster) registry().delete(key);
   };
 }
 
 export function unregisterReferenceAdjuster(key: string) {
-  adjusters.delete(key);
+  registry().delete(key);
+}
+
+/** Keys of the registered adjusters (in registration order). */
+export function getReferenceAdjusterKeys() {
+  return Array.from(registry().keys());
+}
+
+/**
+ * Run the finishers returned by the adjusters of the last
+ * {@link adjustReferences} call. Callers moving cells call it (through
+ * {@link recalcAfterStructuralChange}) once the cells are in place; it is a
+ * no-op when nothing is pending.
+ */
+export function finishReferenceChange() {
+  const list = pendingFinishers();
+  while (list.length > 0) {
+    const fn = list.shift()!;
+    fn();
+  }
 }
 
 function isFormulaString(f: unknown): f is string {
@@ -834,6 +882,27 @@ function inRange(r: number, c: number, range: RangeRect) {
     c >= range.column[0] &&
     c <= range.column[1]
   );
+}
+
+/** New position (and sheet) of a rectangle; null when it was deleted. */
+export function locateRangeForChange(
+  range: RangeRect,
+  change: ReferenceChange,
+  sheetId: string
+): { range: RangeRect; sheetId: string } | null {
+  const res = adjustArea(
+    { row: [...range.row] as Span, column: [...range.column] as Span },
+    change,
+    sheetId
+  );
+  if (!res) return null;
+  return {
+    range: {
+      row: res.area.row as [number, number],
+      column: res.area.column as [number, number],
+    },
+    sheetId: res.sheetId,
+  };
 }
 
 export function adjustRangeForChange(
@@ -865,6 +934,9 @@ export function adjustRangeForChange(
  * job. Returns the number of formulas whose text changed.
  */
 export function adjustReferences(ctx: Context, change: ReferenceChange) {
+  // a previous change whose caller never finished: its cells have moved by
+  // now, so complete it before looking at the new one
+  finishReferenceChange();
   const files = ctx.luckysheetfile || [];
   const lookup = createSheetLookup(files, change);
   const names: string[] = [];
@@ -980,6 +1052,7 @@ export function adjustReferences(ctx: Context, change: ReferenceChange) {
     }
   }
 
+  const adjusters = registry();
   if (adjusters.size > 0) {
     const api: ReferenceAdjusterApi = {
       lookup,
@@ -989,11 +1062,117 @@ export function adjustReferences(ctx: Context, change: ReferenceChange) {
         rewriteReferenceText(text, change, hostSheetId, lookup),
       adjustRange: (range, sheetId) =>
         adjustRangeForChange(range, change, sheetId),
+      locateRange: (range, sheetId) =>
+        locateRangeForChange(range, change, sheetId),
     };
-    adjusters.forEach((fn) => fn(ctx, change, api));
+    const pending = pendingFinishers();
+    adjusters.forEach((fn) => {
+      const finish = fn(ctx, change, api);
+      if (typeof finish === "function") pending.push(finish);
+    });
   }
 
   if (ctx.formulaCache) ctx.formulaCache.formulaCellInfoMap = null;
+  // renaming a sheet moves no cells: nothing to wait for
+  if (change.type === "renameSheet") finishReferenceChange();
+  return count;
+}
+
+export type WorkbookFormulaSite = {
+  kind: "cell" | "dataVerification" | "conditionalFormat" | "definedName";
+  /** sheet the formula lives on (for names: the sheet storing the name) */
+  sheetId: string;
+  /** cell position, for cell formulas only */
+  r?: number;
+  c?: number;
+};
+
+/**
+ * Apply `fn` to every formula text of the workbook: cell formulas (loaded
+ * or not), data-validation formulas, conditional-format formulas and
+ * defined-name definitions. `fn` returns the new text (the same string when
+ * unchanged). Returns the number of formulas changed. Used for rewrites that
+ * are not positional, such as renaming a table or one of its columns.
+ */
+export function rewriteWorkbookFormulas(
+  ctx: Context,
+  fn: (formula: string, site: WorkbookFormulaSite) => string
+) {
+  let count = 0;
+  const files = ctx.luckysheetfile || [];
+  files.forEach((file) => {
+    const sheetId = file.id;
+    if (sheetId == null) return;
+    const visitCell = (cell: Cell | null | undefined, r: number, c: number) => {
+      if (!cell || !isFormulaString(cell.f)) return;
+      const next = fn(cell.f, { kind: "cell", sheetId, r, c });
+      if (next !== cell.f) {
+        cell.f = next;
+        count += 1;
+      }
+    };
+    if (file.data) {
+      const { data } = file;
+      for (let r = 0; r < data.length; r += 1) {
+        const row = data[r];
+        if (!row) continue;
+        for (let c = 0; c < row.length; c += 1) {
+          if (row[c]?.f != null) visitCell(row[c], r, c);
+        }
+      }
+    } else if (file.celldata) {
+      file.celldata.forEach((item) =>
+        visitCell(item.v as Cell, item.r, item.c)
+      );
+    }
+    const dv = file.dataVerification;
+    if (dv) {
+      Object.keys(dv).forEach((key) => {
+        const item = dv[key];
+        if (!item) return;
+        (["value1", "value2"] as const).forEach((field) => {
+          const v = item[field];
+          if (!isFormulaString(v)) return;
+          const next = fn(v, { kind: "dataVerification", sheetId });
+          if (next !== v) {
+            item[field] = next;
+            count += 1;
+          }
+        });
+      });
+    }
+    const cf = file.luckysheet_conditionformat_save;
+    if (cf) {
+      cf.forEach((rule: any) => {
+        if (!rule || !Array.isArray(rule.conditionValue)) return;
+        rule.conditionValue.forEach((v: unknown, k: number) => {
+          if (!isFormulaString(v)) return;
+          const next = fn(v, { kind: "conditionalFormat", sheetId });
+          if (next !== v) {
+            rule.conditionValue[k] = next;
+            count += 1;
+          }
+        });
+      });
+    }
+    const names = file.definedNames;
+    if (names?.length) {
+      let changed = false;
+      const next = names.map((d) => {
+        if (!isFormulaString(d.refersTo)) return d;
+        const refersTo = fn(d.refersTo, { kind: "definedName", sheetId });
+        if (refersTo === d.refersTo) return d;
+        changed = true;
+        count += 1;
+        return { ...d, refersTo };
+      });
+      // a new array: the name index is memoised on the array identity
+      if (changed) file.definedNames = next;
+    }
+  });
+  if (count > 0 && ctx.formulaCache) {
+    ctx.formulaCache.formulaCellInfoMap = null;
+  }
   return count;
 }
 
@@ -1025,6 +1204,7 @@ export function workbookHasFormulas(ctx: Context) {
  * any other recalculation.
  */
 export function recalcAfterStructuralChange(ctx: Context) {
+  finishReferenceChange();
   const fc = ctx.formulaCache;
   if (!fc) return;
   fc.formulaCellInfoMap = null;

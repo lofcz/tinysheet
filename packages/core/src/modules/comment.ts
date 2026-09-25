@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { mergeBorder } from "./cell";
+import { peekCell } from "./dependencyGraph";
 
 import { Context, getFlowdata } from "../context";
 import { CellMatrix, GlobalCache } from "../types";
@@ -508,7 +509,8 @@ export function overShowComment(
   }
   const rc = `${r}_${c}`;
 
-  const comment = flowdata[r]?.[c]?.ps;
+  // read without drafting: a draft row read makes immer copy every row
+  const comment = peekCell(flowdata, r, c)?.ps;
   if (
     comment == null ||
     comment.isShow ||

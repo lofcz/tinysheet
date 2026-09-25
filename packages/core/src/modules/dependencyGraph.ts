@@ -1,4 +1,5 @@
 /* eslint-disable max-classes-per-file */
+import produce from "immer";
 import type { Context } from "../context";
 import type {
   FormulaCellInfo,
@@ -29,6 +30,39 @@ import type {
 
 const DRAFT_STATE = Symbol.for("immer-state");
 
+let stateKeys: { base: string; copy: string } | null = null;
+
+/**
+ * Names of immer's draft-state fields holding the base and the copy:
+ * `base_`/`copy_` in immer's development build, mangled (`t`/`o` in 9.x)
+ * in the production build bundlers use, so they are found by probing once.
+ */
+function draftStateKeys() {
+  if (stateKeys) return stateKeys;
+  const keys = { base: "base_", copy: "copy_" };
+  const child = {};
+  const base = { child };
+  produce(base, (draft: any) => {
+    const state = draft[DRAFT_STATE];
+    draft.probe = 1;
+    Object.keys(state).forEach((k) => {
+      const v = state[k];
+      if (v === base) keys.base = k;
+      else if (
+        v &&
+        typeof v === "object" &&
+        v !== draft &&
+        v.probe === 1 &&
+        v.child === child
+      ) {
+        keys.copy = k;
+      }
+    });
+  });
+  stateKeys = keys;
+  return keys;
+}
+
 /**
  * Latest value of a possibly-immer-draft object, *without* creating child
  * drafts. Reading a big sheet through a draft creates a proxy per row/cell
@@ -41,7 +75,8 @@ export function peek<T>(value: T): T {
   if (value == null || typeof value !== "object") return value;
   const state = (value as any)[DRAFT_STATE];
   if (state == null || typeof state !== "object") return value;
-  const latest = state.copy_ ?? state.base_;
+  const keys = draftStateKeys();
+  const latest = state[keys.copy] ?? state[keys.base];
   return latest == null ? value : latest;
 }
 

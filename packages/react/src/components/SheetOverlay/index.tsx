@@ -58,6 +58,22 @@ import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import AutocompleteList from "./AutocompleteList";
 import SpillRange from "./SpillRange";
+import { TrackedScope } from "../../context/store";
+
+// Children as constant elements, each rendered in its own TrackedScope: they
+// re-render for the context fields they read, not with the overlay.
+const COLUMN_HEADER = <ColumnHeader />;
+const ROW_HEADER = <RowHeader />;
+const SCROLLBAR_X = <ScrollBar axis="x" />;
+const SCROLLBAR_Y = <ScrollBar axis="y" />;
+const FILTER_OPTIONS = <FilterOptions />;
+const INPUT_BOX = <InputBox />;
+const AUTOCOMPLETE_LIST = <AutocompleteList />;
+const NOTATION_BOXES = <NotationBoxes />;
+const IMG_BOXES = <ImgBoxs />;
+const CHART_LAYER = <ChartLayer />;
+const SPLIT_PANES = <SplitPanes />;
+const SPILL_RANGE = <SpillRange />;
 
 const SheetOverlay: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -505,18 +521,18 @@ const SheetOverlay: React.FC = () => {
             height: context.columnHeaderHeight - 1.5,
           }}
         />
-        <ColumnHeader />
+        <TrackedScope>{COLUMN_HEADER}</TrackedScope>
       </div>
       {(context.showSearch || context.showReplace) && (
         <SearchReplace getContainer={() => containerRef.current!} />
       )}
       {context.showPasteSpecial && <PasteSpecial />}
       {context.showGoTo && <GoTo />}
-      <SplitPanes />
+      <TrackedScope>{SPLIT_PANES}</TrackedScope>
       <div className="fortune-row-body">
-        <RowHeader />
-        <ScrollBar axis="x" />
-        <ScrollBar axis="y" />
+        <TrackedScope>{ROW_HEADER}</TrackedScope>
+        <TrackedScope>{SCROLLBAR_X}</TrackedScope>
+        <TrackedScope>{SCROLLBAR_Y}</TrackedScope>
         <div
           ref={refs.cellArea}
           className="fortune-cell-area"
@@ -632,7 +648,7 @@ const SheetOverlay: React.FC = () => {
             }
             onMouseDown={(e) => e.preventDefault()}
           />
-          <SpillRange />
+          <TrackedScope>{SPILL_RANGE}</TrackedScope>
           {(context.luckysheet_selection_range?.length ?? 0) > 0 && (
             <div id="fortune-selection-copy">
               {context.luckysheet_selection_range!.map((range) => {
@@ -816,14 +832,14 @@ const SheetOverlay: React.FC = () => {
             <LinkEditCard {...context.linkCard} />
           )}
           {context.rangeDialog?.show && <RangeDialog />}
-          <FilterOptions />
-          <InputBox />
-          <AutocompleteList />
-          <NotationBoxes />
+          <TrackedScope>{FILTER_OPTIONS}</TrackedScope>
+          <TrackedScope>{INPUT_BOX}</TrackedScope>
+          <TrackedScope>{AUTOCOMPLETE_LIST}</TrackedScope>
+          <TrackedScope>{NOTATION_BOXES}</TrackedScope>
           <div id="luckysheet-multipleRange-show" />
           <div id="luckysheet-dynamicArray-hightShow" />
-          <ImgBoxs />
-          <ChartLayer />
+          <TrackedScope>{IMG_BOXES}</TrackedScope>
+          <TrackedScope>{CHART_LAYER}</TrackedScope>
           <div
             id="luckysheet-dataVerification-dropdown-btn"
             onClick={() => {

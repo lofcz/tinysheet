@@ -44,6 +44,7 @@ import {
   rowLocation,
   rowLocationByIndex,
 } from "../modules/location";
+import { wheelScrollPosition } from "../modules/geometry";
 import {
   checkProtectionAllSelected,
   checkProtectionSelectLockedOrUnLockedCells,
@@ -86,75 +87,23 @@ export function handleGlobalWheel(
   if (ctx.filterContextMenu != null) return;
   const scrollLeft = Math.round(scrollbarX.scrollLeft);
   const scrollTop = Math.round(scrollbarY.scrollTop);
-  let visibledatacolumn_c = ctx.visibledatacolumn;
-  let visibledatarow_c = ctx.visibledatarow;
-
-  // if (luckysheetFreezen.freezenhorizontaldata != null) {
-  //   visibledatarow_c = luckysheetFreezen.freezenhorizontaldata[3];
-  // }
-
-  // if (luckysheetFreezen.freezenverticaldata != null) {
-  //   visibledatacolumn_c = luckysheetFreezen.freezenverticaldata[3];
-  // }
-
   clearTimeout(mouseWheelUniqueTimeout);
   clearTimeout(scrollLockTimeout);
-
-  // if(ctx.visibledatacolumn.length!=visibledatacolumn_c.length){
-  if (cache.visibleColumnsUnique != null) {
-    visibledatacolumn_c = cache.visibleColumnsUnique;
-  } else {
-    visibledatacolumn_c = _.uniq(visibledatacolumn_c);
-    cache.visibleColumnsUnique = visibledatacolumn_c;
-  }
-  // }
-
-  // if(ctx.visibledatarow.length!=visibledatarow_c.length){
-  if (cache.visibleRowsUnique != null) {
-    visibledatarow_c = cache.visibleRowsUnique;
-  } else {
-    visibledatarow_c = _.uniq(visibledatarow_c);
-    cache.visibleRowsUnique = visibledatarow_c;
-  }
-  // }
-
-  // visibledatacolumn_c = ArrayUnique(visibledatacolumn_c);
-  // visibledatarow_c = ArrayUnique(visibledatarow_c);
-
-  const row_st = _.sortedIndex(visibledatarow_c, scrollTop) + 1;
-
-  // if (luckysheetFreezen.freezenhorizontaldata != null) {
-  //   row_st = luckysheet_searcharray(
-  //     visibledatarow_c,
-  //     scrollTop + luckysheetFreezen.freezenhorizontaldata[0]
-  //   );
-  // }
 
   // TODO const scrollNum = e.deltaFactor < 40 ? 1 : e.deltaFactor < 80 ? 2 : 3;
   const scrollNum = 1;
 
   // 一次滚动三行或三列
   if (e.deltaY !== 0 && !cache.verticalScrollLock) {
-    let rowscroll = 0;
     cache.horizontalScrollLock = true;
-    let row_ed;
     let step = Math.round(scrollNum / ctx.zoomRatio);
     step = step < 1 ? 1 : step;
-    if (e.deltaY > 0) {
-      row_ed = row_st + step;
-
-      if (row_ed >= visibledatarow_c.length) {
-        row_ed = visibledatarow_c.length - 1;
-      }
-    } else {
-      row_ed = row_st - step;
-
-      if (row_ed < 0) {
-        row_ed = 0;
-      }
-    }
-
-    rowscroll = row_ed === 0 ? 0 : visibledatarow_c[row_ed - 1];
+    // binary search over the row edges; no O(rows) work per wheel notch
+    const rowscroll = wheelScrollPosition(
+      ctx.visibledatarow,
+      scrollTop,
+      e.deltaY > 0 ? step : -step
+    );
 
     // if (luckysheetFreezen.freezenhorizontaldata != null) {
     //   rowscroll -= luckysheetFreezen.freezenhorizontaldata[0];

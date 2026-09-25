@@ -2,6 +2,7 @@ import _ from "lodash";
 import { Context, getFlowdata } from "../context";
 import { getSheetIndex, isAllowEdit } from "../utils";
 import { mergeBorder } from "./cell";
+import { peekCell } from "./dependencyGraph";
 import { getcellrange, iscelldata } from "./formula";
 import { colLocation, rowLocation } from "./location";
 import { normalizeSelection } from "./selection";
@@ -101,7 +102,8 @@ export function showLinkCard(
   if (ctx.linkCard?.selectingCellRange) return;
   if (`${r}_${c}` === ctx.linkCard?.rc) return;
   const link = getCellHyperlink(ctx, r, c);
-  const cell = getFlowdata(ctx)?.[r]?.[c];
+  // read without drafting: a draft row read makes immer copy every row
+  const cell = peekCell(getFlowdata(ctx), r, c);
   if (
     !isEditing &&
     link == null &&
