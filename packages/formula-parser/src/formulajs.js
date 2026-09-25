@@ -14,11 +14,12 @@ function functionKeyCount(obj) {
  * Bun flattens them onto the namespace; `.default` is a smaller legacy map.
  * Prefer whichever object exposes more formula functions.
  */
+// read `default` dynamically: the ESM build has no such export, and a static
+// `formulajsNs.default` fails strict export checks (Rspack)
+const cjsDefault = Reflect.get(formulajsNs, "default");
 const formulajs =
-  // oxlint-disable-next-line import/namespace -- CJS builds expose the functions under default
-  functionKeyCount(formulajsNs.default) > functionKeyCount(formulajsNs)
-    ? // oxlint-disable-next-line import/namespace -- CJS builds expose the functions under default
-      formulajsNs.default
+  functionKeyCount(cjsDefault) > functionKeyCount(formulajsNs)
+    ? cjsDefault
     : formulajsNs;
 
 export default formulajs;
