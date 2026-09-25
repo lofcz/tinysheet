@@ -366,7 +366,7 @@
 .fortune-chart-style-tile {
   display: block;
   width: 100%;
-  aspect-ratio: 112 / 72;
+  aspect-ratio: 240 / 154;
   padding: 0;
   overflow: hidden;
   background: var(--fortune-bg);

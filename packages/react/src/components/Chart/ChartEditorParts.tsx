@@ -413,7 +413,7 @@ export const ChartGalleries: React.FC<{
             },
             preview,
             chartThemeFor(preview, themeName),
-            { width: 112, height: 72 }
+            { width: 240, height: 154 }
           ),
         };
       }),
