@@ -16,6 +16,8 @@ import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
+// eslint-disable-next-line import/no-cycle
+import { readPivotTables } from "../common/pivotTables";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -329,8 +331,11 @@ export const sheetImportFeatures: SheetImportFeature[] = [
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 
-/** Workbook-level readers (defined names (P3), ...). */
-export const workbookImportFeatures: WorkbookImportFeature[] = [];
+/** Workbook-level readers (defined names (P3), PivotTables, ...). */
+export const workbookImportFeatures: WorkbookImportFeature[] = [
+  // PivotTables (they need every sheet, for their source sheet's id)
+  { name: "pivot-tables", read: (ctx) => readPivotTables(ctx) },
+];
 
 export function registerSheetImportFeature(feature: SheetImportFeature) {
   sheetImportFeatures.push(feature);

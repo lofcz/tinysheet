@@ -12,6 +12,10 @@
  * editing the cell writer. Writers run in array order; the built-in order is
  * sheet properties -> sizes -> cells -> tables -> notes -> merges ->
  * borders -> images -> data validation -> views.
+ *
+ * Parts ExcelJS cannot model at all (PivotTables, ...) are added to the
+ * written zip by `xlsxPackageFeatures` (`registerXlsxPackageFeature`),
+ * after the zip-level fixups.
  */
 import ExcelJS from "@protobi/exceljs";
 import type { XlsxPostProcessInfo } from "./postProcess";
@@ -29,6 +33,7 @@ import {
 import { colorToArgb } from "../common/units";
 import { setDefinedNames } from "../common/definedNames";
 import { addChartsToXlsx } from "../chart/exportXlsx";
+import { addPivotTablesToXlsx } from "../common/pivotTables";
 import {
   finalizeConditionalFormatting,
   setConditionalFormatting,
@@ -138,6 +143,28 @@ export function registerSheetExportFeature(
 
 export function registerWorkbookExportFeature(feature: WorkbookExportFeature) {
   workbookExportFeatures.push(feature);
+}
+
+/** Adds parts to the written xlsx package (bytes in, bytes out). */
+export type XlsxPackageFeature = {
+  name: string;
+  write: (
+    bytes: ArrayBuffer | Uint8Array,
+    sheets: any[],
+    options: XlsxExportOptions
+  ) => Promise<ArrayBuffer | Uint8Array>;
+};
+
+/** Package-level writers, run in order after the zip fixups and charts. */
+export const xlsxPackageFeatures: XlsxPackageFeature[] = [
+  {
+    name: "pivot-tables",
+    write: (bytes, sheets) => addPivotTablesToXlsx(bytes, sheets),
+  },
+];
+
+export function registerXlsxPackageFeature(feature: XlsxPackageFeature) {
+  xlsxPackageFeatures.push(feature);
 }
 
 /** The sheet's cells as a matrix, whether it is loaded (data) or not (celldata). */
@@ -277,8 +304,11 @@ export async function exportToXlsx(
   );
   const processed = await postProcessXlsx(buffer as ArrayBuffer, post);
   // exceljs cannot create charts: add native chart parts to its output
-  const withCharts = await addChartsToXlsx(processed, sheets);
-  return withCharts instanceof Uint8Array
-    ? withCharts
-    : new Uint8Array(withCharts);
+  let bytes = await addChartsToXlsx(processed, sheets);
+  // parts exceljs cannot write (PivotTables, ...)
+  for (let i = 0; i < xlsxPackageFeatures.length; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    bytes = await xlsxPackageFeatures[i].write(bytes, sheets, options);
+  }
+  return bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
 }

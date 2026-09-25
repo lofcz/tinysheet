@@ -16,6 +16,8 @@ export {
   workbookExportFeatures,
   registerSheetExportFeature,
   registerWorkbookExportFeature,
+  xlsxPackageFeatures,
+  registerXlsxPackageFeature,
 } from "./ToExcel/buildWorkbook";
 export type {
   XlsxExportOptions,
@@ -23,9 +25,18 @@ export type {
   WorkbookExportContext,
   SheetExportFeature,
   WorkbookExportFeature,
+  XlsxPackageFeature,
 } from "./ToExcel/buildWorkbook";
 export { postProcessXlsx } from "./ToExcel/postProcess";
 export type { SheetExportOptions } from "./ToExcel/ExcelFile";
+
+// PivotTables in xlsx (definitions; the report cells are ordinary cells).
+export {
+  addPivotTablesToXlsx,
+  parsePivotTableXml,
+  pivotToXlsxParts,
+  readPivotTables,
+} from "./common/pivotTables";
 
 // xlsx import extension points.
 export {

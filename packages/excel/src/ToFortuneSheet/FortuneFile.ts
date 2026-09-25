@@ -718,6 +718,11 @@ export class FortuneFile {
         sheetout.tables = (sheet as any).tables;
       }
 
+      // PivotTables (common/pivotTables.ts readPivotTables)
+      if ((sheet as any).pivotTables != null) {
+        sheetout.pivotTables = (sheet as any).pivotTables;
+      }
+
       if (sheet.hyperlink != null) {
         sheetout.hyperlink = sheet.hyperlink;
       }
