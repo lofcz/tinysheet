@@ -258,6 +258,11 @@ export type Context = {
   groupedSheetIds?: string[];
   /** Go To dialog (Ctrl+G / F5) visibility. */
   showGoTo?: boolean;
+  /**
+   * Group / Ungroup asked for a range that is neither whole rows nor whole
+   * columns (Shift+Alt+Right / Left): the UI asks which one (outline.ts).
+   */
+  outlinePrompt?: "group" | "ungroup";
   // 只读模式公式被引用单元格强制高光
   forceFormulaRef?: Boolean;
 

@@ -108,6 +108,28 @@ export type SheetConfig = {
   authority?: any;
   rowReadOnly?: Record<number, number>;
   colReadOnly?: Record<number, number>;
+  /**
+   * Outline (Data › Group) level of each grouped row / column, 1–7; rows
+   * and columns without an entry are level 0. See modules/outline.ts.
+   */
+  rowOutlineLevel?: Record<string, number>;
+  colOutlineLevel?: Record<string, number>;
+  /**
+   * Collapsed outline groups, keyed by the group's summary row / column
+   * (Excel's `collapsed` flag); the value is a bit mask of the collapsed
+   * group levels (bit 0 = level 1) ending at that summary.
+   */
+  rowOutlineCollapsed?: Record<string, number>;
+  colOutlineCollapsed?: Record<string, number>;
+  /** Summary rows below their detail (default true; Excel `summaryBelow`). */
+  outlineSummaryBelow?: boolean;
+  /** Summary columns right of their detail (default true; `summaryRight`). */
+  outlineSummaryRight?: boolean;
+  /**
+   * Manual page breaks: 0-based rows that start a new printed page (written
+   * by Data › Subtotal "Page break between groups").
+   */
+  rowPageBreaks?: number[];
 };
 
 export type Image = {

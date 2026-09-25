@@ -55,3 +55,5 @@ export * from "./modelSync";
 export * from "./formatCells";
 export { inferFormulaFormat } from "./formatInference";
 export * from "./extensions";
+export * from "./outline";
+export * from "./subtotal";
