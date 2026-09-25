@@ -10,8 +10,20 @@
  *
  * Canvas cell decorators and keyboard shortcuts live in the core package
  * (`registerCellDecorator`, `registerShortcut`).
+ *
+ * Built-in features (builtinExtensions.ts) are installed before the first
+ * registry access, so a host's own registration under the same name wins.
  */
 import React from "react";
+import { installBuiltinExtensions } from "./builtinExtensions";
+
+let builtinsInstalled = false;
+
+function ensureBuiltins() {
+  if (builtinsInstalled) return;
+  builtinsInstalled = true;
+  installBuiltinExtensions();
+}
 
 export type ToolbarItemRenderer = (props: {
   name: string;
@@ -21,6 +33,7 @@ export type ToolbarItemRenderer = (props: {
 const toolbarItems = new Map<string, ToolbarItemRenderer>();
 
 export function registerToolbarItem(name: string, render: ToolbarItemRenderer) {
+  ensureBuiltins();
   toolbarItems.set(name, render);
   return () => {
     if (toolbarItems.get(name) === render) toolbarItems.delete(name);
@@ -28,6 +41,7 @@ export function registerToolbarItem(name: string, render: ToolbarItemRenderer) {
 }
 
 export function getToolbarItemRenderer(name: string) {
+  ensureBuiltins();
   return toolbarItems.get(name);
 }
 
@@ -39,6 +53,7 @@ export function registerSheetOverlay(
   key: string,
   Component: React.ComponentType
 ) {
+  ensureBuiltins();
   overlays = [...overlays.filter((o) => o.key !== key), { key, Component }];
   return () => {
     overlays = overlays.filter(
@@ -48,5 +63,6 @@ export function registerSheetOverlay(
 }
 
 export function getSheetOverlays(): readonly OverlayEntry[] {
+  ensureBuiltins();
   return overlays;
 }
