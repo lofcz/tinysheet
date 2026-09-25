@@ -11,6 +11,14 @@ import {
 } from "./ExcelConvert";
 import { cellAddress, toExcelFormula } from "../common/formulaText";
 import type { SheetExportContext } from "./buildWorkbook";
+import type { XlsxPostProcessContext } from "./postProcessors";
+import {
+  REL_NS,
+  ensureNamespace,
+  escapeXmlAttr,
+  findElement,
+  insertWorksheetElement,
+} from "./xlsxParts";
 
 const ERROR_VALUES = new Set([
   "#NULL!",
@@ -244,6 +252,104 @@ export function writeCells(ctx: SheetExportContext) {
       writeCell(ctx, cell, r, c);
     }
   }
+  collectLinksWithoutValue(ctx);
+}
+
+const LINKS_FEATURE = "cell-hyperlinks";
+
+type PendingLink = {
+  ref: string;
+  target: string;
+  tooltip?: string;
+};
+
+/**
+ * ExcelJS writes a hyperlink only as a cell value, so links on formula
+ * cells and on empty cells are dropped; they are recorded here and added
+ * by the "cell-hyperlinks" zip post-processor.
+ */
+function collectLinksWithoutValue(ctx: SheetExportContext) {
+  const { sheet, data, worksheet, post } = ctx;
+  const links = sheet?.hyperlink;
+  if (!links) return;
+  const pending: PendingLink[] = [];
+  Object.keys(links).forEach((key) => {
+    const [r, c] = key.split("_").map(Number);
+    if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || c < 0) return;
+    const cell: any = data[r]?.[c];
+    if (cell && typeof cell === "object") {
+      const { mc } = cell;
+      if (mc && (mc.r !== r || mc.c !== c)) return;
+      if (cell.f == null || String(cell.f).trim() === "") return;
+    }
+    const target = hyperlinkTarget(links[key], worksheet.name);
+    if (!target) return;
+    const tooltip = links[key]?.linkTooltip;
+    pending.push({
+      ref: cellAddress(r, c),
+      target,
+      ...(tooltip ? { tooltip: String(tooltip) } : {}),
+    });
+  });
+  if (pending.length === 0) return;
+  const features = (post.features ||= {});
+  const bySheet = (features[LINKS_FEATURE] ||= {}) as Record<
+    number,
+    PendingLink[]
+  >;
+  bySheet[worksheet.id] = pending;
+}
+
+const HYPERLINK_REL =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+
+/** Zip post-processor: the links collectLinksWithoutValue recorded. */
+export async function addCellHyperlinks(ctx: XlsxPostProcessContext) {
+  const bySheet: Record<number, PendingLink[]> | undefined =
+    ctx.post.features?.[LINKS_FEATURE];
+  if (!bySheet) return;
+  // one sheet at a time: each adds to its own .rels part
+  /* eslint-disable no-await-in-loop */
+  for (const [id, links] of Object.entries(bySheet)) {
+    const path = `xl/worksheets/sheet${id}.xml`;
+    let xml = await ctx.readText(path);
+    if (xml == null) continue;
+    let items = "";
+    for (const link of links) {
+      const tip = link.tooltip
+        ? ` tooltip="${escapeXmlAttr(link.tooltip)}"`
+        : "";
+      if (link.target.startsWith("#")) {
+        items += `<hyperlink ref="${link.ref}" location="${escapeXmlAttr(
+          link.target.slice(1)
+        )}"${tip}/>`;
+      } else {
+        const rid = await ctx.addRelationship(
+          path,
+          HYPERLINK_REL,
+          link.target,
+          true
+        );
+        items += `<hyperlink ref="${link.ref}" r:id="${rid}"${tip}/>`;
+      }
+    }
+    xml = ensureNamespace(xml, "r", REL_NS);
+    const existing = findElement(xml, "hyperlinks");
+    if (existing) {
+      const inner = existing.text.endsWith("/>")
+        ? `<hyperlinks>${items}</hyperlinks>`
+        : existing.text.replace(/<\/hyperlinks>$/, `${items}</hyperlinks>`);
+      xml = xml.slice(0, existing.start) + inner + xml.slice(existing.end);
+    } else {
+      xml = insertWorksheetElement(
+        xml,
+        "hyperlinks",
+        `<hyperlinks>${items}</hyperlinks>`
+      );
+    }
+    ctx.writeText(path, xml);
+  }
+  /* eslint-enable no-await-in-loop */
 }
 
 /**

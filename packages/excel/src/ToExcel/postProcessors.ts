@@ -22,7 +22,8 @@
  * - Names are unique; registering an existing name replaces it in place.
  * - Order is registration order unless `before` / `after` names another
  *   processor. Built-ins run as: conditional-formatting, dynamic-arrays,
- *   internal-hyperlinks, visible-notes, data-validation, tables, charts.
+ *   internal-hyperlinks, visible-notes, cell-hyperlinks, data-validation,
+ *   tables, charts.
  * - Share data from a sheet writer (SheetExportFeature) with its
  *   post-processor through `ctx.post.features[<your name>]`.
  * - Use the helpers (`addRelationship`, `addContentTypeOverride`,
@@ -47,6 +48,7 @@ import {
 } from "./xlsxParts";
 import { markHiddenDropdowns } from "./ExcelValidation";
 import { markEmptyTables } from "./ExcelTable";
+import { addCellHyperlinks } from "./ExcelStyle";
 
 /** A worksheet part of the written package. */
 export type XlsxWorksheetPart = {
@@ -116,6 +118,8 @@ export const xlsxPostProcessors: XlsxPostProcessor[] = [
     process: (ctx) => fixInternalHyperlinks(ctx.zip),
   },
   { name: "visible-notes", process: (ctx) => showNotes(ctx.zip, ctx.post) },
+  // links on formula cells and empty cells (ExcelJS only writes link values)
+  { name: "cell-hyperlinks", process: addCellHyperlinks },
   // list validation "show in-cell dropdown" off (showDropDown="1")
   { name: "data-validation", process: markHiddenDropdowns },
   // tables without data rows (insertRow="1")

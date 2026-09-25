@@ -32,6 +32,7 @@ test("built-in post-processors run in a documented order", () => {
       "dynamic-arrays",
       "internal-hyperlinks",
       "visible-notes",
+      "cell-hyperlinks",
       "data-validation",
       "tables",
       "charts",
@@ -254,4 +255,47 @@ test("escaped entities are decoded once", async () => {
     { name: "E", celldata: [{ r: 0, c: 0, v: text(tricky) }] },
   ]);
   assert.equal(cellMap(sheetByName(result, "E")).get("0_0").v, tricky);
+});
+
+test("links on formula cells and empty cells are kept", async () => {
+  const hyperlink = {
+    "0_0": {
+      linkType: "webpage",
+      linkAddress: "https://example.com/f?a=1&b=2",
+      linkTooltip: "tip",
+    },
+    "1_0": { linkType: "cellrange", linkAddress: "'L k'!C3" },
+    "5_5": { linkType: "webpage", linkAddress: "https://example.com/empty" },
+    "2_0": { linkType: "webpage", linkAddress: "https://example.com/value" },
+  };
+  const { bytes, result } = await roundTrip([
+    {
+      name: "L k",
+      celldata: [
+        {
+          r: 0,
+          c: 0,
+          v: { f: "=1+1", v: 2, m: "2", ct: { fa: "General", t: "n" } },
+        },
+        { r: 1, c: 0, v: { f: '="x"&"y"', v: "xy", m: "xy" } },
+        { r: 2, c: 0, v: text("value") },
+      ],
+      hyperlink,
+    },
+  ]);
+  const ws = (await readWithExcelJS(bytes)).getWorksheet("L k");
+  assert.ok(ws);
+  const xml = await zipText(bytes, "xl/worksheets/sheet1.xml");
+  assert.match(xml, /<c r="A1"[^>]*><f>1\+1<\/f>/);
+  assert.match(xml, /<hyperlinks>[\s\S]*ref="A1"[\s\S]*<\/hyperlinks>/);
+  // schema order: hyperlinks before pageMargins
+  assert.ok(xml.indexOf("<hyperlinks>") < xml.indexOf("<pageMargins"));
+  const back = sheetByName(result, "L k");
+  const simple = (links) =>
+    Object.fromEntries(
+      Object.entries(links).map(([k, l]) => [k, [l.linkType, l.linkAddress]])
+    );
+  assert.deepEqual(simple(back.hyperlink), simple(hyperlink));
+  assert.equal(back.hyperlink["0_0"].linkTooltip, "tip");
+  assert.equal(cellMap(back).get("0_0").f, "=1+1");
 });
