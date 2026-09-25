@@ -33,6 +33,7 @@ import {
   runRecalcSlice,
   setRecalcScheduler,
 } from "@lofcz/tinysheet-core";
+import type { History } from "@lofcz/tinysheet-core";
 import { flushSync } from "react-dom";
 import React, {
   useMemo,
@@ -223,7 +224,14 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       (recipe: (ctx: Context) => void, options: SetContextOptions = {}) => {
         // the undo group is read now: React may run the updater later
         const group = globalCache.current.undoGroup?.id;
+        // React may call this updater again: twice for the same state
+        // (StrictMode), or on top of an update that was still pending when it
+        // first ran ("rebasing"). The edit must stay one undo step and one op.
+        let memo: { input: Context; output: Context } | null = null;
+        let step: History | undefined;
+        let emitted = false;
         setContext((ctx_) => {
+          if (memo?.input === ctx_) return memo.output;
           const { result, recorded } = produceWithHistory(
             ctx_,
             concatProducer(
@@ -236,7 +244,18 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             globalCache.current,
             group
           );
-          if (recorded) emitOp(result, recorded.patches, recorded.options);
+          // a re-run replaces the step its earlier run recorded
+          if (step) {
+            const { undoList } = globalCache.current;
+            const i = undoList.lastIndexOf(step);
+            if (i >= 0) undoList.splice(i, 1);
+          }
+          step = recorded;
+          if (recorded && !emitted) {
+            emitted = true;
+            emitOp(result, recorded.patches, recorded.options);
+          }
+          memo = { input: ctx_, output: result };
           return result;
         });
       },
