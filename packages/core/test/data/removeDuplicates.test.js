@@ -2,6 +2,7 @@ import { makeContext, input, values, cell } from "../formula/helpers";
 import {
   removeDuplicates,
   detectDuplicatesHeader,
+  analyzeDuplicates,
 } from "../../src/modules/removeDuplicates";
 
 function fill(ctx, cells) {
@@ -100,4 +101,15 @@ describe("Remove Duplicates", () => {
     expect(cell(ctx, "B2").f).toBe("=D2*2");
     expect(values(ctx, "A1", "A3")).toEqual([["a"], ["b"], [undefined]]);
   });
+});
+
+test("analyzeDuplicates does not change the sheet", () => {
+  const ctx = setup();
+  const { data } = ctx.luckysheetfile[0];
+  const res = analyzeDuplicates(data, {
+    range: { row: [0, 5], column: [0, 1] },
+    hasHeader: true,
+  });
+  expect(res).toEqual({ start: 1, keep: [1, 2, 4], removed: 2 });
+  expect(values(ctx, "A6", "B6")).toEqual([["Bob", "Rome"]]);
 });

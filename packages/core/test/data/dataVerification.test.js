@@ -20,6 +20,9 @@ import {
   cellsToRanges,
   getFailureText,
   isCellDataValid,
+  toAbsoluteReference,
+  describeDataVerificationRule,
+  dataToolsLocale,
 } from "../../src/modules/dataVerification";
 import { locale } from "../../src/locale";
 import { defaultContext } from "../../src/context";
@@ -524,5 +527,53 @@ describe("placeholders", () => {
     expect(getDataVerificationItem(ctx, 0, 0)).toBeNull();
     expect(getDataVerificationItem(ctx, 0, 1).placeholder).toBeUndefined();
     expect(cell(ctx, "A1")).toBeNull();
+  });
+});
+
+describe("helpers", () => {
+  test("picked ranges become absolute list sources", () => {
+    expect(toAbsoluteReference("A1:B5")).toBe("$A$1:$B$5");
+    expect(toAbsoluteReference("Sheet2!C3")).toBe("Sheet2!$C$3");
+    expect(toAbsoluteReference("$A$1:A2")).toBe("$A$1:$A$2");
+  });
+
+  test("rules are described for the sidebar", () => {
+    const ctx = setupCtx();
+    expect(
+      describeDataVerificationRule(
+        ctx,
+        rule({
+          type: "number_integer",
+          type2: "between",
+          value1: "1",
+          value2: "9",
+        })
+      )
+    ).toBe("Whole number between 1 - 9");
+    expect(
+      describeDataVerificationRule(
+        ctx,
+        rule({ type: "date", type2: "earlierThan", value1: "2024-01-01" })
+      )
+    ).toBe("Date less than 2024-01-01");
+    expect(
+      describeDataVerificationRule(
+        ctx,
+        rule({ type: "dropdown", value1: "=$A$1:$A$3" })
+      )
+    ).toBe("List: =$A$1:$A$3");
+    expect(describeDataVerificationRule(ctx, rule({ type: "any" }))).toBe(
+      "Any value"
+    );
+  });
+
+  test("locale strings fall back to English per key", () => {
+    expect(dataToolsLocale({ lang: "zh" }).dataValidation.title).toBe(
+      "数据验证"
+    );
+    expect(dataToolsLocale({ lang: "es" }).dataValidation.title).toBe(
+      "Data Validation"
+    );
+    expect(dataToolsLocale({ lang: "zh-CN" }).filter.months[0]).toBe("一月");
   });
 });
