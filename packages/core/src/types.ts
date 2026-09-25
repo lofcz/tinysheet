@@ -57,6 +57,8 @@ export type Cell = {
     isShow: boolean;
   };
   hl?: { r: number; c: number; id: string };
+  /** Styles a PivotTable wrote into this cell (see modules/pivot.ts). */
+  pvs?: Record<string, any>;
 } & CellStyle;
 
 export type CellWithRowAndCol = {
@@ -174,6 +176,9 @@ export type Sheet = {
   /** Excel-style tables ("Format as Table") of this sheet, see modules/tables.ts */
   // eslint-disable-next-line no-use-before-define
   tables?: SheetTable[];
+  /** PivotTables whose report is on this sheet, see modules/pivot.ts */
+  // eslint-disable-next-line no-use-before-define
+  pivotTables?: PivotTable[];
 };
 
 /** A defined name (Excel Name Manager entry). */
@@ -228,6 +233,177 @@ export type SheetTable = {
   /** Key of a style from TABLE_STYLES (modules/tables.ts). */
   style: string;
   columns: SheetTableColumn[];
+};
+
+/* ------------------------------------------------------------------------ */
+/* PivotTables (modules/pivot.ts)                                            */
+/* ------------------------------------------------------------------------ */
+
+export type PivotAggregate =
+  | "sum"
+  | "count"
+  | "average"
+  | "max"
+  | "min"
+  | "product"
+  | "countNums"
+  | "stdDev"
+  | "stdDevp"
+  | "var"
+  | "varp";
+
+export type PivotShowAs =
+  | "normal"
+  | "percentOfGrandTotal"
+  | "percentOfColumnTotal"
+  | "percentOfRowTotal"
+  | "difference"
+  | "percentDifference";
+
+export type PivotDateGroup = "years" | "quarters" | "months" | "days";
+
+export type PivotValueField = {
+  /** Source field (column header). */
+  field: string;
+  aggregate: PivotAggregate;
+  /** Custom caption ("Sum of Sales" by default). */
+  name?: string;
+  showAs?: PivotShowAs;
+  /** difference / percentDifference: the field and item compared with. */
+  baseField?: string;
+  /** An item label, or "(previous)" / "(next)". */
+  baseItem?: string;
+  /** Number format code of the values (General by default). */
+  numberFormat?: string;
+};
+
+export type PivotLabelFilter = {
+  op:
+    | "equals"
+    | "notEquals"
+    | "beginsWith"
+    | "endsWith"
+    | "contains"
+    | "notContains"
+    | "greaterThan"
+    | "lessThan"
+    | "between";
+  value: string;
+  value2?: string;
+};
+
+export type PivotValueFilter = {
+  op:
+    | "greaterThan"
+    | "greaterOrEqual"
+    | "lessThan"
+    | "lessOrEqual"
+    | "equals"
+    | "notEquals"
+    | "between"
+    | "top"
+    | "bottom";
+  /** Index into `values`. */
+  valueIndex: number;
+  /** The threshold, or the item count for top / bottom. */
+  value: number;
+  value2?: number;
+};
+
+/** Per-field settings (keyed by field name, or `Field|years` levels). */
+export type PivotFieldSettings = {
+  /** Items (keys, see `pivotItemKey`) unchecked in the field's filter. */
+  hiddenItems?: string[];
+  /** Label order; "none" keeps the source order. */
+  sort?: "asc" | "desc" | "none";
+  /** Sort by a value field (index into `values`) instead of the labels. */
+  sortByValue?: number;
+  labelFilter?: PivotLabelFilter;
+  valueFilter?: PivotValueFilter;
+  /** Date grouping of the source field (on the field name only). */
+  dateGroups?: PivotDateGroup[];
+  /** false: no subtotals for this field. */
+  subtotal?: boolean;
+};
+
+export type PivotFilterField = {
+  field: string;
+  /** Item keys shown; undefined = (All). */
+  selected?: string[];
+};
+
+export type PivotOptions = {
+  layout: "compact" | "outline" | "tabular";
+  subtotals: "top" | "bottom" | "off";
+  /** The Grand Total row under the rows. */
+  grandTotalRow: boolean;
+  /** The Grand Total column right of the columns. */
+  grandTotalColumn: boolean;
+  /** With several value fields: Σ Values on the rows instead of columns. */
+  valuesOnRows?: boolean;
+  /** Shown in value cells without data. */
+  emptyText?: string;
+  /** Keep formatting applied to the report's cells on refresh. */
+  preserveFormatting: boolean;
+  /** Refresh when the source data changes. */
+  autoRefresh: boolean;
+  /** Tabular / outline: repeat item labels on every row. */
+  repeatLabels?: boolean;
+};
+
+/** An item of a row / column axis of a rendered report. */
+export type PivotAxisItem = {
+  /** item, subtotal, grand total, or a label-only row (no values) */
+  t: "item" | "subtotal" | "grand" | "label";
+  /** Item keys along the axis levels (a prefix for subtotals). */
+  p: string[];
+  /** Value field index when Σ Values is on this axis. */
+  v?: number;
+};
+
+/** Where the last refresh put things (for GETPIVOTDATA, drill-down). */
+export type PivotLayout = {
+  /** Sheet row / column of the report's top-left cell. */
+  row: number;
+  col: number;
+  headerRows: number;
+  labelCols: number;
+  rowLevels: string[];
+  colLevels: string[];
+  rowItems: PivotAxisItem[];
+  colItems: PivotAxisItem[];
+  /** Level index -> item key -> label. */
+  labels: Record<string, Record<string, string>>;
+};
+
+export type PivotSource = {
+  /** A range of a sheet (header row included)... */
+  sheetId?: string;
+  range?: { row: [number, number]; column: [number, number] };
+  /** ...or a table name. */
+  table?: string;
+};
+
+export type PivotTable = {
+  /** Unique id (stable across renames). */
+  id: string;
+  /** "PivotTable1" */
+  name: string;
+  source: PivotSource;
+  /** Top-left cell of the report body (the report filters sit above). */
+  anchor: { r: number; c: number };
+  rows: string[];
+  columns: string[];
+  values: PivotValueField[];
+  filters: PivotFilterField[];
+  fields?: Record<string, PivotFieldSettings>;
+  options: PivotOptions;
+  /** Captions (compact layout); default "Row Labels" / "Column Labels". */
+  rowHeaderCaption?: string;
+  colHeaderCaption?: string;
+  /** Cells covered by the last refresh (filters included). */
+  output?: { row: [number, number]; column: [number, number] };
+  layout?: PivotLayout;
 };
 
 export type CommentBox = {

@@ -5892,6 +5892,48 @@ const functionlist: FunctionListEntry[] = [
     ],
   },
   {
+    n: "GETPIVOTDATA",
+    t: 2,
+    d: "Returns data stored in a PivotTable report: the value of a data field for the given field / item pairs.",
+    a: "Value from a PivotTable.",
+    m: [2, 254],
+    p: [
+      {
+        name: "data_field",
+        detail:
+          'The name of the value field, e.g. `"Sales"` or `"Sum of Sales"`.',
+        example: '"Sales"',
+        require: "m",
+        repeat: "n",
+        type: "string",
+      },
+      {
+        name: "pivot_table",
+        detail: "A reference to any cell of the PivotTable.",
+        example: "A3",
+        require: "m",
+        repeat: "n",
+        type: "range",
+      },
+      {
+        name: "field1",
+        detail: "A field of the PivotTable's rows or columns.",
+        example: '"Region"',
+        require: "o",
+        repeat: "y",
+        type: "string",
+      },
+      {
+        name: "item1",
+        detail: "The item of `field1` to return the value for.",
+        example: '"East"',
+        require: "o",
+        repeat: "y",
+        type: "rangeall",
+      },
+    ],
+  },
+  {
     n: "GROUPBY",
     t: 2,
     d: "Groups rows by the values of one or more fields and aggregates the values of each group, with optional headers, totals, sorting and filtering.",

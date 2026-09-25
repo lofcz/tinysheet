@@ -90,6 +90,8 @@ function locale(ctx: Context) {
 export { locale };
 export { FUNCTION_CATEGORIES } from "./functions/types";
 export type { ChartLocale } from "./chart";
+export { pivotLocale, pivotText } from "./pivot";
+export type { PivotLocale } from "./pivot";
 export type {
   FunctionListEntry,
   FunctionListParam,

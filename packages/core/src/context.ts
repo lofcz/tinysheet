@@ -53,6 +53,8 @@ export type Context = {
   activeChart?: string;
   /** Whether the chart editor panel is open for `activeChart`. */
   chartEditorOpen?: boolean;
+  /** The PivotTable Fields pane was closed (see modules/pivot.ts). */
+  pivotFieldListHidden?: boolean;
   presences?: Presence[];
   showSearch?: boolean;
   showReplace?: boolean;

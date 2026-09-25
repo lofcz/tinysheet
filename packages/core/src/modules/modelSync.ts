@@ -11,7 +11,8 @@
  * - defined names (names.ts `adjustNamesForChange`),
  * - tables and structured references (tables.ts `adjustTablesForChange`),
  * - charts: series ranges and positions (chart.ts `adjustChartsForChange`),
- * - note boxes with an explicit position (`adjustNotesForChange` below).
+ * - note boxes with an explicit position (`adjustNotesForChange` below),
+ * - PivotTable sources and report positions (pivot.ts).
  *
  * The data-validation rule anchors register their own adjuster
  * (dataVerification.ts). Cell-keyed data (merges, data-validation and
@@ -28,6 +29,7 @@ import type { Context } from "../context";
 import type { Sheet } from "../types";
 import { remapDuplicatedCharts, adjustChartsForChange } from "./chart";
 import { adjustNamesForChange } from "./names";
+import { adjustPivotTablesForChange } from "./pivot";
 import {
   createSheetLookup,
   locateRangeForChange,
@@ -129,12 +131,25 @@ const chartsAdjuster: ReferenceAdjuster = (ctx, change) =>
 const notesAdjuster: ReferenceAdjuster = (ctx, change) =>
   adjustNotesForChange(ctx, change);
 
+const pivotsAdjuster: ReferenceAdjuster = (ctx, change, api) => {
+  if (change.type === "renameSheet") return;
+  adjustPivotTablesForChange(
+    ctx,
+    (range, sheetId) =>
+      change.type === "deleteSheet"
+        ? { range, sheetId }
+        : api.locateRange(range, sheetId),
+    change.type === "deleteSheet" ? change.sheetId : undefined
+  );
+};
+
 /** Keys the model adjusters are registered under. */
 export const MODEL_ADJUSTER_KEYS = [
   "model.tables",
   "model.names",
   "model.charts",
   "model.notes",
+  "model.pivots",
 ] as const;
 
 /**
@@ -147,6 +162,7 @@ export function installModelAdjusters() {
   registerReferenceAdjuster("model.names", namesAdjuster);
   registerReferenceAdjuster("model.charts", chartsAdjuster);
   registerReferenceAdjuster("model.notes", notesAdjuster);
+  registerReferenceAdjuster("model.pivots", pivotsAdjuster);
 }
 
 installModelAdjusters();
