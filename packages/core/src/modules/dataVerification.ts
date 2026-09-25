@@ -265,10 +265,17 @@ export function getDataVerificationListSource(
     }
     return out;
   }
-  if (isFormula) {
+  // a bare defined name (as xlsx imports store it) is a formula too
+  const bareName =
+    !isFormula &&
+    /^[A-Za-z_\\][A-Za-z0-9_.\\]*$/.test(source) &&
+    !isErrorString(
+      evaluateDataVerificationFormula(ctx, `=${source}`, r ?? 0, c ?? 0)
+    );
+  if (isFormula || bareName) {
     const v = evaluateDataVerificationFormula(
       ctx,
-      source,
+      isFormula ? source : `=${source}`,
       r ?? 0,
       c ?? 0,
       anchor
@@ -1563,8 +1570,10 @@ export function cellFocus(
 
   // input message: bold title over the message, like Excel
   if (item.hintShow) {
-    const title = item.hintTitle
-      ? `<div class="fortune-dv-hint-title">${escapeHtml(item.hintTitle)}</div>`
+    // promptTitle: the name xlsx import/export uses
+    const hintTitle = item.hintTitle ?? item.promptTitle;
+    const title = hintTitle
+      ? `<div class="fortune-dv-hint-title">${escapeHtml(hintTitle)}</div>`
       : "";
     let message = item.hintValue ? escapeHtml(item.hintValue) : "";
     if (!title && !message) {
@@ -1754,6 +1763,10 @@ export function confirmDataVerification(
     ctx.dataVerification!.editingRuleId = undefined;
   }
   const item = _.omit(regulation, ["rangeTxt", "checked", "anchor"]);
+  // no error alert: no style either (exporters read errorStyle as "show")
+  if (!item.prohibitInput) delete item.errorStyle;
+  if (item.hintTitle) item.promptTitle = item.hintTitle;
+  else delete item.promptTitle;
   if (item.type === "dropdown") item.value1 = `${item.value1}`.trim();
   if (item.type !== "dropdown") delete item.showDropdown;
   setDataVerification(ctx, `${regulation.rangeTxt}`, item);
@@ -1805,6 +1818,7 @@ export function initDataVerificationDialog(ctx: Context, ruleId?: string) {
       ctx.dataVerification.dataRegulation = {
         ...defaults,
         ..._.omit(rule.item, ["checked", "anchor"]),
+        hintTitle: rule.item.hintTitle ?? (rule.item as any).promptTitle ?? "",
         rangeTxt: rangesToText(ctx, rule.ranges),
       } as any;
       return;
@@ -1824,6 +1838,7 @@ export function initDataVerificationDialog(ctx: Context, ruleId?: string) {
   ctx.dataVerification.dataRegulation = {
     ...defaults,
     ...(item ? _.omit(item, ["checked", "anchor"]) : {}),
+    ...(item ? { hintTitle: item.hintTitle ?? item.promptTitle ?? "" } : {}),
     rangeTxt,
   } as any;
 }

@@ -577,6 +577,29 @@ describe("named ranges and structural changes", () => {
     const item = rule({ type: "dropdown", value1: "=MyList" });
     expect(validateCellData(ctx, item, "South", 0, 0)).toBe(true);
     expect(validateCellData(ctx, item, "east", 0, 0)).toBe(false);
+    // xlsx imports store the source without "="
+    expect(getDropdownList(ctx, "MyList", 0, 0)).toEqual(["north", "south"]);
+    // a one-item literal list is still literal
+    expect(getDropdownList(ctx, "Yes", 0, 0)).toEqual(["Yes"]);
+  });
+
+  test("no error alert, no error style; titles are saved for xlsx", () => {
+    const ctx = setupCtx();
+    const { generalDialog, dataVerification } = locale(ctx);
+    initDataVerificationDialog(ctx);
+    Object.assign(ctx.dataVerification.dataRegulation, {
+      rangeTxt: "A1",
+      type: "any",
+      prohibitInput: false,
+      errorStyle: "warning",
+      hintShow: true,
+      hintTitle: "Note",
+      hintValue: "Anything goes",
+    });
+    confirmDataVerification(ctx, generalDialog, dataVerification);
+    const item = getDataVerificationItem(ctx, 0, 0);
+    expect(item.errorStyle).toBeUndefined();
+    expect(item.promptTitle).toBe("Note");
   });
 
   test("custom formulas keep pointing at their row after a row insert", async () => {
