@@ -36,6 +36,7 @@
  * scalar is called once per element (see ./function-traits.js).
  */
 import { createLambda, isLambda } from "../functions/lambda";
+import { etaLambda } from "../functions/eta";
 import CUSTOM_FUNCTIONS from "../functions";
 import SUPPORTED_FORMULAS from "../supported-formulas";
 import {
@@ -683,7 +684,23 @@ export default class Evaluator {
       }
     }
 
-    const value = this.yy.callVariable(node.name);
+    let value;
+
+    try {
+      value = this.yy.callVariable(node.name);
+    } catch (ex) {
+      // A bare function name used as a value (GROUPBY(..., SUM),
+      // BYROW(A1:C3, SUM)) is an eta-reduced LAMBDA, as in Excel.
+      if (
+        BUILTIN_FUNCTIONS.has(node.key) ||
+        this.hasCustomFunction(node.name)
+      ) {
+        return etaLambda(node.key, (args) =>
+          this.yy.callFunction(node.name, args, [])
+        );
+      }
+      throw ex;
+    }
 
     return this.hostReference(value, true) || value;
   }

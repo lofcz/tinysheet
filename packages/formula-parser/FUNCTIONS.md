@@ -18,34 +18,11 @@ Totals: 473 supported, 32 partial,
 ## Eta-reduced functions (GROUPBY, PIVOTBY, MAP, ...)
 
 `GROUPBY(A2:A9, B2:B9, SUM)` passes the bare name `SUM` as a value. The
-evaluator still looks bare names up as variables, which is `#NAME?`.
-Until it produces eta LAMBDAs, write the name as text
-(`GROUPBY(A2:A9, B2:B9, "SUM")`) or as a LAMBDA (`LAMBDA(x, SUM(x))`).
-
-The evaluator change needed (tried locally with the formulas below) is in
-`Evaluator#evaluateName` (`src/grammar-parser/evaluator.js`), using
-`etaLambda` from `src/functions/eta.js`:
-
-```js
-let value;
-
-try {
-  value = this.yy.callVariable(node.name);
-} catch (ex) {
-  if (BUILTIN_FUNCTIONS.has(node.key) || this.hasCustomFunction(node.name)) {
-    return etaLambda(node.key, (args) =>
-      this.yy.callFunction(node.name, args, [])
-    );
-  }
-  throw ex;
-}
-
-return this.hostReference(value, true) || value;
-```
-
-With it, `GROUPBY(..., SUM)`, `HSTACK(SUM, AVERAGE)`, `PERCENTOF`,
-`BYROW(A1:C3, SUM)` and `MAP(A1:A3, ABS)` work, and a bare function name as a
-cell result is `#CALC!` like any other LAMBDA.
+evaluator turns a bare built-in or host function name into an eta LAMBDA
+(`etaLambda` in `src/functions/eta.js`), so `GROUPBY(..., SUM)`,
+`HSTACK(SUM, AVERAGE)`, `PERCENTOF`, `BYROW(A1:C3, SUM)` and `MAP(A1:A3, ABS)`
+work. A bare function name as a cell result is `#CALC!` like any other LAMBDA.
+GROUPBY and PIVOTBY also still accept the name as text (`"SUM"`).
 
 ### Compatibility
 
