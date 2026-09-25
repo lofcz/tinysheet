@@ -48,6 +48,7 @@ import FilterOptions from "../FilterOption";
 import { useAlert } from "../../hooks/useAlert";
 import ImgBoxs from "../ImgBoxs";
 import NotationBoxes from "../NotationBoxes";
+import { ChartEditor, ChartLayer } from "../Chart";
 import RangeDialog from "../DataVerification/RangeDialog";
 import { useDialog } from "../../hooks/useDialog";
 import SVGIcon from "../SVGIcon";
@@ -814,6 +815,7 @@ const SheetOverlay: React.FC = () => {
           <div id="luckysheet-multipleRange-show" />
           <div id="luckysheet-dynamicArray-hightShow" />
           <ImgBoxs />
+          <ChartLayer />
           <div
             id="luckysheet-dataVerification-dropdown-btn"
             onClick={() => {
@@ -913,6 +915,7 @@ const SheetOverlay: React.FC = () => {
           </div>
         </div>
       </div>
+      <ChartEditor />
       <div id="sr-selection" className="sr-only" role="alert">
         {!rangeText.includes("NaN")
           ? `${rangeText} ${computedCellValue}`

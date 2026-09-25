@@ -227,6 +227,7 @@ export const defaultSettings: Required<Settings> = {
     "filter",
     "link",
     "image",
+    "chart",
     "comment",
     "quick-formula",
     "dataVerification",

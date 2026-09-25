@@ -1,0 +1,288 @@
+/* Chart objects over the grid (sheet coordinates inside .fortune-cell-area). */
+.fortune-chart-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.fortune-chart-box {
+  position: absolute;
+  z-index: 190;
+  box-sizing: border-box;
+  cursor: move;
+  outline: none;
+  user-select: none;
+}
+
+.fortune-chart-box:focus-visible .fortune-chart-outline,
+.fortune-chart-box-active .fortune-chart-outline {
+  display: block;
+}
+
+.fortune-chart-box-active {
+  z-index: 290;
+}
+
+.fortune-chart-svg,
+.fortune-chart-svg svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fortune-chart-outline {
+  display: none;
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--fortune-selection);
+  pointer-events: none;
+}
+
+.fortune-chart-handle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  background: var(--fortune-bg);
+  border: 1px solid var(--fortune-selection);
+  border-radius: 50%;
+}
+
+.fortune-chart-handle-lt,
+.fortune-chart-handle-lm,
+.fortune-chart-handle-lb {
+  left: -5px;
+}
+.fortune-chart-handle-mt,
+.fortune-chart-handle-mb {
+  left: calc(50% - 4px);
+}
+.fortune-chart-handle-rt,
+.fortune-chart-handle-rm,
+.fortune-chart-handle-rb {
+  right: -5px;
+}
+.fortune-chart-handle-lt,
+.fortune-chart-handle-mt,
+.fortune-chart-handle-rt {
+  top: -5px;
+}
+.fortune-chart-handle-lm,
+.fortune-chart-handle-rm {
+  top: calc(50% - 4px);
+}
+.fortune-chart-handle-lb,
+.fortune-chart-handle-mb,
+.fortune-chart-handle-rb {
+  bottom: -5px;
+}
+.fortune-chart-handle-lt,
+.fortune-chart-handle-rb {
+  cursor: nwse-resize;
+}
+.fortune-chart-handle-rt,
+.fortune-chart-handle-lb {
+  cursor: nesw-resize;
+}
+.fortune-chart-handle-mt,
+.fortune-chart-handle-mb {
+  cursor: ns-resize;
+}
+.fortune-chart-handle-lm,
+.fortune-chart-handle-rm {
+  cursor: ew-resize;
+}
+
+.fortune-chart-actions {
+  position: absolute;
+  top: 0;
+  right: -34px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-1);
+}
+
+.fortune-chart-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--fortune-icon);
+  background: var(--fortune-bg-elevated);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  box-shadow: var(--fortune-shadow-sm);
+  cursor: pointer;
+}
+
+.fortune-chart-action:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-chart-action svg {
+  fill: currentColor;
+}
+
+/* Chart editor side panel */
+.fortune-chart-editor {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1003;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  max-width: 100%;
+  box-sizing: border-box;
+  color: var(--fortune-text);
+  font-family: var(--fortune-font-family);
+  font-size: var(--fortune-font-size);
+  background: var(--fortune-bg-elevated);
+  border-left: 1px solid var(--fortune-border);
+  box-shadow: var(--fortune-shadow);
+}
+
+.fortune-chart-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--fortune-space-2) var(--fortune-space-3);
+  font-size: var(--fortune-font-size-lg);
+  font-weight: 500;
+  border-bottom: 1px solid var(--fortune-divider);
+}
+
+.fortune-chart-editor-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--fortune-icon);
+  background: transparent;
+  border: none;
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+}
+
+.fortune-chart-editor-close:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-chart-editor-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--fortune-space-2) var(--fortune-space-3) var(--fortune-space-4);
+}
+
+.fortune-chart-editor-section {
+  padding: var(--fortune-space-2) 0;
+  border-bottom: 1px solid var(--fortune-divider);
+}
+
+.fortune-chart-editor-section:last-child {
+  border-bottom: none;
+}
+
+.fortune-chart-editor-section h3 {
+  margin: 0 0 var(--fortune-space-2);
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fortune-chart-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--fortune-space-2);
+}
+
+.fortune-chart-editor-field > span {
+  color: var(--fortune-text-muted);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-chart-editor-field input[type="text"],
+.fortune-chart-editor-field select {
+  height: var(--fortune-control-height);
+  padding: 0 var(--fortune-space-2);
+  box-sizing: border-box;
+  font-size: var(--fortune-font-size);
+}
+
+.fortune-chart-editor-field input[aria-invalid="true"] {
+  border-color: var(--fortune-danger);
+}
+
+.fortune-chart-editor-error {
+  color: var(--fortune-danger);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-chart-editor-row {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+}
+
+.fortune-chart-editor-check {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  margin: var(--fortune-space-1) 0;
+  cursor: pointer;
+}
+
+.fortune-chart-series {
+  margin-bottom: var(--fortune-space-2);
+  padding: var(--fortune-space-2);
+  background: var(--fortune-bg-subtle);
+  border: 1px solid var(--fortune-divider);
+  border-radius: var(--fortune-radius);
+}
+
+.fortune-chart-series-head {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  margin-bottom: var(--fortune-space-1);
+  font-weight: 500;
+}
+
+.fortune-chart-series-head .fortune-chart-series-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fortune-chart-series input[type="color"] {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+}
+
+.fortune-chart-type-option {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  white-space: nowrap;
+}
+
+.fortune-chart-type-icon {
+  flex: none;
+  color: var(--fortune-icon);
+}
