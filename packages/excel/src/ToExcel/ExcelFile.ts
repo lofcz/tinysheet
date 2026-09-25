@@ -5,6 +5,10 @@ import { setMerge } from "../common/method";
 import { setImages } from "./ExcelImage";
 import { setBorder } from "./ExcelBorder";
 import { setDataValidations } from "./ExcelValidation";
+import {
+  finalizeConditionalFormatting,
+  setConditionalFormatting,
+} from "./ExcelConditionFormat";
 import { setHiddenRowCol } from "./ExcelConfig";
 import { IFileType } from "../common/ICommon";
 
@@ -24,6 +28,7 @@ export async function exportSheetExcel(
     setBorder(table, worksheet);
     setImages(table, worksheet, workbook);
     setDataValidations(table, worksheet);
+    setConditionalFormatting(table, worksheet);
     setHiddenRowCol(table, worksheet);
     return true;
   });
@@ -33,7 +38,10 @@ export async function exportSheetExcel(
     const buffer = await workbook.csv.writeBuffer();
     fileData = new Blob([buffer]);
   } else {
-    const buffer = await workbook.xlsx.writeBuffer();
+    const buffer = await finalizeConditionalFormatting(
+      workbook,
+      await workbook.xlsx.writeBuffer()
+    );
     fileData = new Blob([buffer]);
   }
   if (download)

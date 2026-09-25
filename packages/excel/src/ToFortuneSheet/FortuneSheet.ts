@@ -52,6 +52,7 @@ import {
   FortuneSheetConfigMerge,
 } from "./FortuneBase";
 import { ImageList } from "./FortuneImage";
+import { readSheetConditionalFormats } from "./FortuneConditionFormat";
 import dayjs from "dayjs";
 import {
   FortuneChartSpec,
@@ -313,6 +314,13 @@ export class FortuneSheet extends FortuneSheetBase {
 
     // hyperlink config
     this.hyperlink = this.generateConfigHyperlinks();
+
+    // conditional formatting
+    this.luckysheet_conditionformat_save = readSheetConditionalFormats(
+      this.readXml,
+      this.sheetFile,
+      this.styles
+    ) as any;
 
     // sheet hide
     this.hide = this.hide;
