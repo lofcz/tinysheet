@@ -774,15 +774,20 @@ export function rangesToText(
 
 type RangeArg = { row: number[]; column: number[] }[] | string;
 
-function toRanges(ctx: Context, ranges: RangeArg) {
-  if (typeof ranges === "string") {
-    return ranges
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t !== "")
-      .flatMap((t) => getRangeByTxt(ctx, t));
-  }
-  return ranges;
+type RangeLike = { row: number[]; column: number[] };
+
+function toRanges(ctx: Context, ranges: RangeArg): RangeLike[] {
+  const list: (RangeLike | null | undefined)[] =
+    typeof ranges === "string"
+      ? ranges
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t !== "")
+          .flatMap((t) => getRangeByTxt(ctx, t) as RangeLike[])
+      : ranges;
+  return list.filter(
+    (rg): rg is RangeLike => rg?.row != null && rg?.column != null
+  );
 }
 
 /**
@@ -795,9 +800,7 @@ export function setDataVerification(
   item: Partial<DataVerificationItem>,
   sheetId?: string
 ) {
-  const list = toRanges(ctx, ranges).filter(
-    (rg) => rg?.row != null && rg?.column != null
-  );
+  const list = toRanges(ctx, ranges);
   if (list.length === 0) return;
   const index = getSheetIndex(ctx, sheetId ?? ctx.currentSheetId);
   if (index == null) return;
