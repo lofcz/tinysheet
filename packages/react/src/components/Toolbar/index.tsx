@@ -72,6 +72,7 @@ const toolbarTooltipAliases: Record<string, string> = {
   "vertical-align": "verticalAlign",
   "text-wrap": "textWrap",
   "text-rotation": "textRotate",
+  search: "findAndReplace",
 };
 
 const Toolbar: React.FC<{
@@ -653,7 +654,7 @@ const Toolbar: React.FC<{
           <Combo
             iconId="locationCondition"
             key={name}
-            tooltip={findAndReplace.location}
+            tooltip={findAndReplace.gotoSpecialTitle}
           >
             {(setOpen) => (
               <Select>

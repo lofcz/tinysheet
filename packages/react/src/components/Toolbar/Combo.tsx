@@ -72,7 +72,7 @@ const Combo: React.FC<Props> = ({
           tabIndex={0}
           data-tips={tooltip}
           role="button"
-          aria-label={`${tooltip}: ${text !== undefined ? text : ""}`}
+          aria-label={text ? `${tooltip}: ${text}` : tooltip}
           style={style}
         >
           {iconId ? (
