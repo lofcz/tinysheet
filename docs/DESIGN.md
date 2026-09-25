@@ -140,6 +140,46 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
   SplitButton, LargeButton, MenuButton, DropdownMenu / MenuList (MenuItem
   model with submenus), Popover, Tooltip, Tabs, Select, Combo, Input,
   NumberInput, Checkbox, Switch, Separator, DialogShell, Dialog.
+- **Context menus**: `ContextMenuPopup` (ui) — a `MenuList` at a point
+  (`x`, `y` viewport coords, `within` = any workbook element for the theme),
+  flips / clamps into the viewport, closes on Esc / outside click / wheel /
+  scroll / resize with `onClose(reason)` (`"select"` means an item ran; give
+  the focus back to the sheet unless `"outside"`). Every menu uses it: cell,
+  row / column header and picture menu (`ContextMenu/index.tsx`, Paste
+  Options row in `ContextMenu/PasteOptions.tsx`), sheet tab
+  (`ContextMenu/SheetTab.tsx`), chart, shape, slicer; the pivot field chips
+  use `DropdownMenu`. Menu entries keep `data-key` = item id; icons by name
+  from `ContextMenu/icons.tsx` (`menuIcon(name)`, lucide). The registries
+  (`registerContextMenuItem`, `registerContextMenuAction`, the
+  `cellContextMenu` / `headerContextMenu` / `sheetTabContextMenu` settings)
+  are unchanged. `MenuList` extras: `submenuClassName`; a `type: "custom"`
+  row may hold `role="menuitem"` controls (one keyboard stop per row, the
+  row handles Left / Right).
+- **Pickers & galleries** (ui, for ribbon commands; each is a plain panel,
+  put it in a `Popover` / `SplitButton popover` / menu submenu):
+  - `<ColorPicker value onChange automaticLabel automaticColor moreColors />`
+    — Automatic / No Fill row (`onChange(null)`), Theme Colors 10 × 6 (Office
+    theme + Excel's tints / shades, screen tips "Blue, Accent 1, Lighter
+    40%"), Standard Colors, Recent Colors (shared, from More Colors…), More
+    Colors… = inline Fika custom picker (`CustomColorPanel`: saturation /
+    hue / hex). Emits lower-case `#rrggbb`. Arrow keys move in the grid.
+    Helpers in `ui/color.ts` (`themeGrid`, `tintShade`, `STANDARD_COLORS`).
+  - `<BorderPicker onApply? onClose onMoreBorders? />` — Excel's Borders
+    menu (Bottom/Top/Left/Right, No/All/Outside/Thick Outside, double / thick
+    bottom, top and bottom variants, Line Color ▸, Line Style ▸, More
+    Borders…). Without `onApply` it applies to the selection itself
+    (`applyBorderPreset(ctx, preset, line)`); the line setting and the last
+    preset are shared (`useBorderLine()`, `useLastBorderPreset()`) so a split
+    button's main part can repeat them. `BorderGlyph` draws preset icons.
+  - `<Gallery items={[{ id, label, preview, group }]} onPick onPreview?
+    selectedId columns itemWidth itemHeight footer?={MenuItem[]} onClose />`
+    — grouped tiles with screen tips, hover / focus preview callback, arrow
+    keys, footer commands. Used by `TableStyleGallery` / `FormatAsTableGallery`
+    (Tables, `useTableStyleItems`), `CellStyles` (`bare` for a popover,
+    `useCellStyleItems`) and the conditional formatting presets:
+    `useConditionalFormatMenu(close)` returns Excel's whole Conditional
+    Formatting menu as `MenuItem[]` (for a `LargeButton menu`).
+  - Styles: `ui/pickers.css` (tokens only, light / dark).
 - **Ribbon**: `packages/react/src/components/Ribbon` — layout per tab in
   `tabs/*.ts` (`RibbonTab → groups → items`, `{ rows: [[…], […]] }` stacks
   small items, `{ id, size: "large" }` for large buttons); commands with

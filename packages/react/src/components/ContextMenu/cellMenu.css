@@ -1,62 +1,82 @@
-/* Cell / row / column context menu (Excel layout: icon, label, shortcut). */
+/*
+ * Cell / row / column / picture context menu: a ui `ContextMenuPopup`
+ * (MenuList rows, lucide icons, shortcuts right-aligned), plus Excel's
+ * Paste Options row of icon buttons.
+ */
 .fortune-cell-menu {
   min-width: 232px;
 }
 
-.fortune-cell-menu .fortune-menuitem .fortune-menuitem-content {
-  display: flex;
-  align-items: center;
-  gap: var(--fortune-space-2);
-  padding: 4px var(--fortune-space-3) 4px var(--fortune-space-2);
-  line-height: 20px;
+.fortune-paste-options {
+  padding: 2px 4px 4px 32px;
 }
 
-.fortune-cell-menu .fortune-menuitem-icon {
+.fortune-paste-options-title {
+  padding: 4px 4px 4px 0;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+}
+
+.fortune-paste-options-row {
+  display: flex;
+  gap: 4px;
+}
+
+.fortune-paste-option {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: none;
-  width: 20px;
-  color: var(--fortune-icon);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  color: var(--ts-text);
+  cursor: pointer;
+  outline: none;
+  transition:
+    background var(--ts-fast),
+    color var(--ts-fast);
 }
 
-.fortune-cell-menu .fortune-menuitem-label {
-  flex: 1;
+.fortune-paste-option:hover,
+.fortune-paste-option:focus {
+  background: var(--ts-hover);
+  color: var(--ts-text-strong);
 }
 
-.fortune-cell-menu .fortune-menuitem-shortcut {
-  margin-left: var(--fortune-space-5);
-  color: var(--fortune-text-subtle);
-  font-size: var(--fortune-font-size-sm);
+.fortune-paste-option:focus-visible {
+  box-shadow: 0 0 0 2px var(--ts-ring);
 }
 
-.fortune-cell-menu .fortune-menuitem-arrow {
-  display: inline-flex;
-  margin-right: -6px;
-  color: var(--fortune-text-muted);
-}
-
-.fortune-cell-menu .fortune-menuitem-expanded {
-  background: var(--fortune-bg-hover);
-}
-
-.fortune-cell-menu .fortune-menuitem.fortune-menuitem-disabled,
-.fortune-cell-menu .fortune-menuitem.fortune-menuitem-disabled:hover {
+.fortune-paste-option[aria-disabled="true"] {
   background: transparent;
+  color: var(--ts-disabled);
   cursor: default;
 }
 
-.fortune-cell-menu
-  .fortune-menuitem.fortune-menuitem-disabled
-  .fortune-menuitem-content,
-.fortune-cell-menu .fortune-menuitem-disabled .fortune-menuitem-icon,
-.fortune-cell-menu .fortune-menuitem-disabled .fortune-menuitem-shortcut {
-  color: var(--fortune-text-disabled);
-  cursor: default;
+/* "Insert [n] rows above" (legacy items with a count box) */
+.fortune-menu-count-item .ts-menu-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.fortune-cell-submenu {
-  min-width: 200px;
+.fortune-menu-count-input {
+  width: 40px;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--ts-surface);
+  color: var(--ts-text-strong);
+  font: inherit;
+  text-align: center;
+  outline: none;
+}
+
+.fortune-menu-count-input:focus {
+  border-color: var(--ts-ring);
 }
 
 /* Insert… / Delete… / Row Height… / Column Width… dialogs */

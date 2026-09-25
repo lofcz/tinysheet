@@ -447,3 +447,24 @@
   width: 12px;
   color: var(--fortune-accent-text);
 }
+
+/* ui pickers (ColorPicker, BorderPicker) in a legacy toolbar drop-down */
+.fortune-toolbar-picker-panel {
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius-pane);
+  background: var(--ts-pane);
+  box-shadow: var(--ts-shadow);
+  color: var(--ts-text);
+  white-space: normal;
+  user-select: none;
+}
+
+.fortune-toolbar-picker-panel--menu {
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border-radius: var(--ts-radius);
+}

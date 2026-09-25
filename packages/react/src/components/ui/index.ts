@@ -27,6 +27,39 @@ export type {
 } from "./Button";
 export { MenuList, DropdownMenu, useMenuTrigger } from "./Menu";
 export type { MenuItem, MenuListProps, DropdownMenuProps } from "./Menu";
+export { ContextMenuPopup, placeAtPoint } from "./ContextMenuPopup";
+export type {
+  ContextMenuPopupProps,
+  ContextMenuCloseReason,
+} from "./ContextMenuPopup";
+export { ColorPicker, CustomColorPanel } from "./ColorPicker";
+export type { ColorPickerProps, ColorPickerLabels } from "./ColorPicker";
+export {
+  BorderPicker,
+  BorderGlyph,
+  BorderLinePreview,
+  BORDER_LINE_STYLES,
+  applyBorderPreset,
+  useBorderLine,
+  useLastBorderPreset,
+} from "./BorderPicker";
+export type {
+  BorderPickerProps,
+  BorderPreset,
+  BorderLineSetting,
+  BorderPickerLabels,
+} from "./BorderPicker";
+export { Gallery } from "./Gallery";
+export type { GalleryItem, GalleryProps } from "./Gallery";
+export {
+  THEME_COLORS,
+  STANDARD_COLORS,
+  themeGrid,
+  tintShade,
+  normalizeHex,
+  addRecentColor,
+  getRecentColors,
+} from "./color";
 export { Popover } from "./Popover";
 export type { PopoverProps } from "./Popover";
 export { Tooltip } from "./Tooltip";

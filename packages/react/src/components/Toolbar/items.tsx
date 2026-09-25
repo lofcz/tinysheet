@@ -4,13 +4,7 @@
  * The ribbon (../Ribbon) places them into its tabs and groups; ribbon
  * commands built from the ui primitives replace them one by one.
  */
-import React, {
-  useContext,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useContext, useCallback, useMemo, useRef } from "react";
 import {
   toolbarItemClickHandler,
   handleTextBackground,
@@ -27,7 +21,6 @@ import {
   handleSum,
   locale,
   handleMerge,
-  handleBorder,
   toolbarItemSelectedFunc,
   handleFreeze,
   freezePanes,
@@ -62,8 +55,14 @@ import { LocationCondition } from "../LocationCondition";
 import DataVerificationCombo from "../DataVerification/ToolbarCombo";
 import SortFilterCombo from "../CustomSort/SortFilterCombo";
 import ConditionalFormat from "../ConditionFormat";
-import { CustomColor } from "./CustomColor";
-import CustomBorder from "./CustomBorder";
+import {
+  ColorPicker,
+  BorderPicker,
+  applyBorderPreset,
+  useBorderLine,
+  useLastBorderPreset,
+} from "../ui";
+import { menuText } from "../ContextMenu/text";
 import { NameManagerButton } from "../NameManager";
 import { FormatAsTableButton } from "../Tables";
 import ChartToolbarItem from "../Chart/ChartToolbarItem";
@@ -146,8 +145,11 @@ export function useToolbarItemRenderer() {
     [currency, numberFormatMenu]
   );
 
-  const [customColor, setcustomColor] = useState("#000000");
-  const [customStyle, setcustomStyle] = useState("1");
+  // line colour / style and last preset of the Borders drop-down (shared
+  // with the ribbon's border pickers)
+  const [borderLine] = useBorderLine();
+  const lastBorderPreset = useLastBorderPreset();
+  const pickerText = menuText(context);
 
   const getToolbarItem = useCallback(
     (name: string, i: number | string) => {
@@ -206,13 +208,23 @@ export function useToolbarItemRenderer() {
             />
             <Combo iconId={name} tooltip={tooltip} onClick={() => pick(recent)}>
               {(setOpen) => (
-                <CustomColor
-                  onCustomPick={(color) => {
-                    pick(color);
-                    setOpen(false);
-                  }}
-                  onColorPick={pick}
-                />
+                <div className="fortune-toolbar-picker-panel">
+                  <ColorPicker
+                    value={name === "font-color" ? cell?.fc : cell?.bg}
+                    automaticLabel={
+                      name === "font-color"
+                        ? pickerText.automatic
+                        : pickerText.noFill
+                    }
+                    automaticColor={name === "font-color" ? "#000000" : null}
+                    aria-label={tooltip}
+                    onChange={(color) => {
+                      pick(color ?? undefined);
+                      setOpen(false);
+                      refs.cellInput.current?.focus({ preventScroll: true });
+                    }}
+                  />
+                </div>
               )}
             </Combo>
           </div>
@@ -1016,55 +1028,8 @@ export function useToolbarItemRenderer() {
         );
       }
       if (name === "border") {
-        const items = [
-          {
-            text: border.borderTop,
-            value: "border-top",
-          },
-          {
-            text: border.borderBottom,
-            value: "border-bottom",
-          },
-          {
-            text: border.borderLeft,
-            value: "border-left",
-          },
-          {
-            text: border.borderRight,
-            value: "border-right",
-          },
-          { text: "", value: "divider" },
-          {
-            text: border.borderNone,
-            value: "border-none",
-          },
-          {
-            text: border.borderAll,
-            value: "border-all",
-          },
-          {
-            text: border.borderOutside,
-            value: "border-outside",
-          },
-          { text: "", value: "divider" },
-          {
-            text: border.borderInside,
-            value: "border-inside",
-          },
-          {
-            text: border.borderHorizontal,
-            value: "border-horizontal",
-          },
-          {
-            text: border.borderVertical,
-            value: "border-vertical",
-          },
-          {
-            text: border.borderSlash,
-            value: "border-slash",
-          },
-          { text: "", value: "divider" },
-        ];
+        // Excel: the main part repeats the preset picked last with the
+        // current line colour / style; the arrow opens the Borders menu
         return (
           <Combo
             iconId="border-all"
@@ -1073,41 +1038,20 @@ export function useToolbarItemRenderer() {
             text={border.borderAll}
             onClick={() =>
               setContext((ctx) => {
-                handleBorder(ctx, "border-all", customColor, customStyle);
+                applyBorderPreset(ctx, lastBorderPreset, borderLine);
               })
             }
           >
             {(setOpen) => (
-              <Select>
-                {items.map(({ text, value }, ii) =>
-                  value !== "divider" ? (
-                    <Option
-                      key={value}
-                      onClick={() => {
-                        setContext((ctx) => {
-                          handleBorder(ctx, value, customColor, customStyle);
-                        });
-                        setOpen(false);
-                      }}
-                    >
-                      <div className="fortune-toolbar-menu-line">
-                        {text}
-                        <SVGIcon name={value} />
-                      </div>
-                    </Option>
-                  ) : (
-                    <MenuDivider key={ii} />
-                  )
-                )}
-                <CustomBorder
-                  color={customColor}
-                  style={customStyle}
-                  onPick={(color, style) => {
-                    setcustomColor(color);
-                    setcustomStyle(style);
+              <div className="fortune-toolbar-picker-panel fortune-toolbar-picker-panel--menu">
+                <BorderPicker
+                  autoFocus
+                  onClose={() => {
+                    setOpen(false);
+                    refs.cellInput.current?.focus({ preventScroll: true });
                   }}
                 />
-              </Select>
+              </div>
             )}
           </Combo>
         );
@@ -1364,8 +1308,9 @@ export function useToolbarItemRenderer() {
       comment,
       fontarray,
       refs.canvas,
-      customColor,
-      customStyle,
+      borderLine,
+      lastBorderPreset,
+      pickerText,
     ]
   );
   return getToolbarItem;

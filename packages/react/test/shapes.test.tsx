@@ -165,7 +165,9 @@ describe("shape layer", () => {
       fireEvent.contextMenu(el().querySelector("path")!);
     });
     const format = Array.from(
-      document.querySelectorAll<HTMLElement>(".fortune-shape-menu-item")
+      document.querySelectorAll<HTMLElement>(
+        ".fortune-shape-menu [role=menuitem]"
+      )
     ).find((b) => b.textContent?.startsWith("Format shape"));
     act(() => {
       fireEvent.click(format!);

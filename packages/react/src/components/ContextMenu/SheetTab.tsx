@@ -14,48 +14,37 @@ import {
   ungroupSheets,
   checkWorkbookStructure,
   isWorkbookStructureProtected,
+  setSheetTabColor,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
-import React, {
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  useLayoutEffect,
-  useCallback,
-  useMemo,
-} from "react";
+import React, { useContext, useCallback, useMemo } from "react";
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
-import { useOutsideClick } from "../../hooks/useOutsideClick";
-import { ChangeColor } from "../ChangeColor";
 import { MoveOrCopyDialog, UnhideDialog } from "../SheetTab/SheetDialogs";
 import { ProtectSheetDialog, useUnprotect } from "../Protection";
 import { activateSheetTab } from "../SheetTab/activate";
-import SVGIcon from "../SVGIcon";
-import Divider from "./Divider";
+import { ColorPicker, ContextMenuPopup, MenuItem } from "../ui";
+import { menuIcon } from "./icons";
+import { menuText } from "./text";
 import "./index.css";
-import Menu from "./Menu";
 
 /**
- * Sheet tab context menu. Besides the configured items it offers Excel's
- * Move or Copy... (next to "copy"), Unhide... (next to "hide") and, with
- * several visible sheets, Select All Sheets / Ungroup Sheets.
+ * Sheet tab context menu (Excel's order: Insert, Delete, Rename, Move or
+ * Copy…, Protect Sheet…, Tab Color ▸, Hide, Unhide…, Select All Sheets).
+ * Besides the configured items it offers Duplicate, Move or Copy... (next
+ * to "copy"), Unhide... (next to "hide") and, with several visible sheets,
+ * Select All Sheets / Ungroup Sheets. A ui `ContextMenuPopup`: keyboard
+ * navigation, Esc / outside click / scroll / resize close it.
  */
 const SheetTabContextMenu: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const { x, y, sheet, onRename } = context.sheetTabContextMenu;
   const { sheetconfig } = locale(context);
-  const [position, setPosition] = useState({ x: -1, y: -1 });
-  const [isShowChangeColor, setIsShowChangeColor] = useState<boolean>(false);
-  const [isShowInputColor, setIsShowInputColor] = useState<boolean>(false);
   const { showAlert, hideAlert } = useAlert();
   const { showDialog } = useDialog();
   const unprotect = useUnprotect();
   const protection = protectionLocale(context);
-  const containerRef = useRef<HTMLDivElement>(null);
-
   const grouped = getGroupedSheetIds(context);
   const visibleCount = context.luckysheetfile.filter(
     (s) => s.hide !== 1
@@ -84,43 +73,6 @@ const SheetTabContextMenu: React.FC = () => {
     },
     [refs.cellInput, setContext]
   );
-  const closeOnOutsideClick = useCallback(() => close(false), [close]);
-
-  // above the pointer (the tabs are at the bottom), kept inside the window
-  useLayoutEffect(() => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect && x != null && y != null) {
-      const wb = refs?.workbookContainer?.current?.getBoundingClientRect();
-      const offsetX = wb?.left ?? 0;
-      const offsetY = wb?.top ?? 0;
-      const winW = document.documentElement.clientWidth || window.innerWidth;
-      const left = Math.max(-offsetX, Math.min(x, winW - rect.width - offsetX));
-      const top = Math.max(-offsetY, y - rect.height);
-      setPosition({ x: left, y: top });
-    }
-  }, [x, y, refs]);
-
-  useOutsideClick(containerRef, closeOnOutsideClick, [closeOnOutsideClick]);
-
-  // Escape and a resized window close the menu
-  const open = x != null && y != null;
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented) return;
-      if ((e.target as Element | null)?.closest?.('[role="dialog"]')) return;
-      e.preventDefault();
-      e.stopPropagation();
-      close();
-    };
-    const onResize = () => close();
-    document.addEventListener("keydown", onKeyDown, true);
-    window.addEventListener("resize", onResize);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [open, close]);
 
   /** Move left / right: past the next visible sheet on that side. */
   const moveBy = useCallback(
@@ -228,10 +180,6 @@ const SheetTabContextMenu: React.FC = () => {
     );
   }, [context.allowEdit, refs.globalCache, setContext, sheet?.id]);
 
-  const updateShowInputColor = useCallback((state: boolean) => {
-    setIsShowInputColor(state);
-  }, []);
-
   const focusSheet = useCallback(() => {
     if (context.allowEdit === false) return;
     if (!sheet?.id) return;
@@ -245,230 +193,220 @@ const SheetTabContextMenu: React.FC = () => {
   if (!sheet || x == null || y == null) return null;
 
   const editable = context.allowEdit !== false;
+  const sheetProtected = isSheetProtected(context);
+  const currentColor =
+    context.luckysheetfile.find((s) => s.id === sheet.id)?.color ?? null;
+  const act =
+    (fn: () => void, refocus = true) =>
+    () => {
+      close(refocus);
+      fn();
+    };
+
+  const items: MenuItem[] = [];
+  settings.sheetTabContextMenu?.forEach((name, i) => {
+    switch (name) {
+      case "insert":
+        items.push({
+          id: "insert",
+          label: sheetconfig.insert,
+          icon: menuIcon("insertSheet"),
+          disabled: !editable,
+          onSelect: act(() => {
+            if (isWorkbookStructureProtected(context)) {
+              setContext((ctx) => {
+                checkWorkbookStructure(ctx);
+              });
+              return;
+            }
+            insertSheet();
+          }),
+        });
+        break;
+      case "delete":
+        items.push({
+          id: "delete",
+          label: sheetconfig.delete,
+          icon: menuIcon("delete"),
+          disabled: !editable,
+          onSelect: act(() => {
+            if (isWorkbookStructureProtected(context)) {
+              // Excel's message instead of the confirmation
+              setContext((ctx) => {
+                checkWorkbookStructure(ctx);
+              });
+            } else if (visibleCount - targets.length >= 1) {
+              showAlert(sheetconfig.confirmDelete, "yesno", () => {
+                hideAlert();
+                removeSheets();
+              });
+            } else {
+              showAlert(sheetconfig.noMoreSheet, "ok");
+            }
+          }, false),
+        });
+        break;
+      case "rename":
+        items.push({
+          id: "rename",
+          label: sheetconfig.rename,
+          icon: menuIcon("rename"),
+          disabled: !editable,
+          onSelect: () => {
+            onRename?.();
+            close(false);
+          },
+        });
+        break;
+      case "copy":
+        items.push({
+          id: "duplicate",
+          label: sheetconfig.duplicate,
+          icon: menuIcon("copy"),
+          disabled: !editable,
+          onSelect: act(copySheet),
+        });
+        if (editable) {
+          items.push({
+            id: "move-or-copy",
+            label: sheetconfig.moveOrCopy,
+            icon: menuIcon("move-copy"),
+            onSelect: act(
+              () => showDialog(<MoveOrCopyDialog sheet={sheet} />),
+              false
+            ),
+          });
+        }
+        break;
+      case "protect":
+        items.push({
+          id: "protect",
+          label: sheetProtected
+            ? protection.unprotectSheet
+            : protection.protectSheet,
+          icon: menuIcon(sheetProtected ? "unprotect" : "protect"),
+          disabled: !editable,
+          onSelect: act(() => {
+            if (sheetProtected) unprotect("sheet");
+            else showDialog(<ProtectSheetDialog />);
+          }, false),
+        });
+        break;
+      case "color":
+        items.push({
+          id: "color",
+          label: sheetconfig.tabColor,
+          icon: menuIcon("color"),
+          disabled: !editable,
+          children: [
+            {
+              type: "custom",
+              id: "tab-color-picker",
+              render: () => (
+                <ColorPicker
+                  value={currentColor}
+                  automaticLabel={sheetconfig.noColor}
+                  aria-label={sheetconfig.tabColor}
+                  onChange={(color) => {
+                    setContext((ctx) => {
+                      setSheetTabColor(
+                        ctx,
+                        targets.filter(Boolean),
+                        color ?? undefined
+                      );
+                    });
+                    close();
+                  }}
+                />
+              ),
+            },
+          ],
+        });
+        break;
+      case "hide":
+        items.push({
+          id: "hide",
+          label: sheetconfig.hide,
+          icon: menuIcon("hide"),
+          disabled: !editable,
+          onSelect: act(hideSheet),
+        });
+        if (editable && hiddenCount > 0) {
+          items.push({
+            id: "unhide",
+            label: sheetconfig.unhideMenu,
+            icon: menuIcon("unhide"),
+            onSelect: act(() => showDialog(<UnhideDialog />), false),
+          });
+        }
+        break;
+      case "move":
+        items.push(
+          {
+            id: "move-left",
+            label: sheetconfig.moveLeft,
+            icon: menuIcon("move-left"),
+            disabled: !editable,
+            onSelect: act(() => moveBy(-1)),
+          },
+          {
+            id: "move-right",
+            label: sheetconfig.moveRight,
+            icon: menuIcon("move-right"),
+            disabled: !editable,
+            onSelect: act(() => moveBy(1)),
+          }
+        );
+        break;
+      case "focus":
+        items.push({
+          id: "focus",
+          label: sheetconfig.focus,
+          onSelect: act(focusSheet),
+        });
+        break;
+      case "|":
+        items.push({ type: "separator", id: `divider-${i}` });
+        break;
+      default:
+        break;
+    }
+  });
+  if (visibleCount > 1) {
+    items.push({ type: "separator", id: "divider-group" });
+    items.push(
+      grouped.length > 0
+        ? {
+            id: "ungroup",
+            label: sheetconfig.ungroupSheets,
+            icon: menuIcon("select-all"),
+            onSelect: act(() => setContext((ctx) => ungroupSheets(ctx))),
+          }
+        : {
+            id: "select-all",
+            label: sheetconfig.selectAllSheets,
+            icon: menuIcon("select-all"),
+            onSelect: act(() => setContext((ctx) => selectAllSheets(ctx))),
+          }
+    );
+  }
+  const wb = refs.workbookContainer.current?.getBoundingClientRect();
 
   return (
-    <div
-      role="menu"
-      className="fortune-context-menu luckysheet-cols-menu"
-      onContextMenu={(e) => e.stopPropagation()}
-      style={{ left: position.x, top: position.y, overflow: "visible" }}
-      ref={containerRef}
-    >
-      {settings.sheetTabContextMenu?.map((name, i) => {
-        if (name === "insert") {
-          return (
-            <Menu
-              key={name}
-              onClick={() => {
-                close();
-                if (isWorkbookStructureProtected(context)) {
-                  setContext((ctx) => {
-                    checkWorkbookStructure(ctx);
-                  });
-                  return;
-                }
-                insertSheet();
-              }}
-            >
-              {sheetconfig.insert}
-            </Menu>
-          );
-        }
-        if (name === "delete") {
-          return (
-            <Menu
-              key={name}
-              onClick={() => {
-                close();
-                if (isWorkbookStructureProtected(context)) {
-                  // Excel's message instead of the confirmation
-                  setContext((ctx) => {
-                    checkWorkbookStructure(ctx);
-                  });
-                } else if (visibleCount - targets.length >= 1) {
-                  showAlert(sheetconfig.confirmDelete, "yesno", () => {
-                    hideAlert();
-                    removeSheets();
-                  });
-                } else {
-                  showAlert(sheetconfig.noMoreSheet, "ok");
-                }
-              }}
-            >
-              {sheetconfig.delete}
-            </Menu>
-          );
-        }
-        if (name === "protect") {
-          const sheetProtected = isSheetProtected(context);
-          return (
-            <Menu
-              key={name}
-              onClick={() => {
-                close();
-                if (!editable) return;
-                if (sheetProtected) unprotect("sheet");
-                else showDialog(<ProtectSheetDialog />);
-              }}
-            >
-              {sheetProtected
-                ? protection.unprotectSheet
-                : protection.protectSheet}
-            </Menu>
-          );
-        }
-        if (name === "rename") {
-          return (
-            <Menu
-              key={name}
-              onClick={() => {
-                onRename?.();
-                close();
-              }}
-            >
-              {sheetconfig.rename}
-            </Menu>
-          );
-        }
-        if (name === "move") {
-          return (
-            <React.Fragment key={name}>
-              <Menu
-                onClick={() => {
-                  moveBy(-1);
-                  close();
-                }}
-              >
-                {sheetconfig.moveLeft}
-              </Menu>
-              <Menu
-                onClick={() => {
-                  moveBy(1);
-                  close();
-                }}
-              >
-                {sheetconfig.moveRight}
-              </Menu>
-            </React.Fragment>
-          );
-        }
-        if (name === "hide") {
-          return (
-            <React.Fragment key={name}>
-              <Menu
-                onClick={() => {
-                  hideSheet();
-                  close();
-                }}
-              >
-                {sheetconfig.hide}
-              </Menu>
-              {editable && hiddenCount > 0 && (
-                <Menu
-                  onClick={() => {
-                    close();
-                    showDialog(<UnhideDialog />);
-                  }}
-                >
-                  {sheetconfig.unhideMenu}
-                </Menu>
-              )}
-            </React.Fragment>
-          );
-        }
-        if (name === "copy") {
-          return (
-            <React.Fragment key={name}>
-              <Menu
-                onClick={() => {
-                  copySheet();
-                  close();
-                }}
-              >
-                {sheetconfig.duplicate}
-              </Menu>
-              {editable && (
-                <Menu
-                  onClick={() => {
-                    close();
-                    showDialog(<MoveOrCopyDialog sheet={sheet} />);
-                  }}
-                >
-                  {sheetconfig.moveOrCopy}
-                </Menu>
-              )}
-            </React.Fragment>
-          );
-        }
-        if (name === "color") {
-          return (
-            <Menu
-              key={name}
-              onMouseEnter={() => {
-                setIsShowChangeColor(true);
-              }}
-              onMouseLeave={() => {
-                if (!isShowInputColor) {
-                  setIsShowChangeColor(false);
-                }
-              }}
-            >
-              {sheetconfig.tabColor}
-              <span className="change-color-triangle">
-                <SVGIcon name="rightArrow" width={18} />
-              </span>
-              {isShowChangeColor && context.allowEdit && (
-                <ChangeColor
-                  triggerParentUpdate={updateShowInputColor}
-                  sheetIds={targets}
-                />
-              )}
-            </Menu>
-          );
-        }
-        if (name === "focus") {
-          return (
-            <Menu
-              key={name}
-              onClick={() => {
-                focusSheet();
-                close();
-              }}
-            >
-              {sheetconfig.focus}
-            </Menu>
-          );
-        }
-        if (name === "|") {
-          return <Divider key={`divide-${i}`} />;
-        }
-        return null;
-      })}
-      {visibleCount > 1 && (
-        <>
-          <Divider />
-          {grouped.length > 0 ? (
-            <Menu
-              onClick={() => {
-                setContext((ctx) => ungroupSheets(ctx));
-                close();
-              }}
-            >
-              {sheetconfig.ungroupSheets}
-            </Menu>
-          ) : (
-            <Menu
-              onClick={() => {
-                setContext((ctx) => selectAllSheets(ctx));
-                close();
-              }}
-            >
-              {sheetconfig.selectAllSheets}
-            </Menu>
-          )}
-        </>
-      )}
-    </div>
+    <ContextMenuPopup
+      x={(wb?.left ?? 0) + x}
+      y={(wb?.top ?? 0) + y}
+      items={items}
+      within={refs.workbookContainer.current}
+      className="fortune-sheet-tab-menu"
+      popupClassName="fortune-sheet-tab-menu-popup"
+      minWidth={200}
+      aria-label={menuText(context).sheetTabMenu}
+      onClose={(reason) => {
+        if (reason === "select") return;
+        close(reason !== "outside");
+      }}
+    />
   );
 };
 

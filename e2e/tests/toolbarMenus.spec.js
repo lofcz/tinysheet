@@ -237,14 +237,17 @@ test.describe("toolbar drop-downs", () => {
     await expect.poll(() => sheet.value(0, 0, "fc")).toBe("#ff0000");
     await page.getByRole("button", { name: "Fill color", exact: true }).click();
     await expect.poll(() => sheet.value(0, 0, "bg")).toBe("#ffff00");
-    // the palette's bright row is red, orange, yellow, ...
+    // Excel's Standard Colors row: Dark Red, Red, Orange, Yellow, ...
     await page.getByRole("button", { name: "Fill color: Dropdown" }).click();
-    await popup(page).getByRole("button", { name: "#ff9900" }).click();
-    await expect.poll(() => sheet.value(0, 0, "bg")).toBe("#ff9900");
+    await popup(page)
+      .getByRole("button", { name: "Orange", exact: true })
+      .click();
+    await expect.poll(() => sheet.value(0, 0, "bg")).toBe("#ffc000");
+    await expect(popup(page)).toHaveCount(0);
     // the button now applies the colour picked last
     await sheet.click(1, 0);
     await page.getByRole("button", { name: "Fill color", exact: true }).click();
-    await expect.poll(() => sheet.value(1, 0, "bg")).toBe("#ff9900");
+    await expect.poll(() => sheet.value(1, 0, "bg")).toBe("#ffc000");
   });
 
   test("border menu: line colour submenu from the keyboard, kept between openings", async ({
@@ -255,18 +258,22 @@ test.describe("toolbar drop-downs", () => {
     const arrow = page.getByRole("button", { name: "Border: Dropdown" });
     await arrow.click();
     const lineColor = popup(page).getByRole("menuitem", {
-      name: "Border color",
+      name: "Line Color",
     });
     await lineColor.focus();
     await page.keyboard.press("Enter");
-    const swatch = popup(page).getByRole("button", { name: "#0000ff" });
+    const swatch = popup(page).getByRole("button", {
+      name: "Blue",
+      exact: true,
+    });
     await expect(swatch).toBeVisible();
     await swatch.click();
-    await page.keyboard.press("Escape");
+    await expect(popup(page)).toHaveCount(0);
     await arrow.click();
-    await expect(
-      popup(page).locator(".fortune-border-color-preview")
-    ).toHaveCSS("background-color", "rgb(0, 0, 255)");
+    await expect(popup(page).locator(".ts-border-color-chip")).toHaveCSS(
+      "background-color",
+      "rgb(0, 112, 192)"
+    );
   });
 });
 

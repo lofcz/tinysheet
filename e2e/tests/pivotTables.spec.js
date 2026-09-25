@@ -90,7 +90,7 @@ test.describe("PivotTables", () => {
         '.fortune-pivot-area[data-area="values"] .fortune-pivot-chip-button'
       )
       .click();
-    await pane.getByRole("menuitem", { name: "Value Field Settings…" }).click();
+    await page.getByRole("menuitem", { name: "Value Field Settings…" }).click();
     const settings = page.getByTestId("pivot-value-settings");
     await settings.getByLabel("Summarize value field by").selectOption("count");
     await settings.getByRole("button", { name: "OK" }).click();

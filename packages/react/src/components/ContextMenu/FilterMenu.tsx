@@ -34,7 +34,16 @@ import produce from "immer";
 import WorkbookContext from "../../context";
 import Divider from "./Divider";
 import Menu from "./Menu";
-import SVGIcon from "../SVGIcon";
+import {
+  ArrowDownAZ,
+  ArrowDownZA,
+  ChevronRight,
+  FunnelX,
+  ListFilter,
+  PaintBucket,
+  Search,
+} from "lucide-react";
+import { Icon, LucideIcon } from "../ui";
 import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
 import {
@@ -42,6 +51,22 @@ import {
   Top10Dialog,
 } from "../FilterOption/ConditionDialogs";
 import "../FilterOption/index.css";
+
+/** 16px lucide icon in the icon column of a filter menu row. */
+const FilterMenuIcon: React.FC<{ icon: LucideIcon }> = ({ icon }) => (
+  <span className="fortune-filter-menu-icon">
+    <Icon icon={icon} />
+  </span>
+);
+
+const FilterMenuChevron: React.FC = () => (
+  <ChevronRight
+    className="fortune-filter-menu-chevron"
+    size={14}
+    strokeWidth={1.75}
+    aria-hidden
+  />
+);
 
 const SelectItem: React.FC<{
   item: FilterValue;
@@ -678,7 +703,7 @@ const FilterMenu: React.FC = () => {
     <>
       <div
         role="menu"
-        className="fortune-context-menu luckysheet-cols-menu fortune-filter-menu"
+        className="fortune-context-menu luckysheet-cols-menu fortune-filter-menu ts-filter-menu"
         id="luckysheet-\${menuid}-menu"
         ref={containerRef}
         style={{ left: filterContextMenu.x, top: filterContextMenu.y }}
@@ -690,6 +715,7 @@ const FilterMenu: React.FC = () => {
           if (name === "sort-by-asc") {
             return (
               <Menu key={name} onClick={() => sortData(true)}>
+                <FilterMenuIcon icon={ArrowDownAZ} />
                 {filter.sortByAsc}
               </Menu>
             );
@@ -697,6 +723,7 @@ const FilterMenu: React.FC = () => {
           if (name === "sort-by-desc") {
             return (
               <Menu key={name} onClick={() => sortData(false)}>
+                <FilterMenuIcon icon={ArrowDownZA} />
                 {filter.sortByDesc}
               </Menu>
             );
@@ -720,8 +747,11 @@ const FilterMenu: React.FC = () => {
               >
                 <Menu onClick={() => {}}>
                   <div className="filter-bycolor-container">
-                    {filter.filterByColor}
-                    <div className="filter-caret right" />
+                    <span>
+                      <FilterMenuIcon icon={PaintBucket} />
+                      {filter.filterByColor}
+                    </span>
+                    <FilterMenuChevron />
                   </div>
                 </Menu>
               </div>
@@ -743,6 +773,7 @@ const FilterMenu: React.FC = () => {
                     });
                   }}
                 >
+                  <FilterMenuIcon icon={FunnelX} />
                   {formatLocaleText(tools.clearFilterFrom, {
                     column: columnTitle,
                   })}
@@ -777,13 +808,14 @@ const FilterMenu: React.FC = () => {
                 >
                   <div className="filter-bycolor-container">
                     <span>
+                      <FilterMenuIcon icon={ListFilter} />
                       {activeCondition != null &&
                         activeCondition.type !== "values" && (
                           <span className="fortune-filter-active-dot" />
                         )}
                       {label}
                     </span>
-                    <div className="filter-caret right" />
+                    <FilterMenuChevron />
                   </div>
                 </Menu>
               </div>
@@ -792,10 +824,9 @@ const FilterMenu: React.FC = () => {
           if (name === "filter-by-value") {
             return (
               <div key={name}>
-                <Menu onClick={() => {}}>
-                  <div className="filter-caret right" />
+                <div className="fortune-filter-byvalue-title">
                   {filter.filterByValues}
-                </Menu>
+                </div>
                 <div className="luckysheet-filter-byvalue">
                   <div className="fortune-menuitem-row byvalue-btn-row">
                     <div>
@@ -823,15 +854,16 @@ const FilterMenu: React.FC = () => {
                         {filter.filterValueByInverseBtn}
                       </span>
                     </div>
-                    <div className="byvalue-filter-icon">
-                      <SVGIcon
-                        name="filter-fill"
-                        style={{ width: 20, height: 20 }}
-                      />
-                    </div>
                   </div>
                   <div className="filtermenu-input-container">
+                    <Search
+                      className="fortune-filter-search-icon"
+                      size={14}
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
                     <input
+                      aria-label={filter.filterValueByTip}
                       type="text"
                       onKeyDown={(e) => e.stopPropagation()}
                       placeholder={filter.filterValueByTip}
@@ -919,7 +951,8 @@ const FilterMenu: React.FC = () => {
         <Divider />
         <div className="fortune-menuitem-row">
           <div
-            className="button-basic button-primary"
+            className="button-basic button-primary ts-btn ts-btn--primary ts-btn--sm"
+            role="button"
             onClick={() => {
               if (col == null) return;
               setContext((draftCtx) => {
@@ -951,7 +984,8 @@ const FilterMenu: React.FC = () => {
             {filter.filterConform}
           </div>
           <div
-            className="button-basic button-default"
+            className="button-basic button-default ts-btn ts-btn--secondary ts-btn--sm"
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 draftCtx.filterContextMenu = undefined;
@@ -962,7 +996,8 @@ const FilterMenu: React.FC = () => {
             {filter.filterCancel}
           </div>
           <div
-            className="button-basic button-danger"
+            className="button-basic button-danger ts-btn ts-btn--ghost ts-btn--sm"
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 clearFilter(draftCtx);
@@ -1068,7 +1103,8 @@ const FilterMenu: React.FC = () => {
                 renderColorList(v.key, v.title, v.colors, onColorSelectChange)
               )}
               <div
-                className="button-basic button-primary"
+                className="button-basic button-primary ts-btn ts-btn--primary ts-btn--sm"
+                role="button"
                 onClick={() => {
                   if (col == null) return;
                   setContext((draftCtx) => {

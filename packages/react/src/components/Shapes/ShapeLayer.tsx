@@ -57,6 +57,8 @@ import {
   snapLine,
 } from "./interaction";
 import { getShapeClipboard, setShapeClipboard } from "./shapeClipboard";
+import { ContextMenuPopup, MenuItem } from "../ui";
+import { menuIcon } from "../ContextMenu/icons";
 import "./index.css";
 
 type DragMode = "move" | Side | "rotate" | "start" | "end" | "adjust";
@@ -91,6 +93,76 @@ const RUN_KEYS: Record<string, "b" | "i" | "u"> = {
 /** Clicks on these keep the shape selection. */
 const OUTSIDE_SELECTORS =
   ".fortune-shape, .fortune-shape-frame, .fortune-shape-format, .fortune-shape-menu, .fortune-toolbar, .fortune-toolbar-combo-popup";
+
+/** Icons of the shape menu entries (ContextMenu/icons names). */
+const SHAPE_MENU_ICONS: Record<string, string> = {
+  cut: "cut",
+  copy: "copy",
+  duplicate: "move-copy",
+  editText: "text",
+  bringToFront: "bring-front",
+  sendToBack: "send-back",
+  group: "group",
+  format: "format",
+  delete: "delete",
+};
+
+/**
+ * The shape menu in Excel's layout: Cut, Copy, Duplicate, Edit Text,
+ * Group (submenu), Bring to Front (submenu), Send to Back (submenu),
+ * Format Shape..., Delete.
+ */
+function shapeMenuItems(
+  entries: {
+    key: string;
+    label: string;
+    disabled?: boolean;
+    onClick: () => void;
+  }[]
+): MenuItem[] {
+  const byKey = new Map(entries.map((e) => [e.key, e]));
+  const one = (key: string, withIcon = true): MenuItem | null => {
+    const e = byKey.get(key);
+    if (!e) return null;
+    return {
+      id: e.key,
+      label: e.label,
+      disabled: e.disabled,
+      icon: withIcon ? menuIcon(SHAPE_MENU_ICONS[e.key]) : undefined,
+      onSelect: e.onClick,
+    };
+  };
+  const sub = (key: string, keys: string[]): MenuItem | null => {
+    const head = byKey.get(keys[0]);
+    const children = keys
+      .map((k) => one(k, false))
+      .filter((m): m is MenuItem => m != null);
+    if (!head || !children.length) return null;
+    const enabled = keys.some((k) => byKey.get(k) && !byKey.get(k)!.disabled);
+    return {
+      id: key,
+      label: head.label,
+      icon: menuIcon(SHAPE_MENU_ICONS[keys[0]]),
+      disabled: !enabled,
+      children,
+    };
+  };
+  const out: (MenuItem | null)[] = [
+    one("cut"),
+    one("copy"),
+    one("duplicate"),
+    { type: "separator", id: "s1" },
+    one("editText"),
+    { type: "separator", id: "s2" },
+    sub("group-menu", ["group", "ungroup"]),
+    sub("front-menu", ["bringToFront", "bringForward"]),
+    sub("back-menu", ["sendToBack", "sendBackward"]),
+    { type: "separator", id: "s3" },
+    one("format"),
+    one("delete"),
+  ];
+  return out.filter((m): m is MenuItem => m != null);
+}
 
 function isPrintableKey(e: React.KeyboardEvent) {
   return (
@@ -1011,57 +1083,23 @@ const ShapeLayer: React.FC = () => {
           }}
         />
       )}
-      {menu &&
-        firstSelected &&
-        createPortal(
-          <div
-            className="fortune-shape-menu"
-            role="menu"
-            aria-label={t.shape}
-            style={{ left: menu.x, top: menu.y }}
-            onMouseDown={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              const items = Array.from(
-                e.currentTarget.querySelectorAll<HTMLButtonElement>(
-                  "button:not([disabled])"
-                )
-              );
-              const i = items.indexOf(document.activeElement as any);
-              if (e.key === "Escape") {
-                setMenu(null);
-                focusShape(firstSelected.id);
-              } else if (e.key === "ArrowDown") {
-                e.preventDefault();
-                items[(i + 1) % items.length]?.focus();
-              } else if (e.key === "ArrowUp") {
-                e.preventDefault();
-                items[(i - 1 + items.length) % items.length]?.focus();
-              }
-            }}
-            ref={(el) => {
-              if (el && !el.contains(document.activeElement)) {
-                el.querySelector<HTMLButtonElement>(
-                  "button:not([disabled])"
-                )?.focus({ preventScroll: true });
-              }
-            }}
-          >
-            {menuItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                role="menuitem"
-                className="fortune-shape-menu-item"
-                disabled={item.disabled}
-                onClick={item.onClick}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>,
-          refs.workbookContainer.current ?? document.body
-        )}
+      {menu && firstSelected && (
+        <ContextMenuPopup
+          x={menu.x}
+          y={menu.y}
+          items={shapeMenuItems(menuItems)}
+          within={refs.workbookContainer.current}
+          popupClassName="fortune-shape-menu"
+          className="fortune-shape-menu-list"
+          minWidth={200}
+          aria-label={t.shape}
+          onClose={(reason) => {
+            if (reason === "select") return;
+            setMenu(null);
+            if (reason === "escape") focusShape(firstSelected.id);
+          }}
+        />
+      )}
       {formatOpen &&
         selected.length > 0 &&
         overlayRoot &&

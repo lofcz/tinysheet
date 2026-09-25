@@ -49,12 +49,37 @@ const isItem = (m: MenuItem): m is ItemEntry =>
 const SUBMENU_DELAY = 150;
 
 const ITEM_SELECTOR =
-  ':scope > [role="menuitem"], :scope > [role="menuitemcheckbox"], :scope > [role="menuitemradio"]';
+  ':scope > [role="menuitem"], :scope > [role="menuitemcheckbox"], :scope > [role="menuitemradio"], :scope > .ts-menu-custom [role="menuitem"]';
 
+/** The first menu item of the custom row `el` is in (a row of icons). */
+function rowLeader(el: HTMLElement, menu: HTMLElement) {
+  const row = el.closest(".ts-menu-custom");
+  if (!row || row.parentElement !== menu) return el;
+  return (
+    row.querySelector<HTMLElement>(
+      '[role="menuitem"]:not([aria-disabled="true"])'
+    ) ?? el
+  );
+}
+
+/**
+ * The keyboard stops of a menu: its items, and the first item of each
+ * custom row (a row of icon buttons such as Paste Options counts as one
+ * stop; Left / Right move inside it).
+ */
 function menuItemsOf(menu: HTMLElement | null) {
   if (!menu) return [];
+  const seen = new Set<Element>();
   return Array.from(menu.querySelectorAll<HTMLElement>(ITEM_SELECTOR)).filter(
-    (el) => el.getAttribute("aria-disabled") !== "true"
+    (el) => {
+      if (el.getAttribute("aria-disabled") === "true") return false;
+      const row = el.closest(".ts-menu-custom");
+      if (row && row.parentElement === menu) {
+        if (seen.has(row)) return false;
+        seen.add(row);
+      }
+      return true;
+    }
   );
 }
 
@@ -71,6 +96,8 @@ export type MenuListProps = {
   minWidth?: number;
   /** Element id (e.g. for a combobox's aria-controls). */
   id?: string;
+  /** Extra class of the submenu popovers opened from this list. */
+  submenuClassName?: string;
 };
 
 /**
@@ -88,6 +115,7 @@ export const MenuList: React.FC<MenuListProps> = ({
   className,
   minWidth,
   id,
+  submenuClassName,
   ...rest
 }) => {
   const listRef = useRef<HTMLDivElement>(null);
@@ -102,7 +130,13 @@ export const MenuList: React.FC<MenuListProps> = ({
     const checked = list.find(
       (el) => el.getAttribute("aria-checked") === "true"
     );
-    (checked ?? list[0])?.focus({ preventScroll: true });
+    // a list of only custom content (a colour grid): its first control
+    const fallback = list.length
+      ? undefined
+      : listRef.current?.querySelector<HTMLElement>(
+          'button:not([disabled]), [tabindex="0"], input'
+        );
+    (checked ?? list[0] ?? fallback)?.focus({ preventScroll: true });
   }, [autoFocus]);
   useEffect(
     () => () => {
@@ -137,7 +171,7 @@ export const MenuList: React.FC<MenuListProps> = ({
       if (target.closest('[role="menu"]') !== listRef.current) return;
       if (target.closest("input, textarea, select")) return;
       const list = menuItemsOf(listRef.current);
-      const index = list.indexOf(target);
+      const index = list.indexOf(rowLeader(target, listRef.current!));
       const move = (next: number) => {
         e.preventDefault();
         e.stopPropagation();
@@ -238,6 +272,7 @@ export const MenuList: React.FC<MenuListProps> = ({
             className={`ts-menu-item${open ? " ts-menu-item--open" : ""}`}
             role={role}
             data-menu-id={item.id}
+            data-key={item.id}
             tabIndex={-1}
             aria-checked={item.checked}
             aria-disabled={item.disabled || undefined}
@@ -291,6 +326,8 @@ export const MenuList: React.FC<MenuListProps> = ({
             {hasChildren && open && (
               <Submenu
                 anchor={itemRefs.current.get(item.id) ?? null}
+                className={submenuClassName}
+                label={typeof item.label === "string" ? item.label : undefined}
                 items={item.children!}
                 autoFocus={submenuFocus}
                 onClose={onClose}
@@ -313,7 +350,9 @@ const Submenu: React.FC<{
   autoFocus: boolean;
   onClose: () => void;
   onBack: () => void;
-}> = ({ anchor, items, autoFocus, onClose, onBack }) => {
+  className?: string;
+  label?: string;
+}> = ({ anchor, items, autoFocus, onClose, onBack, className, label }) => {
   const ref = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLElement | null>(anchor);
   anchorRef.current = anchor;
@@ -322,7 +361,9 @@ const Submenu: React.FC<{
     // rendered inside the parent item: hovering it keeps the item "hovered"
     <div
       ref={ref}
-      className="ts-popover ts-popover--menu ts-submenu"
+      className={`ts-popover ts-popover--menu ts-submenu${
+        className ? ` ${className}` : ""
+      }`}
       onClick={(e) => e.stopPropagation()}
       onMouseEnter={(e) => e.stopPropagation()}
     >
@@ -331,6 +372,8 @@ const Submenu: React.FC<{
         onClose={onClose}
         onCloseSubmenu={onBack}
         autoFocus={autoFocus}
+        aria-label={label}
+        submenuClassName={className}
       />
     </div>
   );

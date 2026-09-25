@@ -239,9 +239,9 @@ describe("cell menu", () => {
     ) as HTMLElement;
     expect(item.getAttribute("aria-haspopup")).toBe("menu");
     fireEvent.click(item);
-    const labels = Array.from(
-      container.querySelectorAll(".fortune-menuitem-label")
-    ).map((el) => el.textContent);
+    const labels = Array.from(container.querySelectorAll(".ts-menu-label")).map(
+      (el) => el.textContent
+    );
     expect(labels).toEqual(
       expect.arrayContaining([
         "Trace Precedents",

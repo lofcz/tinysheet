@@ -19,6 +19,17 @@ import type {
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import SVGIcon from "../SVGIcon";
+import {
+  ArrowDown,
+  ArrowUp,
+  Columns3,
+  Funnel,
+  Rows3,
+  Settings2,
+  Sigma,
+  X,
+} from "lucide-react";
+import { DropdownMenu, LucideIcon, MenuItem } from "../ui";
 import { PivotButton, PivotCheck } from "./CreatePivotDialog";
 import {
   FieldSettingsDialog,
@@ -31,6 +42,18 @@ const DRAG_TYPE = "application/x-tinysheet-pivot-field";
 type DragData = { field: string; from: PivotAreaPosition | null };
 
 const AREAS: PivotArea[] = ["filters", "columns", "rows", "values"];
+
+/** Icons of the field chip menu (Excel's Move Up … Field Settings…). */
+const PIVOT_MENU_ICONS: Record<string, LucideIcon | undefined> = {
+  up: ArrowUp,
+  down: ArrowDown,
+  filters: Funnel,
+  rows: Rows3,
+  columns: Columns3,
+  values: Sigma,
+  remove: X,
+  settings: Settings2,
+};
 
 /** The PivotTable Fields pane (field list, areas, options). */
 const FieldsPane: React.FC<{ sheetId: string; pivot: PivotTable }> = ({
@@ -47,6 +70,8 @@ const FieldsPane: React.FC<{ sheetId: string; pivot: PivotTable }> = ({
   const [menu, setMenu] = useState<{
     field: string;
     from: PivotAreaPosition;
+    anchor?: HTMLElement;
+    byKeyboard?: boolean;
   } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const dragRef = useRef<DragData | null>(null);
@@ -360,8 +385,17 @@ const FieldsPane: React.FC<{ sheetId: string; pivot: PivotTable }> = ({
                           aria-haspopup="menu"
                           aria-expanded={open}
                           disabled={readonly}
-                          onClick={() =>
-                            setMenu(open ? null : { field: id, from })
+                          onClick={(e) =>
+                            setMenu(
+                              open
+                                ? null
+                                : {
+                                    field: id,
+                                    from,
+                                    anchor: e.currentTarget,
+                                    byKeyboard: e.detail === 0,
+                                  }
+                            )
                           }
                         >
                           <span className="fortune-pivot-chip-label">
@@ -374,26 +408,23 @@ const FieldsPane: React.FC<{ sheetId: string; pivot: PivotTable }> = ({
                             ▾
                           </span>
                         </button>
-                        {open && (
-                          <div className="fortune-pivot-chip-menu" role="menu">
-                            {menuItems(id, from).map((it) => (
-                              <div
-                                key={it.key}
-                                role="menuitem"
-                                tabIndex={0}
-                                className="fortune-pivot-chip-menu-item"
-                                onClick={it.run}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" || e.key === " ") {
-                                    e.preventDefault();
-                                    it.run();
-                                  }
-                                }}
-                              >
-                                {it.label}
-                              </div>
-                            ))}
-                          </div>
+                        {open && menu?.anchor && (
+                          <DropdownMenu
+                            open
+                            onOpenChange={(o) => {
+                              if (!o) setMenu(null);
+                            }}
+                            anchorRef={{ current: menu.anchor }}
+                            className="fortune-pivot-chip-menu"
+                            aria-label={chipLabel(area, id, index)}
+                            autoFocus={menu.byKeyboard}
+                            items={menuItems(id, from).map((it): MenuItem => ({
+                              id: it.key,
+                              label: it.label,
+                              icon: PIVOT_MENU_ICONS[it.key],
+                              onSelect: it.run,
+                            }))}
+                          />
                         )}
                       </li>
                     );

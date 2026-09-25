@@ -623,3 +623,26 @@
 .fortune-cf-center {
   text-align: center;
 }
+
+/* preset galleries of the Conditional Formatting menu (ui Gallery tiles) */
+.fortune-cf-preset-gallery .ts-gallery-item {
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+
+.fortune-cf-preset-gallery .ts-gallery-item > * {
+  flex: 0 0 auto;
+}
+
+.fortune-cf-preset-gallery .fortune-cf-bar-swatch,
+.fortune-cf-preset-gallery .fortune-cf-scale-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fortune-cf-preset-gallery .fortune-cf-iconset {
+  padding: 0;
+}

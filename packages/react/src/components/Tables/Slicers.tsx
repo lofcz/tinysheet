@@ -42,6 +42,8 @@ import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import { activateOnKey } from "../Toolbar/Button";
 import SVGIcon from "../SVGIcon";
+import { FunnelX, Settings2, Trash2 } from "lucide-react";
+import { ContextMenuPopup, MenuItem } from "../ui";
 
 /* ------------------------------------------------------------------------ */
 /* Styles                                                                   */
@@ -768,82 +770,62 @@ export const SlicerSettingsDialog: React.FC<{ name: string }> = ({ name }) => {
   );
 };
 
-/** Context menu of a slicer (right-click). */
+/** Context menu of a slicer (right-click; viewport coordinates). */
 const SlicerMenu: React.FC<{
   x: number;
   y: number;
   name: string;
   onClose: () => void;
 }> = ({ x, y, name, onClose }) => {
-  const { context, setContext } = useContext(WorkbookContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
   const { showDialog } = useDialog();
   const tt = tableToolsLocale(context);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener("mousedown", onDown, true);
-    return () => document.removeEventListener("mousedown", onDown, true);
-  }, [onClose]);
   const filtered = slicerHasFilter(context, name);
-  const entries: [string, boolean, () => void][] = [
-    [
-      tt.slicerSettings,
-      true,
-      () => showDialog(<SlicerSettingsDialog name={name} />),
-    ],
-    [
-      tt.clearFilter,
-      filtered,
-      () =>
+  const items: MenuItem[] = [
+    {
+      id: "slicer-settings",
+      label: tt.slicerSettings,
+      icon: Settings2,
+      onSelect: () => showDialog(<SlicerSettingsDialog name={name} />),
+    },
+    {
+      id: "slicer-clear-filter",
+      label: tt.clearFilter,
+      icon: FunnelX,
+      disabled: !filtered,
+      onSelect: () =>
         setContext((ctx) => {
           clearSlicerFilter(ctx, name);
         }),
-    ],
-    [
-      tt.removeSlicer,
-      true,
-      () =>
+    },
+    { type: "separator", id: "s1" },
+    {
+      id: "slicer-remove",
+      label: tt.removeSlicer,
+      icon: Trash2,
+      onSelect: () =>
         setContext((ctx) => {
           removeSlicer(ctx, name);
         }),
-    ],
+    },
   ];
   return (
-    <div
-      ref={ref}
-      className="fortune-table-popup fortune-slicer-menu"
-      role="menu"
-      style={{ left: x, top: y }}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      {entries.map(([label, enabled, run]) => (
-        <div
-          key={label}
-          role="menuitem"
-          tabIndex={0}
-          aria-disabled={!enabled}
-          className={`fortune-table-popup-item${
-            enabled ? "" : " fortune-table-popup-item-disabled"
-          }`}
-          onClick={() => {
-            if (!enabled) return;
-            onClose();
-            run();
-          }}
-          onKeyDown={activateOnKey}
-        >
-          {label}
-        </div>
-      ))}
-    </div>
+    <ContextMenuPopup
+      x={x}
+      y={y}
+      items={items}
+      within={refs.workbookContainer.current}
+      popupClassName="fortune-slicer-menu"
+      minWidth={180}
+      aria-label={name}
+      onClose={() => onClose()}
+    />
   );
 };
 
 /** Every slicer of the current sheet (a registered sheet overlay). */
 export const SlicerLayer: React.FC = () => {
-  const { context, setContext, refs } = useContext(WorkbookContext);
+  const { context, setContext } = useContext(WorkbookContext);
   const tables = getTables(context, context.currentSheetId).filter(
     (t) => t.table.slicers?.length
   );
@@ -967,17 +949,9 @@ export const SlicerLayer: React.FC = () => {
       e.preventDefault();
       e.stopPropagation();
       if (readonly) return;
-      const area = refs.cellArea.current?.getBoundingClientRect();
-      const box = slicerBox(context, slicer);
-      const x = area
-        ? e.clientX - area.left + refs.scrollbarX.current!.scrollLeft
-        : box.left;
-      const y = area
-        ? e.clientY - area.top + refs.scrollbarY.current!.scrollTop
-        : box.top;
-      setMenu({ x, y, name: slicer.name });
+      setMenu({ x: e.clientX, y: e.clientY, name: slicer.name });
     },
-    [context, readonly, refs.cellArea, refs.scrollbarX, refs.scrollbarY]
+    [readonly]
   );
 
   if (tables.length === 0) return null;
