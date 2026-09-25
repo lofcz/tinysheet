@@ -5,13 +5,17 @@
  * Gridlines and headings are per sheet (`sheet.showGridLines`,
  * `sheet.showRowColHeaders`) and round-trip through xlsx `sheetView`; the
  * formula bar is a workbook (application) setting kept on the context.
- * Headings are hidden by drawing them 0 px wide/high: the React layer puts
+ * Headings are hidden by drawing them HIDDEN_HEADER_SIZE px wide/high (the
+ * DOM headers subtract 1.5 px, so they end up 0.5 px): the React layer puts
  * the configured sizes back when they are shown again.
  */
 import type { Context } from "../context";
 import type { Sheet } from "../types";
 import { getSheetIndex } from "../utils";
 import { MAX_ZOOM_RATIO, MIN_ZOOM_RATIO } from "./zoom";
+
+/** Header size (px) while View › Headings is off. */
+export const HIDDEN_HEADER_SIZE = 2;
 
 function sheetOf(ctx: Context, sheetId?: string): Sheet | null {
   const i = getSheetIndex(ctx, sheetId ?? ctx.currentSheetId);
@@ -54,8 +58,8 @@ export function setShowHeadings(
   if (show) delete sheet.showRowColHeaders;
   else sheet.showRowColHeaders = false;
   if (!show && sheetId === ctx.currentSheetId) {
-    ctx.rowHeaderWidth = 0;
-    ctx.columnHeaderHeight = 0;
+    ctx.rowHeaderWidth = HIDDEN_HEADER_SIZE;
+    ctx.columnHeaderHeight = HIDDEN_HEADER_SIZE;
   }
 }
 
@@ -108,6 +112,16 @@ export function zoomForSelection(ctx: Context): number | null {
   const fit = Math.min(areaW / w, areaH / h);
   const clamped = Math.min(MAX_ZOOM_RATIO, Math.max(MIN_ZOOM_RATIO, fit));
   return Math.floor(clamped * 100) / 100;
+}
+
+/** Scroll the selection's top-left cell to the top-left of the window. */
+export function scrollSelectionIntoCorner(ctx: Context) {
+  const sel =
+    ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
+  if (!sel) return;
+  ctx.scrollTop = sel.row[0] > 0 ? ctx.visibledatarow[sel.row[0] - 1] ?? 0 : 0;
+  ctx.scrollLeft =
+    sel.column[0] > 0 ? ctx.visibledatacolumn[sel.column[0] - 1] ?? 0 : 0;
 }
 
 /**

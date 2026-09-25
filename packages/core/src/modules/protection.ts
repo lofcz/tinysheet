@@ -27,6 +27,7 @@ import type {
 import { getSheetByIndex, getSheetIndex } from "../utils";
 import { peek, peekCell } from "./dependencyGraph";
 import { parseSqref } from "./cfRules";
+import { scrollToHighlightCell } from "./selection";
 import { protectionLocale } from "../locale/protection";
 
 export {
@@ -459,6 +460,29 @@ export function nextUnlockedCell(
     if (!checkCellIsLocked(ctx, rr, cc, sheetId)) return { r: rr, c: cc };
   }
   return null;
+}
+
+/**
+ * Tab / Shift+Tab on a protected sheet: select the next unlocked cell.
+ * False (nothing done) when the sheet is not protected or has none.
+ */
+export function selectNextUnlockedCell(ctx: Context, backwards = false) {
+  const sel =
+    ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
+  const r = sel?.row_focus ?? sel?.row?.[0] ?? 0;
+  const c = sel?.column_focus ?? sel?.column?.[0] ?? 0;
+  const next = nextUnlockedCell(ctx, r, c, backwards);
+  if (!next) return false;
+  ctx.luckysheet_select_save = [
+    {
+      row: [next.r, next.r],
+      column: [next.c, next.c],
+      row_focus: next.r,
+      column_focus: next.c,
+    },
+  ];
+  scrollToHighlightCell(ctx, next.r, next.c);
+  return true;
 }
 
 /* ---- protect / unprotect a sheet ----------------------------------------- */

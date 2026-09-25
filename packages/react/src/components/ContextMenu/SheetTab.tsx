@@ -7,6 +7,8 @@ import {
   hideSheets,
   selectAllSheets,
   ungroupSheets,
+  checkWorkbookStructure,
+  isWorkbookStructureProtected,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
@@ -156,7 +158,12 @@ const SheetTabContextMenu: React.FC = () => {
                   (singleSheet) =>
                     _.isUndefined(singleSheet.hide) || singleSheet.hide !== 1
                 );
-                if (
+                if (isWorkbookStructureProtected(context)) {
+                  // Excel's message instead of the confirmation
+                  setContext((ctx) => {
+                    checkWorkbookStructure(ctx);
+                  });
+                } else if (
                   context.luckysheetfile.length > 1 &&
                   shownSheets.length > 1
                 ) {

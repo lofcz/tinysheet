@@ -8,6 +8,8 @@ import {
   onSheetTabActivated,
   selectSheetRange,
   toggleSheetInGroup,
+  checkWorkbookStructure,
+  isWorkbookStructureProtected,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
@@ -116,6 +118,7 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
       if (context.allowEdit === false) return;
       const draggingId = e.dataTransfer.getData("sheetId");
       setContext((draftCtx) => {
+        if (!checkWorkbookStructure(draftCtx)) return;
         const droppingId = sheet.id;
         let draggingSheet: Sheet | undefined;
         let droppingSheet: Sheet | undefined;
@@ -166,7 +169,9 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
       }}
       onDrop={onDrop}
       onDragStart={onDragStart}
-      draggable={context.allowEdit && !editing}
+      draggable={
+        context.allowEdit && !editing && !isWorkbookStructureProtected(context)
+      }
       key={sheet.id}
       ref={containerRef}
       className={
@@ -235,7 +240,13 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         spellCheck="false"
         suppressContentEditableWarning
         contentEditable={isDropPlaceholder ? false : editing}
-        onDoubleClick={() => setEditing(true)}
+        onDoubleClick={() => {
+          if (isWorkbookStructureProtected(context)) {
+            setContext((ctx) => {
+              checkWorkbookStructure(ctx);
+            });
+          } else setEditing(true);
+        }}
         onBlur={onBlur}
         onKeyDown={onKeyDown}
         ref={editable}

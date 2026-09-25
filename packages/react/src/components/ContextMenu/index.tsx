@@ -29,6 +29,9 @@ import {
   colLocationByIndex,
   rowLocationByIndex,
   Context,
+  getSheetProtection,
+  isProtectionActionAllowed,
+  SheetProtectionAction,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
@@ -276,6 +279,23 @@ const ContextMenu: React.FC = () => {
     [flowdata]
   );
   const editable = open && isAllowEdit(context);
+  // protected sheet: entries follow Protect Sheet's allowed actions (the
+  // core guard still refuses locked cells, e.g. rows to delete)
+  const protection = open ? getSheetProtection(context) : null;
+  const allows = (action: SheetProtectionAction) =>
+    protection
+      ? open &&
+        context.allowEdit !== false &&
+        isProtectionActionAllowed(protection, action)
+      : editable;
+  const rowColAction = (
+    mode: "insert" | "delete",
+    type: "row" | "column"
+  ): SheetProtectionAction => {
+    if (mode === "insert")
+      return type === "row" ? "insertRows" : "insertColumns";
+    return type === "row" ? "deleteRows" : "deleteColumns";
+  };
 
   // "Insert [n] rows above / below" with an inline count (FortuneSheet's
   // original items, still available through `cellContextMenu` settings).
@@ -444,7 +464,9 @@ const ContextMenu: React.FC = () => {
           key: name,
           label,
           icon: mode === "insert" ? "insert" : "delete",
-          disabled: multi || !editable,
+          disabled:
+            multi ||
+            !(headerType ? allows(rowColAction(mode, headerType)) : editable),
           onSelect: () => {
             if (headerType) {
               insertOrDeleteRowCol(mode, headerType);
@@ -469,7 +491,7 @@ const ContextMenu: React.FC = () => {
           label:
             mode === "insert" ? cellMenu.insertRowCol : cellMenu.deleteRowCol,
           icon: mode === "insert" ? "insert" : "delete",
-          disabled: multi || !editable,
+          disabled: multi || !allows(rowColAction(mode, headerType)),
           onSelect: () => insertOrDeleteRowCol(mode, headerType!),
         });
       }
@@ -483,7 +505,7 @@ const ContextMenu: React.FC = () => {
             type === "row" ? rightclick.row : rightclick.column
           }`,
           icon: "delete",
-          disabled: !editable,
+          disabled: !allows(rowColAction("delete", type)),
           onSelect: () => insertOrDeleteRowCol("delete", type),
         });
       }
@@ -575,7 +597,7 @@ const ContextMenu: React.FC = () => {
           key,
           label,
           icon,
-          disabled: !editable,
+          disabled: !allows("editObjects"),
           onSelect: () => {
             setContext((draftCtx) => {
               fn(draftCtx, refs.globalCache, activeR, activeC);
@@ -607,7 +629,7 @@ const ContextMenu: React.FC = () => {
           label: cellMenu.formatCells,
           icon: "format",
           shortcut: mod("1"),
-          disabled: !editable,
+          disabled: !allows("formatCells"),
           onSelect: () => runRegistered("formatCells"),
         });
       case "pick-list": {
@@ -654,7 +676,7 @@ const ContextMenu: React.FC = () => {
           label: link ? cellMenu.editLink : cellMenu.link,
           icon: "link",
           shortcut: mod("K"),
-          disabled: multi || !editable,
+          disabled: multi || !allows("insertHyperlinks"),
           onSelect: () => run((draftCtx) => handleLink(draftCtx)),
         });
         if (link) {
@@ -662,7 +684,7 @@ const ContextMenu: React.FC = () => {
             type: "item",
             key: "remove-link",
             label: cellMenu.removeLink,
-            disabled: !editable,
+            disabled: !allows("insertHyperlinks"),
             onSelect: () =>
               run((draftCtx) => removeHyperlink(draftCtx, activeR, activeC)),
           });
@@ -674,7 +696,7 @@ const ContextMenu: React.FC = () => {
           key: name,
           label: cellMenu.insertImage,
           icon: "image",
-          disabled: !editable,
+          disabled: !allows("editObjects"),
           onSelect: () => run(() => showImgChooser()),
         });
       case "data":
@@ -694,7 +716,7 @@ const ContextMenu: React.FC = () => {
           key: name,
           label: cellMenu.insertChart,
           icon: "chart",
-          disabled: !editable,
+          disabled: !allows("editObjects"),
           onSelect: () => runRegistered("insertChart"),
         });
       case "set-row-height":
@@ -720,7 +742,9 @@ const ContextMenu: React.FC = () => {
           key: name,
           label: type === "row" ? cellMenu.rowHeight : cellMenu.columnWidth,
           icon: type === "row" ? "rowHeight" : "columnWidth",
-          disabled: !context.allowEdit,
+          disabled:
+            !context.allowEdit ||
+            !allows(type === "row" ? "formatRows" : "formatColumns"),
           onSelect: () => {
             close();
             showModal(
@@ -750,7 +774,9 @@ const ContextMenu: React.FC = () => {
               ? cellMenu.autofitRowHeight
               : cellMenu.autofitColumnWidth,
           icon: "autofit",
-          disabled: !context.allowEdit,
+          disabled:
+            !context.allowEdit ||
+            !allows(type === "row" ? "formatRows" : "formatColumns"),
           onSelect: () =>
             run((draftCtx) =>
               (type === "row" ? autofitRows : autofitColumns)(draftCtx, targets)
@@ -778,7 +804,9 @@ const ContextMenu: React.FC = () => {
             key: `${name}-hide`,
             label: cellMenu.hide,
             icon: "hide",
-            disabled: !context.allowEdit,
+            disabled:
+              !context.allowEdit ||
+              !allows(type === "row" ? "formatRows" : "formatColumns"),
             onSelect: act(true),
           },
           {
@@ -786,7 +814,9 @@ const ContextMenu: React.FC = () => {
             key: `${name}-unhide`,
             label: cellMenu.unhide,
             icon: "unhide",
-            disabled: !context.allowEdit,
+            disabled:
+              !context.allowEdit ||
+              !allows(type === "row" ? "formatRows" : "formatColumns"),
             onSelect: act(false),
           },
         ];

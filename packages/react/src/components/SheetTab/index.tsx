@@ -14,6 +14,11 @@ import "./index.css";
 import SheetItem from "./SheetItem";
 import ZoomControl from "../ZoomControl";
 import { activateOnKey } from "../Toolbar/Button";
+import { registerProtectionFeatures } from "../Protection";
+
+// protection and View options plug into the toolbar and cell area through
+// the registries (an explicit call: the package is side-effect free)
+registerProtectionFeatures();
 
 const SheetTab: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
