@@ -6,6 +6,8 @@ import { computeAxisPositions } from "./modules/geometry";
 import { Hooks } from "./settings";
 import type { ThemeName } from "./theme";
 import type { EditState } from "./modules/editMode";
+import type { TraceArrowsState } from "./modules/formulaAudit";
+import type { ErrorCheckingOptions } from "./modules/errorChecking";
 import {
   Sheet,
   Selection,
@@ -268,6 +270,17 @@ export type Context = {
   calcDefaults?: CalcSettings;
   /** Manual calculation: changes wait for F9 (status bar "Calculate"). */
   calculationPending?: boolean;
+  /** Trace Precedents / Dependents arrows (modules/formulaAudit.ts). */
+  traceArrows?: TraceArrowsState;
+  /** Show Formulas (Ctrl+`) per sheet id. */
+  showFormulas?: Record<string, boolean>;
+  /** Watch Window panel and its watched cells. */
+  watchWindow?: {
+    open: boolean;
+    watches: { sheetId: string; r: number; c: number }[];
+  };
+  /** Error checking rules (modules/errorChecking.ts), from the settings. */
+  errorCheckingOptions?: ErrorCheckingOptions;
 
   getRefs: () => RefValues;
 };

@@ -56,3 +56,8 @@ export * from "./formatCells";
 export { inferFormulaFormat } from "./formatInference";
 export * from "./extensions";
 export * from "./calculation";
+export * from "./formulaAudit";
+export * from "./errorChecking";
+export * from "./evaluateFormula";
+export { formulaAuditLocale } from "../locale/formulaAudit";
+export type { FormulaAuditLocale } from "../locale/formulaAudit";
