@@ -304,12 +304,19 @@ const ShapeLayer: React.FC = () => {
     [toSheet, zoom]
   );
 
+  // The window listeners stay the same functions for the whole drag (the
+  // first mousedown re-renders the layer when it selects the shape).
+  const moveRef = useRef(onMouseMove);
+  moveRef.current = onMouseMove;
+  const upRef = useRef<() => void>(() => {});
+  const windowMove = useCallback((e: MouseEvent) => moveRef.current(e), []);
+  const windowUp = useCallback(() => upRef.current(), []);
+
   const onMouseUp = useCallback(() => {
     const d = drag.current;
     drag.current = null;
-    window.removeEventListener("mousemove", onMouseMove);
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define, no-use-before-define
-    window.removeEventListener("mouseup", onMouseUpRef.current);
+    window.removeEventListener("mousemove", windowMove);
+    window.removeEventListener("mouseup", windowUp);
     if (d?.moved && d.patches) {
       const done = d.patches;
       setContext((ctx) => {
@@ -338,16 +345,15 @@ const ShapeLayer: React.FC = () => {
       });
     }
     setPatches(null);
-  }, [onMouseMove, setContext]);
-  const onMouseUpRef = useRef(onMouseUp);
-  onMouseUpRef.current = onMouseUp;
+  }, [setContext, windowMove, windowUp]);
+  upRef.current = onMouseUp;
 
   useEffect(
     () => () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUpRef.current);
+      window.removeEventListener("mousemove", windowMove);
+      window.removeEventListener("mouseup", windowUp);
     },
-    [onMouseMove]
+    [windowMove, windowUp]
   );
 
   const focusShape = (id: string) => {
@@ -389,8 +395,8 @@ const ShapeLayer: React.FC = () => {
       moved: false,
       patches: null,
     };
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUpRef.current);
+    window.addEventListener("mousemove", windowMove);
+    window.addEventListener("mouseup", windowUp);
   };
 
   // ---------------------------------------------------------------------

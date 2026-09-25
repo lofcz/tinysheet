@@ -169,9 +169,7 @@ describe("shape layer", () => {
       fireEvent.click(format!);
     });
     expect(
-      container.querySelector(
-        '[role="complementary"][aria-label="Format shape"]'
-      )
+      container.querySelector('aside[aria-label="Format shape"]')
     ).toBeTruthy();
   });
 
