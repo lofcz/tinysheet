@@ -759,15 +759,7 @@ export function clearGroupedSheetsContents(ctx: Context) {
           const cell = data[r][c];
           if (cell && (cell.v != null || cell.f != null || cell.m != null)) {
             if (cell.f) delFunctionGroup(ctx, r, c, id);
-            const kept: Cell = _.omit(cell, [
-              "v",
-              "m",
-              "f",
-              "spl",
-              "qp",
-              "hl",
-              "img",
-            ]);
+            const kept: Cell = _.omit(cell, ["v", "m", "f", "qp", "hl", "img"]);
             if (kept.ct?.t === "inlineStr") kept.ct = { fa: "General", t: "g" };
             data[r][c] = kept;
             changed.push({ r, c, id });

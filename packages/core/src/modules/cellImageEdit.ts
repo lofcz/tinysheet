@@ -71,7 +71,7 @@ export function placeImageInCell(
   if (!canEdit(ctx, r, c)) return false;
   const old = d[r][c];
   if (old?.f) delFunctionGroup(ctx, r, c);
-  const next: Cell = old ? _.omit(old, ["f", "spl", "qp", "hl"]) : {};
+  const next: Cell = old ? _.omit(old, ["f", "qp", "hl"]) : {};
   if (next.ct?.t === "inlineStr") next.ct = { fa: "General", t: "g" };
   const clean: CellImage = { src: img.src.trim() };
   if (img.alt) clean.alt = img.alt;
@@ -156,7 +156,7 @@ export function convertCellImageToFloating(
   ctx.insertedImgs = (ctx.insertedImgs || []).concat(floating);
   saveImage(ctx);
   if (cell.f) delFunctionGroup(ctx, r, c);
-  const kept: Cell = _.omit(cell, ["v", "m", "f", "spl", "qp", "img"]);
+  const kept: Cell = _.omit(cell, ["v", "m", "f", "qp", "img"]);
   if (!kept.ct?.fa || kept.ct.fa === "General") delete kept.ct;
   d![r][c] = _.isEmpty(kept) ? null : kept;
   recalcFrom(ctx, r, c, null);

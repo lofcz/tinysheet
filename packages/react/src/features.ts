@@ -6,6 +6,7 @@
  * feature is registered before the toolbar, overlays or menus render.
  */
 import { registerFormulaAuditing } from "./components/FormulaAuditing/register";
+import { installSparklineUI } from "./components/Sparkline";
 
 let loaded = false;
 
@@ -13,4 +14,5 @@ export function loadBuiltinFeatures() {
   if (loaded) return;
   loaded = true;
   registerFormulaAuditing();
+  installSparklineUI();
 }

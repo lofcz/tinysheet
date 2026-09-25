@@ -307,6 +307,7 @@ export const defaultSettings: Required<Settings> = {
     "image",
     "picture-in-cell", // Place picture in cell (pictures in cells)
     "chart",
+    "sparkline",
     "link",
     "comment",
     "threaded-comment", // New Comment, Previous/Next, Comments pane
@@ -365,6 +366,7 @@ export const defaultSettings: Required<Settings> = {
     "chart",
     "|",
     "formula-auditing", // Trace Precedents / Dependents, Evaluate, Watch…
+    "sparkline", // Sparklines submenu on cells with sparklines
   ], // 自定义单元格右键菜单
   // row / column header menu
   headerContextMenu: [

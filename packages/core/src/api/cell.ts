@@ -201,8 +201,6 @@ export function clearCell(
     if (cell.f != null) {
       delete cell.f;
       delFunctionGroup(ctx, row, column, sheet.id);
-
-      delete cell.spl;
     }
   }
 }

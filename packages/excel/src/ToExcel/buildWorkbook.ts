@@ -36,6 +36,7 @@ import { setDefinedNames } from "../common/definedNames";
 import { exportCalcProperties } from "../common/calcProperties";
 import { writePageSetup, writePrintNames } from "../common/pageSetup";
 import { setConditionalFormatting } from "./ExcelConditionFormat";
+import { writeSparklines } from "./ExcelSparkline";
 
 export type XlsxExportOptions = {
   /** Skip sheets with hide=1 instead of exporting them as hidden. */
@@ -122,6 +123,8 @@ export const sheetExportFeatures: SheetExportFeature[] = [
   },
   { name: "views", write: writeSheetViews },
   { name: "page-setup", write: writePageSetup },
+  // queued for the zip pass (the "worksheet-exts" post-processor)
+  { name: "sparklines", write: writeSparklines },
   // Charts are added to the written zip (the "charts" post-processor).
 ];
 

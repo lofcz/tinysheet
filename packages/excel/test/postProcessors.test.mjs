@@ -35,6 +35,7 @@ test("built-in post-processors run in a documented order", () => {
       "visible-notes",
       "threaded-comments",
       "sheet-xml-fixups",
+      "worksheet-exts",
       "cell-hyperlinks",
       "data-validation",
       "tables",

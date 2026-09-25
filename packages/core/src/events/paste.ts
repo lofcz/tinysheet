@@ -212,7 +212,6 @@ function pasteTextHandler(ctx: Context, rows: string[][]) {
       delete cell.v;
       delete cell.m;
       delete cell.f;
-      delete cell.spl;
       delete cell.qp;
       if (cell.ct?.t === "inlineStr") cell.ct = { fa: "General", t: "g" };
 

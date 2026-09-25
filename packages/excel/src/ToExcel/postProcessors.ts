@@ -23,7 +23,7 @@
  * - Order is registration order unless `before` / `after` names another
  *   processor. Built-ins run as: conditional-formatting, dynamic-arrays,
  *   cell-images, internal-hyperlinks, visible-notes, threaded-comments,
- *   sheet-xml-fixups, cell-hyperlinks, data-validation, tables, charts,
+ *   sheet-xml-fixups, worksheet-exts, cell-hyperlinks, data-validation, tables, charts,
  *   feature-fixups.
  * - Share data from a sheet writer (SheetExportFeature) with its
  *   post-processor through `ctx.post.features[<your name>]`.
@@ -36,6 +36,7 @@ import type ExcelJS from "@protobi/exceljs";
 import type { XlsxExportOptions } from "./buildWorkbook";
 import type { XlsxPostProcessInfo } from "./postProcess";
 import {
+  addWorksheetExts,
   applySheetXmlFixups,
   fixInternalHyperlinks,
   markDynamicArrays,
@@ -134,6 +135,11 @@ export const xlsxPostProcessors: XlsxPostProcessor[] = [
   {
     name: "sheet-xml-fixups",
     process: (ctx) => applySheetXmlFixups(ctx.zip, ctx.post),
+  },
+  // <ext> elements queued by sheet writers (sparkline groups, ...)
+  {
+    name: "worksheet-exts",
+    process: (ctx) => addWorksheetExts(ctx.zip, ctx.post),
   },
   // links on formula cells and empty cells (ExcelJS only writes link values)
   { name: "cell-hyperlinks", process: addCellHyperlinks },

@@ -14,6 +14,9 @@
  *   (ExcelThreadedComments.ts).
  * - Pictures placed in cells: richData parts and `vm` metadata
  *   (ExcelCellImage.ts).
+ * - Worksheet extensions (`worksheetExts`): `<ext>` elements features queue
+ *   while writing (sparkline groups, ...) are added to the worksheet's
+ *   `extLst`, after the ones ExcelJS wrote.
  */
 import JSZip from "jszip";
 import type { ThreadedCommentExportInfo } from "./ExcelThreadedComments";
@@ -43,6 +46,8 @@ export type XlsxPostProcessInfo = {
    * feature name (see postProcessors.ts).
    */
   features?: Record<string, any>;
+  /** Worksheet id -> `<ext>` elements to add to the worksheet's extLst. */
+  worksheetExts?: Record<number, string[]>;
 };
 
 const METADATA_XML =
@@ -227,6 +232,34 @@ export async function applySheetXmlFixups(zip: JSZip, info: XlsxPostProcessInfo)
         path,
         fixups.reduce((acc, fix) => fix(acc), xml)
       );
+    })
+  );
+}
+
+/** Add `<ext>` elements to a worksheet XML's `extLst` (created if needed). */
+export function appendWorksheetExts(xml: string, exts: string[]) {
+  if (exts.length === 0) return xml;
+  const body = exts.join("");
+  const close = xml.lastIndexOf("</extLst>");
+  if (close >= 0 && /<extLst\b/.test(xml)) {
+    return xml.slice(0, close) + body + xml.slice(close);
+  }
+  // extLst is the last child of <worksheet>
+  const end = xml.lastIndexOf("</worksheet>");
+  if (end < 0) return xml;
+  return `${xml.slice(0, end)}<extLst>${body}</extLst>${xml.slice(end)}`;
+}
+
+export async function addWorksheetExts(zip: JSZip, info: XlsxPostProcessInfo) {
+  const entries = Object.entries(info.worksheetExts ?? {}).filter(
+    ([, exts]) => exts.length > 0
+  );
+  await Promise.all(
+    entries.map(async ([id, exts]) => {
+      const path = `xl/worksheets/sheet${id}.xml`;
+      const file = zip.file(path);
+      if (!file) return;
+      zip.file(path, appendWorksheetExts(await file.async("string"), exts));
     })
   );
 }

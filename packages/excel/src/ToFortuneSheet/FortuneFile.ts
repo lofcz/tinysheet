@@ -738,6 +738,9 @@ export class FortuneFile {
       if ((sheet as any).pageSetup != null) {
         sheetout.pageSetup = (sheet as any).pageSetup;
       }
+      if ((sheet as any).sparklineGroups != null) {
+        sheetout.sparklineGroups = (sheet as any).sparklineGroups;
+      }
 
       if (sheet.hyperlink != null) {
         sheetout.hyperlink = sheet.hyperlink;
