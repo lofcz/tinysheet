@@ -20,7 +20,6 @@ import {
   CellMatrix,
   insertRowCol,
   locale,
-  calcSelectionInfo,
   groupValuesRefresh,
   setFormulaCellInfoMap,
 } from "@lofcz/tinysheet-core";
@@ -54,6 +53,7 @@ import { generateAPIs } from "./api";
 import { ModalProvider } from "../../context/modal";
 import FilterMenu from "../ContextMenu/FilterMenu";
 import SheetList from "../SheetList";
+import StatusBar from "../StatusBar";
 import { useResolvedTheme } from "../../hooks/useResolvedTheme";
 
 enablePatches();
@@ -108,26 +108,10 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     // Chevrotain parser), which is far too expensive to evaluate and throw
     // away on every Workbook render.
     const [context, setContext] = useState(() => defaultContext(refs));
-    const { formula, info } = locale(context);
+    const { info } = locale(context);
 
     const [moreToolbarItems, setMoreToolbarItems] =
       useState<React.ReactNode>(null);
-
-    const [calInfo, setCalInfo] = useState<{
-      numberC: number;
-      count: number;
-      sum: number;
-      max: number;
-      min: number;
-      average: string;
-    }>({
-      numberC: 0,
-      count: 0,
-      sum: 0,
-      max: 0,
-      min: 0,
-      average: "",
-    });
 
     const mergedSettings = useMemo(
       () => _.assign(_.cloneDeep(defaultSettings), props) as Required<Settings>,
@@ -141,26 +125,6 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     // object identity with the same callbacks.
     const hooksRef = useRef(mergedSettings.hooks);
     hooksRef.current = mergedSettings.hooks;
-
-    // Selection aggregates — expensive (scans every selected cell) and triggers
-    // an extra Workbook re-render via setCalInfo. Skip entirely when hidden;
-    // otherwise debounce so drag-select stays responsive.
-    useEffect(() => {
-      if (!mergedSettings.showStatsBar) return undefined;
-      const selection = context.luckysheet_select_save;
-      if (!selection) return undefined;
-      const { lang } = mergedSettings;
-      const handle = window.setTimeout(() => {
-        setCalInfo(calcSelectionInfo(context, lang));
-      }, 120);
-      return () => window.clearTimeout(handle);
-      // context is read for the selection-bound snapshot at schedule time
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-      context.luckysheet_select_save,
-      mergedSettings.showStatsBar,
-      mergedSettings.lang,
-    ]);
 
     const initSheetData = useCallback(
       (
@@ -880,37 +844,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
                 className="fortune-popover-backdrop"
               />
             )}
-            {mergedSettings.showStatsBar && (
-              <div className="fortune-stat-area">
-                <div className="luckysheet-sheet-selection-calInfo">
-                  {!!calInfo.count && (
-                    <div style={{ width: "60px" }}>
-                      {formula.count}: {calInfo.count}
-                    </div>
-                  )}
-                  {!!calInfo.numberC && !!calInfo.sum && (
-                    <div>
-                      {formula.sum}: {calInfo.sum}
-                    </div>
-                  )}
-                  {!!calInfo.numberC && !!calInfo.average && (
-                    <div>
-                      {formula.average}: {calInfo.average}
-                    </div>
-                  )}
-                  {!!calInfo.numberC && !!calInfo.max && (
-                    <div>
-                      {formula.max}: {calInfo.max}
-                    </div>
-                  )}
-                  {!!calInfo.numberC && !!calInfo.min && (
-                    <div>
-                      {formula.min}: {calInfo.min}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            {mergedSettings.showStatsBar && <StatusBar />}
           </div>
         </ModalProvider>
       </WorkbookContext.Provider>
