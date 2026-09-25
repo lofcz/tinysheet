@@ -1,7 +1,10 @@
 import { makeContext, input, value, values } from "../formula/helpers";
 import {
   createNamesFromSelection,
+  defineNameForSelection,
   deleteDefinedName,
+  goToNameRange,
+  resolveNameBoxInput,
   evaluateDefinedName,
   expandFormulaNames,
   findDefinedName,
@@ -426,6 +429,10 @@ describe("formula autocomplete", () => {
     expect(names.slice(0, 2)).toEqual(["Sales", "SalesTax"]);
     applyFunctionCandidate(el, "Sales");
     expect(el.textContent).toBe("=SUM(Sales");
+    // a fully typed name is not offered again (Enter commits the formula)
+    setText("=SUM(Sales");
+    refreshFormulaEditorState(ctx, el);
+    expect(ctx.functionCandidates.map((c) => c.n)).toEqual(["SalesTax"]);
     setText("=Sal");
     applyFunctionCandidate(el, "SalesTax");
     expect(el.textContent).toBe("=SalesTax(");
@@ -438,5 +445,60 @@ describe("formula autocomplete", () => {
       text: "=Table1[",
       caret: 8,
     });
+  });
+});
+
+describe("name box", () => {
+  test("interprets references, names, tables and new names", () => {
+    const ctx = makeContext();
+    fill(ctx, { A1: "h", A2: "1" });
+    define(ctx, "Block", "=Sheet1!$B$2:$C$4");
+    define(ctx, "Const", "=5");
+    createTable(ctx, "id_1", { row: [0, 1], column: [0, 0] });
+    const go = (text) => resolveNameBoxInput(ctx, text);
+    expect(go("b2")).toEqual({
+      kind: "goto",
+      range: { sheetId: "id_1", row: [1, 1], column: [1, 1] },
+    });
+    expect(go("'My Sheet'!C3:D4").range).toEqual({
+      sheetId: "id_2",
+      row: [2, 3],
+      column: [2, 3],
+    });
+    expect(go("C:C").range.column).toEqual([2, 2]);
+    expect(go("block").range.row).toEqual([1, 3]);
+    expect(go("Table1").range).toEqual({
+      sheetId: "id_1",
+      row: [0, 1],
+      column: [0, 0],
+    });
+    expect(go("NewName")).toEqual({ kind: "define", name: "NewName" });
+    // a name that is not a range cannot be selected
+    expect(go("Const").kind).toBe("error");
+    expect(go("1abc").kind).toBe("error");
+  });
+
+  test("goToNameRange selects, switching sheets", () => {
+    const ctx = makeContext();
+    ctx.sheetScrollRecord = {};
+    goToNameRange(ctx, { sheetId: "id_2", row: [2, 3], column: [1, 2] });
+    expect(ctx.currentSheetId).toBe("id_2");
+    expect(ctx.luckysheet_select_save[0]).toMatchObject({
+      row: [2, 3],
+      column: [1, 2],
+      row_focus: 2,
+      column_focus: 1,
+    });
+    // restored by the sheet tab when the sheet is shown
+    expect(ctx.sheetScrollRecord.id_2.luckysheet_select_save[0].row).toEqual([
+      2, 3,
+    ]);
+  });
+
+  test("defineNameForSelection", () => {
+    const ctx = makeContext();
+    ctx.luckysheet_select_save = [{ row: [1, 2], column: [0, 0] }];
+    expect(defineNameForSelection(ctx, "Picked")).toBeNull();
+    expect(findDefinedName(ctx, "Picked").refersTo).toBe("=Sheet1!$A$2:$A$3");
   });
 });

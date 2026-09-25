@@ -1062,6 +1062,9 @@ export function refreshFormulaEditorState(ctx: Context, el: HTMLElement) {
     const ranked = rankFunctions(
       (extra.length ? [...functionlist, ...extra] : functionlist) as any[],
       query.query
+    ).filter(
+      // a fully typed defined name needs no completion (Enter commits)
+      (r) => !(r.tier === 0 && r.item.t === "name")
     );
     if (ranked.length > 0) {
       ctx.functionCandidates = ranked.map((r) => ({

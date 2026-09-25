@@ -25,12 +25,13 @@
  * support that).
  */
 import _ from "lodash";
-import type { Context } from "../context";
+import { Context, getFlowdata } from "../context";
 import type { DefinedName, FormulaDependency, Sheet } from "../types";
 import { columnCharToIndex, indexToColumnChar } from "../utils";
 import { peek } from "./dependencyGraph";
 import { execFunctionGroup, execfunction, groupValuesRefresh } from "./formula";
 import { invalidateDependencyGraph } from "./formulaHelper";
+import { setSelectionRange } from "./navigation";
 import { extractStaticReferences, quoteSheetName } from "./formulaFunctions";
 import type { RowColChange, StructuredRefEnv } from "./tables";
 import {
@@ -1279,4 +1280,120 @@ export function listDefinedNames(ctx: Context) {
   return getDefinedNames(ctx)
     .filter((e) => !e.hidden)
     .map((e) => _.pick(e, ["name", "refersTo", "scope", "comment"]));
+}
+
+/* ------------------------------------------------------------------------ */
+/* Name Box                                                                 */
+/* ------------------------------------------------------------------------ */
+
+/** The last selection of the current sheet as a NameRange. */
+export function selectionAsNameRange(ctx: Context): NameRange | null {
+  const last = _.last(ctx.luckysheet_select_save);
+  if (!last) return null;
+  return {
+    sheetId: ctx.currentSheetId,
+    row: [last.row[0], last.row[1]],
+    column: [last.column[0], last.column[1]],
+  };
+}
+
+/**
+ * Selects `range` (switching sheets when needed). Returns true when the
+ * sheet changed (the caller may scroll again once the sheet is rendered).
+ */
+export function goToNameRange(ctx: Context, range: NameRange): boolean {
+  const idx = sheetArrayIndex(ctx, range.sheetId);
+  if (idx < 0) return false;
+  const switching = range.sheetId !== ctx.currentSheetId;
+  if (switching) {
+    const sheet = ctx.luckysheetfile[idx];
+    if (ctx.sheetScrollRecord) {
+      ctx.sheetScrollRecord[ctx.currentSheetId] = {
+        scrollLeft: ctx.scrollLeft,
+        scrollTop: ctx.scrollTop,
+        luckysheet_select_status: ctx.luckysheet_select_status,
+        luckysheet_select_save: ctx.luckysheet_select_save,
+        luckysheet_selection_range: ctx.luckysheet_selection_range,
+      };
+    }
+    ctx.currentSheetId = range.sheetId;
+    ctx.config = sheet.config ?? {};
+    ctx.zoomRatio = sheet.zoomRatio || 1;
+  }
+  const data = getFlowdata(ctx);
+  const rows = data?.length ?? 0;
+  const cols = data?.[0]?.length ?? 0;
+  setSelectionRange(
+    ctx,
+    { row: range.row, column: range.column },
+    range.row[0],
+    range.column[0],
+    {
+      columnSelect: range.row[0] === 0 && range.row[1] >= rows - 1,
+      rowSelect: range.column[0] === 0 && range.column[1] >= cols - 1,
+    }
+  );
+  if (switching && ctx.sheetScrollRecord) {
+    // the sheet tab restores this record when the new sheet is shown
+    ctx.sheetScrollRecord[range.sheetId] = {
+      scrollLeft: 0,
+      scrollTop: 0,
+      luckysheet_select_status: false,
+      luckysheet_select_save: ctx.luckysheet_select_save,
+      luckysheet_selection_range: [],
+    };
+  }
+  return switching;
+}
+
+export type NameBoxResult =
+  | { kind: "goto"; range: NameRange }
+  | { kind: "define"; name: string }
+  | { kind: "error" };
+
+/**
+ * Interprets text typed into the Name Box: a defined name or table, a
+ * reference (`A1`, `B2:D9`, `Sheet2!C3`, `C:C`, `3:5`) or a new valid name
+ * (to be defined for the current selection).
+ */
+export function resolveNameBoxInput(ctx: Context, text: string): NameBoxResult {
+  const t = text.trim();
+  if (!t) return { kind: "error" };
+  const sheetId = ctx.currentSheetId;
+  const named = resolveNameRange(ctx, t, sheetId);
+  if (named) return { kind: "goto", range: named };
+  const table = tableIndexOf(ctx).get(t.toUpperCase());
+  if (table) {
+    return {
+      kind: "goto",
+      range: {
+        sheetId: table.sheetId,
+        row: table.table.range.row,
+        column: table.table.range.column,
+      },
+    };
+  }
+  const ref = parseRangeText(ctx, t, sheetId);
+  if (ref) return { kind: "goto", range: ref };
+  if (findDefinedName(ctx, t, sheetId)) return { kind: "error" };
+  if (validateDefinedName(ctx, t, null) == null) {
+    return { kind: "define", name: t };
+  }
+  return { kind: "error" };
+}
+
+/** Defines `name` (workbook scope) for the current selection. */
+export function defineNameForSelection(ctx: Context, name: string) {
+  const range = selectionAsNameRange(ctx);
+  if (!range) return "emptyDefinition" as const;
+  return saveDefinedName(ctx, {
+    name,
+    refersTo: `=${absoluteRangeText(
+      sheetNameById(ctx, range.sheetId),
+      range.row[0],
+      range.column[0],
+      range.row[1],
+      range.column[1]
+    )}`,
+  });
 }

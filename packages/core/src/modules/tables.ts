@@ -32,6 +32,37 @@ import {
   sheetNameById,
   validateDefinedName,
 } from "./names";
+import { getCurrentRegion, getSheetNavInfo } from "./navigation";
+
+/**
+ * The range "Format as Table" proposes: the selection, or the current
+ * region around the active cell when a single cell is selected.
+ */
+export function suggestTableRange(ctx: Context): {
+  row: [number, number];
+  column: [number, number];
+} | null {
+  const last = _.last(ctx.luckysheet_select_save);
+  if (!last) return null;
+  const row: [number, number] = [last.row[0], last.row[1]];
+  const column: [number, number] = [last.column[0], last.column[1]];
+  if (row[0] !== row[1] || column[0] !== column[1]) return { row, column };
+  const info = getSheetNavInfo(ctx);
+  if (!info) return { row, column };
+  const region = getCurrentRegion(
+    info.isFilled,
+    row[0],
+    column[0],
+    info.rows,
+    info.cols
+  );
+  return region
+    ? {
+        row: [region.row[0], region.row[1]],
+        column: [region.column[0], region.column[1]],
+      }
+    : { row, column };
+}
 
 /* ------------------------------------------------------------------------ */
 /* Styles                                                                   */
@@ -641,12 +672,16 @@ export type CreateTableOptions = {
  * the table has no header row and columns are named Column1, Column2, ...
  * Returns the table or an error code.
  */
-export function createTable(
+/**
+ * Validates a "Format as Table" request without changing anything. Returns
+ * the table span (a lone header row gets one data row) or the error.
+ */
+export function checkTableRange(
   ctx: Context,
   sheetId: string,
   range: Span,
-  options: CreateTableOptions = {}
-): { table?: SheetTable; error?: TableError } {
+  options: { hasHeaders?: boolean; name?: string } = {}
+): { span: Span } | { error: TableError } {
   const sheet = sheetById(ctx, sheetId);
   const data = sheet?.data;
   if (!sheet || !data) return { error: "invalidRange" };
@@ -691,12 +726,27 @@ export function createTable(
   ) {
     return { error: "merged" };
   }
-  const name = options.name?.trim() || nextTableName(ctx);
   if (options.name) {
-    const err = validateDefinedName(ctx, name, null);
+    const err = validateDefinedName(ctx, options.name.trim(), null);
     if (err === "duplicate") return { error: "duplicateName" };
     if (err) return { error: "invalidName" };
   }
+  return { span };
+}
+
+export function createTable(
+  ctx: Context,
+  sheetId: string,
+  range: Span,
+  options: CreateTableOptions = {}
+): { table?: SheetTable; error?: TableError } {
+  const checked = checkTableRange(ctx, sheetId, range, options);
+  if ("error" in checked) return { error: checked.error };
+  const { row, column } = checked.span;
+  const data = sheetById(ctx, sheetId)!.data!;
+  const hasHeaders = options.hasHeaders !== false;
+  const name = options.name?.trim() || nextTableName(ctx);
+  const span: Span = { row, column };
   const width = column[1] - column[0] + 1;
   const headerTexts = _.times(width, (i) =>
     hasHeaders ? cellText(data[row[0]]?.[column[0] + i]) : ""
@@ -759,6 +809,27 @@ function writeTotalRow(ctx: Context, sheetId: string, table: SheetTable) {
   });
 }
 
+/** Whether a total row can be added below table `tableName`. */
+export function checkTotalRow(
+  ctx: Context,
+  tableName: string
+): TableError | null {
+  const ref = findTable(ctx, tableName);
+  if (!ref) return "notFound";
+  const data = sheetById(ctx, ref.sheetId)?.data;
+  if (!data) return "notFound";
+  const below = ref.table.range.row[1] + 1;
+  if (below >= data.length) return "noRoom";
+  for (
+    let c = ref.table.range.column[0];
+    c <= ref.table.range.column[1];
+    c += 1
+  ) {
+    if (!isEmptyCell(data[below]?.[c])) return "noRoom";
+  }
+  return null;
+}
+
 export type TableOptionsPatch = Partial<
   Pick<
     SheetTable,
@@ -803,10 +874,8 @@ export function setTableOptions(
   const [r1, r2] = table.range.row;
   if (patch.totalRow === true && !table.totalRow) {
     const below = r2 + 1;
-    if (below >= data.length) return "noRoom";
-    for (let c = table.range.column[0]; c <= table.range.column[1]; c += 1) {
-      if (!isEmptyCell(data[below]?.[c])) return "noRoom";
-    }
+    const err = checkTotalRow(ctx, table.name);
+    if (err) return err;
     const last = table.columns.length - 1;
     next.columns = table.columns.map((col, i) => {
       if (i === last)
