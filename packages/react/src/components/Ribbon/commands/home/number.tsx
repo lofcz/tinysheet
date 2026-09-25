@@ -60,10 +60,7 @@ function applyFormat(home: Home, code: string) {
 
 function useCurrency(home: Home) {
   const { settings } = useContext(WorkbookContext);
-  return currencySymbolFor(
-    home.context,
-    home.context.currency || settings.currency
-  );
+  return currencySymbolFor(home.context, settings.currency);
 }
 
 const NUMBER_FORMATS: {

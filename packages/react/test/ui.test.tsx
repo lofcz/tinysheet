@@ -12,6 +12,7 @@ import {
   Checkbox,
   DialogShell,
 } from "../src";
+import { ColorPicker, themeGrid } from "../src/components/ui";
 import { showRibbonItem } from "./ribbonHelpers";
 
 describe("side panes", () => {
@@ -220,5 +221,41 @@ describe("ui primitives", () => {
       fireEvent.keyDown(dialog, { key: "Enter" });
     });
     expect(onConfirm).toHaveBeenCalled();
+  });
+});
+
+describe("ColorPicker", () => {
+  it("builds Excel's theme grid: 6 rows of 10 with Excel's screen tips", () => {
+    const grid = themeGrid();
+    expect(grid).toHaveLength(6);
+    grid.forEach((row) => expect(row).toHaveLength(10));
+    expect(grid[0][4]).toEqual({ color: "#4472c4", name: "Blue, Accent 1" });
+    expect(grid[3][4].name).toBe("Blue, Accent 1, Lighter 40%");
+    expect(grid[5][4].name).toBe("Blue, Accent 1, Darker 50%");
+    // white darkens, black lightens
+    expect(grid[1][0].name).toBe("White, Background 1, Darker 5%");
+    expect(grid[1][1].name).toBe("Black, Text 1, Lighter 50%");
+  });
+
+  it("renders Automatic, the theme grid and the standard colours", () => {
+    const onChange = jest.fn();
+    const { container, getByText, getByLabelText } = render(
+      <ColorPicker
+        value="#4472c4"
+        automaticLabel="Automatic"
+        automaticColor="#000000"
+        onChange={onChange}
+      />
+    );
+    expect(
+      container.querySelectorAll(".ts-color-grid--theme .ts-swatch")
+    ).toHaveLength(60);
+    expect(getByLabelText("Blue, Accent 1").getAttribute("aria-pressed")).toBe(
+      "true"
+    );
+    fireEvent.click(getByLabelText("Dark Red"));
+    expect(onChange).toHaveBeenLastCalledWith("#c00000");
+    fireEvent.click(getByText("Automatic"));
+    expect(onChange).toHaveBeenLastCalledWith(null);
   });
 });

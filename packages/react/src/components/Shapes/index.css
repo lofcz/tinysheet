@@ -243,60 +243,6 @@
   cursor: default;
 }
 
-/* Insert › Shapes gallery */
-.fortune-shape-gallery {
-  display: flex;
-  flex-direction: column;
-  gap: var(--fortune-space-2);
-  width: 232px;
-  padding: var(--fortune-space-2);
-  box-sizing: border-box;
-  white-space: normal;
-  color: var(--fortune-text);
-  font-family: var(--fortune-font-family);
-  background: var(--fortune-bg-elevated);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius);
-  box-shadow: var(--fortune-shadow);
-}
-
-.fortune-shape-gallery-title {
-  margin-bottom: var(--fortune-space-1);
-  color: var(--fortune-text-muted);
-  font-size: 12px;
-}
-
-.fortune-shape-gallery-items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-}
-
-.fortune-shape-gallery-item {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  color: var(--fortune-icon, var(--fortune-text));
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--fortune-radius-sm);
-  cursor: pointer;
-}
-
-.fortune-shape-gallery-item:hover,
-.fortune-shape-gallery-item:focus-visible {
-  background: var(--fortune-bg-hover);
-  outline: none;
-}
-
-.fortune-shape-gallery-item-active {
-  background: var(--fortune-bg-active);
-  border-color: var(--fortune-selection);
-}
-
 /* Format Shape pane (docked in the side pane) */
 .fortune-shape-format {
   display: flex;

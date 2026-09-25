@@ -126,7 +126,7 @@ const ThreadedCommentsLayer: React.FC = () => {
       if (!target || cardRef.current?.contains(target)) return;
       if (
         target.closest(
-          ".fortune-comments-pane, .fortune-thread-card, .fortune-cell-menu, .fortune-toolbar-combo-popup"
+          ".fortune-comments-pane, .fortune-thread-card, .fortune-cell-menu, .ts-popover"
         )
       ) {
         return;

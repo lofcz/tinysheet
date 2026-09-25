@@ -144,7 +144,7 @@ test.describe("toolbar drop-downs", () => {
       .focus();
     await page.keyboard.press("Enter");
     await expect(dropdown(page)).toHaveCount(1);
-    await expect(dropdown(page).locator(".ts-home-colors")).toBeVisible();
+    await expect(dropdown(page).locator(".ts-color-picker")).toBeVisible();
   });
 
   test("keyboard: open, arrow to an item, pick it, type into the sheet", async ({
@@ -167,18 +167,17 @@ test.describe("toolbar drop-downs", () => {
     await expect(
       dropdown(page).getByRole("menuitemradio", { name: "8", exact: true })
     ).toBeFocused();
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
+    // 8 → 9, 10, 11, 12
+    for (let i = 0; i < 4; i += 1) await page.keyboard.press("ArrowDown");
     await expect(
-      dropdown(page).getByRole("menuitemradio", { name: "11" })
+      dropdown(page).getByRole("menuitemradio", { name: "12" })
     ).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(dropdown(page)).toHaveCount(0);
     await expect(page.getByRole("combobox", { name: "Font Size" })).toHaveValue(
-      "11"
+      "12"
     );
+    await expect.poll(() => sheet.value(1, 1, "fs")).toBe(12);
     // the sheet has the keyboard again, as after picking in Excel
     await expect(page.locator(".luckysheet-cell-input")).toBeFocused();
     await page.keyboard.type("42");
@@ -297,7 +296,7 @@ test.describe("toolbar drop-downs", () => {
     await arrow.click();
     await expect(
       dropdown(page).locator(
-        '[data-menu-id="line-color"] .ts-home-swatch-static'
+        '[data-menu-id="line-color"] .ts-border-color-chip'
       )
     ).toHaveCSS("background-color", "rgb(0, 112, 192)");
   });

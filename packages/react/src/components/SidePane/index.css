@@ -101,6 +101,11 @@
   font-size: var(--ts-font-size);
 }
 
+/* the portal wrapper of a declarative pane: events only, no box */
+.fortune-side-pane-portal {
+  display: contents;
+}
+
 /* ---------- pane content (Fika's right pane) ---------- */
 
 /* the standard body: 16px / 14px padding, sections stacked */

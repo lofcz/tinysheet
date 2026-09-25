@@ -41,7 +41,6 @@ import { useDialog } from "../../hooks/useDialog";
 import { trackPointerDrag } from "../../hooks/pointerDrag";
 import { activateOnKey } from "../Toolbar/Button";
 import { Button as UiButton, DialogShell } from "../ui";
-import SVGIcon from "../SVGIcon";
 import { FunnelX, Settings2, Trash2 } from "lucide-react";
 import { ContextMenuPopup, MenuItem } from "../ui";
 
@@ -1022,43 +1021,3 @@ export function useInsertSlicer() {
     showDialog(<InsertSlicerDialog tableName={ref.table.name} />);
   }, [context, showDialog]);
 }
-
-/** Sprite symbol of the slicer toolbar icon. */
-const SlicerIconSymbol: React.FC = () => (
-  <svg style={{ display: "none" }} aria-hidden="true">
-    <symbol id="tinysheet-slicer" viewBox="0 0 24 24">
-      <path
-        fill="currentColor"
-        d="M4 3h16v18H4V3zm2 2v2h12V5H6zm1 4v3h10V9H7zm0 5v3h10v-3H7z"
-      />
-    </symbol>
-  </svg>
-);
-
-/** Toolbar "Slicer" (Insert › Slicer). */
-export const SlicerToolbarButton: React.FC<{ tooltip?: string }> = () => {
-  const { context } = useContext(WorkbookContext);
-  const insert = useInsertSlicer();
-  const tt = tableToolsLocale(context);
-  const label = tt.insertSlicer;
-  return (
-    <>
-      <SlicerIconSymbol />
-      <div
-        className="fortune-toolbar-button fortune-toolbar-item"
-        role="button"
-        tabIndex={0}
-        data-tips={label}
-        aria-label={label}
-        aria-disabled={context.allowEdit === false || undefined}
-        onClick={insert}
-        onKeyDown={activateOnKey}
-      >
-        <SVGIcon name="tinysheet-slicer" />
-        <div className="fortune-tooltip" aria-hidden="true">
-          {label}
-        </div>
-      </div>
-    </>
-  );
-};

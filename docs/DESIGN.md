@@ -210,11 +210,26 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
 - **Ribbon**: `packages/react/src/components/Ribbon` — layout per tab in
   `tabs/*.ts` (`RibbonTab → groups → items`, `{ rows: [[…], […]] }` stacks
   small items, `{ id, size: "large" }` for large buttons); commands with
-  `registerRibbonCommand(id, Component)` (an id without a command renders the
-  legacy toolbar item of that name); `placeRibbonItem`, `registerRibbonGroup`,
-  `registerFileMenuItem`; `settings.ribbon` for a custom layout. Scaling:
-  `useRibbonScaling.ts`. Tests: `packages/react/test/ribbonHelpers.ts`
-  (`showRibbonItem`), e2e `toolbarButton` / `ribbonItem` / `ribbonTab`.
+  `registerRibbonCommand(id, Component, { aliases })`; `placeRibbonItem`,
+  `registerRibbonGroup`, `registerFileMenuItem`; `settings.ribbon` for a
+  custom layout. Every built-in `settings.toolbarItems` name has ribbon
+  commands: the same id (`bold`, `undo` / `redo` in the quick access
+  cluster), or the commands whose `aliases` list it (`chart` → the chart
+  commands); a custom `toolbarItems` list or `settings.ribbon` naming a
+  legacy name shows those commands (layout: `Ribbon/layout.ts`). Only
+  hosts' `registerToolbarItem` items, `customToolbarItems` and unknown names
+  still render through the legacy renderer (`Toolbar/items.tsx`, Custom
+  group). Scaling: `useRibbonScaling.ts` (a group already as narrow as its
+  collapsed button stays compact). Home's pickers are the shared ones:
+  Borders = `BorderPicker`, Fill / Font Color = `ColorPicker`, Conditional
+  Formatting = `useConditionalFormatMenu`, Format as Table =
+  `FormatAsTableGallery`, Cell Styles = `CellStyles bare`. Dialogs opened
+  from the ribbon: Insert Function = `InsertFunctionDialog`
+  (`Ribbon/commands/functions.tsx`, the only one; also fx / Shift+F3 and
+  AutoSum › More Functions…, exported), Zoom = `ZoomDialog`
+  (`ZoomControl/ZoomDialog.tsx`, exported). Tests:
+  `packages/react/test/ribbonHelpers.ts` (`showRibbonItem`), e2e
+  `toolbarButton` / `ribbonItem` / `ribbonTab`.
 - **Formula bar**: `packages/react/src/components/FxEditor` — Name Box
   (`NameBox.tsx`, width drag `useNameBoxWidth.ts`), ✕ / ✓ / fx, the formula
   field, expand (Ctrl+Shift+U) and height drag (`useFormulaBarSize.ts`).
@@ -259,5 +274,7 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
   (`watch-window`), Format Shape (`format-shape`), PivotTable Fields
   (`pivot-fields`), Chart editor (`format-chart`), Data Validation rules
   (`data-validation`); each is a declarative `<SidePane>` driven by its
-  context flag. Pane content: `.ts-pane-content`, `.ts-pane-padded`,
+  context flag (its pointer events stop at the portal, so a pane declared
+  inside a sheet overlay never reaches the cell area's handlers). Pane
+  content: `.ts-pane-content`, `.ts-pane-padded`,
   `.ts-segmented` (buttons with aria-pressed), `.ts-pane-empty`, `Section`.

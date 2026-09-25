@@ -25,14 +25,12 @@ import {
   getWorkbookView,
   handleFreeze,
   locale,
-  scrollSelectionIntoCorner,
   setShowFormulaBar,
   setShowGridLines,
   setShowHeadings,
   setWorkbookView,
   sheetShowsGridLines,
   sheetShowsHeadings,
-  zoomToSelection,
 } from "@lofcz/tinysheet-core";
 import type {
   Context,
@@ -56,7 +54,11 @@ import {
   Zoom100Icon,
 } from "../tabsCommon";
 import { relayout } from "../pageLayout";
-import { setZoom, ZoomDialog } from "./ZoomDialog";
+import {
+  setZoom,
+  ZoomDialog,
+  zoomToSelectionAndScroll,
+} from "../../../ZoomControl/ZoomDialog";
 
 // ------------------------------------------------------------ Workbook Views
 
@@ -202,22 +204,7 @@ const Zoom100Command: React.FC<RibbonCommandProps> = ({ size }) => {
 /** Zoom to Selection, then scroll the selection to the window's corner. */
 export function useZoomToSelection() {
   const { setContext } = useContext(WorkbookContext);
-  return () => {
-    setContext((ctx) => {
-      zoomToSelection(ctx);
-    });
-    // scroll again once the grid is laid out at the new zoom
-    setTimeout(
-      () =>
-        setContext(
-          (ctx) => {
-            scrollSelectionIntoCorner(ctx);
-          },
-          { noHistory: true }
-        ),
-      80
-    );
-  };
+  return () => zoomToSelectionAndScroll(setContext);
 }
 
 const ZoomToSelectionCommand: React.FC<RibbonCommandProps> = ({ size }) => {

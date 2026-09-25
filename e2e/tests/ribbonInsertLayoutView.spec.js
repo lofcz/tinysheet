@@ -1,10 +1,4 @@
-const {
-  test,
-  expect,
-  toolbarButton,
-  ribbonItem,
-  ribbonTab,
-} = require("../fixtures");
+const { test, expect, toolbarButton, ribbonTab } = require("../fixtures");
 
 // The ribbon's Insert, Page Layout and View tabs: every command, its menu
 // or gallery, its toggle state and its keyboard access.
@@ -256,8 +250,8 @@ test.describe("Insert tab", () => {
       page.locator(".fortune-link-modify-modal").first()
     ).toBeVisible();
     await page
-      .locator(".fortune-link-modify-modal .button-default")
-      .first()
+      .locator(".fortune-link-modify-modal")
+      .getByRole("button", { name: "Cancel" })
       .click();
     await expect(page.locator(".fortune-link-modify-modal")).toHaveCount(0);
     await sheet.click(3, 2);
@@ -266,8 +260,8 @@ test.describe("Insert tab", () => {
       page.locator(".fortune-link-modify-modal").first()
     ).toBeVisible();
     await page
-      .locator(".fortune-link-modify-modal .button-default")
-      .first()
+      .locator(".fortune-link-modify-modal")
+      .getByRole("button", { name: "Cancel" })
       .click();
     await expect(page.locator(".fortune-link-modify-modal")).toHaveCount(0);
 
@@ -574,6 +568,8 @@ test.describe("keyboard and screen tips", () => {
     page,
   }) => {
     expect(sheet).toBeTruthy();
+    // Page Layout › Orientation (Home has a text Orientation too)
+    await ribbonTab(page, "pageLayout");
     const orientation = await toolbarButton(page, "Orientation");
     await orientation.focus();
     await page.keyboard.press("ArrowDown");
@@ -615,15 +611,25 @@ test.describe("keyboard and screen tips", () => {
     sheet,
     page,
   }) => {
-    expect(sheet).toBeTruthy();
-    await page.setViewportSize({ width: 700, height: 800 });
+    await sheet.fillColumn(0, 0, ["1", "2", "3"]);
+    await sheet.select(0, 0, 2, 0);
+    await page.setViewportSize({ width: 560, height: 800 });
     await ribbonTab(page, "insert");
+    // the wide groups (Charts) collapse into one button; one-button groups
+    // (Controls) stay as they are
     await expect(
-      page.locator(".fortune-ribbon [data-group-button]").first()
+      page.locator('.fortune-ribbon [data-group-button="charts"]')
     ).toBeVisible();
-    // a command inside a collapsed group
+    await expect(
+      page.locator('.fortune-ribbon [data-group-button="controls"]')
+    ).toHaveCount(0);
+    // a command of a group that stayed
+    await sheet.click(5, 5);
     await (await toolbarButton(page, "Checkbox")).click();
-    await expect.poll(() => sheet.value(0, 0)).toBe(false);
-    expect(await ribbonItem(page, '[data-item="checkbox"]')).toBeTruthy();
+    await expect.poll(() => sheet.value(5, 5)).toBe(false);
+    // a command inside a collapsed group
+    await sheet.select(0, 0, 2, 0);
+    await (await toolbarButton(page, "Insert Column or Bar Chart")).click();
+    await expect.poll(async () => (await charts(page)).length).toBe(1);
   });
 });

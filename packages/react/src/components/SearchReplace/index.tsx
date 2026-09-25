@@ -6,7 +6,6 @@ import {
   FindMatch,
   FindOptions,
   isAllowEdit,
-  onSearchDialogMoveStart,
   replaceAllMatches,
   replaceHtml,
   replaceNextMatch,
@@ -78,7 +77,10 @@ const SearchReplace: React.FC<{
   const findInput = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   // modeless, as in Excel: the sheet stays usable, Tab cycles in the dialog
-  useDialogBehavior(dialogRef, { modal: false });
+  useDialogBehavior(dialogRef, {
+    modal: false,
+    getDragTarget: () => dialogRef.current,
+  });
 
   useEffect(() => {
     setShowReplace(!!context.showReplace);
@@ -300,20 +302,8 @@ const SearchReplace: React.FC<{
         if (e.key === "Escape") closeDialog();
       }}
     >
-      {/* the title bar moves the (modeless) dialog */}
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div
-        className="ts-dialog-header"
-        onMouseDown={(e) => {
-          if ((e.target as HTMLElement).closest("button")) return;
-          e.preventDefault();
-          onSearchDialogMoveStart(
-            refs.globalCache,
-            e.nativeEvent,
-            getContainer()
-          );
-        }}
-      >
+      {/* the title bar moves the (modeless) dialog (useDialogBehavior) */}
+      <div className="ts-dialog-header" data-dialog-drag-handle>
         <h2 className="ts-dialog-title" id="fortune-search-replace-title">
           {dialogsLocale(context).titles.findReplace}
         </h2>

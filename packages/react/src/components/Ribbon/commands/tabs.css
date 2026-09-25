@@ -406,55 +406,6 @@
   font-size: var(--ts-font-size-sm);
 }
 
-/* ---------- Zoom dialog ---------- */
-
-.ts-zoom-choices {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.ts-zoom-choices legend {
-  padding: 0 0 6px;
-  color: var(--ts-muted);
-  font-size: var(--ts-font-size-xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.ts-zoom-choice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 30px;
-  padding: 0 8px;
-  border-radius: var(--ts-radius);
-  color: var(--ts-text);
-  font-size: var(--ts-font-size);
-  cursor: pointer;
-}
-
-.ts-zoom-choice:hover {
-  background: var(--ts-hover);
-}
-
-.ts-zoom-choice input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--ts-ink);
-}
-
-.ts-zoom-custom {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 /* ---------- Screenshot result ---------- */
 
 .ts-screenshot-result {

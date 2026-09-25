@@ -78,7 +78,7 @@ import {
   NumberInput,
   SplitButton,
 } from "../../../ui";
-import { FormulaSearch } from "../../../FormulaSearch";
+import { InsertFunctionDialog } from "../functions";
 import CustomSort from "../../../CustomSort";
 import { LocationCondition } from "../../../LocationCondition";
 import type { RibbonCommandProps } from "../../registry";
@@ -142,7 +142,7 @@ export const AutoSumCommand: React.FC<RibbonCommandProps> = () => {
       label: t.moreFunctions,
       icon: SquareFunction,
       onSelect: () =>
-        h.showDialog(<FormulaSearch onCancel={() => h.hideDialog()} />),
+        h.showDialog(<InsertFunctionDialog onCancel={() => h.hideDialog()} />),
     },
   ];
   return (

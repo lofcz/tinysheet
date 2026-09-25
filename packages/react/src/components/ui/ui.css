@@ -281,8 +281,24 @@
 }
 
 .ts-large-label > svg {
+  flex: none;
   margin-top: 1px;
   opacity: 0.7;
+}
+
+/* a two-line caption: the chevron follows its last word */
+.ts-large-label--wrapped {
+  display: block;
+}
+
+.ts-large-label--wrapped > .ts-large-text {
+  display: inline;
+}
+
+.ts-large-label--wrapped > svg {
+  display: inline-block;
+  margin: 0 0 0 1px;
+  vertical-align: -2px;
 }
 
 .ts-large:hover:not(.ts-pressed, .ts-open) {

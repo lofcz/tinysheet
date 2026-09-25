@@ -72,7 +72,10 @@ describe("default currency", () => {
     expect(defaultCurrencySymbol("en-GB")).toBe("$");
     expect(defaultCurrencySymbol(null)).toBe("$");
     expect(defaultCurrencySymbol("zh-CN")).toBe("¥");
-    expect(defaultCurrencySymbol("zh-TW")).toBe("¥");
+    // Taiwan: the New Taiwan dollar, as Excel shows it
+    expect(defaultCurrencySymbol("zh-TW")).toBe("NT$");
+    expect(defaultCurrencySymbol("ja")).toBe("¥");
+    expect(defaultCurrencySymbol("de-DE")).toBe("€");
     expect(defaultCurrencySymbol("ru")).toBe("₽");
     expect(defaultCurrencySymbol("hi")).toBe("₹");
     expect(defaultCurrencySymbol("es")).toBe("€");

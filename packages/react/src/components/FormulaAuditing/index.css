@@ -140,28 +140,6 @@
   background: var(--fortune-bg-hover);
 }
 
-/* Toolbar drop-down menus */
-.fortune-audit-menu .fortune-toolbar-select-option {
-  gap: var(--fortune-space-2, 8px);
-  padding: 0 var(--fortune-space-3, 12px) 0 var(--fortune-space-2, 8px);
-  white-space: nowrap;
-}
-
-.fortune-audit-menu-check {
-  width: 14px;
-  color: var(--fortune-accent);
-  text-align: center;
-}
-
-.fortune-audit-menu-label {
-  flex: 1;
-}
-
-.fortune-audit-menu-shortcut {
-  margin-left: var(--fortune-space-4, 16px);
-  color: var(--fortune-text-muted);
-}
-
 /* Dialogs (DialogShells): calculation options, error checking, evaluate */
 .fortune-audit-dialog {
   width: 440px;

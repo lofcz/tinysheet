@@ -271,8 +271,28 @@ export const SidePane: React.FC<SidePaneProps> = ({
     return () => unregister(id);
   }, [open, id, unregister]);
   if (!open || activeSidePane !== id || !body) return null;
-  return createPortal(children, body);
+  // a pane is often declared inside the grid (a sheet overlay): its
+  // pointer events must not bubble (through the React tree) into the
+  // cell area's handlers, which would select cells and take the focus
+  return createPortal(
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+    <div
+      className="fortune-side-pane-portal"
+      onMouseDown={stopPropagation}
+      onMouseUp={stopPropagation}
+      onClick={stopPropagation}
+      onDoubleClick={stopPropagation}
+      onContextMenu={stopPropagation}
+      onPointerDown={stopPropagation}
+      onWheel={stopPropagation}
+    >
+      {children}
+    </div>,
+    body
+  );
 };
+
+const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
 /** The dock right of the grid pane: separator, header, body. */
 export const SidePaneSlot: React.FC = () => {

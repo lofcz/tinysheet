@@ -3,12 +3,13 @@
  * Italic, Underline (single / double), Strikethrough, Borders, Fill Color
  * and Font Color. Every control shows the active cell's formatting.
  */
-import React, { useState } from "react";
+import React from "react";
 import {
   AArrowDown,
   AArrowUp,
   Baseline,
   Bold,
+  Grid2x2,
   Italic,
   PaintBucket,
   Strikethrough,
@@ -16,9 +17,11 @@ import {
 } from "lucide-react";
 import {
   applyFormatCells,
+  cellFontName,
+  defaultFontFamily,
+  fontDisplayName,
   getFlowdata,
   handleBold,
-  handleBorder,
   handleItalic,
   handleStrikeThrough,
   handleTextBackground,
@@ -31,35 +34,23 @@ import {
   updateFormat,
 } from "@lofcz/tinysheet-core";
 import {
+  applyBorderPreset,
+  BorderGlyph,
+  BorderPicker,
   Combo,
   IconButton,
   LucideIcon,
   MenuItem,
   SplitButton,
   SelectOption,
+  useBorderLine,
+  useLastBorderPreset,
 } from "../../../ui";
+import type { BorderPickerLabels } from "../../../ui";
 import type { RibbonCommandProps } from "../../registry";
 import { shortcutText } from "../helpers";
 import { ColorPanel } from "./ColorPanel";
-import {
-  BorderAll,
-  BorderBottom,
-  BorderBottomDouble,
-  BorderBottomThick,
-  BorderDiagonal,
-  BorderInside,
-  BorderLeft,
-  BorderNone,
-  BorderOutside,
-  BorderRight,
-  BorderThickBox,
-  BorderTop,
-  BorderTopBottom,
-  BorderTopDoubleBottom,
-  BorderTopThickBottom,
-  DoubleUnderline,
-  LineSample,
-} from "./glyphs";
+import { DoubleUnderline } from "./glyphs";
 import { ColorGlyph, Home, moreLabel, useHome } from "./shared";
 import type { HomeText } from "./strings";
 
@@ -85,14 +76,12 @@ const COMMON_FONTS = [
   "Verdana",
 ];
 
-/** The font name the grid draws the active cell in. */
+/**
+ * The font name the grid draws the active cell in: its own font, else the
+ * workbook's default font (`settings.defaultFontFamily`, Calibri).
+ */
 export function effectiveFont(home: Home) {
-  const { fontarray } = locale(home.context);
-  const ff = home.cell?.ff;
-  if (ff == null || ff === "") return fontarray[0];
-  return /^\d+$/.test(String(ff))
-    ? (fontarray[Number(ff)] ?? fontarray[0])
-    : String(ff);
+  return cellFontName(home.context, home.cell);
 }
 
 export function effectiveFontSize(home: Home) {
@@ -125,8 +114,9 @@ export const FontFamilyCommand: React.FC<RibbonCommandProps> = () => {
   const home = useHome();
   const { fontarray } = locale(home.context);
   const current = effectiveFont(home);
+  const defaultName = fontDisplayName(defaultFontFamily(home.context));
   const names = Array.from(
-    new Set([...fontarray, ...COMMON_FONTS, current])
+    new Set([...fontarray, ...COMMON_FONTS, defaultName, current])
   ).sort((a, b) => a.localeCompare(b));
   const options: SelectOption[] = names.map((name) => ({
     value: name,
@@ -301,211 +291,69 @@ export const UnderlineCommand: React.FC<RibbonCommandProps> = () => {
 
 /* ---------------- Borders ---------------- */
 
-type BorderKind =
-  | "bottom"
-  | "top"
-  | "left"
-  | "right"
-  | "none"
-  | "all"
-  | "outside"
-  | "thickBox"
-  | "inside"
-  | "bottomDouble"
-  | "bottomThick"
-  | "topBottom"
-  | "topThickBottom"
-  | "topDoubleBottom"
-  | "diagonal";
+/** The shared Borders drop-down's labels in the workbook's language. */
+function borderLabels(t: HomeText): Partial<BorderPickerLabels> {
+  return {
+    borders: t.bordersHeader,
+    "border-bottom": t.borderBottom,
+    "border-top": t.borderTop,
+    "border-left": t.borderLeft,
+    "border-right": t.borderRight,
+    "border-none": t.borderNone,
+    "border-all": t.borderAll,
+    "border-outside": t.borderOutside,
+    "border-thick-outside": t.borderThickBox,
+    "border-bottom-double": t.borderBottomDouble,
+    "border-bottom-thick": t.borderBottomThick,
+    "border-top-bottom": t.borderTopBottom,
+    "border-top-bottom-thick": t.borderTopThickBottom,
+    "border-top-bottom-double": t.borderTopDoubleBottom,
+    "border-inside": t.borderInside,
+    drawBorders: t.drawBordersHeader,
+    lineColor: t.lineColor,
+    lineStyle: t.lineStyle,
+    automatic: t.automatic,
+    moreBorders: t.moreBorders,
+  };
+}
 
-const THIN = "1";
-const THICK = "13";
-const DOUBLE = "7";
-
-/** The core border calls of each entry: [type, style or null (current)]. */
-const BORDER_STEPS: Record<BorderKind, [string, string | null][]> = {
-  bottom: [["border-bottom", null]],
-  top: [["border-top", null]],
-  left: [["border-left", null]],
-  right: [["border-right", null]],
-  none: [["border-none", null]],
-  all: [["border-all", null]],
-  outside: [["border-outside", null]],
-  thickBox: [["border-outside", THICK]],
-  inside: [["border-inside", null]],
-  bottomDouble: [["border-bottom", DOUBLE]],
-  bottomThick: [["border-bottom", THICK]],
-  topBottom: [
-    ["border-top", null],
-    ["border-bottom", null],
-  ],
-  topThickBottom: [
-    ["border-top", THIN],
-    ["border-bottom", THICK],
-  ],
-  topDoubleBottom: [
-    ["border-top", THIN],
-    ["border-bottom", DOUBLE],
-  ],
-  diagonal: [["border-slash", null]],
-};
-
-const BORDER_ICONS: Record<BorderKind, LucideIcon> = {
-  bottom: BorderBottom,
-  top: BorderTop,
-  left: BorderLeft,
-  right: BorderRight,
-  none: BorderNone,
-  all: BorderAll,
-  outside: BorderOutside,
-  thickBox: BorderThickBox,
-  inside: BorderInside,
-  bottomDouble: BorderBottomDouble,
-  bottomThick: BorderBottomThick,
-  topBottom: BorderTopBottom,
-  topThickBottom: BorderTopThickBottom,
-  topDoubleBottom: BorderTopDoubleBottom,
-  diagonal: BorderDiagonal,
-};
-
-const borderLabel = (t: HomeText, kind: BorderKind) =>
-  ({
-    bottom: t.borderBottom,
-    top: t.borderTop,
-    left: t.borderLeft,
-    right: t.borderRight,
-    none: t.borderNone,
-    all: t.borderAll,
-    outside: t.borderOutside,
-    thickBox: t.borderThickBox,
-    inside: t.borderInside,
-    bottomDouble: t.borderBottomDouble,
-    bottomThick: t.borderBottomThick,
-    topBottom: t.borderTopBottom,
-    topThickBottom: t.borderTopThickBottom,
-    topDoubleBottom: t.borderTopDoubleBottom,
-    diagonal: t.borderDiagonal,
-  })[kind];
-
-/** Excel's Line Style list: [core style code, dash, thickness, double]. */
-const LINE_STYLES: [string, string | undefined, number, boolean][] = [
-  ["1", undefined, 1, false],
-  ["2", "1 2", 1, false],
-  ["3", "1 3", 1.5, false],
-  ["4", "4 3", 1.5, false],
-  ["5", "8 3 2 3", 1.5, false],
-  ["8", undefined, 2, false],
-  ["9", "5 3", 2, false],
-  ["13", undefined, 3, false],
-  ["7", undefined, 1, true],
-];
-
-// the last used border and the pen, for the whole session (like Excel)
-const pen = {
-  last: "bottom" as BorderKind,
-  color: "#000000",
-  style: THIN,
-};
-
+/**
+ * Borders: the shared Excel Borders drop-down (components/ui/BorderPicker);
+ * the main part repeats the border picked last with the current line
+ * colour and style, like Excel.
+ */
 export const BordersCommand: React.FC<RibbonCommandProps> = () => {
   const home = useHome();
   const { t } = home;
-  const [, rerender] = useState(0);
-  const apply = (kind: BorderKind) => {
-    pen.last = kind;
-    rerender((n) => n + 1);
-    home.run((ctx) => {
-      BORDER_STEPS[kind].forEach(([type, style]) =>
-        handleBorder(ctx, type, pen.color, style ?? pen.style)
-      );
-    });
-  };
-  const entry = (kind: BorderKind): MenuItem => ({
-    id: `border-${kind}`,
-    label: borderLabel(t, kind),
-    icon: BORDER_ICONS[kind],
-    onSelect: () => apply(kind),
-  });
-  const menu: MenuItem[] = [
-    { type: "header", label: t.bordersHeader },
-    entry("bottom"),
-    entry("top"),
-    entry("left"),
-    entry("right"),
-    { type: "separator" },
-    entry("none"),
-    entry("all"),
-    entry("outside"),
-    entry("thickBox"),
-    entry("inside"),
-    { type: "separator" },
-    entry("bottomDouble"),
-    entry("bottomThick"),
-    entry("topBottom"),
-    entry("topThickBottom"),
-    entry("topDoubleBottom"),
-    entry("diagonal"),
-    { type: "header", label: t.drawBordersHeader },
-    {
-      id: "line-color",
-      label: t.lineColor,
-      leading: (
-        <span
-          className="ts-home-swatch-static"
-          style={{ background: pen.color }}
-        />
-      ),
-      children: [
-        {
-          type: "custom",
-          id: "line-color-panel",
-          render: (close) => (
-            <ColorPanel
-              t={t}
-              value={pen.color}
-              reset={{ label: t.automatic, kind: "automatic" }}
-              onPick={(color) => {
-                pen.color = color ?? "#000000";
-                rerender((n) => n + 1);
-              }}
-              close={close}
-            />
-          ),
-        },
-      ],
-    },
-    {
-      id: "line-style",
-      label: t.lineStyle,
-      children: LINE_STYLES.map(([code, dash, thickness, double]) => ({
-        id: `line-style-${code}`,
-        label: <LineSample dash={dash} thickness={thickness} double={double} />,
-        checked: pen.style === code,
-        radio: true,
-        onSelect: () => {
-          pen.style = code;
-          rerender((n) => n + 1);
-        },
-      })),
-    },
-    { type: "separator" },
-    {
-      id: "more-borders",
-      label: t.moreBorders,
-      onSelect: () =>
-        home.run((ctx) => openFormatCells(ctx, "border"), { noHistory: true }),
-    },
-  ];
+  const last = useLastBorderPreset();
+  const [line] = useBorderLine();
+  const labels = borderLabels(t);
   return (
     <SplitButton
-      icon={BORDER_ICONS[pen.last]}
-      label={`${t.borders}: ${borderLabel(t, pen.last)}`}
+      icon={Grid2x2}
+      label={`${t.borders}: ${labels[last] ?? last}`}
       description={t.bordersDescription}
       arrowLabel={moreLabel(t, t.borders)}
       disabled={!home.editable}
-      onClick={() => apply(pen.last)}
-      menu={menu}
-    />
+      onClick={() => home.run((ctx) => applyBorderPreset(ctx, last, line))}
+      popover={(close) => (
+        <BorderPicker
+          labels={labels}
+          autoFocus
+          onApply={(preset, lineSetting) =>
+            home.run((ctx) => applyBorderPreset(ctx, preset, lineSetting))
+          }
+          onMoreBorders={() =>
+            home.run((ctx) => openFormatCells(ctx, "border"), {
+              noHistory: true,
+            })
+          }
+          onClose={close}
+        />
+      )}
+    >
+      <BorderGlyph preset={last} />
+    </SplitButton>
   );
 };
 

@@ -44,31 +44,3 @@
   gap: var(--fortune-space-2);
   min-width: 90px;
 }
-
-.fortune-protection-menu-line {
-  justify-content: flex-start;
-  gap: 6px;
-  min-width: 170px;
-}
-
-.fortune-protection-menu-line[aria-disabled="true"] {
-  opacity: 0.45;
-}
-
-.fortune-protection-check {
-  display: inline-block;
-  width: 14px;
-  color: var(--fortune-accent-text, var(--fortune-accent));
-  font-weight: 600;
-}
-
-/* wrappers of the toolbar items: lay out as the combo itself */
-.fortune-protection-toolbar {
-  display: contents;
-}
-
-.fortune-protection-active .fortune-toolbar-combo-button {
-  color: var(--fortune-accent-text, var(--fortune-accent));
-  background: var(--fortune-accent-soft);
-  border-radius: var(--fortune-radius-sm);
-}

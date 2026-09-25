@@ -285,13 +285,6 @@
   gap: 8px;
 }
 
-.fortune-sparkline-menu-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
 /* The collapsed dialog while a range is selected on the sheet. */
 .fortune-sparkline-picker {
   position: absolute;

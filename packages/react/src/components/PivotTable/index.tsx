@@ -33,9 +33,8 @@ import type { Context } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
-import { registerSheetOverlay, registerToolbarItem } from "../../extensions";
+import { registerSheetOverlay } from "../../extensions";
 import { registerContextMenuItem } from "../ContextMenu/actions";
-import Button from "../Toolbar/Button";
 import CreatePivotDialog, { PivotButton } from "./CreatePivotDialog";
 import FieldsPane from "./FieldsPane";
 import { SidePane } from "../SidePane";
@@ -44,8 +43,6 @@ import ReportDropdowns from "./ReportDropdowns";
 import { pivotErrorText } from "./usePivotUpdate";
 import "./index.css";
 import { DialogShell } from "../ui";
-
-export const PIVOT_TOOLBAR_ICON = "fortune-insert-pivot";
 
 /** The PivotTable of the active cell, with its sheet. */
 export function activePivot(ctx: Context) {
@@ -56,54 +53,6 @@ export function activePivot(ctx: Context) {
   const pivot = pivotAt(ctx, ctx.currentSheetId, r, c);
   return pivot ? { sheetId: ctx.currentSheetId, pivot, r, c } : null;
 }
-
-const PivotToolbarItem: React.FC<{ tooltip: string }> = ({ tooltip }) => {
-  const { context } = useContext(WorkbookContext);
-  const { showDialog } = useDialog();
-  const t = pivotLocale(context);
-  return (
-    <>
-      <svg
-        style={{ position: "absolute", width: 0, height: 0 }}
-        aria-hidden="true"
-      >
-        <defs>
-          <symbol id={PIVOT_TOOLBAR_ICON} viewBox="0 0 24 24" fill="none">
-            <rect
-              x="4.75"
-              y="4.75"
-              width="14.5"
-              height="14.5"
-              rx="1.5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-            <path
-              d="M4.75 9.25h14.5M9.25 4.75v14.5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-            <path
-              d="M12.5 14.5h4m0 0-1.5-1.5m1.5 1.5L15 16"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </symbol>
-        </defs>
-      </svg>
-      <Button
-        iconId={PIVOT_TOOLBAR_ICON}
-        tooltip={tooltip || t.insertPivotTable}
-        onClick={() => {
-          if (context.allowEdit === false) return;
-          showDialog(<CreatePivotDialog />);
-        }}
-      />
-    </>
-  );
-};
 
 /** Asks before a refresh overwrites cells (context-menu Refresh). */
 const ConfirmRefresh: React.FC<{ sheetId: string; id: string }> = ({
@@ -379,9 +328,6 @@ let registered = false;
 export function registerPivotTableFeatures() {
   if (registered) return;
   registered = true;
-  registerToolbarItem("pivotTable", ({ tooltip }) => (
-    <PivotToolbarItem tooltip={tooltip} />
-  ));
   registerSheetOverlay("pivotTable", PivotOverlay);
   registerContextMenuItem("pivot-refresh", {
     label: (context) => pivotLocale(context).refresh,

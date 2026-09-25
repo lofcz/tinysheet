@@ -39,7 +39,7 @@ import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import { trackPointerDrag } from "../../hooks/pointerDrag";
 import SVGIcon from "../SVGIcon";
-import { FormulaSearch } from "../FormulaSearch";
+import { InsertFunctionDialog } from "../Ribbon/commands/functions";
 
 const TOTAL_FUNCTIONS: [TableTotalFunction, string][] = [
   ["none", "fnNone"],
@@ -255,12 +255,12 @@ const TotalRowDropdown: React.FC<{
             className="fortune-table-popup-item"
             onClick={() => {
               setOpen(false);
-              showDialog(<FormulaSearch onCancel={hideDialog} />);
+              showDialog(<InsertFunctionDialog onCancel={hideDialog} />);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 setOpen(false);
-                showDialog(<FormulaSearch onCancel={hideDialog} />);
+                showDialog(<InsertFunctionDialog onCancel={hideDialog} />);
               }
             }}
           >

@@ -268,9 +268,7 @@ test.describe("Formulas tab", () => {
     await sheet.select(0, 0, 2, 0);
     await run(page, "create-from-selection");
     await dialog(page).getByRole("button", { name: "OK" }).click();
-    // Name Manager lists the new name
-    await expect(dialog(page)).toContainText("Price");
-    await page.keyboard.press("Escape");
+    // Excel: OK creates the names and closes the dialog
     await expect(page.locator("[role=dialog]")).toHaveCount(0);
 
     await sheet.click(0, 2);
@@ -614,10 +612,8 @@ test.describe("Review tab", () => {
 
     await run(page, "review-notes");
     await menu.getByRole("menuitem", { name: "Convert to Comments" }).click();
-    await page
-      .getByRole("button", { name: /Yes|OK|Confirm/ })
-      .first()
-      .click();
+    // the confirmation message box
+    await dialog(page).getByRole("button", { name: "OK" }).click();
     await expect.poll(() => note(1, 1)).toBeNull();
     await expect
       .poll(() =>

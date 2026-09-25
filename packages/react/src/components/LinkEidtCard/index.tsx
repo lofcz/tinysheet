@@ -22,9 +22,15 @@ import {
 import "./index.css";
 import _ from "lodash";
 import WorkbookContext from "../../context";
-import SVGIcon from "../SVGIcon";
-import { SquareDashedMousePointer, X } from "lucide-react";
-import { Button, ICON_STROKE } from "../ui";
+import {
+  Copy,
+  Pencil,
+  SquareDashedMousePointer,
+  Unlink,
+  X,
+} from "lucide-react";
+import { Button, ICON_STROKE, IconButton } from "../ui";
+import type { LucideIcon } from "../ui";
 import "../ui/form.css";
 
 export const LinkEditCard: React.FC<LinkCardProps> = ({
@@ -103,11 +109,10 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
     [button]
   );
 
+  const cardText = dialogsLocale(context).linkCard;
   const renderToolbarButton = useCallback(
-    (iconId: string, onClick: () => void) => (
-      <div className="fortune-toolbar-button" onClick={onClick} tabIndex={0}>
-        <SVGIcon name={iconId} style={{ width: 18, height: 18 }} />
-      </div>
+    (icon: LucideIcon, label: string, onClick: () => void) => (
+      <IconButton icon={icon} label={label} size="sm" onClick={onClick} />
     ),
     []
   );
@@ -178,12 +183,12 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
         {context.allowEdit === true && <div className="divider" />}
         {context.allowEdit === true &&
           linkType === "webpage" &&
-          renderToolbarButton("copy", () => {
+          renderToolbarButton(Copy, cardText.copy, () => {
             navigator.clipboard.writeText(originAddress);
             hideLinkCard();
           })}
         {context.allowEdit === true &&
-          renderToolbarButton("pencil", () =>
+          renderToolbarButton(Pencil, cardText.edit, () =>
             setContext((draftCtx) => {
               if (draftCtx.linkCard != null && draftCtx.allowEdit) {
                 draftCtx.linkCard.isEditing = true;
@@ -192,7 +197,7 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
           )}
         {context.allowEdit === true && <div className="divider" />}
         {context.allowEdit === true &&
-          renderToolbarButton("unlink", () =>
+          renderToolbarButton(Unlink, cardText.remove, () =>
             setContext((draftCtx) => {
               _.set(refs.globalCache, "linkCard.mouseEnter", false);
               removeHyperlink(draftCtx, r, c);

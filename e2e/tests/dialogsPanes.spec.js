@@ -338,8 +338,8 @@ test.describe("side pane dock", () => {
     await page.goto("/iframe.html?id=shapes--gallery&viewMode=story");
     const rect = page.locator('[data-shape-id="rect"]');
     await rect.click({ button: "right", position: { x: 20, y: 20 } });
-    await page.getByRole("menuitem", { name: /Format shape/ }).click();
-    const pane = page.getByRole("complementary", { name: "Format shape" });
+    await page.getByRole("menuitem", { name: /Format Shape/ }).click();
+    const pane = page.getByRole("complementary", { name: "Format Shape" });
     await expect(pane).toBeVisible();
     await expect(pane.getByText("Fill", { exact: true })).toBeVisible();
     await pane.getByRole("button", { name: "Text Options" }).click();

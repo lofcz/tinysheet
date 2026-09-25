@@ -320,7 +320,7 @@ const ChartLayer: React.FC = () => {
       if (!target || !container?.contains(target)) return;
       if (
         target.closest?.(
-          ".fortune-chart-box, .fortune-chart-editor, .fortune-chart-menu, .fortune-toolbar, .fortune-toolbar-combo-popup"
+          ".fortune-chart-box, .fortune-chart-editor, .fortune-chart-menu, .fortune-toolbar, .ts-popover"
         )
       )
         return;

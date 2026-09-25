@@ -116,8 +116,8 @@ test.describe("shapes", () => {
       )
       .toBe("Plan ahead");
     await rect.click({ button: "right" });
-    await page.getByRole("menuitem", { name: /Format shape/ }).click();
-    const pane = page.getByRole("complementary", { name: "Format shape" });
+    await page.getByRole("menuitem", { name: /Format Shape/ }).click();
+    const pane = page.getByRole("complementary", { name: "Format Shape" });
     await expect(pane).toBeVisible();
     await pane.getByRole("button", { name: "Text Options" }).click();
     await pane.getByRole("button", { name: "Bold" }).click();

@@ -265,6 +265,59 @@ describe("ribbon", () => {
     ).toBeTruthy();
   });
 
+  it("a legacy name in toolbarItems shows its commands once, not in Custom", () => {
+    const t = ribbonLocale({ lang: "en" });
+    ["chart", "quick-formula", "filter", "comment", "view-options"].forEach(
+      (name) => {
+        const { tabs, unplaced } = resolveRibbon({
+          ribbon: null,
+          toolbarItems: [name],
+          customToolbarItems: 0,
+          t,
+        });
+        expect(unplaced).toEqual([]);
+        const ids = tabs.flatMap((tab) =>
+          tab.groups.flatMap((g) =>
+            g.columns.flatMap((c) =>
+              c.kind === "large" ? [c.item.id] : c.rows.flat().map((i) => i.id)
+            )
+          )
+        );
+        expect(ids.length).toBeGreaterThan(0);
+        // every item is a ribbon command standing for the legacy name
+        ids.forEach((id) =>
+          expect(withAliases(id)).toEqual(expect.arrayContaining([name]))
+        );
+      }
+    );
+  });
+
+  it("a legacy name in settings.ribbon stands for its commands", () => {
+    const { tabs } = resolveRibbon({
+      ribbon: [{ id: "mine", groups: [{ id: "g", items: ["chart", "bold"] }] }],
+      toolbarItems: defaultSettings.toolbarItems,
+      customToolbarItems: 0,
+      t: ribbonLocale({ lang: "en" }),
+    });
+    const ids = tabs[0].groups[0].columns.flatMap((c) =>
+      c.kind === "large" ? [c.item.id] : c.rows.flat().map((i) => i.id)
+    );
+    expect(ids).toContain("chart-column");
+    expect(ids).toContain("bold");
+    expect(ids).not.toContain("chart");
+  });
+
+  it("Undo and Redo are quick access commands", () => {
+    const { container } = renderBook({ toolbarItems: ["undo", "redo"] });
+    const quick = container.querySelector(".fortune-ribbon-quick")!;
+    const undo = quick.querySelector<HTMLButtonElement>(
+      'button[aria-label="Undo"]'
+    )!;
+    expect(undo.disabled).toBe(true);
+    expect(quick.querySelector('button[aria-label="Redo"]')).toBeTruthy();
+    expect(quick.querySelector(".fortune-tooltip")).toBeNull();
+  });
+
   it("takes a custom layout from settings.ribbon", () => {
     const { container } = renderBook({
       ribbon: [

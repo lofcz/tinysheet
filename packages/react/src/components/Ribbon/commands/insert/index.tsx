@@ -53,7 +53,7 @@ import { useInsertSlicer } from "../../../Tables/Slicers";
 import { activePictureTarget } from "../../../CellImages";
 import { InsertPictureDialog } from "../../../CellImages/dialogs";
 import { readPictureFile } from "../../../CellImages/readImage";
-import { ShapePresetIcon } from "../../../Shapes/ShapesToolbarItem";
+import { ShapePresetIcon } from "../../../Shapes/ShapePresetIcon";
 import { openInsertDialog } from "../../../Sparkline/commands";
 import { usePageLayoutDialogs } from "../../../PageLayout/dialogs";
 import { chartFamilyCommands, RecommendedChartsCommand } from "./charts";

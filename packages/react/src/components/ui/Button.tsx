@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import {
   Icon,
@@ -143,7 +143,7 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
 );
 IconButton.displayName = "IconButton";
 
-type DropdownContent =
+export type DropdownContent =
   | { menu: MenuItem[]; popover?: never }
   | {
       menu?: never;
@@ -341,6 +341,28 @@ export const LargeButton: React.FC<LargeButtonProps> = ({
     }
   };
   const iconEl = renderIcon(icon, ICON_LARGE_SIZE);
+  // Excel puts the drop-down chevron under a one-line caption and after the
+  // last word of a two-line one (so the button keeps its height)
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [wrapped, setWrapped] = useState(false);
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el || !hasDropdown) return;
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 13;
+    setWrapped(el.getBoundingClientRect().height > lineHeight * 1.5);
+  }, [label, hasDropdown]);
+  const caption = (
+    <span
+      className={cx("ts-large-label", wrapped && "ts-large-label--wrapped")}
+    >
+      <span ref={textRef} className="ts-large-text">
+        {label}
+      </span>
+      {hasDropdown && (
+        <ChevronDown size={12} strokeWidth={ICON_STROKE} aria-hidden />
+      )}
+    </span>
+  );
   return (
     <Tooltip
       label={label}
@@ -380,8 +402,7 @@ export const LargeButton: React.FC<LargeButtonProps> = ({
               onClick={toggle}
               onKeyDown={onArrowKey}
             >
-              <span className="ts-large-label">{label}</span>
-              <ChevronDown size={12} strokeWidth={ICON_STROKE} aria-hidden />
+              {caption}
             </button>
           </>
         ) : (
@@ -397,12 +418,7 @@ export const LargeButton: React.FC<LargeButtonProps> = ({
             onKeyDown={hasDropdown ? onArrowKey : undefined}
           >
             {iconEl}
-            <span className="ts-large-label">
-              {label}
-              {hasDropdown && (
-                <ChevronDown size={12} strokeWidth={ICON_STROKE} aria-hidden />
-              )}
-            </span>
+            {caption}
           </button>
         )}
         {hasDropdown && (

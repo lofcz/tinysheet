@@ -254,28 +254,27 @@ test.describe("cancel and enter buttons", () => {
 });
 
 test.describe("fx", () => {
-  test("starts a formula and lists the common functions", async ({
+  // fx and Shift+F3 open Excel's Insert Function dialog (the Formulas
+  // tab's); the picked function goes into the cell or at the caret
+  const insertDialog = (page) =>
+    page.getByRole("dialog", { name: "Insert Function" });
+
+  test("opens Insert Function; the picked function starts the formula", async ({
     sheet,
     page,
   }) => {
     await sheet.click(2, 2);
     await fxButton(page).click();
-    await expect(fxBar(page)).toHaveText("=");
-    await expect.poll(() => activeId(page)).toBe("luckysheet-functionbox-cell");
-    const list = page.locator("#luckysheet-formula-search-c");
-    await expect(list).toBeVisible();
-    await expect(list.locator("[data-func]").first()).toHaveAttribute(
-      "data-func",
-      "SUM"
+    const dialog = insertDialog(page);
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("searchbox")).toBeFocused();
+    await dialog.getByRole("searchbox").fill("AVERAGE");
+    await expect(dialog.locator('[data-function="AVERAGE"]')).toHaveAttribute(
+      "aria-selected",
+      "true"
     );
-    // the list hangs under the formula bar, left-aligned with the field
-    const field = await page
-      .locator(".fortune-fx-input-container")
-      .boundingBox();
-    const box = await list.boundingBox();
-    expect(box.y).toBeGreaterThanOrEqual(field.y + field.height);
-    expect(Math.abs(box.x - field.x)).toBeLessThan(2);
-    await list.locator('[data-func="AVERAGE"]').click();
+    await dialog.getByRole("button", { name: "Insert" }).click();
+    await expect(dialog).toHaveCount(0);
     await expect(fxBar(page)).toHaveText("=AVERAGE(");
     await page.keyboard.type("2,4");
     await page.keyboard.press("Enter");
@@ -289,12 +288,18 @@ test.describe("fx", () => {
     await sheet.click(0, 0);
     await page.keyboard.type("=1+");
     await page.keyboard.press("Shift+F3");
-    const list = page.locator("#luckysheet-formula-search-c");
-    await expect(list).toBeVisible();
-    // the in-cell editor keeps the edit
-    await expect.poll(() => activeId(page)).toBe("luckysheet-rich-text-editor");
+    const dialog = insertDialog(page);
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("searchbox").fill("SUM");
+    await expect(dialog.locator('[data-function="SUM"]')).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
     await page.keyboard.press("Enter");
+    await expect(dialog).toHaveCount(0);
+    // the in-cell editor keeps the edit
     await expect(sheet.editor).toHaveText("=1+SUM(");
+    await expect.poll(() => activeId(page)).toBe("luckysheet-rich-text-editor");
     await page.keyboard.type("2,3");
     await page.keyboard.press("Enter");
     await expect.poll(() => sheet.value(0, 0)).toBe(6);
@@ -307,11 +312,24 @@ test.describe("fx", () => {
     await sheet.click(0, 0);
     await page.keyboard.type("abc");
     await fxButton(page).click();
-    await expect(sheet.editor).toHaveText("=");
-    await expect(fxBar(page)).toHaveText("=");
+    const dialog = insertDialog(page);
+    await dialog.getByRole("searchbox").fill("SUM");
+    await page.keyboard.press("Enter");
+    await expect(sheet.editor).toHaveText("=SUM(");
+    await expect(fxBar(page)).toHaveText("=SUM(");
     await page.keyboard.press("Escape");
-    await page.keyboard.press("Escape");
-    expect(await sheet.value(0, 0)).toBeNull();
+    await expect.poll(() => sheet.value(0, 0)).toBeNull();
+  });
+
+  test("Cancel leaves the cell as it was", async ({ sheet, page }) => {
+    await sheet.enter(0, 0, "7");
+    await sheet.click(0, 0);
+    await fxButton(page).click();
+    const dialog = insertDialog(page);
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(await sheet.value(0, 0)).toBe(7);
+    await expect(fxBar(page)).toHaveText("7");
   });
 });
 

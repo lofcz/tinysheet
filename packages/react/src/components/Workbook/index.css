@@ -234,9 +234,7 @@
 :is(.fortune-container, .fortune-modal-container)
   input[type="checkbox"]:focus-visible,
 :is(.fortune-container, .fortune-modal-container)
-  input[type="radio"]:focus-visible,
-:is(.fortune-container, .fortune-modal-container)
-  .fortune-toolbar-select-option:focus-visible {
+  input[type="radio"]:focus-visible {
   outline: none;
   box-shadow: var(--fortune-focus-ring);
 }

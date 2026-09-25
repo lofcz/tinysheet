@@ -240,8 +240,7 @@ const GroupView: React.FC<{
   );
 };
 
-const POPUP_SELECTOR =
-  ".fortune-toolbar-combo-popup, .ts-popover, [role=menu], [role=dialog]";
+const POPUP_SELECTOR = ".ts-popover, [role=menu], [role=dialog]";
 
 /**
  * Left / Right / Home / End move between the buttons of the command row
@@ -354,7 +353,7 @@ const Ribbon: React.FC = () => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (paneRef.current?.contains(target)) return;
-      if (target.closest(".ts-popover, .fortune-toolbar-combo-popup")) return;
+      if (target.closest(".ts-popover")) return;
       if (target.closest(".fortune-modal-container, [role=dialog]")) return;
       setPeek(false);
     };
@@ -375,7 +374,9 @@ const Ribbon: React.FC = () => {
     if (collapsed) setPeek(true);
   };
 
-  if (!active) return null;
+  // a list of quick access items only (toolbarItems: ["undo", "redo"])
+  // still shows the tab row
+  if (!active && quickAccess.length === 0) return null;
   return (
     <div
       ref={paneRef}
@@ -386,13 +387,13 @@ const Ribbon: React.FC = () => {
       ]
         .filter(Boolean)
         .join(" ")}
-      data-active-tab={active.id}
+      data-active-tab={active?.id}
     >
       <div className="fortune-ribbon-tabrow">
         <FileMenu />
         <Tabs
           tabs={tabs.map((tab) => ({ id: tab.id, label: tab.label }))}
-          value={showCommands ? active.id : null}
+          value={showCommands && active ? active.id : null}
           onChange={selectTab}
           onActiveTabClick={() => {
             if (collapsed) setPeek((p) => !p);
@@ -440,7 +441,7 @@ const Ribbon: React.FC = () => {
           </Tooltip>
         </div>
       </div>
-      {showCommands && (
+      {showCommands && active && (
         <div
           ref={rowRef}
           className="fortune-ribbon-commands"

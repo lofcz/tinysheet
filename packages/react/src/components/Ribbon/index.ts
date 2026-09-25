@@ -2,9 +2,10 @@
  * The ribbon: Excel's tabbed command structure in Fika's chrome.
  *
  * - Layout: ./tabs (one file per tab), `settings.ribbon` for a custom one.
- * - Commands: `registerRibbonCommand(id, Component)` (see ./registry and
- *   ./commands for examples); ids without a command render the legacy
- *   toolbar item of that name.
+ * - Commands: `registerRibbonCommand(id, Component, { aliases })` (see
+ *   ./registry and ./commands for examples); a legacy toolbar name stands
+ *   for the commands listing it in `aliases`; other ids without a command
+ *   render the item registered with `registerToolbarItem`.
  * - Features: `placeRibbonItem`, `registerRibbonGroup`,
  *   `registerFileMenuItem`.
  */

@@ -24,6 +24,7 @@ import {
   insertFunctionName,
   locale,
   rankFunctions,
+  ribbonFormulasDataReviewLocale,
   RibbonFormulasDataReviewLocale,
   setCaretOffset,
 } from "@lofcz/tinysheet-core";
@@ -32,6 +33,7 @@ import WorkbookContext from "../../../context";
 import { ModalContext } from "../../../context/modal";
 import { Button, DialogShell, ICON_STROKE, MenuItem, MenuList } from "../../ui";
 import type { RibbonCommandHelpers } from "./helpers";
+import "./kit.css";
 
 /* ------------------------------------------------------------------ */
 /*  Catalog                                                            */
@@ -236,6 +238,13 @@ export function insertIntoFormula(
       getFunctionListMap(ctx);
     }
   });
+  // once the dialog / menu that asked for it has closed (and given the
+  // focus back), the caret goes after the insertion
+  setTimeout(() => {
+    if (!input.isConnected) return;
+    if (document.activeElement !== input) input.focus({ preventScroll: true });
+    setCaretOffset(input, next.caret);
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -355,15 +364,54 @@ export const FunctionMenu: React.FC<FunctionMenuProps> = ({
 /*  Insert Function dialog                                             */
 /* ------------------------------------------------------------------ */
 
-type DialogCategory = FunctionCategory | "recent" | "all";
+export type InsertFunctionCategory = FunctionCategory | "recent" | "all";
+type DialogCategory = InsertFunctionCategory;
 
-export const InsertFunctionDialog: React.FC<{
-  t: RibbonFormulasDataReviewLocale;
-  initialCategory?: DialogCategory;
-  onClose: () => void;
-  onInsert: (name: string) => void;
-}> = ({ t, initialCategory = "recent", onClose, onInsert }) => {
-  const { context } = useContext(WorkbookContext);
+export type InsertFunctionDialogProps = {
+  /** Strings (default: the workbook's language). */
+  t?: RibbonFormulasDataReviewLocale;
+  initialCategory?: InsertFunctionCategory;
+  /** Cancel / close (default: hide the workbook's modal). */
+  onClose?: () => void;
+  /** Alias of `onClose` (the `showDialog(<InsertFunctionDialog onCancel />)` form). */
+  onCancel?: () => void;
+  /**
+   * A function was chosen (default: close, then start `=NAME(` in the
+   * active cell or insert `NAME(` at the caret of the formula being edited).
+   */
+  onInsert?: (name: string) => void;
+};
+
+/**
+ * Excel's Insert Function dialog (Formulas › Insert Function, fx, Shift+F3,
+ * AutoSum › More Functions…): search, the category list (Most Recently
+ * Used, All, Excel's categories), the functions with their syntax and
+ * description. The only Insert Function dialog of the workbook; exported
+ * for hosts as `InsertFunctionDialog`.
+ */
+export const InsertFunctionDialog: React.FC<InsertFunctionDialogProps> = ({
+  t: tProp,
+  initialCategory = "recent",
+  onClose: onCloseProp,
+  onCancel,
+  onInsert: onInsertProp,
+}) => {
+  const { context, setContext, refs } = useContext(WorkbookContext);
+  const { hideModal } = useContext(ModalContext);
+  const t = tProp ?? ribbonFormulasDataReviewLocale(context);
+  const onClose =
+    onCloseProp ??
+    onCancel ??
+    (() => {
+      hideModal();
+      refs.cellInput.current?.focus({ preventScroll: true });
+    });
+  const onInsert =
+    onInsertProp ??
+    ((name: string) => {
+      (onCancel ?? hideModal)();
+      insertIntoFormula({ context, setContext, refs }, name);
+    });
   const { functionlist } = locale(context);
   const recentList = useRecentFunctions(functionlist);
   const [query, setQuery] = useState("");

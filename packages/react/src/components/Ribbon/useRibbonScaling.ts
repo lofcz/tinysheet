@@ -55,6 +55,14 @@ export function useRibbonScaling(
       out[g.id] = "full";
     });
     steps.slice(0, l).forEach((s) => {
+      // a group already as narrow as its collapsed button (one or two
+      // small buttons) stays compact: collapsing it would only add a click
+      if (s.to === "collapsed") {
+        const rec = widths.current.get(`${tabId}/${s.group}`);
+        const compact = rec?.compact;
+        const collapsed = rec?.collapsed ?? COLLAPSED_ESTIMATE;
+        if (compact != null && compact <= collapsed) return;
+      }
       out[s.group] = s.to;
     });
     return out;

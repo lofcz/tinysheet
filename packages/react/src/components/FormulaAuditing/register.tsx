@@ -7,26 +7,12 @@ import {
   registerErrorCheckingDecorator,
   registerFormulaAuditingCore,
 } from "@lofcz/tinysheet-core";
-import {
-  registerSheetOverlay,
-  registerStatusBarItem,
-  registerToolbarItem,
-} from "../../extensions";
+import { registerSheetOverlay, registerStatusBarItem } from "../../extensions";
 import { registerContextMenuItem } from "../ContextMenu/actions";
 import TraceArrows from "./TraceArrows";
 import ErrorSmartTag from "./ErrorSmartTag";
 import FormulaAuditingHost from "./Host";
 import CalcStatus from "./CalcStatus";
-import {
-  CalculationOptionsItem,
-  ErrorCheckingItem,
-  EvaluateFormulaItem,
-  RemoveArrowsItem,
-  ShowFormulasItem,
-  TraceDependentsItem,
-  TracePrecedentsItem,
-  WatchWindowItem,
-} from "./ToolbarItems";
 import {
   AuditHelpers,
   runAddWatch,
@@ -40,8 +26,8 @@ import {
 import "./index.css";
 
 /**
- * Formulas > Formula Auditing and Calculation (R4): toolbar items, the cell
- * menu's "Formula Auditing" submenu, the trace-arrow / smart-tag / host
+ * Formulas > Formula Auditing and Calculation (R4; the ribbon commands are
+ * in ../Ribbon): the cell menu's "Formula Auditing" submenu, the trace-arrow / smart-tag / host
  * overlays, the status bar indicators, and the grid pieces from core (Show
  * Formulas and error-indicator decorators, Ctrl+` and F9 shortcuts).
  */
@@ -49,16 +35,6 @@ export function registerFormulaAuditing() {
   const offs = [
     registerFormulaAuditingCore(),
     registerErrorCheckingDecorator(),
-    registerToolbarItem("trace-precedents", () => <TracePrecedentsItem />),
-    registerToolbarItem("trace-dependents", () => <TraceDependentsItem />),
-    registerToolbarItem("remove-arrows", () => <RemoveArrowsItem />),
-    registerToolbarItem("show-formulas", () => <ShowFormulasItem />),
-    registerToolbarItem("error-checking", () => <ErrorCheckingItem />),
-    registerToolbarItem("evaluate-formula", () => <EvaluateFormulaItem />),
-    registerToolbarItem("watch-window", () => <WatchWindowItem />),
-    registerToolbarItem("calculation-options", () => (
-      <CalculationOptionsItem />
-    )),
     registerSheetOverlay("traceArrows", TraceArrows),
     registerSheetOverlay("errorSmartTag", ErrorSmartTag),
     registerSheetOverlay("formulaAuditingHost", FormulaAuditingHost),

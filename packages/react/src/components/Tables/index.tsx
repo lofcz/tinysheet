@@ -37,31 +37,25 @@ import type {
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import Combo from "../Toolbar/Combo";
 import { Gallery, GalleryItem, MenuItem } from "../ui";
 import { Button as UiButton, DialogShell } from "../ui";
-import { registerSheetOverlay, registerToolbarItem } from "../../extensions";
+import { registerSheetOverlay } from "../../extensions";
 import TableOverlay from "./TableOverlay";
-import {
-  InsertSlicerDialog,
-  SlicerLayer,
-  SlicerToolbarButton,
-  useInsertSlicer,
-} from "./Slicers";
+import { InsertSlicerDialog, SlicerLayer, useInsertSlicer } from "./Slicers";
 import "./index.css";
 
 let installed = false;
 
 /**
  * Table chrome over the grid (header filter buttons, total-row dropdown,
- * resize handle, AutoCorrect), slicer panels and the Slicer toolbar item.
+ * resize handle, AutoCorrect) and slicer panels. The ribbon commands
+ * (Insert › Table / Slicer, Home › Format as Table) live in ../Ribbon.
  */
 export function installTablesUI() {
   if (installed) return;
   installed = true;
   registerSheetOverlay("tables", TableOverlay);
   registerSheetOverlay("slicers", SlicerLayer);
-  registerToolbarItem("slicer", () => <SlicerToolbarButton />);
 }
 
 export { InsertSlicerDialog, SlicerLayer, TableOverlay };
@@ -644,22 +638,6 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
   );
 };
 
-/** Sprite symbol for the toolbar icon (kept out of the shared sprite). */
-const TableIconSymbol: React.FC = () => (
-  <svg style={{ display: "none" }} aria-hidden="true">
-    <symbol id="tinysheet-format-as-table" viewBox="0 0 24 24">
-      <path
-        fill="currentColor"
-        d="M4 4h16v16H4V4zm2 2v3h12V6H6zm0 5v3h5v-3H6zm7 0v3h5v-3h-5zm-7 5v2h5v-2H6zm7 0v2h5v-2h-5z"
-      />
-    </symbol>
-  </svg>
-);
-
-/**
- * Toolbar "Format as Table": a gallery of styles. Outside a table it asks
- * for the range; inside a table it restyles it and offers Table Design.
- */
 /**
  * The Format as Table drop-down content: the style gallery, and in a table
  * Table Design… / Insert Slicer…. Picking a style restyles the table the
@@ -714,22 +692,3 @@ export const FormatAsTableGallery: React.FC<{
     />
   );
 };
-
-export const FormatAsTableButton: React.FC = () => {
-  const { context } = useContext(WorkbookContext);
-  const { tables: t } = locale(context);
-  return (
-    <>
-      <TableIconSymbol />
-      <Combo iconId="tinysheet-format-as-table" tooltip={t.formatAsTable}>
-        {(setOpen) => (
-          <div className="fortune-table-menu">
-            <FormatAsTableGallery autoFocus onClose={() => setOpen(false)} />
-          </div>
-        )}
-      </Combo>
-    </>
-  );
-};
-
-export default FormatAsTableButton;

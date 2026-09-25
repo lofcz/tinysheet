@@ -6,6 +6,7 @@
 import { requestPrintPreview, ribbonLocale } from "@lofcz/tinysheet-core";
 import { registerFileMenuItem, registerRibbonCommand } from "../registry";
 import { CopyCommand, CutCommand, PasteCommand } from "./clipboard";
+import { RedoCommand, UndoCommand } from "./quickAccess";
 import { registerFormulasDataReviewCommands } from "./registerFormulasDataReview";
 import { registerHomeCommands } from "./home";
 import { registerInsertCommands } from "./insert";
@@ -18,6 +19,8 @@ let registered = false;
 export function registerBuiltinRibbonCommands() {
   if (registered) return;
   registered = true;
+  registerRibbonCommand("undo", UndoCommand);
+  registerRibbonCommand("redo", RedoCommand);
   registerRibbonCommand("paste", PasteCommand);
   registerRibbonCommand("cut", CutCommand);
   registerRibbonCommand("copy", CopyCommand);

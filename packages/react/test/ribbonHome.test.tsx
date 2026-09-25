@@ -7,7 +7,6 @@ import {
   stepFontSize,
 } from "../src/components/Ribbon/commands/home/font";
 import { currencySymbolFor } from "../src/components/Ribbon/commands/home/shared";
-import { THEME_GRID } from "../src/components/Ribbon/commands/home/ColorPanel";
 
 describe("Home helpers", () => {
   it("steps the font size along Excel's list", () => {
@@ -26,12 +25,6 @@ describe("Home helpers", () => {
     expect(currencySymbolFor({ lang: "es" } as any)).toBe("€");
     expect(currencySymbolFor({ lang: "zh-TW" } as any)).toBe("NT$");
     expect(currencySymbolFor({ lang: "en" } as any, "Kč")).toBe("Kč");
-  });
-
-  it("builds Excel's theme grid: 6 rows of 10", () => {
-    expect(THEME_GRID).toHaveLength(6);
-    THEME_GRID.forEach((row) => expect(row).toHaveLength(10));
-    expect(THEME_GRID[0][4]).toBe("#4472C4");
   });
 });
 
@@ -99,6 +92,47 @@ describe("Home commands", () => {
     expect(button(container, "Wrap Text").getAttribute("aria-pressed")).toBe(
       "true"
     );
+  });
+
+  it("the Font and Font Size boxes show the workbook's default font", () => {
+    const { container, ref } = renderBook();
+    const input = (name: string) =>
+      container.querySelector<HTMLInputElement>(
+        `.fortune-ribbon input[aria-label="${name}"]`
+      )!;
+    // a cell without a font of its own: Calibri 11, as the grid draws it
+    expect(input("Font").value).toBe("Calibri");
+    expect(input("Font Size").value).toBe("11");
+    act(() => {
+      ref.current!.setCellFormat(0, 0, "ff", 1);
+    });
+    expect(input("Font").value).toBe("Arial");
+  });
+
+  it("the Accounting button uses the language's currency", () => {
+    const ref = React.createRef<WorkbookInstance>();
+    const { container } = render(
+      <Workbook
+        ref={ref}
+        lang="es"
+        data={[
+          {
+            name: "Sheet1",
+            celldata: [{ r: 0, c: 0, v: { v: 5, m: "5" } }],
+          },
+        ]}
+      />
+    );
+    act(() => {
+      ref.current!.setSelection([{ row: [0, 0], column: [0, 0] }]);
+    });
+    const accounting = container.querySelector<HTMLElement>(
+      '.fortune-ribbon [data-item="currency-format"] button'
+    )!;
+    act(() => {
+      fireEvent.click(accounting);
+    });
+    expect(ref.current!.getCellValue(0, 0, { type: "ct" })?.fa).toContain("€");
   });
 
   it("the Number Format box names the active cell's format", () => {

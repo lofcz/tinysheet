@@ -1,106 +1,148 @@
-import React, { useContext, useState } from "react";
+/**
+ * Excel's Zoom dialog (View › Zoom): 200%, 100%, 75%, 50%, 25%, Fit
+ * selection or a custom magnification (10–400%). The workbook's only zoom
+ * dialog: the View tab opens it, hosts show it with
+ * `showDialog(<ZoomDialog />)`.
+ */
+import React, { useContext, useId, useState } from "react";
 import {
-  dialogsLocale,
   getSheetIndex,
-  locale,
   MAX_ZOOM_RATIO,
   MIN_ZOOM_RATIO,
+  ribbonTabsLocale,
+  scrollSelectionIntoCorner,
   zoomToSelection,
 } from "@lofcz/tinysheet-core";
+import type { Context } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
+import type { SetContextOptions } from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import { Button, DialogShell, NumberInput, Radio } from "../ui";
 import "./ZoomDialog.css";
 
-const PRESETS = [2, 1, 0.75, 0.5, 0.25];
+type SetContext = (
+  recipe: (ctx: Context) => void,
+  options?: SetContextOptions
+) => void;
 
-type Choice = number | "fit" | "custom";
+/** Set the current sheet's zoom (1 = 100%), clamped to 10–400%. */
+export function setZoom(setContext: SetContext, ratio: number) {
+  const value = Math.min(
+    MAX_ZOOM_RATIO,
+    Math.max(MIN_ZOOM_RATIO, Number(ratio.toFixed(2)))
+  );
+  setContext(
+    (ctx) => {
+      const i = getSheetIndex(ctx, ctx.currentSheetId);
+      if (i == null) return;
+      ctx.luckysheetfile[i].zoomRatio = value;
+      ctx.zoomRatio = value;
+    },
+    { noHistory: true }
+  );
+}
 
 /**
- * Excel's View › Zoom dialog: 200 / 100 / 75 / 50 / 25 %, Fit selection or
- * a custom percentage. Show it with `showDialog(<ZoomDialog />)`.
+ * Zoom to Selection: zoom so the selection fills the window, then scroll it
+ * to the window's corner once the grid is laid out at the new zoom.
  */
-export const ZoomDialog: React.FC = () => {
+export function zoomToSelectionAndScroll(setContext: SetContext) {
+  setContext((ctx) => {
+    zoomToSelection(ctx);
+  });
+  setTimeout(
+    () =>
+      setContext(
+        (ctx) => {
+          scrollSelectionIntoCorner(ctx);
+        },
+        { noHistory: true }
+      ),
+    80
+  );
+}
+
+const PRESETS = [200, 100, 75, 50, 25];
+
+type Choice = string; // a preset ("200"), "fit" or "custom"
+
+export const ZoomDialog: React.FC<{
+  /** Cancel / close (default: hide the workbook's modal). */
+  onClose?: () => void;
+}> = ({ onClose }) => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const { hideDialog } = useDialog();
-  const t = dialogsLocale(context);
-  const { button } = locale(context);
-  const current = context.zoomRatio || 1;
-  const [choice, setChoice] = useState<Choice>(() =>
-    PRESETS.includes(current) ? current : "custom"
+  const t = ribbonTabsLocale(context).view;
+  const name = useId();
+  const current = Math.round((context.zoomRatio || 1) * 100);
+  const [choice, setChoice] = useState<Choice>(
+    PRESETS.includes(current) ? String(current) : "custom"
   );
-  const [custom, setCustom] = useState(Math.round(current * 100));
+  const [custom, setCustom] = useState<number>(current);
 
   const close = () => {
-    hideDialog();
+    if (onClose) onClose();
+    else hideDialog();
+    // the keyboard goes back to the sheet
     setTimeout(() => refs.cellInput.current?.focus({ preventScroll: true }));
   };
 
-  const ok = () => {
+  const confirm = () => {
     close();
-    setContext(
-      (ctx) => {
-        if (choice === "fit") {
-          zoomToSelection(ctx);
-          return;
-        }
-        const ratio = choice === "custom" ? custom / 100 : choice;
-        const val = Math.min(
-          MAX_ZOOM_RATIO,
-          Math.max(MIN_ZOOM_RATIO, Math.round(ratio * 100) / 100)
-        );
-        const index = getSheetIndex(ctx, ctx.currentSheetId);
-        if (index == null) return;
-        ctx.luckysheetfile[index].zoomRatio = val;
-        ctx.zoomRatio = val;
-      },
-      { noHistory: true }
-    );
+    if (choice === "fit") {
+      zoomToSelectionAndScroll(setContext);
+      return;
+    }
+    const percent = choice === "custom" ? custom : Number(choice);
+    setZoom(setContext, percent / 100);
   };
 
   return (
     <DialogShell
-      title={t.titles.zoom}
+      title={t.zoomTitle}
       className="fortune-zoom-dialog"
       onClose={close}
-      onConfirm={ok}
+      onConfirm={confirm}
       footer={
         <>
           <Button variant="secondary" onClick={close}>
-            {button.cancel}
+            {t.cancel}
           </Button>
-          <Button variant="primary" onClick={ok}>
-            {button.confirm}
+          <Button variant="primary" onClick={confirm}>
+            {t.ok}
           </Button>
         </>
       }
     >
       <fieldset className="fortune-zoom-dialog-group">
-        <legend>{t.zoom.magnification}</legend>
+        <legend>{t.magnification}</legend>
         {PRESETS.map((p) => (
           <Radio
             key={p}
-            name="fortune-zoom-dialog"
-            checked={choice === p}
-            onChange={() => setChoice(p)}
-            label={`${Math.round(p * 100)}%`}
+            name={name}
+            value={String(p)}
+            checked={choice === String(p)}
+            onChange={() => setChoice(String(p))}
+            label={`${p}%`}
           />
         ))}
         <Radio
-          name="fortune-zoom-dialog"
+          name={name}
+          value="fit"
           checked={choice === "fit"}
           onChange={() => setChoice("fit")}
-          label={t.zoom.fitSelection}
+          label={t.fitSelection}
         />
         <div className="fortune-zoom-dialog-custom">
           <Radio
-            name="fortune-zoom-dialog"
+            name={name}
+            value="custom"
             checked={choice === "custom"}
             onChange={() => setChoice("custom")}
-            label={t.zoom.custom}
+            label={t.custom}
           />
           <NumberInput
-            aria-label={t.zoom.custom}
+            aria-label={t.custom.replace(/[:：]\s*$/, "")}
             value={custom}
             min={Math.round(MIN_ZOOM_RATIO * 100)}
             max={Math.round(MAX_ZOOM_RATIO * 100)}

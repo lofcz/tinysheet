@@ -26,7 +26,6 @@ export const ColorPanel: React.FC<ColorPanelProps> = ({
 }) => (
   // the shared Excel colour picker (components/ui/ColorPicker)
   <ColorPicker
-    className="ts-home-colors"
     value={value}
     automaticLabel={reset?.label}
     automaticColor={reset?.kind === "automatic" ? "#000000" : null}

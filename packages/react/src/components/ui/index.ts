@@ -24,6 +24,7 @@ export type {
   SplitButtonProps,
   LargeButtonProps,
   MenuButtonProps,
+  DropdownContent,
 } from "./Button";
 export { MenuList, DropdownMenu, useMenuTrigger } from "./Menu";
 export type { MenuItem, MenuListProps, DropdownMenuProps } from "./Menu";

@@ -1,4 +1,4 @@
-const { test, expect, ribbonItem, Sheet } = require("../fixtures");
+const { test, expect, toolbarButton, Sheet } = require("../fixtures");
 
 // Context menus (ui MenuList), colour / border pickers and the galleries
 // (Format as Table, Cell Styles, conditional formatting presets): they open
@@ -30,14 +30,14 @@ const labels = (menu) =>
     ).map((l) => l.textContent)
   );
 
-/** A legacy toolbar drop-down arrow by its tooltip (ribbon item). */
-async function dropdown(page, tip) {
-  const arrow = await ribbonItem(
-    page,
-    `.fortune-toolbar-combo-arrow[data-tips="${tip}" i]`
-  );
-  await arrow.click();
-  const popup = page.locator(".fortune-toolbar-combo-popup");
+/**
+ * Open a Home ribbon drop-down by its button's name (a split button's
+ * arrow: "More options for Borders"); returns the open popover (the
+ * innermost one, so a hovered submenu is found too).
+ */
+async function dropdown(page, name) {
+  await (await toolbarButton(page, name)).click();
+  const popup = page.locator(".ts-popover").last();
   await expect(popup).toBeVisible();
   return popup;
 }
@@ -273,8 +273,7 @@ test.describe("colour picker", () => {
   }) => {
     await sheet.click(0, 0);
     // font colour: Theme Colors grid (10 × 6), first row Blue, Accent 1
-    await page.getByRole("button", { name: "Font color: Dropdown" }).click();
-    let popup = page.locator(".fortune-toolbar-combo-popup");
+    let popup = await dropdown(page, "More options for Font Color");
     await expect(popup.locator(".ts-color-grid--theme .ts-swatch")).toHaveCount(
       60
     );
@@ -288,21 +287,20 @@ test.describe("colour picker", () => {
     await expect(popup).toHaveCount(0);
 
     // fill: Standard Colors
-    await page.getByRole("button", { name: "Fill color: Dropdown" }).click();
-    popup = page.locator(".fortune-toolbar-combo-popup");
+    popup = await dropdown(page, "More options for Fill Color");
     await popup
       .getByRole("button", { name: "Light Green", exact: true })
       .click();
     await expect.poll(() => sheet.value(0, 0, "bg")).toBe("#92d050");
 
     // More Colors…: hex field, OK; the colour joins Recent Colors
-    await page.getByRole("button", { name: "Fill color: Dropdown" }).click();
+    await dropdown(page, "More options for Fill Color");
     await popup.getByRole("button", { name: "More Colors…" }).click();
     const hex = popup.getByLabel("Hex", { exact: true });
     await hex.fill("12AB34");
     await hex.press("Enter");
     await expect.poll(() => sheet.value(0, 0, "bg")).toBe("#12ab34");
-    await page.getByRole("button", { name: "Fill color: Dropdown" }).click();
+    await dropdown(page, "More options for Fill Color");
     await expect(
       popup.getByRole("button", { name: "#12AB34", exact: true })
     ).toBeVisible();
@@ -320,7 +318,7 @@ test.describe("colour picker", () => {
     // Black, Text 1, Lighter 50%
     await expect.poll(() => sheet.value(0, 0, "bg")).toBe("#808080");
 
-    await page.getByRole("button", { name: "Fill color: Dropdown" }).click();
+    await dropdown(page, "More options for Fill Color");
     await popup.getByRole("button", { name: "No Fill" }).click();
     await expect.poll(() => sheet.value(0, 0, "bg")).toBeFalsy();
   });
@@ -330,10 +328,9 @@ test.describe("colour picker", () => {
     page,
   }) => {
     await sheet.click(0, 0);
-    await page.getByRole("button", { name: "Fill color: Dropdown" }).click();
-    const swatch = page
-      .locator(".fortune-toolbar-combo-popup")
-      .getByRole("button", { name: "Orange, Accent 2", exact: true });
+    const swatch = (
+      await dropdown(page, "More options for Fill Color")
+    ).getByRole("button", { name: "Orange, Accent 2", exact: true });
     await swatch.hover();
     const tip = page.locator(".ts-tooltip");
     await expect(tip).toHaveText("Orange, Accent 2");
@@ -347,7 +344,7 @@ test.describe("colour picker", () => {
 test.describe("border picker", () => {
   test("presets, thick box and line style", async ({ sheet, page }) => {
     await sheet.select(1, 1, 2, 2);
-    const popup = await dropdown(page, "Border");
+    const popup = await dropdown(page, "More options for Borders");
     const menu = popup.locator(".ts-border-picker");
     expect(await labels(menu)).toEqual([
       "Bottom Border",
@@ -375,7 +372,7 @@ test.describe("border picker", () => {
       .poll(async () => (await borders())?.map((b) => b.borderType))
       .toEqual(["border-all"]);
 
-    await dropdown(page, "Border");
+    await dropdown(page, "More options for Borders");
     await popup
       .getByRole("menuitem", { name: "Thick Outside Borders", exact: true })
       .click();
@@ -384,12 +381,12 @@ test.describe("border picker", () => {
       .toMatchObject({ borderType: "border-outside", style: "13" });
 
     // Line Style › Dashed, then Bottom Border draws dashed
-    await dropdown(page, "Border");
+    await dropdown(page, "More options for Borders");
     await popup.getByRole("menuitem", { name: "Line Style" }).hover();
     await popup
       .getByRole("menuitemradio", { name: "Dashed", exact: true })
       .click();
-    await dropdown(page, "Border");
+    await dropdown(page, "More options for Borders");
     await popup
       .getByRole("menuitem", { name: "Bottom Border", exact: true })
       .click();
@@ -398,7 +395,7 @@ test.describe("border picker", () => {
       .toMatchObject({ borderType: "border-bottom", style: "4" });
 
     // keyboard: the menu takes the focus, Enter applies
-    await dropdown(page, "Border");
+    await dropdown(page, "More options for Borders");
     await page.keyboard.press("End");
     await page.keyboard.press("Home");
     await page.keyboard.press("ArrowDown");
@@ -453,7 +450,7 @@ test.describe("galleries", () => {
       );
     const preset = async (menuName, tile) => {
       await sheet.select(0, 0, 2, 0);
-      const popup = await dropdown(page, "Conditional formatting");
+      const popup = await dropdown(page, "Conditional Formatting");
       await popup.getByRole("menuitem", { name: menuName }).hover();
       await popup
         .locator(`.ts-gallery-item[data-gallery-id="${tile}"]`)

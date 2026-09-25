@@ -1,8 +1,8 @@
 /**
  * Threaded comments UI (Excel's "Comments"; notes stay in NotationBoxes):
  * the comment card and hover preview in the cell area, the Comments pane,
- * the "threaded-comment" toolbar item, the "new-comment" cell menu entry and
- * Ctrl+Shift+F2. The model lives in core (modules/threadedComments.ts).
+ * the "new-comment" cell menu entry and Ctrl+Shift+F2 (the ribbon commands,
+ * Insert › Comment and Review › Comments, are in ../Ribbon). The model lives in core (modules/threadedComments.ts).
  */
 import React from "react";
 import {
@@ -15,10 +15,9 @@ import {
   startThreadedComment,
   threadedCommentsLocale,
 } from "@lofcz/tinysheet-core";
-import { registerSheetOverlay, registerToolbarItem } from "../../extensions";
+import { registerSheetOverlay } from "../../extensions";
 import { registerContextMenuItem } from "../ContextMenu/actions";
 import ThreadedCommentsLayer from "./ThreadedCommentsLayer";
-import ThreadedCommentsToolbarItem from "./ToolbarItem";
 import "./index.css";
 
 let installed = false;
@@ -33,9 +32,6 @@ export function installThreadedCommentsUI() {
   installed = true;
   installThreadedComments();
   registerSheetOverlay("threadedComments", ThreadedCommentsLayer);
-  registerToolbarItem("threaded-comment", ({ tooltip }) => (
-    <ThreadedCommentsToolbarItem tooltip={tooltip} />
-  ));
   registerContextMenuItem(
     "new-comment",
     ({ context, setContext, settings, r, c, headerType, close }) => {

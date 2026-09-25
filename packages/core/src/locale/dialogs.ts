@@ -19,10 +19,11 @@ const en = {
     watchWindow: "Watch Window",
     dataValidation: "Data Validation",
   },
-  zoom: {
-    magnification: "Magnification",
-    fitSelection: "Fit selection",
-    custom: "Custom",
+  /** The hover card of a cell's hyperlink. */
+  linkCard: {
+    copy: "Copy Link",
+    edit: "Edit Link",
+    remove: "Remove Link",
   },
   wizard: {
     step: "Step {n} of {total}",
@@ -77,7 +78,6 @@ const en = {
     unhide: "Unhide",
     insertCells: "Insert",
     deleteCells: "Delete",
-    zoom: "Zoom",
     formatSearch: "Format",
     customNumberFormat: "Number Format",
     changeColor: "Color",
@@ -93,6 +93,11 @@ type DeepPartial<T> = {
 };
 
 const zh: DeepPartial<DialogsLocale> = {
+  linkCard: {
+    copy: "复制链接",
+    edit: "编辑链接",
+    remove: "删除链接",
+  },
   close: "关闭",
   ok: "确定",
   cancel: "取消",
@@ -126,11 +131,15 @@ const zh: DeepPartial<DialogsLocale> = {
     unhide: "取消隐藏",
     insertCells: "插入",
     deleteCells: "删除",
-    zoom: "缩放",
   },
 };
 
 const es: DeepPartial<DialogsLocale> = {
+  linkCard: {
+    copy: "Copiar vínculo",
+    edit: "Modificar vínculo",
+    remove: "Quitar vínculo",
+  },
   close: "Cerrar",
   ok: "Aceptar",
   cancel: "Cancelar",
@@ -155,7 +164,6 @@ const es: DeepPartial<DialogsLocale> = {
     newRule: "Nueva regla de formato",
     moveCopy: "Mover o copiar",
     unhide: "Mostrar",
-    zoom: "Zoom",
   },
 };
 

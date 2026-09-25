@@ -106,7 +106,11 @@ const RibbonShortcutHost: React.FC = () => {
     if (!container?.contains(document.activeElement)) return;
     if (request === "insertFunction") {
       if (h.context.allowEdit === false) return;
-      rememberEditorCaret(refs.cellInput.current);
+      // the caret of the editor in use: the formula bar or the cell
+      const fx = refs.fxInput.current;
+      rememberEditorCaret(
+        fx && fx.contains(document.activeElement) ? fx : refs.cellInput.current
+      );
       showModal(
         <InsertFunctionDialog
           t={t}

@@ -951,11 +951,18 @@ export function cancelPaintModel(ctx: Context) {
  */
 export function defaultCurrencySymbol(lang?: string | null) {
   const l = (lang || "").toLowerCase();
-  if (l.startsWith("zh")) return "¥";
-  if (l.startsWith("ru")) return "₽";
-  if (l.startsWith("hi")) return "₹";
-  if (l.startsWith("es")) return "€";
-  return "$";
+  if (l === "zh-tw" || l === "zh-hant") return "NT$";
+  const byLang: Record<string, string> = {
+    zh: "¥",
+    ja: "¥",
+    ru: "₽",
+    hi: "₹",
+    es: "€",
+    fr: "€",
+    de: "€",
+    it: "€",
+  };
+  return byLang[l.split("-")[0]] ?? "$";
 }
 
 /** Currency symbol of the workbook (settings.currency, else the locale's). */

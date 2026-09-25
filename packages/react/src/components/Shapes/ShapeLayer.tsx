@@ -97,7 +97,7 @@ const RUN_KEYS: Record<string, "b" | "i" | "u"> = {
 
 /** Clicks on these keep the shape selection. */
 const OUTSIDE_SELECTORS =
-  ".fortune-shape, .fortune-shape-frame, .fortune-shape-format, .fortune-shape-menu, .fortune-toolbar, .fortune-toolbar-combo-popup, .fortune-side-slot";
+  ".fortune-shape, .fortune-shape-frame, .fortune-shape-format, .fortune-shape-menu, .fortune-toolbar, .ts-popover, .fortune-side-slot";
 
 /** Icons of the shape menu entries (ContextMenu/icons names). */
 const SHAPE_MENU_ICONS: Record<string, string> = {

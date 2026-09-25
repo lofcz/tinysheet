@@ -74,6 +74,57 @@ function withRegistrations(tabs: RibbonTabConfig[]): RibbonTabConfig[] {
   return out;
 }
 
+/** Item ids of a layout, in order. */
+function layoutIds(tabs: RibbonTabConfig[]): string[] {
+  const ids: string[] = [];
+  tabs.forEach((t) =>
+    t.groups.forEach((g) =>
+      g.items.forEach((entry) => {
+        if (isRows(entry))
+          entry.rows.forEach((row) =>
+            row.forEach((i) => ids.push(normalizeItem(i).id))
+          );
+        else ids.push(normalizeItem(entry).id);
+      })
+    )
+  );
+  return ids;
+}
+
+/**
+ * A custom `settings.ribbon` may name a legacy toolbar item ("chart",
+ * "comment"): it stands for the ribbon commands that took its place (the
+ * commands whose `aliases` list it), in the default ribbon's order. Other
+ * ids are kept (commands, items registered by features, unknown names).
+ */
+function expandLegacyItems(
+  tabs: RibbonTabConfig[],
+  defaultIds: () => string[]
+): RibbonTabConfig[] {
+  const expand = (item: RibbonItemConfig): RibbonItemConfig[] => {
+    const { id } = normalizeItem(item);
+    if (id === "|" || getRibbonCommand(id) || getToolbarItemRenderer(id))
+      return [item];
+    const ids = defaultIds().filter((cid) =>
+      getRibbonCommand(cid)?.options.aliases?.includes(id)
+    );
+    if (ids.length === 0) return [item];
+    const size = typeof item === "string" ? undefined : item.size;
+    return ids.map((cid, i) => (i === 0 && size ? { id: cid, size } : cid));
+  };
+  return tabs.map((t) => ({
+    ...t,
+    groups: t.groups.map((g) => ({
+      ...g,
+      items: g.items.flatMap((entry): RibbonEntryConfig[] =>
+        isRows(entry)
+          ? [{ rows: entry.rows.map((row) => row.flatMap(expand)) }]
+          : expand(entry)
+      ),
+    })),
+  }));
+}
+
 export type ResolveOptions = {
   /** `settings.ribbon` (null: the default layout). */
   ribbon: RibbonTabConfig[] | null | undefined;
@@ -97,7 +148,14 @@ export function resolveRibbon({
   customToolbarItems,
   t,
 }: ResolveOptions): ResolvedRibbon {
-  const config = ribbon ?? withRegistrations(defaultRibbon);
+  let defaults: string[] | null = null;
+  const defaultIds = () => {
+    if (!defaults) defaults = layoutIds(withRegistrations(defaultRibbon));
+    return defaults;
+  };
+  const config = ribbon
+    ? expandLegacyItems(ribbon, defaultIds)
+    : withRegistrations(defaultRibbon);
   // the default list shows the whole ribbon; a custom list only its items
   const showAll =
     ribbon != null || _.isEqual(toolbarItems, defaultSettings.toolbarItems);
@@ -112,7 +170,13 @@ export function resolveRibbon({
     return !!getRibbonCommand(id)?.options.aliases?.some((a) => listed.has(a));
   };
 
+  // placed ids, and the legacy names their commands stand for (aliases):
+  // a listed legacy name shown as its commands is not repeated in Custom
   const placed = new Set<string>();
+  const place = (id: string) => {
+    placed.add(id);
+    getRibbonCommand(id)?.options.aliases?.forEach((a) => placed.add(a));
+  };
   const tabs: RibbonTab[] = [];
   config.forEach((tabConfig) => {
     const groups: RibbonGroup[] = [];
@@ -136,13 +200,13 @@ export function resolveRibbon({
           const rows = entry.rows
             .map((row) => row.map(normalizeItem).filter((i) => allowed(i.id)))
             .filter((row) => row.length > 0);
-          rows.flat().forEach((i) => placed.add(i.id));
+          rows.flat().forEach((i) => place(i.id));
           if (rows.length) columns.push({ kind: "rows", rows });
           return;
         }
         const item = normalizeItem(entry);
         if (!allowed(item.id)) return;
-        placed.add(item.id);
+        place(item.id);
         if (item.size === "large") {
           flush();
           columns.push({ kind: "large", item });
@@ -168,7 +232,7 @@ export function resolveRibbon({
   });
 
   const quickAccess = quickAccessItems.filter((id) => allowed(id));
-  quickAccess.forEach((id) => placed.add(id));
+  quickAccess.forEach(place);
 
   // names listed but not placed, and hosts' custom buttons: a Custom group
   // at the end of the first tab

@@ -1,46 +1,44 @@
 .fortune-link-modify-modal {
-  color: var(--fortune-text);
+  color: var(--ts-text);
   position: absolute;
   overflow: hidden;
-  background-color: var(--fortune-bg);
+  background-color: var(--ts-pane);
   z-index: 300;
   padding: 6px 20px 10px 20px;
-  box-shadow: var(--fortune-shadow);
-  border: 1px solid var(--fortune-border);
-  border-radius: 6px;
+  box-shadow: var(--ts-shadow);
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius-pane);
 }
 
+/* the hover card of a link: Open link | Copy, Edit | Remove */
 .fortune-link-modify-modal.link-toolbar {
   display: flex;
   flex-direction: row;
-  padding: 2px 8px 2px 16px;
+  gap: 2px;
+  padding: 4px 4px 4px 12px;
   align-items: center;
+  border-radius: var(--ts-radius-cluster);
+  font-size: var(--ts-font-size);
 }
 
 .fortune-link-modify-modal .link-content {
   margin-right: 6px;
+  color: var(--ts-accent);
+  outline: none;
 }
 
-.fortune-link-modify-modal .link-content:hover {
-  color: var(--fortune-accent);
+.fortune-link-modify-modal .link-content:hover,
+.fortune-link-modify-modal .link-content:focus-visible {
+  text-decoration: underline;
   cursor: pointer;
 }
 
 .fortune-link-modify-modal .divider {
   width: 1px;
   height: 16px;
-  margin: 0px 6px;
-  background-color: var(--fortune-divider);
+  margin: 0 4px;
+  background-color: var(--ts-border);
   flex-shrink: 0;
-}
-
-.fortune-link-modify-modal .fortune-toolbar-button {
-  padding: 6px;
-}
-
-.fortune-link-modify-modal .fortune-toolbar-button:hover {
-  background-color: var(--fortune-bg-hover);
-  cursor: pointer;
 }
 
 /* Insert / Edit Hyperlink: an anchored card drawn as a DialogShell */

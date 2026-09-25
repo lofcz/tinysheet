@@ -99,7 +99,16 @@ The following are all supported setting parameters
 ### toolbarItems
 
 - Type: Array
-- Usage: Custom configuration toolbar,can be used in conjunction with `showToolbar`, `toolbarItems` has a higher priority.
+- Usage: The commands the ribbon shows. With the default list the whole
+  Excel-style ribbon shows (Home, Insert, Page Layout, Formulas, Data,
+  Review, View). A custom list shows only the ribbon commands standing for
+  the listed names, in their tabs and groups: `"bold"` is Home › Font ›
+  Bold, `"chart"` the Insert › Charts commands, `"pageLayout"` the Page
+  Layout tab's Page Setup commands, `"undo"` / `"redo"` the quick access
+  buttons. Names no command stands for (items registered with
+  `registerToolbarItem`, unknown names) show in a Custom group of the first
+  tab. `settings.ribbon` defines a layout of its own. Can be used with
+  `showToolbar`; `toolbarItems` has a higher priority.
 - Format:
 
 ```json
@@ -256,13 +265,14 @@ The following are all supported setting parameters
 - Default: true
 - Usage: Show the automatic page breaks as dashed lines in Normal view once a
   sheet was previewed or printed, or a page break was inserted (Excel's
-  behaviour). The `pageLayout` toolbar menu toggles them with
-  "Show Page Breaks" either way.
+  behaviour).
 
   Page Setup lives on each sheet as `sheet.pageSetup` (orientation, paper
   size, margins, scaling, print area, print titles, headers/footers, page
-  breaks, ...). The `pageLayout` toolbar item opens Page Setup, Print Area,
-  Breaks and Page Break Preview; `print` (or Ctrl+P) opens Print Preview,
+  breaks, ...). The Page Layout tab of the ribbon (toolbar name
+  `pageLayout`) has Margins, Orientation, Size, Print Area, Breaks, Print
+  Titles and Page Setup; View › Page Break Preview shows the page breaks;
+  File › Print (toolbar name `print`, or Ctrl+P) opens Print Preview,
   whose Print button uses the browser's print dialog ("Save as PDF" exports
   a PDF).
 
@@ -279,9 +289,9 @@ The following are all supported setting parameters
   resolved theme is exposed as `data-theme="light|dark"` on
   `.fortune-container` (and on dialogs rendered outside it).
 
-  Users switch the theme with the toolbar item `"theme"` (View › Light /
-  Dark / System; on by default in [toolbarItems](#toolbaritems)). Everything
-  repaints immediately.
+  Users switch the theme with View › Appearance › Theme (Light / Dark /
+  System; toolbar name `"theme"`, on by default in
+  [toolbarItems](#toolbaritems)). Everything repaints immediately.
 
   Setting `theme` makes it **controlled**, like `value` on an `<input>`: the
   workbook always shows this theme, and a choice in the toolbar only calls

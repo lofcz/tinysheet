@@ -1,8 +1,8 @@
 /**
- * Home tab glyphs lucide has no equivalent for (border variants, double
- * underline, text orientation, comma style), drawn on lucide's 24px grid
+ * Home tab glyphs lucide has no equivalent for (double underline, text
+ * orientation, comma style; border glyphs are ui BorderGlyph), drawn on lucide's 24px grid
  * with its stroke so they sit with the other chrome icons. Each one is a
- * drop-in for a lucide component (`<Icon icon={BorderBottom} />`).
+ * drop-in for a lucide component (`<Icon icon={DoubleUnderline} />`).
  */
 import React from "react";
 import type { LucideIcon } from "../../../ui";
@@ -42,124 +42,6 @@ function glyph(name: string, body: React.ReactNode): LucideIcon {
   C.displayName = name;
   return C as unknown as LucideIcon;
 }
-
-/** The faint cell grid every border glyph is drawn over. */
-const grid = (
-  <g opacity={0.5} strokeDasharray="1 2.6" strokeWidth={1.5}>
-    <rect x="4" y="4" width="16" height="16" rx="0.5" />
-    <path d="M12 4v16M4 12h16" />
-  </g>
-);
-
-const EDGE = {
-  top: "M4 4h16",
-  bottom: "M4 20h16",
-  left: "M4 4v16",
-  right: "M20 4v16",
-  insideH: "M4 12h16",
-  insideV: "M12 4v16",
-};
-
-const border = (name: string, ...extra: React.ReactNode[]) =>
-  glyph(
-    name,
-    <>
-      {grid}
-      {extra}
-    </>
-  );
-
-const edge = (d: string, key: string, width?: number) => (
-  <path key={key} d={d} strokeWidth={width} strokeLinecap="square" />
-);
-
-export const BorderBottom = border("BorderBottom", edge(EDGE.bottom, "b"));
-export const BorderTop = border("BorderTop", edge(EDGE.top, "t"));
-export const BorderLeft = border("BorderLeft", edge(EDGE.left, "l"));
-export const BorderRight = border("BorderRight", edge(EDGE.right, "r"));
-export const BorderNone = border("BorderNone");
-export const BorderAll = glyph(
-  "BorderAll",
-  <path
-    d="M4 4h16v16H4zM12 4v16M4 12h16"
-    strokeLinecap="square"
-    strokeLinejoin="miter"
-  />
-);
-export const BorderOutside = border(
-  "BorderOutside",
-  <rect key="o" x="4" y="4" width="16" height="16" strokeLinejoin="miter" />
-);
-export const BorderThickBox = border(
-  "BorderThickBox",
-  <rect
-    key="o"
-    x="4.5"
-    y="4.5"
-    width="15"
-    height="15"
-    strokeWidth={3}
-    strokeLinejoin="miter"
-  />
-);
-export const BorderInside = border(
-  "BorderInside",
-  edge(EDGE.insideH, "h"),
-  edge(EDGE.insideV, "v")
-);
-export const BorderBottomDouble = border(
-  "BorderBottomDouble",
-  edge("M4 17.5h16", "b1", 1.5),
-  edge("M4 21h16", "b2", 1.5)
-);
-export const BorderBottomThick = border(
-  "BorderBottomThick",
-  edge("M4 19.5h16", "b", 3)
-);
-export const BorderTopBottom = border(
-  "BorderTopBottom",
-  edge(EDGE.top, "t"),
-  edge(EDGE.bottom, "b")
-);
-export const BorderTopThickBottom = border(
-  "BorderTopThickBottom",
-  edge(EDGE.top, "t"),
-  edge("M4 19.5h16", "b", 3)
-);
-export const BorderTopDoubleBottom = border(
-  "BorderTopDoubleBottom",
-  edge(EDGE.top, "t"),
-  edge("M4 17.5h16", "b1", 1.5),
-  edge("M4 21h16", "b2", 1.5)
-);
-export const BorderDiagonal = border("BorderDiagonal", edge("M4 4l16 16", "d"));
-
-/** A line-style sample (Line Style submenu), `width` px wide. */
-export const LineSample: React.FC<{
-  dash?: string;
-  width?: number;
-  thickness?: number;
-  double?: boolean;
-}> = ({ dash, width = 96, thickness = 1, double }) => (
-  <svg width={width} height={12} aria-hidden="true" focusable="false">
-    {double ? (
-      <>
-        <line x1={0} x2={width} y1={4.5} y2={4.5} stroke="currentColor" />
-        <line x1={0} x2={width} y1={7.5} y2={7.5} stroke="currentColor" />
-      </>
-    ) : (
-      <line
-        x1={0}
-        x2={width}
-        y1={6}
-        y2={6}
-        stroke="currentColor"
-        strokeWidth={thickness}
-        strokeDasharray={dash}
-      />
-    )}
-  </svg>
-);
 
 export const DoubleUnderline = glyph(
   "DoubleUnderline",

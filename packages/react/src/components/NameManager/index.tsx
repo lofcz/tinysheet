@@ -22,7 +22,6 @@ import {
 import type { DefinedNameEntry } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import { activateOnKey } from "../Toolbar/Button";
 import { Button, DialogShell } from "../ui";
 import "./index.css";
 
@@ -312,7 +311,14 @@ export const NameManager: React.FC<{
     return (
       <CreateFromSelection
         onDone={() => {
-          setMode({ kind: "list" });
+          // opened on its own (Formulas › Create from Selection,
+          // Ctrl+Shift+F3): OK and Cancel close it, as in Excel
+          if (initialMode === "fromSelection") {
+            hideDialog();
+            refs.cellInput.current?.focus({ preventScroll: true });
+          } else {
+            setMode({ kind: "list" });
+          }
         }}
       />
     );
@@ -432,39 +438,6 @@ export const NameManager: React.FC<{
         />
       </div>
     </DialogShell>
-  );
-};
-
-/** Inline icon (not part of the shared SVG sprite). */
-export const NameManagerIcon: React.FC = () => (
-  <svg width={24} height={24} viewBox="0 0 24 24" aria-hidden="true">
-    <path
-      fill="currentColor"
-      d="M4 5h16v2H4zm0 4h10v2H4zm0 4h16v2H4zm0 4h10v2H4zm12.5-8.5L20 12l-3.5 3.5-1.4-1.4 2.1-2.1-2.1-2.1z"
-    />
-  </svg>
-);
-
-/** Toolbar button opening the Name Manager. */
-export const NameManagerButton: React.FC = () => {
-  const { context } = useContext(WorkbookContext);
-  const { showDialog } = useDialog();
-  const { definedNames: t } = locale(context);
-  return (
-    <div
-      className="fortune-toolbar-button fortune-toolbar-item"
-      role="button"
-      tabIndex={0}
-      aria-label={t.nameManager}
-      data-tips={t.nameManager}
-      onClick={() => showDialog(<NameManager />)}
-      onKeyDown={activateOnKey}
-    >
-      <NameManagerIcon />
-      <div className="fortune-tooltip" aria-hidden="true">
-        {t.nameManager}
-      </div>
-    </div>
   );
 };
 

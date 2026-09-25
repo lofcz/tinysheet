@@ -35,6 +35,7 @@ import {
   setShowGridLines,
   setShowHeadings,
   setShowPageBreaks,
+  isShowingPageBreaks,
   sheetShowsGridLines,
   sheetShowsHeadings,
   updatePageSetup,
@@ -263,6 +264,7 @@ const BreaksCommand: React.FC<RibbonCommandProps> = ({ size }) => {
   const pl = pageLayoutLocale(context);
   const hasBreak = hasPageBreakAt(context);
   const any = setup.rowBreaks.length > 0 || setup.colBreaks.length > 0;
+  const shown = isShowingPageBreaks(context);
   const menu: MenuItem[] = [
     {
       id: "breaks-insert",
@@ -287,6 +289,17 @@ const BreaksCommand: React.FC<RibbonCommandProps> = ({ size }) => {
       label: pl.resetPageBreaks,
       disabled: !editable || !any,
       onSelect: () => setContext((ctx) => resetAllPageBreaks(ctx)),
+    },
+    { type: "separator" },
+    {
+      // the dashed page break lines in Normal view (Excel: Options)
+      id: "breaks-show",
+      label: pl.showPageBreaks,
+      checked: shown,
+      onSelect: () =>
+        setContext((ctx) => setShowPageBreaks(ctx, !shown), {
+          noHistory: true,
+        }),
     },
   ];
   return (

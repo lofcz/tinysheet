@@ -240,11 +240,11 @@ test.describe("Home › Font", () => {
     ).toBeVisible();
     await press(page, "Borders: All Borders");
     await expect.poll(async () => (await borders()).length).toBe(2);
-    await pick(page, "More options for Borders", "border-thickBox");
+    await pick(page, "More options for Borders", "border-thick-outside");
     await expect
       .poll(async () => (await borders()).at(-1))
       .toEqual(["border-outside", "13"]);
-    await pick(page, "More options for Borders", "border-topDoubleBottom");
+    await pick(page, "More options for Borders", "border-top-bottom-double");
     await expect
       .poll(async () => (await borders()).slice(-2))
       .toEqual([
@@ -403,8 +403,8 @@ test.describe("Home › Styles", () => {
     await pick(
       page,
       "Conditional Formatting",
-      "cf-greaterThan",
-      "cf-highlight"
+      "greaterThan",
+      "highlightCellRules"
     );
     await expect(
       page.getByRole("button", { name: "OK" }).first()
@@ -412,15 +412,18 @@ test.describe("Home › Styles", () => {
     await page.keyboard.press("Escape");
 
     await press(page, "Conditional Formatting");
-    await page.locator('[data-menu-id="cf-data-bars"]').hover();
-    await page.locator(".ts-home-gallery-item").first().click();
+    await page.locator('[data-menu-id="dataBar"]').hover();
+    await page
+      .locator(".fortune-cf-preset-gallery .ts-gallery-item")
+      .first()
+      .click();
     await expect
       .poll(
         async () =>
           (await sheetField(page, "luckysheet_conditionformat_save"))?.length
       )
       .toBe(1);
-    await pick(page, "Conditional Formatting", "cf-clear-sheet", "cf-clear");
+    await pick(page, "Conditional Formatting", "clear-sheet", "deleteRule");
     await expect
       .poll(
         async () =>
@@ -446,7 +449,7 @@ test.describe("Home › Styles", () => {
 
     await sheet.click(4, 3);
     await press(page, "Cell Styles");
-    await page.getByRole("menuitem", { name: "Bad" }).click();
+    await page.getByRole("button", { name: "Bad", exact: true }).click();
     await expect
       .poll(async () => (await cellAt(page, 4, 3))?.bg?.toUpperCase())
       .toBe("#FFC7CE");

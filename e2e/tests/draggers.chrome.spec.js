@@ -234,7 +234,7 @@ test.describe("dialogs", () => {
     await expectIdle(page, sheet);
   });
 
-  test("the Watch Window moves by its title; Esc puts it back", async ({
+  test("the Watch Window docks in the side pane; its separator resizes it", async ({
     sheet,
     page,
   }) => {
@@ -244,40 +244,50 @@ test.describe("dialogs", () => {
     const menu = page.locator(".fortune-cell-menu");
     await menu.locator('[data-key="formula-auditing"]').click();
     await page.locator('[role=menuitem][data-key="add-watch"]').click();
-    const panel = page.locator(".fortune-watch-window");
-    await expect(panel).toBeVisible();
-    const title = panel.locator(".fortune-watch-window-title");
-    const tb = await title.boundingBox();
-    const grab = { x: tb.x + 20, y: tb.y + tb.height / 2 };
-    expect(await hoverCursor(page, grab.x, grab.y)).toBe("move");
-    const p0 = await panel.boundingBox();
-    await dragBy(page, grab, -150, -100);
+    // a task pane docked right of the grid (docs/DESIGN.md), not floating
+    const pane = page.locator(".fortune-side-slot");
+    await expect(pane.locator(".fortune-watch-window")).toBeVisible();
+    const sep = page.locator(".fortune-side-separator");
+    let last = null;
     await expect
       .poll(async () => {
-        const b = await panel.boundingBox();
-        return [Math.round(b.x - p0.x), Math.round(b.y - p0.y)];
+        const b = await sep.boundingBox();
+        const still = last != null && b != null && b.x === last.x;
+        last = b;
+        return still;
       })
-      .toEqual([-150, -100]);
-    await dragBy(page, { x: grab.x - 150, y: grab.y - 100 }, 50, 50, {
-      release: false,
-    });
+      .toBe(true);
+    const s = await center(sep);
+    expect(await hoverCursor(page, s.x, s.y)).toBe("col-resize");
+    const w0 = (await pane.boundingBox()).width;
+    await dragBy(page, s, -30, 0);
+    await expect
+      .poll(async () => Math.round((await pane.boundingBox()).width))
+      .toBe(Math.round(Math.min(360, w0 + 30)));
+    // Esc while dragging keeps the width
+    const w1 = (await pane.boundingBox()).width;
+    const s2 = await center(sep);
+    await dragBy(page, s2, 40, 0, { release: false });
     await page.keyboard.press("Escape");
     await page.mouse.up();
-    const b = await panel.boundingBox();
-    expect([Math.round(b.x - p0.x), Math.round(b.y - p0.y)]).toEqual([
-      -150, -100,
-    ]);
+    await expect
+      .poll(async () => Math.round((await pane.boundingBox()).width))
+      .toBe(Math.round(w1));
     await expectIdle(page, sheet);
   });
 
-  test("the Find dialog moves by its frame", async ({ sheet, page }) => {
+  test("the Find dialog moves by its title bar; Esc puts it back", async ({
+    sheet,
+    page,
+  }) => {
     await sheet.click(1, 1);
     await page.keyboard.press("Control+f");
     const dialog = page.locator("#fortune-search-replace");
     await expect(dialog).toBeVisible();
     const d0 = await dialog.boundingBox();
-    // the frame around the content (not a field)
-    const grab = { x: d0.x + d0.width / 2, y: d0.y + 3 };
+    // the title bar, like every dialog
+    const t = await dialog.locator(".ts-dialog-header h2").boundingBox();
+    const grab = { x: t.x + 20, y: t.y + t.height / 2 };
     expect(await hoverCursor(page, grab.x, grab.y)).toBe("move");
     await dragBy(page, grab, -100, 80);
     await expect
@@ -290,6 +300,17 @@ test.describe("dialogs", () => {
     await page.mouse.move(grab.x + 200, grab.y + 200, { steps: 3 });
     const d1 = await dialog.boundingBox();
     expect(Math.round(d1.x - d0.x)).toBe(-100);
+    // Esc during a drag puts it back and keeps it open
+    await dragBy(page, { x: grab.x - 100, y: grab.y + 80 }, 60, 20, {
+      release: false,
+    });
+    await page.keyboard.press("Escape");
+    await page.mouse.up();
+    await expect(dialog).toBeVisible();
+    const d2 = await dialog.boundingBox();
+    expect([Math.round(d2.x - d0.x), Math.round(d2.y - d0.y)]).toEqual([
+      -100, 80,
+    ]);
   });
 });
 
@@ -311,8 +332,7 @@ test.describe("page break preview", () => {
       }),
     ]);
     const setup = async () => (await sheetData(page)).pageSetup;
-    await (await toolbarButton(page, "Page Layout")).click();
-    await page.locator('[data-action="pageBreakPreview"]').click();
+    await (await toolbarButton(page, "Page Break Preview")).click();
     const line = page.locator(".fortune-page-break.manual");
     await expect(line).toHaveCount(1);
     const lb = await line.boundingBox();

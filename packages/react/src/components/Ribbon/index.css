@@ -197,6 +197,10 @@
    captions line up whether or not the button has a drop-down */
 .fortune-ribbon-column--large
   .fortune-ribbon-item
+  > .ts-tooltip-anchor:has(> .ts-large),
+.fortune-ribbon-column--large
+  .fortune-ribbon-item
+  > .fortune-ribbon-contents
   > .ts-tooltip-anchor:has(> .ts-large) {
   align-self: stretch;
 }
@@ -247,8 +251,7 @@
 
 /* ---------- Legacy toolbar items inside the ribbon ---------- */
 
-:is(.fortune-ribbon, .fortune-ribbon-group-popover) .fortune-toolbar-button,
-:is(.fortune-ribbon, .fortune-ribbon-group-popover) .fortune-toolbar-combo {
+:is(.fortune-ribbon, .fortune-ribbon-group-popover) .fortune-toolbar-button {
   min-width: var(--ts-control);
   height: var(--ts-control);
   margin: 0;
@@ -262,18 +265,9 @@
 }
 
 :is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-button:hover:not([aria-disabled="true"]),
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo:hover {
+  .fortune-toolbar-button:hover:not([aria-disabled="true"]) {
   background-color: var(--ts-active);
   color: var(--ts-text-strong);
-}
-
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-button:hover,
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-arrow:hover {
-  background-color: var(--ts-hover);
 }
 
 :is(.fortune-ribbon, .fortune-ribbon-group-popover)
@@ -294,103 +288,14 @@
 }
 
 :is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-button {
-  padding: 0 2px 0 6px;
-  border-radius: var(--ts-radius) 0 0 var(--ts-radius);
-}
-
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-arrow {
-  width: 16px;
-  justify-content: center;
-  border-radius: 0 var(--ts-radius) var(--ts-radius) 0;
-}
-
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-arrow:only-child,
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-input
-  + .fortune-toolbar-combo-arrow {
-  border-radius: 0 var(--ts-radius) var(--ts-radius) 0;
-}
-
-:is(.fortune-ribbon, .fortune-ribbon-group-popover) .fortune-toolbar-combo svg,
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
   .fortune-toolbar-button
   svg {
   color: inherit;
 }
 
-/* the text combos (font, size, number format, cell styles): pane-coloured
-   fields inside the cluster, fixed widths so the ribbon does not jump */
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo:has(.fortune-toolbar-combo-text),
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo:has(.fortune-toolbar-combo-input) {
-  background: var(--ts-pane);
-  box-shadow: inset 0 0 0 1px var(--ts-border);
-}
-
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo:has(.fortune-toolbar-combo-text)
-  .fortune-toolbar-combo-button {
-  justify-content: space-between;
-  min-width: 0;
-  flex: 1;
-}
-
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-text {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--ts-font-size-sm);
-  color: var(--ts-text);
-}
-
-.fortune-ribbon-item[data-item="font"] .fortune-toolbar-combo {
-  width: 132px;
-}
-
-.fortune-ribbon-item[data-item="format"] .fortune-toolbar-combo {
-  width: 128px;
-}
-
-.fortune-ribbon-item[data-item="cell-styles"] .fortune-toolbar-combo {
-  width: 104px;
-}
-
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-input {
-  width: 34px;
-  height: 100%;
-  margin: 0;
-  padding: 0 4px;
-  border: 0;
-  border-radius: var(--ts-radius) 0 0 var(--ts-radius);
-  font-size: var(--ts-font-size-sm);
-}
-
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-input:hover {
-  background: var(--ts-hover);
-}
-
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-input:focus {
-  background: var(--ts-pane);
-}
-
 :is(.fortune-ribbon, .fortune-ribbon-group-popover) .fortune-toolbar-divider {
   height: 20px;
   margin: 0 4px;
-}
-
-/* legacy drop-downs open under the 32px button */
-:is(.fortune-ribbon, .fortune-ribbon-group-popover)
-  .fortune-toolbar-combo-popup {
-  top: calc(var(--ts-control) + 4px);
 }
 
 :is(.fortune-ribbon, .fortune-ribbon-group-popover) .fortune-tooltip {

@@ -30,10 +30,12 @@ test.describe("scrollbar thumbs", () => {
       .toBeGreaterThan(500);
     const { y } = await sheet.scrollPosition();
     await expect.poll(() => ctxValue(page, (ctx) => ctx.scrollTop)).toBe(y);
-    // the cell under the pointer is the scrolled one
+    // the cell under the pointer is the scrolled one (click the middle of
+    // a row: the scroll offset need not be a whole row)
     const p = sheet.point(2, 1);
-    await page.mouse.click(p.x, p.y);
-    const row = Math.floor((y + p.y - sheet.box.y) / 20);
+    const py = sheet.box.y + 50 - (y % 20);
+    await page.mouse.click(p.x, py);
+    const row = Math.floor((y + py - sheet.box.y) / 20);
     await expect
       .poll(() => sheet.selection())
       .toEqual({ row: [row, row], column: [1, 1] });

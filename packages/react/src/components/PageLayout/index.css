@@ -382,24 +382,6 @@
   text-align: center;
 }
 
-/* Toolbar menu */
-.fortune-page-menu-item {
-  justify-content: flex-start;
-  gap: 4px;
-  min-width: 190px;
-}
-
-.fortune-page-menu-item.disabled {
-  color: var(--fortune-text-disabled);
-  cursor: default;
-}
-
-.fortune-page-menu-check {
-  display: inline-block;
-  width: 14px;
-  color: var(--fortune-accent-text);
-}
-
 /* Page breaks in the cell area (Normal view and Page Break Preview) */
 .fortune-page-breaks {
   position: absolute;

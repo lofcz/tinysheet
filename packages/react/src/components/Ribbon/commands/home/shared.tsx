@@ -9,7 +9,7 @@ import { ChevronDown } from "lucide-react";
 import {
   Cell,
   Context,
-  defaultSettings,
+  currencySymbol,
   getFlowdata,
 } from "@lofcz/tinysheet-core";
 import type { SetContextOptions } from "../../../../context";
@@ -89,27 +89,11 @@ export const moreLabel = (t: HomeText, name: string) =>
 
 /**
  * The workbook's currency symbol: `settings.currency` when the host set
- * one, else the language's ($ for English).
+ * one, else the workbook's (`context.currency`), else the language's ($ for
+ * English): core `currencySymbol`.
  */
 export function currencySymbolFor(ctx: Context, settingsCurrency?: string) {
-  if (settingsCurrency && settingsCurrency !== defaultSettings.currency) {
-    return settingsCurrency;
-  }
-  const lang = (ctx.lang || "en").toLowerCase();
-  if (lang === "zh-tw") return "NT$";
-  const base = lang.split("-")[0];
-  const byLang: Record<string, string> = {
-    en: "$",
-    zh: "¥",
-    ja: "¥",
-    es: "€",
-    fr: "€",
-    de: "€",
-    it: "€",
-    ru: "₽",
-    hi: "₹",
-  };
-  return byLang[base] ?? "$";
+  return settingsCurrency || currencySymbol(ctx);
 }
 
 /** A glyph with a colour bar under it (Fill Color, Font Color). */

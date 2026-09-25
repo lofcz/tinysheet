@@ -1,4 +1,4 @@
-const { test, expect, ribbonItem } = require("../fixtures");
+const { test, expect, toolbarButton } = require("../fixtures");
 
 // Editing gaps (stream R11): Point mode across sheets, the formula bar
 // (expand, resize, several lines), formula autocomplete and the AutoFilter
@@ -172,13 +172,9 @@ test.describe("AutoFilter and moves", () => {
   }) => {
     await sheet.fillColumn(0, 0, ["Qty", "10", "20", "30"]);
     await sheet.select(0, 0, 3, 0);
-    await (
-      await ribbonItem(
-        page,
-        '.fortune-toolbar-combo-arrow[data-tips="Sort and filter"]'
-      )
-    ).click();
-    await page.getByText("create filter", { exact: true }).click();
+    // Home › Sort & Filter › Filter
+    await (await toolbarButton(page, "Sort & Filter")).click();
+    await page.locator('[data-menu-id="filter-toggle"]').click();
     const filterRange = () =>
       page.evaluate(() => window.__tinysheet.getSheet().filter_select ?? null);
     await expect.poll(filterRange).toMatchObject({

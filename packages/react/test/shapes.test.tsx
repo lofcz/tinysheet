@@ -2,11 +2,8 @@ import { act, fireEvent, render } from "@testing-library/react";
 import React from "react";
 import type { Shape } from "@lofcz/tinysheet-core";
 import Workbook from "../src/components/Workbook";
-import {
-  getSheetOverlays,
-  getToolbarItemRenderer,
-  registerSheetOverlay,
-} from "../src/extensions";
+import { getSheetOverlays, registerSheetOverlay } from "../src/extensions";
+import { getRibbonCommand } from "../src/components/Ribbon";
 import {
   adjustFromHandle,
   lineEnds,
@@ -62,9 +59,9 @@ function renderBook(shapes: Shape[] = [rect, line], extra = {}) {
 }
 
 describe("registration", () => {
-  it("the shape layer and toolbar item are built in", () => {
+  it("the shape layer and the Shapes ribbon command are built in", () => {
     expect(getSheetOverlays().some((o) => o.key === "shapes")).toBe(true);
-    expect(getToolbarItemRenderer("shapes")).toBeTruthy();
+    expect(getRibbonCommand("shapes")).toBeTruthy();
   });
 
   it("a host registration under the same key replaces the built-in", () => {
@@ -169,12 +166,12 @@ describe("shape layer", () => {
       document.querySelectorAll<HTMLElement>(
         ".fortune-shape-menu [role=menuitem]"
       )
-    ).find((b) => b.textContent?.startsWith("Format shape"));
+    ).find((b) => b.textContent?.startsWith("Format Shape"));
     act(() => {
       fireEvent.click(format!);
     });
     expect(
-      container.querySelector('aside[aria-label="Format shape"]')
+      container.querySelector('aside[aria-label="Format Shape"]')
     ).toBeTruthy();
   });
 

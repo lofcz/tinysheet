@@ -29,4 +29,8 @@ export {
 
 // dialogs other features open (ribbon: View > Zoom, Formulas > Insert Function)
 export { ZoomDialog } from "./ZoomControl/ZoomDialog";
-export { InsertFunctionDialog } from "./FormulaSearch";
+export { InsertFunctionDialog } from "./Ribbon/commands/functions";
+export type {
+  InsertFunctionDialogProps,
+  InsertFunctionCategory,
+} from "./Ribbon/commands/functions";

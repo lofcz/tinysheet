@@ -38,7 +38,7 @@ import { useDialog } from "../../hooks/useDialog";
 import ConditionRules from "./ConditionRules";
 import ManageRules from "./ManageRules";
 import RuleEditor from "./RuleEditor";
-import { Gallery, GalleryItem, MenuItem, MenuList } from "../ui";
+import { Gallery, GalleryItem, MenuItem } from "../ui";
 import {
   CFText,
   ColorScaleSwatch,
@@ -371,25 +371,3 @@ export function useConditionalFormatMenu(
 
   return names.flatMap(item);
 }
-
-/** The Conditional Formatting drop-down of the legacy toolbar item. */
-const ConditionalFormat: React.FC<{
-  items: string[];
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}> = ({ items, setOpen }) => {
-  const { context } = useContext(WorkbookContext);
-  const menu = useConditionalFormatMenu(() => setOpen(false), items);
-  return (
-    <div className="condition-format fortune-toolbar-picker-panel fortune-toolbar-picker-panel--menu">
-      <MenuList
-        items={menu}
-        autoFocus
-        minWidth={220}
-        aria-label={locale(context).toolbar.conditionalFormat}
-        onClose={() => setOpen(false)}
-      />
-    </div>
-  );
-};
-
-export default ConditionalFormat;
