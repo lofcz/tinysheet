@@ -150,3 +150,13 @@ export { Parser as default };
 
 /** Old underscore-style names (e.g. RANK_EQ) mapped to their Excel names. */
 export const LEGACY_FUNCTION_NAMES: Readonly<Record<string, string>>;
+
+/**
+ * Excel database criteria (D-functions, Advanced Filter): a predicate for
+ * one criteria cell value, or null when the condition is empty. Text
+ * without an operator matches values beginning with it, "=text" matches
+ * exactly, wildcards and comparison operators work like COUNTIF.
+ */
+export function databaseCriterion(
+  value: unknown
+): ((candidate: unknown) => boolean) | null;

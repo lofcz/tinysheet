@@ -6,6 +6,10 @@
  *   text content, or foreground marks) — used by images in cells,
  *   checkboxes, sparklines, error indicators, ...
  * - keyboard shortcuts run before the built-in grid key handling.
+ * - cell pointer handlers see a primary-button press on a cell (in-cell
+ *   controls such as checkboxes).
+ * - edit guards can refuse an edit or clear of a range (read-only regions
+ *   such as data table bodies).
  *
  * Registration is keyed, so re-registering a key replaces the entry, and
  * every register call returns an unregister function.
@@ -142,4 +146,89 @@ export function runShortcut(ctx: Context, e: KeyboardEvent, editing: boolean) {
       keyMatches(s, e) &&
       s.handler(ctx, e) !== false
   );
+}
+
+export type CellPointerArgs = {
+  ctx: Context;
+  r: number;
+  c: number;
+  /** The cell (null for an empty cell). */
+  cell: Cell | null | undefined;
+  /** The cell's box in grid pixels (zoomed, like the decorator box). */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Pointer position relative to the cell box's top-left corner. */
+  offsetX: number;
+  offsetY: number;
+  zoom: number;
+  event: MouseEvent;
+};
+
+/**
+ * Runs when a cell is pressed with the primary button and no modifier key
+ * (after the cell got focus, before the selection changes). Return true to
+ * stop the built-in handling (selection, drag); anything else lets it run.
+ */
+export type CellPointerHandler = (args: CellPointerArgs) => boolean | void;
+
+const pointerHandlers = new Map<string, CellPointerHandler>();
+
+export function registerCellPointerHandler(
+  key: string,
+  handler: CellPointerHandler
+) {
+  pointerHandlers.set(key, handler);
+  return () => {
+    if (pointerHandlers.get(key) === handler) pointerHandlers.delete(key);
+  };
+}
+
+/** True when a handler asked to stop the built-in mouse-down handling. */
+export function runCellPointerHandlers(args: CellPointerArgs) {
+  let stop = false;
+  pointerHandlers.forEach((handler) => {
+    if (handler(args) === true) stop = true;
+  });
+  return stop;
+}
+
+export type EditRange = { row: number[]; column: number[] };
+
+/**
+ * Checks an edit of `ranges` on the current sheet before it happens:
+ * "edit" (a value committed into a cell) or "clear" (Delete, Clear
+ * Contents). Return a message to refuse the edit (it is shown to the user),
+ * nothing to allow it. A guard may drop its own state when the edit is
+ * allowed (clearing a whole data table removes the table, for example).
+ */
+export type EditGuard = (
+  ctx: Context,
+  ranges: EditRange[],
+  kind: "edit" | "clear"
+) => string | null | undefined | void;
+
+const editGuards = new Map<string, EditGuard>();
+
+export function registerEditGuard(key: string, guard: EditGuard) {
+  editGuards.set(key, guard);
+  return () => {
+    if (editGuards.get(key) === guard) editGuards.delete(key);
+  };
+}
+
+/** The first refusal message of the registered edit guards, or null. */
+export function checkEditGuards(
+  ctx: Context,
+  ranges: EditRange[],
+  kind: "edit" | "clear"
+): string | null {
+  let message: string | null = null;
+  editGuards.forEach((guard) => {
+    if (message != null) return;
+    const res = guard(ctx, ranges, kind);
+    if (res) message = res;
+  });
+  return message;
 }

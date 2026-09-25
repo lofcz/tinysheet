@@ -88,6 +88,8 @@ function locale(ctx: Context) {
 }
 
 export { locale };
+export { cellToolsLocale } from "./cellTools";
+export type { CellToolsLocale } from "./cellTools";
 export { FUNCTION_CATEGORIES } from "./functions/types";
 export type { ChartLocale } from "./chart";
 export type {

@@ -55,3 +55,8 @@ export * from "./modelSync";
 export * from "./formatCells";
 export { inferFormulaFormat } from "./formatInference";
 export * from "./extensions";
+export * from "./checkbox";
+export * from "./flashFill";
+export * from "./advancedFilter";
+export * from "./whatIf";
+export * from "./cellRef";

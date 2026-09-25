@@ -45,6 +45,7 @@ import {
   rowLocationByIndex,
 } from "../modules/location";
 import { wheelScrollPosition } from "../modules/geometry";
+import { runCellPointerHandlers } from "../modules/extensions";
 import {
   checkProtectionAllSelected,
   checkProtectionSelectLockedOrUnLockedCells,
@@ -240,6 +241,31 @@ export function handleCellAreaMouseDown(
 
   // //数据验证 单元格聚焦
   cellFocus(ctx, row_index, col_index, true);
+
+  // in-cell controls registered by features (checkboxes, ...)
+  if (
+    e.button === 0 &&
+    !e.shiftKey &&
+    !e.ctrlKey &&
+    !e.metaKey &&
+    !e.altKey &&
+    runCellPointerHandlers({
+      ctx,
+      r: row_index,
+      c: col_index,
+      cell: flowdata[row_index]?.[col_index],
+      x: col_pre,
+      y: row_pre,
+      w: col - col_pre,
+      h: row - row_pre,
+      offsetX: x - col_pre,
+      offsetY: y - row_pre,
+      zoom: ctx.zoomRatio,
+      event: e,
+    })
+  ) {
+    return;
+  }
 
   // 若点击单元格部分不在视图内
   if (!inHorizontalFreeze && !inVerticalFreeze) {

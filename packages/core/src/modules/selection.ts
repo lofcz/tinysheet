@@ -16,6 +16,8 @@ import clipboard, {
 } from "./clipboard";
 import { getBorderInfoCompute } from "./border";
 import { cellFocus } from "./dataVerification";
+import { checkEditGuards } from "./extensions";
+import { checkboxClearMode, clearCheckboxCell } from "./checkbox";
 import { delFunctionGroup } from "./formula";
 import {
   escapeHTMLTag,
@@ -2102,6 +2104,14 @@ export function deleteSelectedCellText(ctx: Context): string {
     if (has_PartMC) {
       return "partMC";
     }
+    // read-only regions registered by features (data table bodies, ...)
+    const refused = checkEditGuards(ctx, selection, "clear");
+    if (refused) {
+      ctx.warnDialog = refused;
+      return "guarded";
+    }
+    // Delete unchecks checkboxes, or removes them when all are unchecked
+    const checkboxMode = checkboxClearMode(d, selection);
 
     const hyperlinkMap =
       ctx.luckysheetfile[getSheetIndex(ctx, ctx.currentSheetId)!].hyperlink;
@@ -2128,7 +2138,7 @@ export function deleteSelectedCellText(ctx: Context): string {
               if (kept.ct?.t === "inlineStr") {
                 kept.ct = { fa: "General", t: "g" };
               }
-              data[r][c] = kept;
+              data[r][c] = clearCheckboxCell(kept, checkboxMode);
             }
 
             if (hyperlinkMap && hyperlinkMap[`${r}_${c}`]) {

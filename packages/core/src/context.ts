@@ -62,6 +62,13 @@ export type Context = {
   rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
   // 提醒弹窗
   warnDialog?: string;
+  /** Result of the last Flash Fill, shown next to the filled cells. */
+  flashFillNotice?: {
+    id: number;
+    filled: number;
+    range?: { row: [number, number]; column: [number, number] };
+    error?: string;
+  };
   /** Open Format Cells dialog and its tab (see openFormatCells). */
   formatCellsDialog?: { tab: string };
   currency?: string;
