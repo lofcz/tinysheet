@@ -725,7 +725,12 @@ export function sortThreadedComments(ctx: Context, move: SortMove) {
   if (changed) setThreads(sheet, next);
 }
 
-function copyThread(t: ThreadedComment, r: number, c: number): ThreadedComment {
+/** A copy of a thread on cell (r, c) with new ids (pasted, duplicated). */
+export function copyThreadedComment(
+  t: ThreadedComment,
+  r: number = t.r,
+  c: number = t.c
+): ThreadedComment {
   return {
     ...t,
     id: createThreadedCommentId(),
@@ -766,7 +771,7 @@ export function pasteThreadedComments(
   const added: ThreadedComment[] = [];
   cells.forEach(({ sr, sc, r, c }) => {
     const t = srcIndex.get(`${sr}_${sc}`);
-    if (t) added.push(copyThread(t, r, c));
+    if (t) added.push(copyThreadedComment(t, r, c));
   });
   const before = dst.threadedComments?.length ?? 0;
   if (added.length === 0 && kept.length === before) return;

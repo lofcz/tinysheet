@@ -3,6 +3,7 @@ import { makeContext, input, value } from "../formula/helpers";
 import { insertRowCol, deleteRowCol } from "../../src/modules/rowcol";
 import { sortRange } from "../../src/modules/sort";
 import { pasteSpecial } from "../../src/modules/pasteSpecial";
+import { duplicateSheet } from "../../src/modules/sheet";
 import {
   mockClipboard,
   copy,
@@ -251,6 +252,23 @@ describe("following the cells", () => {
     paste(ctx, "C2", "id_2");
     expect(cells(ctx)).toEqual([]);
     expect(cells(ctx, "id_2")).toEqual(["B3@C2"]);
+  });
+});
+
+describe("duplicating a sheet", () => {
+  test("the copy's threads get their own ids", () => {
+    const ctx = makeContext();
+    const t = withThread(ctx, 1, 1);
+    replyToThreadedComment(ctx, t.id, "Hi", bob);
+    const copyId = duplicateSheet(ctx, "id_1", { newSheetId: "id_3" });
+    const [dup] = getThreadedComments(ctx, copyId);
+    expect(dup).toMatchObject({ r: 1, c: 1, text: "Hello" });
+    expect(dup.id).not.toBe(t.id);
+    expect(dup.replies[0].id).not.toBe(
+      getThreadedCommentAt(ctx, 1, 1).replies[0].id
+    );
+    setThreadedCommentResolved(ctx, dup.id, true);
+    expect(getThreadedCommentAt(ctx, 1, 1).resolved).toBeUndefined();
   });
 });
 
