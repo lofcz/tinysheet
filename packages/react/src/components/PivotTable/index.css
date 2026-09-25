@@ -55,6 +55,11 @@
   gap: var(--fortune-space-2);
 }
 
+/* the body scrolls; its sections keep their size */
+.fortune-pivot-pane-body > * {
+  flex-shrink: 0;
+}
+
 .fortune-pivot-pane-hint {
   color: var(--fortune-text-muted);
   font-size: var(--fortune-font-size-sm);
