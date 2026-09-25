@@ -16,7 +16,7 @@ import {
   moveCFRule,
   setCFRules,
   updateCFRule,
-  subtractRange,
+  subtractCFRange,
   parseSqref,
   formatSqref,
   rulesByPriority,
@@ -60,13 +60,13 @@ describe("applies-to ranges", () => {
   });
 
   test("subtracting a selection splits a range into rectangles", () => {
-    const parts = subtractRange(
+    const parts = subtractCFRange(
       { row: [0, 9], column: [0, 9] },
       { row: [2, 3], column: [2, 3] }
     );
     expect(formatSqref(parts)).toBe("A1:J2,A5:J10,A3:B4,E3:J4");
     expect(
-      subtractRange(
+      subtractCFRange(
         { row: [0, 1], column: [0, 1] },
         { row: [5, 6], column: [5, 6] }
       )

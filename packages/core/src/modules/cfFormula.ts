@@ -1,8 +1,8 @@
 import _ from "lodash";
 import type { Context } from "../context";
 import {
-  columnToIndex,
-  indexToColumn,
+  cfColumnToIndex,
+  cfIndexToColumn,
   CF_MAX_COL,
   CF_MAX_ROW,
 } from "./cfRules";
@@ -38,9 +38,20 @@ export interface CFFormulaTemplate {
   positional: boolean;
 }
 
-const CELL_RE = /(\$?)([A-Za-z]{1,3})(\$?)([0-9]{1,7})(?![A-Za-z0-9_(.!])/y;
-const COLS_RE = /(\$?)([A-Za-z]{1,3}):(\$?)([A-Za-z]{1,3})(?![A-Za-z0-9_(.!])/y;
-const ROWS_RE = /(\$?)([0-9]{1,7}):(\$?)([0-9]{1,7})(?![A-Za-z0-9_(.!])/y;
+// sticky ("y") patterns, built with RegExp so ES5 type checks accept them
+const REF_TAIL = "(?![A-Za-z0-9_(.!])";
+const CELL_RE = new RegExp(
+  `(\\$?)([A-Za-z]{1,3})(\\$?)([0-9]{1,7})${REF_TAIL}`,
+  "y"
+);
+const COLS_RE = new RegExp(
+  `(\\$?)([A-Za-z]{1,3}):(\\$?)([A-Za-z]{1,3})${REF_TAIL}`,
+  "y"
+);
+const ROWS_RE = new RegExp(
+  `(\\$?)([0-9]{1,7}):(\\$?)([0-9]{1,7})${REF_TAIL}`,
+  "y"
+);
 const WORD_CHAR = /[A-Za-z0-9_.\\]/;
 
 const templateCache = new Map<string, CFFormulaTemplate>();
@@ -93,9 +104,9 @@ export function compileCFFormula(formula: string): CFFormulaTemplate {
         const p: Piece = {
           kind: "cols",
           abs1: m[1] === "$",
-          c1: columnToIndex(m[2]),
+          c1: cfColumnToIndex(m[2]),
           abs2: m[3] === "$",
-          c2: columnToIndex(m[4]),
+          c2: cfColumnToIndex(m[4]),
         };
         if (!p.abs1 || !p.abs2) relative = true;
         pieces.push(p);
@@ -119,13 +130,13 @@ export function compileCFFormula(formula: string): CFFormulaTemplate {
         continue;
       }
       m = CELL_RE.exec(f);
-      if (m && columnToIndex(m[2]) <= CF_MAX_COL) {
+      if (m && cfColumnToIndex(m[2]) <= CF_MAX_COL) {
         if (text) pieces.push(text);
         text = "";
         const p: Piece = {
           kind: "cell",
           colAbs: m[1] === "$",
-          col: columnToIndex(m[2]),
+          col: cfColumnToIndex(m[2]),
           rowAbs: m[3] === "$",
           row: parseInt(m[4], 10) - 1,
         };
@@ -175,7 +186,7 @@ export function shiftCFFormula(
       if (col < 0 || row < 0 || col > CF_MAX_COL || row > CF_MAX_ROW) {
         out += "#REF!";
       } else {
-        out += `${p.colAbs ? "$" : ""}${indexToColumn(col)}${
+        out += `${p.colAbs ? "$" : ""}${cfIndexToColumn(col)}${
           p.rowAbs ? "$" : ""
         }${row + 1}`;
       }
@@ -185,9 +196,9 @@ export function shiftCFFormula(
       if (c1 < 0 || c2 < 0 || c1 > CF_MAX_COL || c2 > CF_MAX_COL) {
         out += "#REF!";
       } else {
-        out += `${p.abs1 ? "$" : ""}${indexToColumn(c1)}:${
+        out += `${p.abs1 ? "$" : ""}${cfIndexToColumn(c1)}:${
           p.abs2 ? "$" : ""
-        }${indexToColumn(c2)}`;
+        }${cfIndexToColumn(c2)}`;
       }
     } else {
       const r1 = p.abs1 ? p.r1 : p.r1 + dr;

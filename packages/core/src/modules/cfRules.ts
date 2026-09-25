@@ -403,7 +403,7 @@ export function rulesByPriority(rules: CFRule[] | null | undefined) {
 export const CF_MAX_ROW = 1048575;
 export const CF_MAX_COL = 16383;
 
-export function columnToIndex(letters: string) {
+export function cfColumnToIndex(letters: string) {
   let n = 0;
   const s = letters.toUpperCase();
   for (let i = 0; i < s.length; i += 1) {
@@ -412,7 +412,7 @@ export function columnToIndex(letters: string) {
   return n - 1;
 }
 
-export function indexToColumn(index: number) {
+export function cfIndexToColumn(index: number) {
   let n = index + 1;
   let s = "";
   while (n > 0) {
@@ -436,8 +436,8 @@ function parseRangePart(part: string): SingleRange | null {
   if (m1 && m2) {
     const r1 = parseInt(m1[2], 10) - 1;
     const r2 = parseInt(m2[2], 10) - 1;
-    const c1 = columnToIndex(m1[1]);
-    const c2 = columnToIndex(m2[1]);
+    const c1 = cfColumnToIndex(m1[1]);
+    const c2 = cfColumnToIndex(m2[1]);
     if (r1 < 0 || r2 < 0) return null;
     return {
       row: [Math.min(r1, r2), Math.max(r1, r2)],
@@ -447,8 +447,8 @@ function parseRangePart(part: string): SingleRange | null {
   m1 = COL_RE.exec(a);
   m2 = COL_RE.exec(b);
   if (m1 && m2 && txt.includes(":")) {
-    const c1 = columnToIndex(m1[1]);
-    const c2 = columnToIndex(m2[1]);
+    const c1 = cfColumnToIndex(m1[1]);
+    const c2 = cfColumnToIndex(m2[1]);
     return {
       row: [0, CF_MAX_ROW],
       column: [Math.min(c1, c2), Math.max(c1, c2)],
@@ -487,16 +487,16 @@ export function parseSqref(text: string): SingleRange[] | null {
   return out;
 }
 
-export function formatRange(range: SingleRange) {
+export function formatCFRange(range: SingleRange) {
   const [r1, r2] = range.row;
   const [c1, c2] = range.column;
   if (r1 === 0 && r2 >= CF_MAX_ROW) {
-    return `${indexToColumn(c1)}:${indexToColumn(c2)}`;
+    return `${cfIndexToColumn(c1)}:${cfIndexToColumn(c2)}`;
   }
   if (c1 === 0 && c2 >= CF_MAX_COL) return `${r1 + 1}:${r2 + 1}`;
-  const a = `${indexToColumn(c1)}${r1 + 1}`;
+  const a = `${cfIndexToColumn(c1)}${r1 + 1}`;
   if (r1 === r2 && c1 === c2) return a;
-  return `${a}:${indexToColumn(c2)}${r2 + 1}`;
+  return `${a}:${cfIndexToColumn(c2)}${r2 + 1}`;
 }
 
 /** Applies-to text; `sep` is "," for the UI and " " for xlsx. */
@@ -504,10 +504,10 @@ export function formatSqref(
   ranges: SingleRange[] | null | undefined,
   sep = ","
 ) {
-  return (ranges ?? []).map(formatRange).join(sep);
+  return (ranges ?? []).map(formatCFRange).join(sep);
 }
 
-export function rangesIntersect(a: SingleRange, b: SingleRange) {
+export function cfRangesIntersect(a: SingleRange, b: SingleRange) {
   return (
     a.row[0] <= b.row[1] &&
     b.row[0] <= a.row[1] &&
@@ -517,13 +517,16 @@ export function rangesIntersect(a: SingleRange, b: SingleRange) {
 }
 
 /** Plain copy of the fields a rule needs (drops selection extras). */
-export function cleanRanges(ranges: any[] | null | undefined): SingleRange[] {
-  return (ranges ?? []).map((r) => ({
-    row: [r.row[0], r.row[1]],
-    column: [r.column[0], r.column[1]],
-  }));
+export function cleanCFRanges(ranges: any[] | null | undefined): SingleRange[] {
+  return (ranges ?? [])
+    .filter((r) => r?.row && r?.column)
+    .map((r) => ({
+      // selections may carry a single index for a one-cell range
+      row: [r.row[0], r.row[1] ?? r.row[0]],
+      column: [r.column[0], r.column[1] ?? r.column[0]],
+    }));
 }
 
-export function cloneRule<T extends CFRule>(rule: T): T {
+export function cloneCFRule<T extends CFRule>(rule: T): T {
   return _.cloneDeep(rule);
 }

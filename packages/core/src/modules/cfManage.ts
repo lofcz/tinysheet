@@ -9,7 +9,7 @@ import type {
   CFRule,
   CFStyle,
 } from "./cfTypes";
-import { cleanRanges, rangesIntersect } from "./cfRules";
+import { cleanCFRanges, cfRangesIntersect } from "./cfRules";
 import { checkProtectionFormatCells } from "./protection";
 
 /*
@@ -51,7 +51,7 @@ export function addCFRule(ctx: Context, rule: CFRule, sheetId?: string) {
     file.luckysheet_conditionformat_save = [];
   }
   const copy = _.cloneDeep(rule);
-  copy.cellrange = cleanRanges(copy.cellrange);
+  copy.cellrange = cleanCFRanges(copy.cellrange);
   file.luckysheet_conditionformat_save.push(copy);
   return file.luckysheet_conditionformat_save.length - 1;
 }
@@ -66,7 +66,7 @@ export function updateCFRule(
   const rules = getCFRules(ctx, sheetId);
   if (index < 0 || index >= rules.length) return false;
   const copy = _.cloneDeep(rule);
-  copy.cellrange = cleanRanges(copy.cellrange);
+  copy.cellrange = cleanCFRanges(copy.cellrange);
   rules[index] = copy;
   return true;
 }
@@ -99,8 +99,8 @@ export function moveCFRule(
 }
 
 /** `a` minus `b` as up to four rectangles. */
-export function subtractRange(a: SingleRange, b: SingleRange): SingleRange[] {
-  if (!rangesIntersect(a, b)) return [a];
+export function subtractCFRange(a: SingleRange, b: SingleRange): SingleRange[] {
+  if (!cfRangesIntersect(a, b)) return [a];
   const out: SingleRange[] = [];
   const [ar1, ar2] = a.row;
   const [ac1, ac2] = a.column;
@@ -128,7 +128,7 @@ export function cfRulesInRanges(
   rules.forEach((rule, i) => {
     if (
       (rule.cellrange ?? []).some((a) =>
-        ranges.some((b) => rangesIntersect(a, b))
+        ranges.some((b) => cfRangesIntersect(a, b))
       )
     ) {
       out.push(i);
@@ -154,16 +154,16 @@ export function clearCFRules(
     file.luckysheet_conditionformat_save = [];
     return true;
   }
-  const selection = cleanRanges(ctx.luckysheet_select_save);
+  const selection = cleanCFRanges(ctx.luckysheet_select_save);
   const rules = (file.luckysheet_conditionformat_save ?? []) as CFRule[];
   const next: CFRule[] = [];
   rules.forEach((rule) => {
-    let ranges = cleanRanges(rule.cellrange);
+    let ranges = cleanCFRanges(rule.cellrange);
     selection.forEach((sel) => {
-      ranges = _.flatMap(ranges, (r) => subtractRange(r, sel));
+      ranges = _.flatMap(ranges, (r) => subtractCFRange(r, sel));
     });
     if (ranges.length === 0) return;
-    if (_.isEqual(ranges, cleanRanges(rule.cellrange))) next.push(rule);
+    if (_.isEqual(ranges, cleanCFRanges(rule.cellrange))) next.push(rule);
     else next.push({ ...rule, cellrange: ranges });
   });
   file.luckysheet_conditionformat_save = next;
@@ -171,7 +171,7 @@ export function clearCFRules(
 }
 
 function selectionRanges(ctx: Context) {
-  return cleanRanges(ctx.luckysheet_select_save);
+  return cleanCFRanges(ctx.luckysheet_select_save);
 }
 
 /* Rules for the toolbar galleries, applied to the selection */

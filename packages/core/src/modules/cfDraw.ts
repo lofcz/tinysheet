@@ -339,7 +339,8 @@ export function drawCFDecorations(
   if (cf.borderColor) {
     rc.lineWidth = 1;
     rc.strokeStyle = cf.borderColor;
-    rc.strokeRect(x - 0.5, y - 0.5, w, h);
+    // inside the cell: neighbours and grid lines are painted afterwards
+    rc.strokeRect(x - 0.5, y + 0.5, w - 2, h - 3);
   }
   rc.restore();
 }
