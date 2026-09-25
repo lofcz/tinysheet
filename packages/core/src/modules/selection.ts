@@ -9,7 +9,11 @@ import {
   mergeBorder,
   mergeMoveMain,
 } from "./cell";
-import clipboard from "./clipboard";
+import clipboard, {
+  clipboardState,
+  newClipboardToken,
+  rangeToClipboard,
+} from "./clipboard";
 import { getBorderInfoCompute } from "./border";
 import { cellFocus } from "./dataVerification";
 import { delFunctionGroup } from "./formula";
@@ -2043,15 +2047,21 @@ export function copy(ctx: Context) {
     HasMC,
   };
 
-  const cpdata = rangeValueToHtml(
+  // HTML (styles, merges, borders, number formats) + TSV, tagged with a
+  // token so a paste can recognise our own copy (see clipboard.ts)
+  const token = newClipboardToken();
+  const cp = rangeToClipboard(
     ctx,
     ctx.currentSheetId,
-    ctx.luckysheet_select_save
+    ctx.luckysheet_select_save ?? [],
+    token
   );
 
-  if (cpdata) {
+  if (cp) {
+    clipboardState.token = token;
+    clipboardState.text = cp.text;
     ctx.iscopyself = true;
-    clipboard.writeHtml(cpdata);
+    clipboard.writeHtml(cp.html, cp.text);
   }
 }
 

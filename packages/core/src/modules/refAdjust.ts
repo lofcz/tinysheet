@@ -35,7 +35,7 @@ import { execFunctionGroup } from "./formula";
 export const MAX_ROWS = 1048576;
 export const MAX_COLUMNS = 16384;
 
-export type RefRange = { row: [number, number]; column: [number, number] };
+export type RangeRect = { row: [number, number]; column: [number, number] };
 
 export type ReferenceChange =
   /** `count` rows/columns inserted so that the first new one is `index`. */
@@ -58,21 +58,21 @@ export type ReferenceChange =
   | {
       type: "insertCells";
       sheetId: string;
-      range: RefRange;
+      range: RangeRect;
       shift: "down" | "right";
     }
   /** Delete the cells in `range`, shifting the cells below/right up/left. */
   | {
       type: "deleteCells";
       sheetId: string;
-      range: RefRange;
+      range: RangeRect;
       shift: "up" | "left";
     }
   /** Move `range` (cut/paste or drag) so its top-left lands on (toRow, toColumn). */
   | {
       type: "move";
       sheetId: string;
-      range: RefRange;
+      range: RangeRect;
       toSheetId: string;
       toRow: number;
       toColumn: number;
@@ -440,6 +440,52 @@ export function offsetFormula(
   });
 }
 
+/**
+ * Adjust a formula copied from (fromRow, fromCol) and pasted transposed at
+ * (toRow, toCol): fully relative references are transposed around the
+ * formula cell (a reference one column to the right now points one row
+ * down), like Excel's Paste Special > Transpose. References with an
+ * absolute part are shifted like a plain paste; whole rows/columns too.
+ */
+export function transposeFormula(
+  formula: string,
+  fromRow: number,
+  fromCol: number,
+  toRow: number,
+  toCol: number
+): string {
+  const shifted = (ref: ParsedRef) =>
+    offsetFormula(`=${formatRefBody(ref)}`, toRow - fromRow, toCol - fromCol);
+  return transformReferences(formula, (ref) => {
+    const relative =
+      (ref.kind === "cell" || ref.kind === "range") &&
+      !ref.ar1 &&
+      !ref.ac1 &&
+      !ref.ar2 &&
+      !ref.ac2;
+    if (!relative) {
+      const out = shifted(ref);
+      if (out === "=#REF!") return "#REF!";
+      const moved = parseRef(out.slice(1));
+      return moved ? { ...moved, prefix: ref.prefix, sheet: ref.sheet } : null;
+    }
+    const next = {
+      ...ref,
+      r1: toRow + (ref.c1 - fromCol),
+      c1: toCol + (ref.r1 - fromRow),
+      r2: toRow + (ref.c2 - fromCol),
+      c2: toCol + (ref.r2 - fromRow),
+    };
+    if (
+      [next.r1, next.r2].some((r) => r < 0 || r >= MAX_ROWS) ||
+      [next.c1, next.c2].some((c) => c < 0 || c >= MAX_COLUMNS)
+    ) {
+      return "#REF!";
+    }
+    return normalizeRef(next);
+  });
+}
+
 /* -------------------------------------------------------------------------- */
 /*                         Structural change semantics                        */
 /* -------------------------------------------------------------------------- */
@@ -475,7 +521,7 @@ function within(span: Span | null, band: Span) {
   return span != null && span[0] >= band[0] && span[1] <= band[1];
 }
 
-function areaInside(area: Area, range: RefRange) {
+function areaInside(area: Area, range: RangeRect) {
   return within(area.row, range.row) && within(area.column, range.column);
 }
 
@@ -573,7 +619,7 @@ export function adjustArea(
         };
       }
       if (onSheetId === change.toSheetId) {
-        const dest: RefRange = {
+        const dest: RangeRect = {
           row: [range.row[0] + dr, range.row[1] + dr],
           column: [range.column[0] + dc, range.column[1] + dc],
         };
@@ -723,7 +769,7 @@ export type ReferenceAdjusterApi = {
   /** rewrite a bare reference text; null when it was deleted */
   rewriteReferenceText: (text: string, hostSheetId: string) => string | null;
   /** new position of a rectangle on `sheetId`; null when deleted */
-  adjustRange: (range: RefRange, sheetId: string) => RefRange | null;
+  adjustRange: (range: RangeRect, sheetId: string) => RangeRect | null;
 };
 
 /**
@@ -776,7 +822,7 @@ function mayBeAffected(
   return names.some((n) => lower.indexOf(n) >= 0);
 }
 
-function inRange(r: number, c: number, range: RefRange) {
+function inRange(r: number, c: number, range: RangeRect) {
   return (
     r >= range.row[0] &&
     r <= range.row[1] &&
@@ -786,10 +832,10 @@ function inRange(r: number, c: number, range: RefRange) {
 }
 
 export function adjustRangeForChange(
-  range: RefRange,
+  range: RangeRect,
   change: ReferenceChange,
   sheetId: string
-): RefRange | null {
+): RangeRect | null {
   const res = adjustArea(
     { row: [...range.row] as Span, column: [...range.column] as Span },
     change,

@@ -2,6 +2,7 @@ import {
   parseRef,
   formatRef,
   offsetFormula,
+  transposeFormula,
   rewriteFormula,
   createSheetLookup,
   getFormulaReferences,
@@ -152,6 +153,23 @@ describe("offsetFormula (copy/paste, fill)", () => {
   test("zero offset returns the same string", () => {
     const f = "=A1";
     expect(offsetFormula(f, 0, 0)).toBe(f);
+  });
+});
+
+describe("transposeFormula (Paste Special > Transpose)", () => {
+  test("relative references are transposed around the formula cell", () => {
+    // C1 =A1+B1 pasted transposed at E3: the cells two and one columns to
+    // the left become two and one rows above
+    expect(transposeFormula("=A1+B1", 0, 2, 2, 4)).toBe("=E1+E2");
+    expect(transposeFormula("=SUM(A1:B1)", 0, 2, 2, 4)).toBe("=SUM(E1:E2)");
+  });
+
+  test("absolute and mixed references are shifted like a plain paste", () => {
+    expect(transposeFormula("=$A$1+$A1", 0, 2, 2, 4)).toBe("=$A$1+$A3");
+  });
+
+  test("transposing off the grid gives #REF!", () => {
+    expect(transposeFormula("=A1", 0, 3, 0, 0)).toBe("=#REF!");
   });
 });
 
