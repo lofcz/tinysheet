@@ -2184,16 +2184,20 @@ export class FortuneSheet extends FortuneSheetBase {
       } else if (_type === "text_content") {
         // Custom formulas generated for "contains / excludes / equals" rules.
         const text = String(_value1);
-        let m;
-        if ((m = /^ISNUMBER\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(text))) {
+        const include =
+          /^ISNUMBER\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(text);
+        const exclude =
+          /^ISERROR\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(text);
+        const equal = /^\$?[A-Z]+\$?\d+="((?:[^"]|"")*)"$/i.exec(text);
+        if (include) {
           _type2 = "include";
-          _value1 = m[1].replace(/""/g, '"');
-        } else if ((m = /^ISERROR\(SEARCH\("((?:[^"]|"")*)",\$?[A-Z]+\$?\d+\)\)$/i.exec(text))) {
+          _value1 = include[1].replace(/""/g, '"');
+        } else if (exclude) {
           _type2 = "exclude";
-          _value1 = m[1].replace(/""/g, '"');
-        } else if ((m = /^\$?[A-Z]+\$?\d+="((?:[^"]|"")*)"$/i.exec(text))) {
+          _value1 = exclude[1].replace(/""/g, '"');
+        } else if (equal) {
           _type2 = "equal";
-          _value1 = m[1].replace(/""/g, '"');
+          _value1 = equal[1].replace(/""/g, '"');
         } else {
           // Any other custom formula.
           _type = "custom";

@@ -13,6 +13,7 @@ import type { Context } from "../context";
 import type { Cell, CellMatrix } from "../types";
 import { locale } from "../locale";
 import { colors } from "./color";
+import { getNameCandidates } from "./names";
 
 /* -------------------------------------------------------------------------- */
 /*                                  Tokenizer                                 */
@@ -411,20 +412,45 @@ export function rankFunctions<T extends { n: string }>(
 export function insertFunctionName(
   text: string,
   caret: number,
-  name: string
+  name: string,
+  /** text typed after the name: "(" for functions, "" for defined names */
+  suffix = "("
 ): { text: string; caret: number } {
   const q = getFunctionQuery(text, caret);
   const start = q ? q.start : caret;
   const end = q ? q.end : caret;
-  const hasParen = text[end] === "(";
+  const skip = suffix !== "" && text.startsWith(suffix, end);
   const before = start === 0 && !text.startsWith("=") ? "=" : "";
   const newText = `${text.slice(0, start)}${before}${name}${
-    hasParen ? "" : "("
+    skip ? "" : suffix
   }${text.slice(end)}`;
   return {
     text: newText,
-    caret: start + before.length + name.length + 1,
+    caret: start + before.length + name.length + suffix.length,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/*                   Extra candidates (defined names, tables)                 */
+/* -------------------------------------------------------------------------- */
+
+/** Text inserted after an accepted candidate, by upper-cased name. */
+const candidateSuffixes = new Map<string, string>();
+
+/**
+ * Autocomplete candidates besides the function list: defined names (plain
+ * insert), LAMBDA names (`Name(`) and tables (`Table1[`).
+ */
+export function getExtraFormulaCandidates(
+  ctx: Context
+): { n: string; d: string; t: string }[] {
+  return getNameCandidates(ctx).map((c) => {
+    let suffix = "";
+    if (c.kind === "table") suffix = "[";
+    else if (c.kind === "lambda") suffix = "(";
+    candidateSuffixes.set(c.n.toUpperCase(), suffix);
+    return { n: c.n, d: c.d, t: c.kind };
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -965,7 +991,8 @@ export function highlightBracketPair(
 export function applyFunctionCandidate(el: HTMLElement, name: string) {
   const text = el.textContent || "";
   const caret = getCaretOffset(el) ?? text.length;
-  const res = insertFunctionName(text, caret, name);
+  const suffix = candidateSuffixes.get(name.toUpperCase()) ?? "(";
+  const res = insertFunctionName(text, caret, name, suffix);
   el.textContent = res.text;
   setCaretOffset(el, res.caret);
   return true;
@@ -1031,7 +1058,14 @@ export function refreshFormulaEditorState(ctx: Context, el: HTMLElement) {
   const query = getFunctionQuery(text, caret, tokens);
   if (query) {
     const { functionlist } = locale(ctx);
-    const ranked = rankFunctions(functionlist as any[], query.query);
+    const extra = getExtraFormulaCandidates(ctx);
+    const ranked = rankFunctions(
+      (extra.length ? [...functionlist, ...extra] : functionlist) as any[],
+      query.query
+    ).filter(
+      // a fully typed defined name needs no completion (Enter commits)
+      (r) => !(r.tier === 0 && r.item.t === "name")
+    );
     if (ranked.length > 0) {
       ctx.functionCandidates = ranked.map((r) => ({
         n: r.item.n,

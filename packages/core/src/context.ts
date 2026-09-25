@@ -50,6 +50,8 @@ export type Context = {
   presences?: Presence[];
   showSearch?: boolean;
   showReplace?: boolean;
+  /** Paste Special dialog open (Ctrl+Alt+V, Ctrl+Shift+V) */
+  showPasteSpecial?: boolean;
   linkCard?: LinkCardProps;
   rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
   // 提醒弹窗

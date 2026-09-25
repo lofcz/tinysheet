@@ -51,6 +51,8 @@ import CustomButton from "./CustomButton";
 import { CustomColor } from "./CustomColor";
 import CustomBorder from "./CustomBorder";
 import { FormatSearch } from "../FormatSearch";
+import { NameManagerButton } from "../NameManager";
+import { FormatAsTableButton } from "../Tables";
 
 const toolbarTooltipAliases: Record<string, string> = {
   link: "insertLink",
@@ -635,6 +637,8 @@ const Toolbar: React.FC<{
           />
         );
       }
+      if (name === "formatAsTable") return <FormatAsTableButton key={name} />;
+      if (name === "nameManager") return <NameManagerButton key={name} />;
       if (name === "dataVerification") {
         return <DataVerificationCombo tooltip={tooltip} key={name} />;
       }

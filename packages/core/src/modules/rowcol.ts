@@ -2,10 +2,11 @@ import _ from "lodash";
 import { Context } from "../context";
 import { Sheet } from "../types";
 import { getSheetIndex } from "../utils";
-import { getcellFormula } from "./cell";
-import { functionStrChange } from "./formula";
+import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
 // eslint-disable-next-line import/no-cycle
 import { onSpillStructureChange } from "./spill";
+import { adjustNamesForRowCol } from "./names";
+import { adjustTablesForRowCol } from "./tables";
 
 const refreshLocalMergeData = (merge_new: Record<string, any>, file: Sheet) => {
   Object.entries(merge_new).forEach(([, v]) => {
@@ -167,105 +168,29 @@ export function insertRowCol(
   });
   cfg.merge = merge_new;
 
-  // 公式配置变动
+  // 公式配置变动: rewrite every reference in the workbook (Excel semantics),
+  // then move the calcChain entries of this sheet
+  adjustReferences(ctx, {
+    type: "insert",
+    sheetId: id,
+    axis: type,
+    index: direction === "lefttop" ? index : index + 1,
+    count,
+  });
   const newCalcChain = [];
-  for (
-    let SheetIndex = 0;
-    SheetIndex < ctx.luckysheetfile.length;
-    SheetIndex += 1
-  ) {
-    if (
-      _.isNil(ctx.luckysheetfile[SheetIndex].calcChain) ||
-      ctx.luckysheetfile.length === 0
-    ) {
-      continue;
-    }
-    const { calcChain } = ctx.luckysheetfile[SheetIndex];
-    const { data } = ctx.luckysheetfile[SheetIndex];
-    for (let i = 0; i < calcChain!.length; i += 1) {
-      const calc: any = _.cloneDeep(calcChain![i]);
-      const calc_r = calc.r;
-      const calc_c = calc.c;
-      const calc_i = calc.id;
-      const calc_funcStr = getcellFormula(ctx, calc_r, calc_c, calc_i);
-
-      if (type === "row" && SheetIndex === curOrder) {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "add",
-          "row",
-          direction,
-          index,
-          count
-        )}`;
-
-        if (d[calc_r]?.[calc_c]?.f === calc_funcStr) {
-          d[calc_r]![calc_c]!.f = functionStr;
-        }
-
-        if (direction === "lefttop") {
-          if (calc_r >= index) {
-            calc.r += count;
-          }
-        } else if (direction === "rightbottom") {
-          if (calc_r > index) {
-            calc.r += count;
-          }
-        }
-
-        newCalcChain.push(calc);
-      } else if (type === "row") {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "add",
-          "row",
-          direction,
-          index,
-          count
-        )}`;
-
-        if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-          data![calc_r]![calc_c]!.f = functionStr;
-        }
-      } else if (type === "column" && SheetIndex === curOrder) {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "add",
-          "col",
-          direction,
-          index,
-          count
-        )}`;
-
-        if (d[calc_r]?.[calc_c]?.f === calc_funcStr) {
-          d[calc_r]![calc_c]!.f = functionStr;
-        }
-
-        if (direction === "lefttop") {
-          if (calc_c >= index) {
-            calc.c += count;
-          }
-        } else if (direction === "rightbottom") {
-          if (calc_c > index) {
-            calc.c += count;
-          }
-        }
-
-        newCalcChain.push(calc);
-      } else if (type === "column") {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "add",
-          "col",
-          direction,
-          index,
-          count
-        )}`;
-
-        if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-          data![calc_r]![calc_c]!.f = functionStr;
-        }
+  const { calcChain } = file;
+  if (calcChain != null) {
+    for (let i = 0; i < calcChain.length; i += 1) {
+      const calc: any = _.cloneDeep(calcChain[i]);
+      const pos = type === "row" ? calc.r : calc.c;
+      if (
+        (direction === "lefttop" && pos >= index) ||
+        (direction === "rightbottom" && pos > index)
+      ) {
+        if (type === "row") calc.r += count;
+        else calc.c += count;
       }
+      newCalcChain.push(calc);
     }
   }
 
@@ -1101,6 +1026,15 @@ export function insertRowCol(
   file.luckysheet_alternateformat_save = newAFarr;
   file.dataVerification = newDataVerification;
   file.hyperlink = newHyperlink;
+  // tables and defined names follow the moved cells (tables.ts / names.ts)
+  const rowColChange = {
+    kind: "insert" as const,
+    type,
+    index: direction === "lefttop" ? index : index + 1,
+    count,
+  };
+  adjustTablesForRowCol(ctx, id, rowColChange);
+  adjustNamesForRowCol(ctx, id, rowColChange);
   if (file.id === ctx.currentSheetId) {
     ctx.config = cfg;
     // jfrefreshgrid_adRC(
@@ -1154,7 +1088,7 @@ export function insertRowCol(
   }
 
   refreshLocalMergeData(merge_new, file);
-  ctx.formulaCache.formulaCellInfoMap = null;
+  recalcAfterStructuralChange(ctx);
   onSpillStructureChange(ctx, id);
 
   // if (type === "row") {
@@ -1318,96 +1252,28 @@ export function deleteRowCol(
   });
   cfg.merge = merge_new;
 
-  // 公式配置变动
+  // 公式配置变动: rewrite every reference in the workbook (Excel semantics:
+  // ranges shrink, references to deleted cells become #REF!), then drop or
+  // move the calcChain entries of this sheet
+  adjustReferences(ctx, {
+    type: "delete",
+    sheetId: id,
+    axis: type,
+    start,
+    end,
+  });
   const newCalcChain = [];
-  for (
-    let SheetIndex = 0;
-    SheetIndex < ctx.luckysheetfile.length;
-    SheetIndex += 1
-  ) {
-    if (
-      _.isNil(ctx.luckysheetfile[SheetIndex].calcChain) ||
-      ctx.luckysheetfile.length === 0
-    ) {
-      continue;
-    }
-    const { calcChain } = ctx.luckysheetfile[SheetIndex];
-    const { data } = ctx.luckysheetfile[SheetIndex];
-    for (let i = 0; i < calcChain!.length; i += 1) {
-      const calc: any = _.cloneDeep(calcChain![i]);
-      const calc_r = calc.r;
-      const calc_c = calc.c;
-      const calc_i = calc.id;
-      const calc_funcStr = getcellFormula(ctx, calc_r, calc_c, calc_i);
-
-      if (type === "row" && SheetIndex === curOrder) {
-        if (calc_r < start || calc_r > end) {
-          const functionStr = `=${functionStrChange(
-            calc_funcStr,
-            "del",
-            "row",
-            null,
-            start,
-            slen
-          )}`;
-
-          if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-            data![calc_r]![calc_c]!.f = functionStr;
-          }
-
-          if (calc_r > end) {
-            calc.r = calc_r - slen;
-          }
-
-          newCalcChain.push(calc);
+  const { calcChain } = file;
+  if (calcChain != null) {
+    for (let i = 0; i < calcChain.length; i += 1) {
+      const calc: any = _.cloneDeep(calcChain[i]);
+      const pos = type === "row" ? calc.r : calc.c;
+      if (pos < start || pos > end) {
+        if (pos > end) {
+          if (type === "row") calc.r -= slen;
+          else calc.c -= slen;
         }
-      } else if (type === "row") {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "del",
-          "row",
-          null,
-          start,
-          slen
-        )}`;
-
-        if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-          data![calc_r]![calc_c]!.f = functionStr;
-        }
-      } else if (type === "column" && SheetIndex === curOrder) {
-        if (calc_c < start || calc_c > end) {
-          const functionStr = `=${functionStrChange(
-            calc_funcStr,
-            "del",
-            "col",
-            null,
-            start,
-            slen
-          )}`;
-
-          if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-            data![calc_r]![calc_c]!.f = functionStr;
-          }
-
-          if (calc_c > end) {
-            calc.c = calc_c - slen;
-          }
-
-          newCalcChain.push(calc);
-        }
-      } else if (type === "column") {
-        const functionStr = `=${functionStrChange(
-          calc_funcStr,
-          "del",
-          "col",
-          null,
-          start,
-          slen
-        )}`;
-
-        if (data![calc_r]?.[calc_c]?.f === calc_funcStr) {
-          data![calc_r]![calc_c]!.f = functionStr;
-        }
+        newCalcChain.push(calc);
       }
     }
   }
@@ -2064,9 +1930,13 @@ export function deleteRowCol(
   file.luckysheet_alternateformat_save = newAFarr;
   file.dataVerification = newDataVerification;
   file.hyperlink = newHyperlink;
+  // tables and defined names follow the moved cells (tables.ts / names.ts)
+  const rowColChange = { kind: "delete" as const, type, start, end };
+  adjustTablesForRowCol(ctx, id, rowColChange);
+  adjustNamesForRowCol(ctx, id, rowColChange);
 
   refreshLocalMergeData(merge_new, file);
-  ctx.formulaCache.formulaCellInfoMap = null;
+  recalcAfterStructuralChange(ctx);
 
   if (file.id === ctx.currentSheetId) {
     ctx.config = cfg;

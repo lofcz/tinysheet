@@ -23,6 +23,7 @@ import { hasPartMC } from "../modules/validation";
 import { GlobalCache, Selection } from "../types";
 import { getNowDateTime, isAllowEdit } from "../utils";
 import { handleCopy } from "./copy";
+import { openPasteSpecial } from "./paste";
 import { jfrefreshgrid } from "../modules/refresh";
 import { fillSelectionFromEdge } from "../modules/dropCell";
 import {
@@ -364,6 +365,12 @@ export function handleWithCtrlOrMetaKey(
       if ((ctx.luckysheet_select_save?.length ?? 0) > 1) {
         return;
       }
+      // Ctrl + Shift + V: Paste Special (plain paste without a copy)
+      if (openPasteSpecial(ctx)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       selectionCache.isPasteAction = true;
       e.stopPropagation();
       return;
@@ -424,6 +431,12 @@ export function handleWithCtrlOrMetaKey(
   } else if (e.code === "KeyV") {
     // Ctrl + V  粘贴
     if ((ctx.luckysheet_select_save?.length ?? 0) > 1) {
+      return;
+    }
+    // Ctrl + Alt + V: Paste Special
+    if (e.altKey && openPasteSpecial(ctx)) {
+      e.preventDefault();
+      e.stopPropagation();
       return;
     }
 

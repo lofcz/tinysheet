@@ -7,6 +7,8 @@ import { Settings } from "../settings";
 import { CellMatrix, Sheet } from "../types";
 import { generateRandomSheetName, getSheetIndex } from "../utils";
 import { setFormulaCellInfo } from "./formulaHelper";
+import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
+import { moveWorkbookNamesBeforeSheetDelete } from "./names";
 
 function storeSheetParam(ctx: Context) {
   const index = getSheetIndex(ctx, ctx.currentSheetId);
@@ -159,7 +161,15 @@ export function deleteSheet(ctx: Context, id: string) {
     return;
   }
 
+  // references to the deleted sheet become #REF! (Excel)
+  adjustReferences(ctx, {
+    type: "deleteSheet",
+    sheetId: id,
+    name: ctx.luckysheetfile[arrIndex].name,
+  });
+
   // _this.setSheetHide(index, true);
+  moveWorkbookNamesBeforeSheetDelete(ctx, id);
 
   // $(`#luckysheet-sheets-item${index}`).remove();
   // $(`#luckysheet-datavisual-selection-set-${index}`).remove();
@@ -172,6 +182,7 @@ export function deleteSheet(ctx: Context, id: string) {
   });
 
   ctx.luckysheetfile.splice(arrIndex, 1);
+  recalcAfterStructuralChange(ctx);
   // _this.reOrderAllSheet();
 
   // server.saveParam("shd", null, { deleIndex: index });
@@ -282,6 +293,16 @@ export function editSheetName(ctx: Context, editable: HTMLSpanElement) {
 
   // sheetmanage.sheetArrowShowAndHide();
 
+  const prevName = ctx.luckysheetfile[index].name;
+  if (prevName && prevName !== txt) {
+    // sheet-qualified references follow the new name (Excel)
+    adjustReferences(ctx, {
+      type: "renameSheet",
+      sheetId: ctx.currentSheetId,
+      oldName: prevName,
+      newName: txt,
+    });
+  }
   ctx.luckysheetfile[index].name = txt;
   // server.saveParam("all", ctx.currentSheetId, txt, { k: "name" });
 
