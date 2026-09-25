@@ -65,16 +65,104 @@ Carried over from phase 1:
 * `bun run test:formula-parser`, `bun run test:jest` and `bun run build` must
   pass before a stream merges.
 
-## Phase 2: next up
+## Phase 2: in progress (15 streams, 64 tasks)
 
-* Named ranges and the Name Manager, and structured table references (`Table1[Col]`).
-* Conditional formatting: data bars, colour scales, icon sets, formula-based rules.
-* Data validation sidebar (FortuneSheet#746), cell placeholder text (FortuneSheet#716).
-* Richer filters (by colour, top 10, custom), multi-level sort UI.
-* Pivot tables (`GROUPBY`/`PIVOTBY` first, then a pivot UI).
-* Charts: more types and in-sheet editing.
-* Find & replace across sheets, go-to-special.
-* Excel round-trip fidelity: formats, merged styles, data validation, conditional formats.
+Same rules as phase 1: each stream owns its files, lands with tests, and must
+pass `bun run test:formula-parser`, `bun run test:jest` and `bun run build`.
+
+### P1 · Engine semantics (`formula-parser` grammar, evaluator, operators, helpers)
+- **T1** Distinguish typed arguments from references: `SUM("abc")` → `#VALUE!`, `SUM("3")` → 3, text in ranges ignored.
+- **T2** Array lifting for scalar functions (`ABS({-1,2})`, `ROUND(A1:A3,0)`, `LEN(A1:A3)`), including formulajs ones.
+- **T3** Reference union (`SUM((A1:A2,C1:C2))`) and the intersection operator (space).
+- **T4** Reference-returning functions inside ranges: `A1:INDEX(B:B,5)`, `OFFSET(...):C5`, `INDEX(...)` returning a reference to `ROW`, `CELL`, and so on.
+- **T5** Excel's numeric model: 15-significant-digit comparison (`0.1+0.2=0.3` is TRUE), `-0`, very large and small numbers, and `#NUM!` on overflow.
+
+### P2 · Functions, batch 2 (`formula-parser/src/functions/*`, new files)
+- **T6** `GROUPBY` and `PIVOTBY` (field headers, totals, sort order, filter array; `SUM`/`AVERAGE`/`COUNT`/`PERCENTOF` as LAMBDA or eta-reduced functions).
+- **T7** Database functions: `DSUM`, `DAVERAGE`, `DCOUNT`, `DCOUNTA`, `DGET`, `DMAX`, `DMIN`, `DPRODUCT`, `DSTDEV(P)`, `DVAR(P)`.
+- **T8** Regression arrays: `LINEST`, `LOGEST`, `TREND`, `GROWTH`, `FREQUENCY`, `FORECAST.ETS` (basic).
+- **T9** Excel function-list audit: implement every remaining non-web, non-cube function (e.g. `CONVERT`, `BAHTTEXT`, `ENCODEURL`, `IMAGE` as a placeholder, `TEXT` parity checks) and publish a coverage table.
+- **T10** Excel-parity corpus: a data-driven test table of at least 500 formulas and their documented Excel results, covering every function category.
+
+### P3 · Named ranges and tables (new `core/src/modules/names.ts`, Name Manager UI, Name Box)
+- **T11** Defined names (workbook and sheet scope; ranges, constants, formulas, LAMBDA) resolved in formulas, with dependency tracking and recalculation.
+- **T12** Name Manager dialog (create, edit, delete, filter) plus "Create from selection".
+- **T13** Name Box: type `A1`, `B2:D9`, `Sheet2!C3` or a name to jump or select; type a new name to define one.
+- **T14** Tables: a Format as Table object (header row, banded rows, total row, auto-expand) with structured references (`Table1[Col]`, `[@Col]`, `Table1[#Totals]`).
+- **T15** Names and tables in formula autocomplete, and names in xlsx import/export.
+
+### P4 · Spill completion (`core/src/modules/formulaFunctions.ts` and spill hooks)
+- **T16** Re-spill after inserting or deleting rows or columns, sorting, autofill, cut/paste and undo/redo.
+- **T17** Spill UI: a dashed border around the spill range and a greyed formula in the formula bar for spilled cells.
+- **T18** Spills beyond the sheet edge grow the sheet (up to a limit) instead of showing `#SPILL!`.
+- **T19** `A1#` references: dependency tracking, copy and fill adjustment, and copied spill cells don't carry the `spillFrom` tag.
+
+### P5 · Conditional formatting (`ConditionFormat.ts`, `conditionalFormat.ts`, React `ConditionFormat`)
+- **T20** Data bars (gradient or solid, negative axis, min/max types).
+- **T21** Two- and three-colour scales (number, percent, percentile and formula stops).
+- **T22** Icon sets (arrows, traffic lights, ratings; reverse; icon only).
+- **T23** Rule types: formula-based, top/bottom N or %, above/below average, duplicate/unique, date occurring, blanks/errors.
+- **T24** Manage Rules dialog (list, edit, reorder priority, stop if true, applies-to range) plus CF round-trip in xlsx.
+
+### P6 · Data tools (`dataVerification.ts`, `filter.ts`, `sort.ts`, related React components)
+- **T25** Data validation: list from a range or a named range, custom formula, input message, error styles (stop/warning/info), and circling invalid data.
+- **T26** Filters: by colour; text, number and date conditions (contains, between, top 10, above average, date periods); multi-column; clear all.
+- **T27** Multi-level Sort dialog (header detection, sort by value, cell colour or font colour, custom list order, left to right).
+- **T28** Remove Duplicates dialog and Text to Columns parity (fixed width, delimiters, column formats).
+- **T29** Data validation sidebar (FortuneSheet#746) and cell placeholder text (FortuneSheet#716).
+
+### P7 · Clipboard and references (`paste.ts`, `copy.ts`, `clipboard.ts`, `moveCells.ts`, new `refAdjust.ts`)
+- **T30** Copy/paste fidelity with Excel and Google Sheets HTML (styles, merges, borders, number formats) and plain TSV. Within a workbook, formulas are pasted with adjusted references.
+- **T31** Paste Special: values, formats, formulas, column widths, transpose, skip blanks, and add/subtract/multiply/divide.
+- **T32** Cut/paste and drag-moving cells rewrite dependent references across sheets, as Excel does.
+- **T33** Inserting or deleting rows, columns or sheets and renaming sheets rewrites every reference: formulas, names, conditional formatting, data validation and charts. `#REF!` appears on deletion.
+
+### P8 · Navigation and sheets (`searchReplace.ts`, `sheet.ts`, SearchReplace, SheetTab, new GoTo dialog)
+- **T34** Find & Replace: all sheets, match case, entire cell, look in formulas or values, find all with a result list.
+- **T35** Go To (Ctrl+G / F5) and Go To Special (blanks, constants, formulas by type, visible cells, current region, differences).
+- **T36** Sheet operations: duplicate or move a sheet (with reference rewrite), tab colour, hide/unhide dialog, grouped sheets for bulk formatting.
+- **T37** Freeze panes parity (freeze at the selection, top row, first column, unfreeze) and split panes.
+
+### P9 · Format Cells and number formats (`format.ts`, new FormatCells dialog, Toolbar format menu)
+- **T38** Format Cells dialog (Ctrl+1) with Number, Alignment, Font, Border, Fill and Protection tabs, and a custom format editor with a live preview.
+- **T39** Format inference: `=A1+7` over a date gives a date, `=B1*C1` with currency gives currency, and percent follows the same rule, as in Excel.
+- **T40** General format fits the column width (fewer digits, then `####` for numbers and dates that don't fit).
+- **T41** Toolbar number-format menu with Excel's list and previews; increase/decrease decimals works on every format.
+- **T42** Cell styles gallery (Normal, Good/Bad/Neutral, Headings, Total, Currency, Percent) and a sticky format painter on double-click.
+
+### P10 · Editing modes and undo (`keyboard.ts`, `InputBox`, history)
+- **T43** Excel Enter, Edit and Point modes: arrows commit in Enter mode, move the caret in Edit mode, and pick references in Point mode; F2 toggles between modes; a status indicator.
+- **T44** Tab and Enter inside the editor wrap within a multi-cell selection; value autocomplete also works in the formula bar.
+- **T45** End mode (End then an arrow key) and Ctrl+Shift+Arrow in Point mode.
+- **T46** Undo/redo audit for every phase 1 and phase 2 feature (spill, names, CF, fill, paste special) and grouping of multi-step operations into one undo step.
+
+### P11 · Performance, round 2 (`canvas.ts`, render/context plumbing)
+- **T47** Blit scrolling with frozen panes (redraw only the newly exposed strips in each pane).
+- **T48** Stop full-tree re-renders: selector-based subscriptions (e.g. `useSyncExternalStore`) for Toolbar, SheetOverlay, headers and the status bar.
+- **T49** Load time: lazy per-sheet initialisation, cheaper `setCellValue`/immer paths, and a 1M-cell load benchmark.
+- **T50** Row/column geometry via prefix sums and binary search so that 1M-row sheets scroll smoothly; canvas state batching.
+
+### P12 · Charts (new `core/src/modules/chart.ts`, React chart layer, reusing `excel/src/chart` renderers)
+- **T51** Chart objects in the sheet: insert from the selection (column, bar, line, area, pie, doughnut, scatter), move, resize, delete, undo.
+- **T52** Charts update live when their source data changes, and series references are rewritten on insert/delete.
+- **T53** Chart editor panel (type, series, axis titles, legend, data labels, colours).
+- **T54** Charts in xlsx import (as live charts, not images) and export.
+
+### P13 · Excel and CSV I/O (`packages/excel`)
+- **T55** Export fidelity: formulas (with `_xlfn.` / `_xlws.` prefixes for new functions), number formats, merges, sizes, freeze, hidden rows and columns, hyperlinks, comments, CF and DV.
+- **T56** Import fidelity: shared formulas, array and dynamic-array formulas (`_xlfn._xlws`, `cm` metadata), theme and indexed colours, rich text, defined names (via P3's model).
+- **T57** CSV/TSV import and export (delimiter and encoding detection, locale numbers and dates), with a toolbar menu.
+- **T58** A round-trip test suite over fixture workbooks (import → export → import equality).
+
+### P14 · UI and UX, round 2 (status bar, context menu, comments, headers)
+- **T59** Status bar parity: Average, Count, Numerical Count, Min, Max and Sum, user-selectable via right-click, locale formatting.
+- **T60** Context menu parity: insert/delete cells with a shift direction, row height and column width dialogs, hide/unhide, Format Cells entry, Excel ordering and icons.
+- **T61** Autofit: double-clicking a column or row border fits the content; rows grow automatically for wrapped text; hidden cells and merges are respected.
+- **T62** Notes and comments polish: hover indicators, edit/delete, show all, and dark-theme styling for the sticky-note colour.
+
+### P15 · Quality infrastructure (CI, types, lint, e2e, docs)
+- **T63** Make `tsc --noEmit` pass (React types resolution, strictness fixes) and add typecheck and lint for every package to CI; fix `formula-parser` lint (`babel-eslint`).
+- **T64** Playwright e2e suite on the static Storybook build (formulas, spill, autocomplete, keyboard, theme, CF, paste) that runs in CI; docs updates for all new options and shortcuts.
 
 ## Phase 3: later
 
