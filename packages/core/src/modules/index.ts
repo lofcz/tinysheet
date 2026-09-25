@@ -35,3 +35,6 @@ export * from "./ConditionFormat";
 export * from "./zoom";
 export * from "./refresh";
 export * from "./spill";
+export * from "./refAdjust";
+export * from "./pasteSpecial";
+export * from "./shiftCells";

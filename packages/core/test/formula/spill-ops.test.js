@@ -174,8 +174,9 @@ describe("spill after inserting and deleting rows and columns", () => {
     expect(value(ctx, "D1")).toBe("#SPILL!");
     deleteRowCol(ctx, { type: "row", start: 1, end: 1, id: "id_1" });
     groupValuesRefresh(ctx);
-    // the formula lost its second row: a single value now
-    expect(cell(ctx, "D1").f).toBe("=A1");
+    // the formula lost its second row: a single value now (Excel keeps
+    // the collapsed range as A1:A1)
+    expect(cell(ctx, "D1").f).toBe("=A1:A1");
     expect(value(ctx, "D1")).toBe(1);
     expect(value(ctx, "D2")).toBe("x");
   });

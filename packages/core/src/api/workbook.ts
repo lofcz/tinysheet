@@ -5,6 +5,7 @@ import {
   deleteSheet as deleteSheetInternal,
   updateSheet as updateSheetInternal,
 } from "../modules";
+import { adjustReferences } from "../modules/refAdjust";
 import { Settings } from "../settings";
 import { CommonOptions, getSheet } from "./common";
 import { INVALID_PARAMS } from "./errors";
@@ -47,6 +48,15 @@ export function setSheetName(
   options: CommonOptions = {}
 ) {
   const sheet = getSheet(ctx, options);
+  if (sheet.name && sheet.name !== name && sheet.id != null) {
+    // sheet-qualified references follow the new name (Excel)
+    adjustReferences(ctx, {
+      type: "renameSheet",
+      sheetId: sheet.id,
+      oldName: sheet.name,
+      newName: name,
+    });
+  }
   sheet.name = name;
 }
 
