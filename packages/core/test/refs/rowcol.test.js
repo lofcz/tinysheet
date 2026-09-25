@@ -170,7 +170,10 @@ describe("data validation, hyperlinks and conditional formats", () => {
     const ctx = setup();
     const file = ctx.luckysheetfile[0];
     file.config = { merge: { "5_0": { r: 5, c: 0, rs: 2, cs: 1 } } };
-    file.frozen = { type: "rangeRow", range: { row_focus: 4, column_focus: 0 } };
+    file.frozen = {
+      type: "rangeRow",
+      range: { row_focus: 4, column_focus: 0 },
+    };
     file.dataVerification = {
       "1_0": { type: "dropdown", value1: "a" },
       "6_0": { type: "dropdown", value1: "$A$5:$A$9" },
