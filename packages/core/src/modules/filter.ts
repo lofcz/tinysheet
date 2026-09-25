@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { locale } from "../locale";
+import { dataToolsLocale } from "../locale/dataTools";
 import { Context, getFlowdata } from "../context";
 import { Cell, CellMatrix } from "../types";
 import { getSheetIndex, isAllowEdit, rgbToHex } from "../utils";
@@ -383,6 +384,9 @@ export function getFilterColumnValues(
 
   let cell: Cell | null;
   const { filter } = locale(ctx);
+  // Excel's date tree: "2024" › "January" › "15" (Chinese keeps 年/月)
+  const zhDates = (ctx.lang || "").startsWith("zh");
+  const monthNames = dataToolsLocale(ctx).filter.months;
   for (let r = startRow + 1; r <= endRow; r += 1) {
     if (r in otherHiddenRows) {
       continue;
@@ -410,7 +414,7 @@ export function getFilterColumnValues(
           key: y,
           type: "year",
           value: y,
-          text: y + filter.filiterYearText,
+          text: zhDates ? y + filter.filiterYearText : y,
           children: [],
           rows: [],
           dateValues: [],
@@ -425,7 +429,9 @@ export function getFilterColumnValues(
           key: `${y}-${m}`,
           type: "month",
           value: m,
-          text: m + filter.filiterMonthText,
+          text: zhDates
+            ? m + filter.filiterMonthText
+            : monthNames[Number(m) - 1] ?? m,
           children: [],
           rows: [],
           dateValues: [],

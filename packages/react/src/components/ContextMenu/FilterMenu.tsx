@@ -1,5 +1,15 @@
 import {
+  applyFilterCondition,
+  clearColumnFilter,
   clearFilter,
+  dataToolsLocale,
+  DATE_PERIODS,
+  FilterCondition,
+  FilterOperator,
+  formatLocaleText,
+  getColumnFilterCondition,
+  getFilterColumnKind,
+  getFlowdata,
   locale,
   getFilterColumnValues,
   getFilterColumnColors,
@@ -26,7 +36,12 @@ import Divider from "./Divider";
 import Menu from "./Menu";
 import SVGIcon from "../SVGIcon";
 import { useAlert } from "../../hooks/useAlert";
-import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { useDialog } from "../../hooks/useDialog";
+import {
+  CustomFilterDialog,
+  Top10Dialog,
+} from "../FilterOption/ConditionDialogs";
+import "../FilterOption/index.css";
 
 const SelectItem: React.FC<{
   item: FilterValue;
@@ -150,6 +165,7 @@ const FilterMenu: React.FC = () => {
   const contextRef = useRef<Context>(context);
   const byColorMenuRef = useRef<HTMLDivElement>(null);
   const subMenuRef = useRef<HTMLDivElement>(null);
+  const condMenuRef = useRef<HTMLDivElement>(null);
   const { filterContextMenu } = context;
   const { startRow, startCol, endRow, endCol, col, listBoxMaxHeight } =
     filterContextMenu || {
@@ -192,6 +208,15 @@ const FilterMenu: React.FC = () => {
     fcColors: FilterColor[];
   }>({ bgColors: [], fcColors: [] });
   const [showSubMenu, setShowSubMenu] = useState(false);
+  const [showCondMenu, setShowCondMenu] = useState(false);
+  const [condMenuPos, setCondMenuPos] = useState<{
+    left?: number;
+    top: number;
+  }>();
+  const byCondMenuRef = useRef<HTMLDivElement>(null);
+  const mouseHoverCondMenu = useRef<boolean>(false);
+  const { showDialog } = useDialog();
+  const tools = dataToolsLocale(context).filter;
   const { showAlert } = useAlert();
   const mouseHoverSubMenu = useRef<boolean>(false);
   contextRef.current = context;
@@ -203,7 +228,22 @@ const FilterMenu: React.FC = () => {
     });
   }, [setContext]);
 
-  useOutsideClick(containerRef, close, [close]);
+  // clicks in the menu or its submenus (rendered beside it) keep it open
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        containerRef.current?.contains(target) ||
+        subMenuRef.current?.contains(target) ||
+        condMenuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      close();
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [close]);
 
   const initialExpand = useCallback((key: string) => {
     const expand = dateTreeExpandState.current[key];
@@ -271,6 +311,192 @@ const FilterMenu: React.FC = () => {
       }, 200),
     []
   );
+
+  const delayHideCondMenu = useMemo(
+    () =>
+      _.debounce(() => {
+        if (mouseHoverCondMenu.current) return;
+        setShowCondMenu(false);
+      }, 200),
+    []
+  );
+
+  const columnKind = useMemo(
+    () =>
+      col == null
+        ? "text"
+        : getFilterColumnKind(contextRef.current, col, startRow, endRow),
+    [col, startRow, endRow]
+  );
+
+  const activeCondition =
+    col == null ? null : getColumnFilterCondition(context, col);
+
+  const columnTitle = useMemo(() => {
+    if (col == null) return "";
+    const cell = getFlowdata(contextRef.current)?.[startRow]?.[col];
+    const text = cell?.m ?? cell?.v;
+    return text == null ? "" : `${text}`;
+  }, [col, startRow]);
+
+  const applyCondition = useCallback(
+    (condition: FilterCondition) => {
+      if (col == null) return;
+      setContext((draftCtx) => {
+        applyFilterCondition(draftCtx, col, condition);
+        draftCtx.filterContextMenu = undefined;
+      });
+    },
+    [col, setContext]
+  );
+
+  const openCustomFilter = useCallback(
+    (op1?: FilterOperator, op2?: FilterOperator) => {
+      if (col == null) return;
+      setContext((draftCtx) => {
+        draftCtx.filterContextMenu = undefined;
+      });
+      showDialog(
+        <CustomFilterDialog
+          col={col}
+          startRow={startRow}
+          endRow={endRow}
+          kind={columnKind}
+          op1={op1}
+          op2={op2}
+        />
+      );
+    },
+    [col, columnKind, endRow, setContext, showDialog, startRow]
+  );
+
+  const openTop10 = useCallback(() => {
+    if (col == null) return;
+    setContext((draftCtx) => {
+      draftCtx.filterContextMenu = undefined;
+    });
+    showDialog(<Top10Dialog col={col} />);
+  }, [col, setContext, showDialog]);
+
+  const conditionItems = useMemo(() => {
+    type Entry =
+      | { key: string; text: string; onClick: () => void; active?: boolean }
+      | { key: string; divider: true }
+      | {
+          key: string;
+          grid: {
+            key: string;
+            text: string;
+            onClick: () => void;
+            active?: boolean;
+          }[];
+        };
+    const m = tools.menu;
+    const custom = (
+      key: string,
+      op1?: FilterOperator,
+      op2?: FilterOperator
+    ) => ({
+      key,
+      text: m[key],
+      onClick: () => openCustomFilter(op1, op2),
+    });
+    const isActive = (cond: Partial<FilterCondition>) =>
+      activeCondition != null && _.isMatch(activeCondition, cond);
+    const entries: Entry[] = [];
+    if (columnKind === "text") {
+      entries.push(
+        custom("equals", "equals"),
+        custom("notEquals", "notEquals"),
+        { key: "d1", divider: true },
+        custom("beginsWith", "beginsWith"),
+        custom("endsWith", "endsWith"),
+        { key: "d2", divider: true },
+        custom("contains", "contains"),
+        custom("notContains", "notContains")
+      );
+    } else if (columnKind === "number") {
+      entries.push(
+        custom("equals", "equals"),
+        custom("notEquals", "notEquals"),
+        { key: "d1", divider: true },
+        custom("greaterThan", "greaterThan"),
+        custom("greaterOrEqual", "greaterOrEqual"),
+        custom("lessThan", "lessThan"),
+        custom("lessOrEqual", "lessOrEqual"),
+        custom("between", "greaterOrEqual", "lessOrEqual"),
+        { key: "d2", divider: true },
+        {
+          key: "top10",
+          text: m.top10,
+          onClick: openTop10,
+          active: isActive({ type: "top10" }),
+        },
+        {
+          key: "aboveAverage",
+          text: m.aboveAverage,
+          onClick: () => applyCondition({ type: "average" }),
+          active: isActive({ type: "average", below: undefined }),
+        },
+        {
+          key: "belowAverage",
+          text: m.belowAverage,
+          onClick: () => applyCondition({ type: "average", below: true }),
+          active: isActive({ type: "average", below: true }),
+        }
+      );
+    } else {
+      entries.push(
+        custom("equals", "equals"),
+        custom("before", "lessThan"),
+        custom("after", "greaterThan"),
+        custom("between", "greaterOrEqual", "lessOrEqual"),
+        { key: "d1", divider: true },
+        ...DATE_PERIODS.map((period) => ({
+          key: period,
+          text: tools.periods[period],
+          onClick: () => applyCondition({ type: "datePeriod", period }),
+          active: isActive({ type: "datePeriod", period }),
+        })),
+        { key: "d2", divider: true },
+        { key: "allDates", text: m.allDatesInPeriod, onClick: () => {} },
+        {
+          key: "periods",
+          grid: [
+            ...[1, 2, 3, 4].map((n) => ({
+              key: `Q${n}`,
+              text: formatLocaleText(tools.quarter, { n }),
+              onClick: () =>
+                applyCondition({ type: "datePeriod", period: `Q${n}` as any }),
+              active: isActive({ type: "datePeriod", period: `Q${n}` as any }),
+            })),
+            ...tools.months.map((name, i) => ({
+              key: `M${i + 1}`,
+              text: name,
+              onClick: () =>
+                applyCondition({
+                  type: "datePeriod",
+                  period: `M${i + 1}` as any,
+                }),
+              active: isActive({
+                type: "datePeriod",
+                period: `M${i + 1}` as any,
+              }),
+            })),
+          ],
+        }
+      );
+    }
+    entries.push({ key: "d9", divider: true }, custom("customFilter"));
+    return entries;
+  }, [
+    activeCondition,
+    applyCondition,
+    columnKind,
+    openCustomFilter,
+    openTop10,
+    tools,
+  ]);
 
   const sortData = useCallback(
     (asc: boolean) => {
@@ -467,6 +693,7 @@ const FilterMenu: React.FC = () => {
                   if (!containerRef.current || !filterContextMenu) {
                     return;
                   }
+                  setShowCondMenu(false);
                   setShowSubMenu(true);
                   const rect = byColorMenuRef.current?.getBoundingClientRect();
                   if (rect == null) return;
@@ -483,54 +710,65 @@ const FilterMenu: React.FC = () => {
               </div>
             );
           }
-          if (name === "filter-by-condition") {
+          if (name === "clear-column-filter") {
+            const enabled = activeCondition != null;
             return (
-              <div key="name">
-                <Menu onClick={() => {}}>
-                  <div className="filter-caret right" />
-                  {filter.filterByCondition}
-                </Menu>
-                <div
-                  className="luckysheet-\${menuid}-bycondition"
-                  style={{ display: "none" }}
+              <div
+                key={name}
+                className={enabled ? undefined : "fortune-filter-menu-disabled"}
+              >
+                <Menu
+                  onClick={() => {
+                    if (!enabled || col == null) return;
+                    setContext((draftCtx) => {
+                      clearColumnFilter(draftCtx, col);
+                      draftCtx.filterContextMenu = undefined;
+                    });
+                  }}
                 >
-                  <div
-                    className="luckysheet-flat-menu-button luckysheet-mousedown-cancel"
-                    id="luckysheet-\${menuid}-selected"
-                  >
-                    <span
-                      className="luckysheet-mousedown-cancel"
-                      data-value="null"
-                      data-type="0"
-                    >
-                      {filter.filiterInputNone}
+                  {formatLocaleText(tools.clearFilterFrom, {
+                    column: columnTitle,
+                  })}
+                </Menu>
+              </div>
+            );
+          }
+          if (name === "filter-by-condition") {
+            let label = tools.textFilters;
+            if (columnKind === "number") label = tools.numberFilters;
+            if (columnKind === "date") label = tools.dateFilters;
+            return (
+              <div
+                key={name}
+                ref={byCondMenuRef}
+                onMouseEnter={() => {
+                  setShowSubMenu(false);
+                  setShowCondMenu(true);
+                  const rect = byCondMenuRef.current?.getBoundingClientRect();
+                  if (rect == null) return;
+                  setCondMenuPos({ top: rect.top - 5, left: rect.right });
+                }}
+                onMouseLeave={delayHideCondMenu}
+              >
+                <Menu
+                  onClick={() => {
+                    setShowCondMenu(true);
+                    const rect = byCondMenuRef.current?.getBoundingClientRect();
+                    if (rect == null) return;
+                    setCondMenuPos({ top: rect.top - 5, left: rect.right });
+                  }}
+                >
+                  <div className="filter-bycolor-container">
+                    <span>
+                      {activeCondition != null &&
+                        activeCondition.type !== "values" && (
+                          <span className="fortune-filter-active-dot" />
+                        )}
+                      {label}
                     </span>
-                    <div className="luckysheet-mousedown-cancel">
-                      <i className="fa fa-sort" aria-hidden="true" />
-                    </div>
+                    <div className="filter-caret right" />
                   </div>
-                  {/* <div className="luckysheet-\${menuid}-selected-input">
-          <input
-            type="text"
-            placeholder="${filter.filiterInputTip}"
-            className="luckysheet-mousedown-cancel"
-          />
-        </div>
-        <div className="luckysheet-\${menuid}-selected-input luckysheet-\${menuid}-selected-input2">
-          <span>{filter.filiterRangeStart}</span>
-          <input
-            type="text"
-            placeholder="${filter.filiterRangeStartTip}"
-            className="luckysheet-mousedown-cancel"
-          />
-          <span>{filter.filiterRangeEnd}</span>
-          <input
-            type="text"
-            placeholder="${filter.filiterRangeEndTip}"
-            className="luckysheet-mousedown-cancel"
-          />
-        </div> */}
-                </div>
+                </Menu>
               </div>
             );
           }
@@ -680,7 +918,7 @@ const FilterMenu: React.FC = () => {
                   draftCtx,
                   hiddenRows.current.length > 0,
                   rowHidden,
-                  {},
+                  { type: "values" },
                   startRow,
                   endRow,
                   col,
@@ -719,6 +957,65 @@ const FilterMenu: React.FC = () => {
           </div>
         </div>
       </div>
+      {showCondMenu && filterContextMenu != null && (
+        <div
+          ref={condMenuRef}
+          className="luckysheet-filter-bycolor-submenu fortune-filter-condition-submenu"
+          role="menu"
+          style={condMenuPos}
+          onMouseEnter={() => {
+            mouseHoverCondMenu.current = true;
+          }}
+          onMouseLeave={() => {
+            mouseHoverCondMenu.current = false;
+            setShowCondMenu(false);
+          }}
+        >
+          {conditionItems.map((item) => {
+            if ("divider" in item) return <Divider key={item.key} />;
+            if ("grid" in item) {
+              return (
+                <div key={item.key} className="fortune-filter-period-grid">
+                  {item.grid.map((g) => (
+                    <div
+                      key={g.key}
+                      role="menuitem"
+                      tabIndex={0}
+                      className={`fortune-filter-period${
+                        g.active ? " active" : ""
+                      }`}
+                      onClick={g.onClick}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") g.onClick();
+                      }}
+                    >
+                      {g.text}
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+            if (item.key === "allDates") {
+              return (
+                <div key={item.key} className="fortune-filter-submenu-header">
+                  {item.text}
+                </div>
+              );
+            }
+            return (
+              <Menu key={item.key} onClick={item.onClick}>
+                <span
+                  className={
+                    item.active ? "fortune-filter-condition-active" : undefined
+                  }
+                >
+                  {item.text}
+                </span>
+              </Menu>
+            );
+          })}
+        </div>
+      )}
       {showSubMenu && (
         <div
           ref={subMenuRef}
@@ -775,7 +1072,7 @@ const FilterMenu: React.FC = () => {
                       draftCtx,
                       !_.isEmpty(rowHidden),
                       rowHidden,
-                      {},
+                      { type: "values" },
                       startRow,
                       endRow,
                       col,

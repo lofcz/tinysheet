@@ -83,3 +83,8 @@
 #luckysheet-dataVerification-dropdown-List .dropdown-List-item:hover {
   background-color: var(--fortune-bg-hover);
 }
+
+#fortune-data-verification {
+  width: 520px;
+  max-width: none;
+}

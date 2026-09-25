@@ -1,184 +1,429 @@
-/* eslint-disable jsx-a11y/control-has-associated-label */
 import {
-  getDataArr,
+  applyTextToColumns,
+  dataToolsLocale,
+  getcellrange,
   getFlowdata,
-  getRegStr,
-  locale,
-  updateMoreCell,
+  getRangetxt,
+  getTextToColumnsSource,
+  parseTextToColumns,
+  suggestFixedWidthBreaks,
+  TextToColumnsFormat,
+  TextToColumnsOptions,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
-  useContext,
-  useEffect,
-  useState,
   useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
   useRef,
+  useState,
 } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
+import DtCheck from "../DataVerification/DtCheck";
+import "../DataVerification/dataTools.css";
 import "./index.css";
 
+const PREVIEW_ROWS = 12;
+
+const FORMAT_OPTIONS: TextToColumnsFormat[] = [
+  "general",
+  "text",
+  "MDY",
+  "DMY",
+  "YMD",
+  "MYD",
+  "DYM",
+  "YDM",
+  "skip",
+];
+
+/**
+ * Excel's Convert Text to Columns wizard in one dialog: delimited or fixed
+ * width, per-column data format, destination and a live preview.
+ */
 export const SplitColumn: React.FC<{}> = () => {
   const { context, setContext } = useContext(WorkbookContext);
-  const { splitText, button } = locale(context);
-  const [splitOperate, setSplitOperate] = useState("");
-  const [otherFlag, setOtherFlag] = useState(false);
-  const [tableData, setTableData] = useState<string[][]>([]);
-  const splitSymbols = useRef<HTMLDivElement>(null);
   const { showDialog, hideDialog } = useDialog();
+  const t = dataToolsLocale(context).textToColumns;
 
-  // 确定按钮
-  const certainBtn = useCallback(() => {
-    hideDialog();
-    const dataArr = getDataArr(splitOperate, context);
-    const r = context.luckysheet_select_save![0].row[0];
-    const c = context.luckysheet_select_save![0].column[0];
-    if (dataArr[0].length === 1) {
+  const range = useMemo(() => {
+    const sel = context.luckysheet_select_save?.[0];
+    if (!sel) return null;
+    return { row: sel.row.slice(), column: [sel.column[0], sel.column[0]] };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const lines = useMemo(
+    () => (range ? getTextToColumnsSource(context, range) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [range]
+  );
+
+  const [mode, setMode] = useState<"delimited" | "fixed">(() =>
+    lines.some((l) => /[\t;,]/.test(l)) ? "delimited" : "fixed"
+  );
+  const [delimiters, setDelimiters] = useState({
+    tab: true,
+    semicolon: false,
+    comma: false,
+    space: false,
+    other: "",
+  });
+  const [useOther, setUseOther] = useState(false);
+  const [consecutive, setConsecutive] = useState(false);
+  const [qualifier, setQualifier] = useState('"');
+  const [breaks, setBreaks] = useState<number[]>(() =>
+    suggestFixedWidthBreaks(lines)
+  );
+  const [formats, setFormats] = useState<TextToColumnsFormat[]>([]);
+  const [destination, setDestination] = useState(() =>
+    range
+      ? getRangetxt(
+          context,
+          context.currentSheetId,
+          { row: [range.row[0], range.row[0]], column: range.column },
+          context.currentSheetId
+        )
+      : ""
+  );
+  const [error, setError] = useState("");
+
+  const options: TextToColumnsOptions = useMemo(
+    () => ({
+      mode,
+      delimiters: { ...delimiters, other: useOther ? delimiters.other : "" },
+      treatConsecutiveAsOne: consecutive,
+      textQualifier: qualifier,
+      breaks,
+      columnFormats: formats,
+    }),
+    [breaks, consecutive, delimiters, formats, mode, qualifier, useOther]
+  );
+
+  const preview = useMemo(
+    () => parseTextToColumns(lines.slice(0, PREVIEW_ROWS), options),
+    [lines, options]
+  );
+  const allRows = useMemo(
+    () => parseTextToColumns(lines, options),
+    [lines, options]
+  );
+  const width = _.max(allRows.map((r) => r.length)) ?? 1;
+
+  // fixed width ruler: one character's width in the monospace preview
+  const measureRef = useRef<HTMLSpanElement>(null);
+  const [charWidth, setCharWidth] = useState(7);
+  useLayoutEffect(() => {
+    const w = measureRef.current?.getBoundingClientRect().width;
+    if (w) setCharWidth(w / 10);
+  }, [mode]);
+  const maxLen = _.max(lines.map((l) => l.length)) ?? 0;
+
+  const onFinish = useCallback(() => {
+    if (!range) return;
+    const dest = getcellrange(context, destination.trim());
+    if (!dest) {
+      setError(t.destination);
       return;
     }
-    let dataCover = false;
+    const target = { r: dest.row[0], c: dest.column[0] };
     const data = getFlowdata(context);
-    for (let i = 0; i < dataArr.length; i += 1) {
-      for (let j = 1; j < dataArr[0].length; j += 1) {
-        const cell = data![r + i][c + j];
-        if (!_.isNull(cell) && !_.isNull(cell.v)) {
-          dataCover = true;
+    // the columns written, apart from the source column itself
+    const kept = _.range(width).filter(
+      (j) => (formats[j] ?? "general") !== "skip"
+    ).length;
+    let covered = false;
+    for (let i = 0; i < allRows.length && !covered; i += 1) {
+      for (let j = 0; j < kept; j += 1) {
+        const r = target.r + i;
+        const c = target.c + j;
+        const isSource =
+          c === range.column[0] && r >= range.row[0] && r <= range.row[1];
+        const cell = data?.[r]?.[c];
+        if (!isSource && cell != null && cell.v != null && cell.v !== "") {
+          covered = true;
           break;
         }
       }
     }
-    if (dataCover) {
-      showDialog(splitText.splitConfirmToExe, "yesno", () => {
-        hideDialog();
-        setContext((ctx) => {
-          updateMoreCell(r, c, dataArr, ctx);
-        });
-      });
-    } else {
+    const run = () => {
       setContext((ctx) => {
-        updateMoreCell(r, c, dataArr, ctx);
+        applyTextToColumns(ctx, range, { ...options, destination: target });
       });
+      hideDialog();
+    };
+    if (covered) {
+      showDialog(t.replaceConfirm, "yesno", run);
+    } else {
+      run();
     }
   }, [
+    allRows,
     context,
+    destination,
+    formats,
     hideDialog,
+    options,
+    range,
     setContext,
     showDialog,
-    splitOperate,
-    splitText.splitConfirmToExe,
+    t,
+    width,
   ]);
 
-  // 数据预览
-  useEffect(() => {
-    setTableData((table) => {
-      table = getDataArr(splitOperate, context);
-      return table;
-    });
-  }, [context, splitOperate]);
+  if (!range) return null;
+
+  const formatLabel = (f: TextToColumnsFormat) => {
+    if (f === "general" || f === "text" || f === "skip") return t.formats[f];
+    return `${t.formats.date} (${f})`;
+  };
 
   return (
-    <div id="fortune-split-column">
-      <div className="title">{splitText.splitTextTitle}</div>
-      <div className="splitDelimiters">{splitText.splitDelimiters}</div>
-      <div className="splitSymbols" ref={splitSymbols}>
-        {splitText.splitSymbols.map((o) => (
-          <div key={o.value} className="splitSymbol">
+    <div id="fortune-split-column" className="fortune-dt-dialog">
+      <div className="fortune-dt-title">{t.title}</div>
+      <div className="fortune-dt-section">
+        <div className="fortune-dt-section-title">{t.dataType}</div>
+        {(
+          [
+            ["delimited", t.delimited, t.delimitedDesc],
+            ["fixed", t.fixedWidth, t.fixedWidthDesc],
+          ] as const
+        ).map(([value, label, desc]) => (
+          <label
+            key={value}
+            className="fortune-dt-check"
+            htmlFor={`fortune-ttc-${value}`}
+          >
             <input
-              id={o.value}
-              name={o.value}
-              type="checkbox"
-              onClick={() =>
-                setSplitOperate((regStr) => {
-                  return getRegStr(regStr, splitSymbols.current?.childNodes);
-                })
-              }
-              tabIndex={0}
+              id={`fortune-ttc-${value}`}
+              type="radio"
+              name="fortune-ttc-mode"
+              checked={mode === value}
+              onChange={() => {
+                setMode(value);
+                setFormats([]);
+              }}
             />
-            <label htmlFor={o.value}>{o.name}</label>
-          </div>
+            <span>
+              <b>{label}</b>
+              <span className="fortune-dt-hint">{` — ${desc}`}</span>
+            </span>
+          </label>
         ))}
-        <div className="splitSymbol">
-          <input
-            id="other"
-            name="other"
-            type="checkbox"
-            onClick={() => {
-              setOtherFlag(!otherFlag);
-              setSplitOperate((regStr) => {
-                return getRegStr(regStr, splitSymbols.current?.childNodes);
-              });
-            }}
-            tabIndex={0}
-          />
-          <label htmlFor="other">{splitText.splitOther}</label>
-          <input
-            id="otherValue"
-            name="otherValue"
-            type="text"
-            onBlur={() => {
-              if (otherFlag) {
-                setSplitOperate((regStr) => {
-                  return getRegStr(regStr, splitSymbols.current?.childNodes);
-                });
-              }
-            }}
-          />
-        </div>
-        <div className="splitSymbol splitSimple">
-          <input
-            id="splitsimple"
-            name="splitsimple"
-            type="checkbox"
-            onClick={() => {
-              setSplitOperate((regStr) => {
-                return getRegStr(regStr, splitSymbols.current?.childNodes);
-              });
-            }}
-            tabIndex={0}
-          />
-          <label htmlFor="splitsimple">{splitText.splitContinueSymbol}</label>
-        </div>
       </div>
-      <div className="splitDataPreview">{splitText.splitDataPreview}</div>
-      <div className="splitColumnData">
-        <table>
-          <tbody>
-            {tableData.map((o, index) => {
-              if (o.length >= 1) {
-                return (
-                  <tr key={index}>
-                    {o.map((o1: string) => (
-                      <td key={o + o1}>{o1}</td>
-                    ))}
-                  </tr>
+
+      {mode === "delimited" ? (
+        <div className="fortune-dt-section">
+          <div className="fortune-dt-section-title">{t.delimiters}</div>
+          <div className="fortune-dt-row" style={{ flexWrap: "wrap" }}>
+            {(["tab", "semicolon", "comma", "space"] as const).map((key) => (
+              <DtCheck
+                key={key}
+                checked={delimiters[key]}
+                onChange={(v) => setDelimiters((d) => ({ ...d, [key]: v }))}
+              >
+                {t[key]}
+              </DtCheck>
+            ))}
+            <DtCheck checked={useOther} onChange={setUseOther}>
+              {t.other}
+            </DtCheck>
+            <input
+              className="fortune-dt-input"
+              style={{ width: 40, marginBottom: 8 }}
+              maxLength={1}
+              aria-label={t.other}
+              value={delimiters.other}
+              onChange={(e) => {
+                const other = e.target.value;
+                setDelimiters((d) => ({ ...d, other }));
+                if (other) setUseOther(true);
+              }}
+            />
+          </div>
+          <div className="fortune-dt-row">
+            <DtCheck checked={consecutive} onChange={setConsecutive}>
+              {t.consecutive}
+            </DtCheck>
+            <div style={{ flex: 1 }} />
+            <label
+              className="fortune-dt-label"
+              htmlFor="fortune-ttc-qualifier"
+              style={{ marginBottom: 8 }}
+            >
+              {t.qualifier}
+            </label>
+            <select
+              id="fortune-ttc-qualifier"
+              className="fortune-dt-select"
+              style={{ width: 90, marginBottom: 8 }}
+              value={qualifier}
+              onChange={(e) => setQualifier(e.target.value)}
+            >
+              <option value='"'>&quot;</option>
+              <option value="'">&apos;</option>
+              <option value="">{t.qualifierNone}</option>
+            </select>
+          </div>
+        </div>
+      ) : (
+        <div className="fortune-dt-section">
+          <div className="fortune-dt-hint" style={{ marginBottom: 6 }}>
+            {t.breakHint}
+          </div>
+          <div className="fortune-ttc-fixed">
+            <span ref={measureRef} className="fortune-ttc-measure">
+              0000000000
+            </span>
+            <div
+              className="fortune-ttc-ruler"
+              role="button"
+              tabIndex={0}
+              aria-label={t.breakHint}
+              style={{ width: (maxLen + 2) * charWidth }}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pos = Math.round((e.clientX - rect.left) / charWidth);
+                if (pos <= 0 || pos >= maxLen) return;
+                setBreaks((b) =>
+                  b.includes(pos)
+                    ? b.filter((x) => x !== pos)
+                    : [...b, pos].sort((x, y) => x - y)
                 );
-              }
-              return (
-                <tr>
-                  <td />
+                setFormats([]);
+              }}
+            >
+              {_.range(0, maxLen + 1, 10).map((p) => (
+                <span
+                  key={p}
+                  className="fortune-ttc-tick"
+                  style={{ left: p * charWidth }}
+                >
+                  {p}
+                </span>
+              ))}
+            </div>
+            <div
+              className="fortune-ttc-lines"
+              style={{ width: (maxLen + 2) * charWidth }}
+            >
+              {lines.slice(0, PREVIEW_ROWS).map((l, i) => (
+                <div key={i} className="fortune-ttc-line">
+                  {l || " "}
+                </div>
+              ))}
+              {breaks.map((b) => (
+                <div
+                  key={b}
+                  className="fortune-ttc-break"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${b}`}
+                  style={{ left: b * charWidth }}
+                  onClick={() => {
+                    setBreaks((prev) => prev.filter((x) => x !== b));
+                    setFormats([]);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="fortune-dt-section">
+        <div className="fortune-dt-section-title">{t.preview}</div>
+        <div className="fortune-dt-scroll">
+          <table className="fortune-dt-table fortune-ttc-preview">
+            <thead>
+              <tr>
+                {_.range(width).map((j) => (
+                  <th key={j}>
+                    <select
+                      className="fortune-dt-select"
+                      aria-label={t.columnFormat}
+                      value={formats[j] ?? "general"}
+                      onChange={(e) => {
+                        const f = e.target.value as TextToColumnsFormat;
+                        setFormats((prev) => {
+                          const next = prev.slice();
+                          for (let k = 0; k <= j; k += 1) {
+                            next[k] = next[k] ?? "general";
+                          }
+                          next[j] = f;
+                          return next;
+                        });
+                      }}
+                    >
+                      {FORMAT_OPTIONS.map((f) => (
+                        <option key={f} value={f}>
+                          {formatLabel(f)}
+                        </option>
+                      ))}
+                    </select>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {preview.map((row, i) => (
+                <tr key={i}>
+                  {_.range(width).map((j) => (
+                    <td
+                      key={j}
+                      className={
+                        (formats[j] ?? "general") === "skip"
+                          ? "fortune-ttc-skip"
+                          : undefined
+                      }
+                    >
+                      {row[j] ?? ""}
+                    </td>
+                  ))}
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div
-        className="button-basic button-primary"
-        onClick={() => {
-          certainBtn();
-        }}
-        tabIndex={0}
-      >
-        {button.confirm}
+
+      <div className="fortune-dt-field">
+        <label className="fortune-dt-label" htmlFor="fortune-ttc-destination">
+          {t.destination}
+        </label>
+        <input
+          id="fortune-ttc-destination"
+          className="fortune-dt-input"
+          spellCheck={false}
+          value={destination}
+          onChange={(e) => {
+            setDestination(e.target.value);
+            setError("");
+          }}
+        />
       </div>
+      {error && <div className="fortune-dt-error">{error}</div>}
       <div
-        className="button-basic button-close"
-        onClick={() => {
-          hideDialog();
-        }}
-        tabIndex={0}
+        className="fortune-dt-buttons"
+        style={{ justifyContent: "flex-end" }}
       >
-        {button.cancel}
+        <div
+          className="button-basic button-primary"
+          role="button"
+          tabIndex={0}
+          onClick={onFinish}
+        >
+          {t.ok}
+        </div>
+        <div
+          className="button-basic button-default"
+          role="button"
+          tabIndex={0}
+          onClick={hideDialog}
+        >
+          {t.cancel}
+        </div>
       </div>
     </div>
   );

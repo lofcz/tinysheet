@@ -927,7 +927,9 @@ let bypassKey: string | null = null;
 // getFailureText is defined further down (with the per-language texts)
 function describeFailure(ctx: Context, item: any): string {
   // eslint-disable-next-line no-use-before-define
-  return getFailureText(ctx, item);
+  const text = getFailureText(ctx, item);
+  // sentence case for the alert ("What you entered ...")
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
 }
 
 /**
