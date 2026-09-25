@@ -22,6 +22,12 @@ import {
 } from "./helper/cell";
 import { isLambda } from "./functions/lambda";
 import { createReference, isReference } from "./helper/reference";
+import {
+  createImageValue,
+  imageValueText,
+  isAllowedImageSource,
+  isImageValue,
+} from "./helper/image";
 
 export {
   SUPPORTED_FORMULAS,
@@ -46,6 +52,10 @@ export {
   isLambda,
   createReference,
   isReference,
+  createImageValue,
+  imageValueText,
+  isAllowedImageSource,
+  isImageValue,
 };
 
 export { LEGACY_FUNCTION_NAMES } from "./functions";

@@ -93,6 +93,32 @@ export function createReference(info: {
 export function isReference(value: unknown): value is ReferenceValue;
 
 /**
+ * A picture value (IMAGE(), a cell holding a picture). `sizing`: 0 fit
+ * keeping the aspect ratio, 1 fill, 2 original size, 3 custom `h` x `w`
+ * pixels. Its text form (`String(value)`) is the alt text.
+ */
+export type ImageValue = {
+  readonly type: "image";
+  src: string;
+  alt: string;
+  sizing: 0 | 1 | 2 | 3;
+  h?: number;
+  w?: number;
+};
+
+export function isImageValue(value: unknown): value is ImageValue;
+export function createImageValue(props: {
+  src: string;
+  alt?: string;
+  sizing?: number;
+  h?: number;
+  w?: number;
+}): ImageValue;
+export function imageValueText(value: ImageValue): string;
+/** Only absolute http(s) URLs and data:image URLs may be loaded. */
+export function isAllowedImageSource(src: unknown): boolean;
+
+/**
  * A function registered with `Parser#setFunction`.
  *
  * `arrayParams` opts into Excel's array lifting: `true` means every

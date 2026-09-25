@@ -320,7 +320,7 @@ GROUPBY and PIVOTBY also still accept the name as text (`"SUM"`).
 | HLOOKUP      | Supported |                                                                                                                   |
 | HSTACK       | Supported |                                                                                                                   |
 | HYPERLINK    | Supported | Implemented by core (`formulaFunctions.ts`).                                                                      |
-| IMAGE        | Partial   | No in-cell pictures yet: returns the alt text (or the source).                                                    |
+| IMAGE        | Supported | An image value drawn in the cell by core; http(s) and `data:image` sources only; text form is the alt text.       |
 | INDEX        | Supported |                                                                                                                   |
 | INDIRECT     | Supported | Implemented by core (`formulaFunctions.ts`); A1 and R1C1 text, a reference everywhere (`SUM(INDIRECT("A1"):A5)`). |
 | LOOKUP       | Supported |                                                                                                                   |
