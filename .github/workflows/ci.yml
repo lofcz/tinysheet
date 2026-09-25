@@ -72,7 +72,7 @@ jobs:
         run: bun run test:jest
 
   build:
-    name: build + excel tests
+    name: build + excel tests + site
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -85,6 +85,8 @@ jobs:
         run: bun run build
       - name: Run excel tests (against the built dist)
         run: bun run test:excel
+      - name: Build demo and docs (GitHub Pages)
+        run: bun run demo:build && bun run docs:build
 
   e2e:
     name: e2e (Playwright on Storybook)

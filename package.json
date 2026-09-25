@@ -25,7 +25,11 @@
     "docs:functions": "bun docs/scripts/generate-functions.ts",
     "coverage": "bun run --cwd packages/formula-parser coverage",
     "format": "oxfmt",
-    "format:check": "oxfmt --check"
+    "format:check": "oxfmt --check",
+    "demo": "rsbuild dev -c demo/rsbuild.config.ts",
+    "demo:build": "rsbuild build -c demo/rsbuild.config.ts",
+    "docs": "rspress dev -c docs/rspress.config.ts",
+    "docs:build": "rspress build -c docs/rspress.config.ts"
   },
   "dependencies": {
     "react": "^19.3.0",
@@ -40,6 +44,7 @@
     "@babel/preset-typescript": "^7.22.5",
     "@rsbuild/core": "^2.2.9",
     "@rsbuild/plugin-react": "^2.1.0",
+    "@rspress/core": "^2.0.22",
     "@storybook/addon-links": "^10.6.0",
     "@storybook/react": "^10.6.0",
     "@testing-library/dom": "^10.4.0",

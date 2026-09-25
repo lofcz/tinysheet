@@ -1,162 +1,61 @@
-<p align="center">
-  <img align="center" src="logo.png" width="150px" height="150px" />
-</p>
+<p align="center"><img src="logo.png" width="120" height="120" /></p>
 <h1 align="center">TinySheet</h1>
-<p align="center">TinySheet is a fork of FortuneSheet: for experimental features, faster bug fixes and optimizations.</p>
-
-<div align="center">
-
-[![xiemala](https://img.shields.io/badge/maintained%20by-corbe30-cc00ff.svg)](https://corbe30.github.io)
-<a href="http://npmjs.com/package/@lofcz/tinysheet-react" alt="TinySheet on npm">
-<img src="https://img.shields.io/npm/v/@lofcz/tinysheet-react" /></a> <a href="http://npmjs.com/package/@lofcz/tinysheet-react" alt="tinysheet downloads">
-<img src="https://img.shields.io/npm/d18m/%40lofcz%2Ftinysheet-react" /></a>
-
-</div>
-
-
-English | [简体中文](./README-zh.md)
-
-## Purpose
-
-TinySheet encourages faster SDLC, pushing newer versions quicker. Due to this, testing may not be as thorough as in FortuneSheet. Here, TinySheet depends on the community to bring the developers to its attention for quicker error resolution!
-
-TinySheet cannot promise backward compatibility with FortuneSheet, but promises an optimized experience in edit operations with fewer P0/P1 issues.
-FortuneExcel will always be compatible with both TinySheet and FortuneSheet.
-
-Moreover, due to its access limitations and new changes to [npm token expiration](https://github.blog/changelog/2025-09-29-strengthening-npm-security-important-changes-to-authentication-and-token-management/), we might not be able to maintain FortuneSheet further.
+<p align="center">Excel-like spreadsheet component for React.</p>
+<p align="center">
+  <a href="https://lofcz.github.io/tinysheet/">Demo</a> ·
+  <a href="https://lofcz.github.io/tinysheet/docs/">Docs</a> ·
+  <a href="https://npmjs.com/package/@lofcz/tinysheet-react"><img src="https://img.shields.io/npm/v/@lofcz/tinysheet-react" alt="npm" /></a>
+</p>
 
 ## Features
 
-- **Excel-compatible formulas**: over 450 functions (see the
-  [supported functions](./docs/guide/functions.md) list), dynamic arrays that
-  spill (`SEQUENCE`, `FILTER`, `SORT`, `UNIQUE`, `XLOOKUP`...), `LET` and
-  `LAMBDA`, with function autocomplete, argument hints and F4 anchoring.
-- **Excel keyboard model**: Ctrl+Arrow data-edge jumps, Enter/Tab wrapping in
-  selections, Ctrl+D/R fill, Ctrl+; dates and more; see
-  [keyboard shortcuts](./docs/guide/shortcuts.md).
-- **Editing**: fill handle series, copy/paste with Excel and Google Sheets
-  (relative references adjusted within the workbook), undo/redo, merges,
-  find and replace, data validation, filters and sorting, comments, images.
-- **Themes**: `theme="light" | "dark" | "auto"` for the whole UI and canvas,
-  restyleable through CSS variables
-  ([docs](./docs/guide/config.md#theme)).
-- **View**: frozen panes, zoom (10–400%), hidden rows and columns, multiple
-  sheets.
-- **Excel import/export** through `@lofcz/tinysheet-excel`.
-- **Collaboration** hooks (`onOp` / `applyOp`) for real-time editing.
+- 470+ Excel functions, dynamic arrays, `LET`, `LAMBDA`
+- Excel keyboard model, fill handle, copy/paste with Excel and Google Sheets
+- Tables, pivot tables, charts, sparklines, conditional formatting
+- Pictures in cells, shapes, threaded comments, outlines, protection
+- xlsx import/export (`@lofcz/tinysheet-excel`)
+- Light/dark themes, 1M+ rows
+- Collaboration through `onOp` / `applyOp`
 
-## Upcoming Improvements
+## Install
 
-- [X] Special Paste Support [ctrl/cmd + shift + v]
-- [X] NaN in Selected Cell/ Range box
-- [ ] Updated documentation
-- [ ] Updated and Improved Storybooks
-- [X] Dark theme
-- [ ] Optimizations
-  - [ ] Optimized Edit Cell operation
-  - [ ] Optimized Load by deferring caching
-  - [ ] Optimized Memory Usage to reduce crashes
-- [ ] Data Validation Sidebar (https://github.com/ruilisi/fortune-sheet/issues/746)
-- [ ] Placeholder text (https://github.com/ruilisi/fortune-sheet/issues/716)
-
-## Get started (react)
-
-### Download and install the library
-
-<details open>
-<summary>Using npm</summary>
-
-```shell
+```sh
 npm install @lofcz/tinysheet-react
 ```
-</details>
 
-<details>
-<summary>Using pnpm</summary>
+Requires React 19.3+.
 
-```shell
-pnpm install @lofcz/tinysheet-react
-```
-</details>
+## Use
 
-<details>
-<summary>Using yarn</summary>
-
-```shell
-yarn add @lofcz/tinysheet-react
-```
-</details>
-
-### Create an HTML placeholder
-```html
-<style>
-  html, body, #root {
-    width: 100%;
-    height: 100%;
-  }
-</style>
-<div id="root"></div>
-```
-
-**NOTE**: `width` and `height` doesn't have to be 100%, but should at least have a value. If set to `auto`, table area may not show.
-
-### Render the sheet
-
-```js
-import React from 'react';
-import ReactDOM from 'react-dom';
+```tsx
 import { Workbook } from "@lofcz/tinysheet-react";
-import "@lofcz/tinysheet-react/dist/index.css"
+import "@lofcz/tinysheet-react/dist/index.css";
 
-ReactDOM.render(
-  <Workbook data={[{ name: "Sheet1" }]} />,
-  document.getElementById('root')
-);
+<div style={{ height: "100vh" }}>
+  <Workbook data={[{ name: "Sheet1" }]} />
+</div>;
 ```
 
-### Backend storage and collabration
+## Packages
 
-Each time a user operates on the sheet, an array of `Op` will be emiited through `onOp` callback. An op describes how to modify the current data to reach the new data after the user's operation. For example, here is an op when user sets the cell font to be bold on cell A2.
+| Package | |
+| --- | --- |
+| `@lofcz/tinysheet-react` | React component |
+| `@lofcz/tinysheet-core` | Model, formulas, rendering |
+| `@lofcz/tinysheet-excel` | xlsx import/export |
+| `@lofcz/tinysheet-formula-parser` | Formula engine |
 
-```json
-[
-    {
-        "op": "replace",
-        "index": "0",
-        "path": ["data", 1, 0, "bl"],
-        "value": 1
-    }
-]
-```
+## Develop
 
-The op is useful for database modification and syncing state in online collabration.
-
-A working example with `Express` (backend server) and `MongoDB` (data persistence) is avaiable in `backend-demo` folder.
-
-Run it with `node index.js` and visit [Collabration example](https://ruilisi.github.io/fortune-sheet-demo/?path=/story/collabration--example) (initialize data by visiting http://localhost:8081/init)
-
-For detailed doc about `Op`, refer to [fortune-sheet-doc](./docs/guide/op.md)
-
-## Contributing
-Expected workflow is: Fork -> Patch -> Push -> Pull Request
-
-Please make sure to read the [Contributing Guide](./docs/guide/contribute.md) before making a pull request.
-
-## Development
-### Installation
-```shell
-yarn
-```
-
-### Development
-```shell
-yarn dev
-```
-
-### Packaging
-```shell
-yarn build
+```sh
+bun install
+bun run demo        # demo app
+bun run storybook   # stories
+bun run docs        # docs site
+bun run test        # unit tests (also: test:excel, test:e2e)
+bun run lint && bun run tsc
 ```
 
 ## License
-This project is licensed under the MIT License. See [MIT](http://opensource.org/licenses/MIT) for the full license text.
+
+MIT. Fork of [FortuneSheet](https://github.com/ruilisi/fortune-sheet).

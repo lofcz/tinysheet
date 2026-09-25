@@ -1,4 +1,4 @@
-// Generates docs/guide/functions.md from the English function catalog
+// Generates docs/pages/en/guide/functions.md from the English function catalog
 // (packages/core/src/locale/functions/en.ts), the same data that drives
 // formula autocomplete and the argument hint.
 //
@@ -14,7 +14,7 @@ import {
 } from "../../packages/core/src/locale/functions/types";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const target = path.join(here, "..", "guide", "functions.md");
+const target = path.join(here, "..", "pages", "en", "guide", "functions.md");
 
 const categoryLabel: Record<string, string> = {
   Math: "Math and trigonometry",
@@ -108,7 +108,7 @@ if (process.argv.includes("--check")) {
   }
   if (current !== output) {
     console.error(
-      "docs/guide/functions.md is out of date; run `bun run docs:functions`."
+      "docs/pages/en/guide/functions.md is out of date; run `bun run docs:functions`."
     );
     process.exit(1);
   }
