@@ -46,10 +46,11 @@ function frozenTofreezen(ctx: Context, cache: GlobalCache, sheetId: string) {
     type = "rangeBoth";
   }
 
-  // Split panes scroll their top/left pane: it starts at row `top` /
-  // column `left` instead of the first row/column.
-  const splitTop = frozen.split ? frozen.top ?? 0 : 0;
-  const splitLeft = frozen.split ? frozen.left ?? 0 : 0;
+  // The top/left pane starts at row `top` / column `left` instead of the
+  // first row/column: frozen panes keep the rows/columns that were scrolled
+  // out when they were frozen hidden (Excel), split panes scroll it.
+  const splitTop = Math.max(0, frozen.top ?? 0);
+  const splitLeft = Math.max(0, frozen.left ?? 0);
 
   // transform to freezen
   if (type === "rangeRow" || type === "rangeBoth") {
@@ -167,7 +168,7 @@ export function scrollToFrozenRowCol(
     const freezen_px = ctx.visibledatacolumn[freezen_colindex];
 
     if (column_px <= freezen_px + top) {
-      ctx.scrollLeft = 0;
+      ctx.scrollLeft = frozenScrollMin(ctx).left;
       // setTimeout(function () {
       //   $("#luckysheet-scrollbar-x").scrollLeft(0);
       // }, 100);
@@ -195,7 +196,7 @@ export function scrollToFrozenRowCol(
     const freezen_px = ctx.visibledatarow[freezen_rowindex];
 
     if (row_px <= freezen_px + left) {
-      ctx.scrollTop = 0;
+      ctx.scrollTop = frozenScrollMin(ctx).top;
       // setTimeout(function () {
       //   $("#luckysheet-scrollbar-y").scrollTop(0);
       // }, 100);
@@ -275,43 +276,91 @@ function activeCellForFreeze(ctx: Context): [number, number] {
   return [r, c];
 }
 
+/**
+ * The first row/column visible at `scroll` (Excel scrolls whole rows: one
+ * scrolled more than half out counts as scrolled out).
+ */
+function firstVisibleIndex(positions: number[], scroll: number) {
+  if (!positions?.length || !(scroll > 0)) return 0;
+  const last = positions.length - 1;
+  const i = Math.min(last, _.sortedLastIndex(positions, scroll));
+  const start = i > 0 ? positions[i - 1] : 0;
+  if (i < last && positions[i] - scroll < (positions[i] - start) / 2) {
+    return i + 1;
+  }
+  return i;
+}
+
 /** Index of the row/column under the middle of the visible area. */
-function middleIndex(positions: number[], size: number) {
+function middleIndex(positions: number[], size: number, scroll = 0) {
   if (!positions?.length || !(size > 0)) return 0;
   return Math.max(
     0,
-    Math.min(positions.length - 1, _.sortedIndex(positions, size / 2))
+    Math.min(
+      positions.length - 1,
+      _.sortedIndex(positions, Math.max(0, scroll) + size / 2)
+    )
   );
+}
+
+/** The top-left visible cell of the (unfrozen) sheet. */
+function visibleTopLeft(ctx: Context): [number, number] {
+  return [
+    firstVisibleIndex(ctx.visibledatarow, ctx.scrollTop),
+    firstVisibleIndex(ctx.visibledatacolumn, ctx.scrollLeft),
+  ];
 }
 
 /**
  * Frozen/split state for panes that start at row `r` / column `c` (the
- * active cell): rows above and columns to the left go to the top/left panes.
- * At A1 Excel splits in the middle of the window.
+ * active cell): the rows from the top visible row `top` down to `r - 1` and
+ * the columns from the left visible column `left` to `c - 1` go to the
+ * top/left panes. When the active cell is the top-left visible cell (or
+ * above/left of it) Excel splits in the middle of the window.
  */
-function panesAt(ctx: Context, r: number, c: number): Frozen | null {
+function panesAt(
+  ctx: Context,
+  r: number,
+  c: number,
+  [top, left]: [number, number] = [0, 0]
+): Frozen | null {
   let row = r;
   let col = c;
-  if (row === 0 && col === 0) {
-    row = middleIndex(ctx.visibledatarow, ctx.cellmainHeight) + 1;
-    col = middleIndex(ctx.visibledatacolumn, ctx.cellmainWidth) + 1;
+  if (row <= top && col <= left) {
+    const rowsFrom = startPx(ctx.visibledatarow, top);
+    const colsFrom = startPx(ctx.visibledatacolumn, left);
+    row =
+      Math.max(
+        top,
+        middleIndex(ctx.visibledatarow, ctx.cellmainHeight, rowsFrom)
+      ) + 1;
+    col =
+      Math.max(
+        left,
+        middleIndex(ctx.visibledatacolumn, ctx.cellmainWidth, colsFrom)
+      ) + 1;
   }
-  if (row > 0 && col > 0) {
-    return {
-      type: "rangeBoth",
-      range: { row_focus: row - 1, column_focus: col - 1 },
-    };
-  }
-  if (row > 0) {
-    return { type: "rangeRow", range: { row_focus: row - 1, column_focus: 0 } };
-  }
-  if (col > 0) {
-    return {
-      type: "rangeColumn",
-      range: { row_focus: 0, column_focus: col - 1 },
-    };
-  }
-  return null;
+  const rows = row > top;
+  const cols = col > left;
+  if (!rows && !cols) return null;
+  let type: Frozen["type"] = "rangeColumn";
+  if (rows && cols) type = "rangeBoth";
+  else if (rows) type = "rangeRow";
+  const frozen: Frozen = {
+    type,
+    range: {
+      row_focus: rows ? row - 1 : 0,
+      column_focus: cols ? col - 1 : 0,
+    },
+  };
+  if (rows && top > 0) frozen.top = top;
+  if (cols && left > 0) frozen.left = left;
+  return frozen;
+}
+
+/** Pixel start of row/column `index`. */
+function startPx(positions: number[], index: number) {
+  return index > 0 ? positions?.[index - 1] ?? 0 : 0;
 }
 
 /** Whether frozen rows/columns would leave no room for the scrolling pane. */
@@ -321,23 +370,37 @@ function frozenAreaTooLarge(ctx: Context, frozen: Frozen) {
   const rows = frozen.type === "rangeRow" || frozen.type === "rangeBoth";
   const cols = frozen.type === "rangeColumn" || frozen.type === "rangeBoth";
   if (rows && ctx.cellmainHeight > 0 && ctx.visibledatarow?.length) {
-    if ((ctx.visibledatarow[rf] ?? 0) > ctx.cellmainHeight - 20) return true;
+    const h =
+      (ctx.visibledatarow[rf] ?? 0) -
+      startPx(ctx.visibledatarow, frozen.top ?? 0);
+    if (h > ctx.cellmainHeight - 20) return true;
   }
   if (cols && ctx.cellmainWidth > 0 && ctx.visibledatacolumn?.length) {
-    if ((ctx.visibledatacolumn[cf] ?? 0) > ctx.cellmainWidth - 20) return true;
+    const w =
+      (ctx.visibledatacolumn[cf] ?? 0) -
+      startPx(ctx.visibledatacolumn, frozen.left ?? 0);
+    if (w > ctx.cellmainWidth - 20) return true;
   }
   return false;
 }
 
+/** First row and column shown by frozen panes (the window's top-left). */
+function frozenTopLeft(frozen: Frozen): [number, number] {
+  return [Math.max(0, frozen.top ?? 0), Math.max(0, frozen.left ?? 0)];
+}
+
 /**
- * Excel's View > Freeze Panes menu:
- * - "panes": rows above and columns left of the active cell (at A1, the
+ * Excel's View > Freeze Panes menu, from the current scroll position:
+ * - "panes": the rows above and columns left of the active cell, starting at
+ *   the top-left visible cell (at the top-left visible cell itself, the
  *   middle of the window);
- * - "topRow" / "firstColumn": the first row / column;
- * - "unfreeze": removes frozen panes (and a split).
- * Frozen rows/columns start at the top/left of the sheet, and the scrolling
- * pane is scrolled back to them. Returns "tooLarge" (and changes nothing)
- * when the frozen part would fill the window. `dryRun` only checks.
+ * - "topRow" / "firstColumn": the top visible row / left visible column;
+ * - "unfreeze": removes frozen panes (and a split) and scrolls back so the
+ *   first frozen row/column is at the top/left of the window again.
+ * Rows/columns scrolled out above/left of the window when freezing are not
+ * shown until unfreeze (Excel), and the scrolling pane continues right after
+ * the frozen part. A frozen part larger than the window is allowed and
+ * clipped, like Excel (never "tooLarge"). `dryRun` only checks.
  */
 export function freezePanes(
   ctx: Context,
@@ -349,25 +412,179 @@ export function freezePanes(
   if (!sheet) return "noop";
   if (mode === "unfreeze") {
     if (options.dryRun) return "ok";
+    const prev = sheet.frozen;
     delete sheet.frozen;
+    if (prev && !prev.split) {
+      // the first frozen row/column is at the top-left of the window again
+      const { top, rows, left, columns } = getFrozenCells({ frozen: prev });
+      if (rows > 0) ctx.scrollTop = startPx(ctx.visibledatarow, top);
+      if (columns > 0) ctx.scrollLeft = startPx(ctx.visibledatacolumn, left);
+    }
     return "ok";
   }
+  // re-freezing works from what the window shows now
+  const current = sheet.frozen && !sheet.frozen.split ? sheet.frozen : null;
+  const [top, left] = current ? frozenTopLeft(current) : visibleTopLeft(ctx);
   let frozen: Frozen | null;
   if (mode === "topRow") {
-    frozen = { type: "rangeRow", range: { row_focus: 0, column_focus: 0 } };
+    frozen = { type: "rangeRow", range: { row_focus: top, column_focus: 0 } };
+    if (top > 0) frozen.top = top;
   } else if (mode === "firstColumn") {
-    frozen = { type: "rangeColumn", range: { row_focus: 0, column_focus: 0 } };
+    frozen = {
+      type: "rangeColumn",
+      range: { row_focus: 0, column_focus: left },
+    };
+    if (left > 0) frozen.left = left;
   } else {
     const [r, c] = activeCellForFreeze(ctx);
-    frozen = panesAt(ctx, r, c);
+    frozen = panesAt(ctx, r, c, [top, left]);
   }
   if (!frozen) return "noop";
-  if (frozenAreaTooLarge(ctx, frozen)) return "tooLarge";
   if (options.dryRun) return "ok";
   sheet.frozen = frozen;
-  if (frozen.type !== "rangeColumn") ctx.scrollTop = 0;
-  if (frozen.type !== "rangeRow") ctx.scrollLeft = 0;
+  // the scrolling pane continues right after the frozen part
+  const min = frozenScrollMin(ctx);
+  if (frozen.type !== "rangeColumn") ctx.scrollTop = min.top;
+  if (frozen.type !== "rangeRow") ctx.scrollLeft = min.left;
   return "ok";
+}
+
+/**
+ * The smallest scroll offsets of the current sheet. Frozen panes that start
+ * below/right of the first row/column (frozen from a scrolled position)
+ * keep the scrolling pane from scrolling back over the frozen rows/columns:
+ * at the minimum it starts right after them.
+ */
+export function frozenScrollMin(ctx: Context) {
+  const sheet = currentSheetFile(ctx);
+  const frozen = sheet?.frozen;
+  if (!frozen || frozen.split) return { top: 0, left: 0 };
+  const { top, rows, left, columns } = getFrozenCells(sheet);
+  return {
+    top: rows > 0 ? startPx(ctx.visibledatarow, top) : 0,
+    left: columns > 0 ? startPx(ctx.visibledatacolumn, left) : 0,
+  };
+}
+
+/** Keeps the scroll offsets at or past {@link frozenScrollMin}. */
+export function clampFrozenScroll(ctx: Context) {
+  const min = frozenScrollMin(ctx);
+  let changed = false;
+  if (ctx.scrollTop < min.top) {
+    ctx.scrollTop = min.top;
+    changed = true;
+  }
+  if (ctx.scrollLeft < min.left) {
+    ctx.scrollLeft = min.left;
+    changed = true;
+  }
+  return changed;
+}
+
+/**
+ * Which rows and columns a sheet has frozen, as Excel shows them: the first
+ * frozen row/column and how many there are (0 when none).
+ */
+export function getFrozenCells(
+  sheet: Pick<Sheet, "frozen"> | null | undefined
+) {
+  const frozen = sheet?.frozen;
+  const out = { top: 0, rows: 0, left: 0, columns: 0, split: false };
+  if (!frozen) return out;
+  const rf = frozen.range?.row_focus ?? 0;
+  const cf = frozen.range?.column_focus ?? 0;
+  const [top, left] = frozenTopLeft(frozen);
+  out.split = !!frozen.split;
+  if (frozen.type === "row") {
+    out.rows = 1;
+  } else if (frozen.type === "column") {
+    out.columns = 1;
+  } else if (frozen.type === "both") {
+    out.rows = frozen.range ? rf + 1 : 1;
+    out.columns = frozen.range ? cf + 1 : 1;
+  } else {
+    if (frozen.type !== "rangeColumn") {
+      out.top = top;
+      out.rows = Math.max(0, rf - top + 1);
+    }
+    if (frozen.type !== "rangeRow") {
+      out.left = left;
+      out.columns = Math.max(0, cf - left + 1);
+    }
+  }
+  return out;
+}
+
+function freezesAxis(frozen: Frozen, type: "row" | "column") {
+  return type === "row"
+    ? frozen.type === "rangeRow" || frozen.type === "rangeBoth"
+    : frozen.type === "rangeColumn" || frozen.type === "rangeBoth";
+}
+
+/**
+ * Keeps frozen/split panes on the same rows (or columns) when `count`
+ * rows/columns are inserted at `index` (the index of the first new one).
+ */
+export function adjustFrozenForInsert(
+  sheet: Sheet,
+  type: "row" | "column",
+  index: number,
+  count: number
+) {
+  const { frozen } = sheet;
+  if (!frozen || count <= 0 || !freezesAxis(frozen, type)) return;
+  const range = frozen.range ?? { row_focus: 0, column_focus: 0 };
+  const focusKey = type === "row" ? "row_focus" : "column_focus";
+  const firstKey = type === "row" ? "top" : "left";
+  // inserted inside or above the frozen part: it grows / moves down
+  if (range[focusKey] >= index) range[focusKey] += count;
+  const first = frozen[firstKey] ?? 0;
+  if (first > 0 && first >= index) frozen[firstKey] = first + count;
+  frozen.range = range;
+}
+
+/**
+ * Keeps frozen/split panes on the same rows (or columns) when rows/columns
+ * `start`..`end` are deleted; that direction of the freeze goes away when
+ * all of its rows/columns are deleted.
+ */
+export function adjustFrozenForDelete(
+  sheet: Sheet,
+  type: "row" | "column",
+  start: number,
+  end: number
+) {
+  const { frozen } = sheet;
+  if (!frozen || end < start || !freezesAxis(frozen, type)) return;
+  const range = frozen.range ?? { row_focus: 0, column_focus: 0 };
+  const focusKey = type === "row" ? "row_focus" : "column_focus";
+  const firstKey = type === "row" ? "top" : "left";
+  const count = end - start + 1;
+  const first = frozen[firstKey] ?? 0;
+  const last = range[focusKey];
+  if (start <= first && end >= last) {
+    const other = type === "row" ? "column" : "row";
+    if (!freezesAxis(frozen, other)) {
+      delete sheet.frozen;
+      return;
+    }
+    frozen.type = type === "row" ? "rangeColumn" : "rangeRow";
+    range[focusKey] = 0;
+    delete frozen[firstKey];
+    frozen.range = range;
+    return;
+  }
+  // the last frozen row is the last one left before the deleted block
+  if (last > end) range[focusKey] = last - count;
+  else if (last >= start) range[focusKey] = start - 1;
+  if (first > 0) {
+    let next = first;
+    if (first > end) next = first - count;
+    else if (first >= start) next = start;
+    if (next > 0) frozen[firstKey] = next;
+    else delete frozen[firstKey];
+  }
+  frozen.range = range;
 }
 
 /** Which kind of panes the current sheet has. */

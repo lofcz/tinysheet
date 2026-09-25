@@ -3,6 +3,7 @@ import { Context } from "../context";
 import { Sheet } from "../types";
 import { getSheetIndex } from "../utils";
 import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
+import { adjustFrozenForDelete, adjustFrozenForInsert } from "./freeze";
 // eslint-disable-next-line import/no-cycle
 import { onSpillStructureChange } from "./spill";
 // names, tables, charts and notes follow structural changes through the
@@ -426,27 +427,13 @@ export function insertRowCol(
     }
   }
 
-  // 冻结配置变动
-  const { frozen } = file;
-  if (frozen) {
-    const normalizedIndex = direction === "lefttop" ? index - 1 : index;
-    if (
-      type === "row" &&
-      (frozen.type === "rangeRow" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.row_focus ?? -1) > normalizedIndex) {
-        frozen.range!.row_focus += count;
-      }
-    }
-    if (
-      type === "column" &&
-      (frozen.type === "rangeColumn" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.column_focus ?? -1) > normalizedIndex) {
-        frozen.range!.column_focus += count;
-      }
-    }
-  }
+  // frozen panes stay on the same rows/columns
+  adjustFrozenForInsert(
+    file,
+    type,
+    direction === "lefttop" ? index : index + 1,
+    count
+  );
 
   // 数据验证配置变动
   const { dataVerification } = file;
@@ -1537,28 +1524,8 @@ export function deleteRowCol(
     }
   }
 
-  // 冻结配置变动
-  const { frozen } = file;
-  if (frozen) {
-    if (
-      type === "row" &&
-      (frozen.type === "rangeRow" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.row_focus ?? -1) >= start) {
-        frozen.range!.row_focus -=
-          Math.min(end, frozen.range!.row_focus) - start + 1;
-      }
-    }
-    if (
-      type === "column" &&
-      (frozen.type === "rangeColumn" || frozen.type === "rangeBoth")
-    ) {
-      if ((frozen.range?.column_focus ?? -1) >= start) {
-        frozen.range!.column_focus -=
-          Math.min(end, frozen.range!.column_focus) - start + 1;
-      }
-    }
-  }
+  // frozen panes stay on the same rows/columns
+  adjustFrozenForDelete(file, type, start, end);
 
   // 数据验证配置变动
   const { dataVerification } = file;

@@ -1,4 +1,5 @@
 import React, { useContext, useEffect } from "react";
+import { clampFrozenScroll, frozenScrollMin } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../../context";
 import "./index.css";
 
@@ -18,6 +19,20 @@ const ScrollBar: React.FC<Props> = ({ axis }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [axis === "x" ? context.scrollLeft : context.scrollTop]);
 
+  // Panes frozen from a scrolled position: the scrolling pane starts right
+  // after them and can't scroll back over them (also after a zoom changed
+  // the row/column sizes).
+  const min = frozenScrollMin(context);
+  const minScroll = axis === "x" ? min.left : min.top;
+  const scroll = axis === "x" ? context.scrollLeft : context.scrollTop;
+  useEffect(() => {
+    if (scroll < minScroll) {
+      setContext((draftCtx) => {
+        clampFrozenScroll(draftCtx);
+      });
+    }
+  }, [minScroll, scroll, setContext]);
+
   return (
     <div
       ref={axis === "x" ? refs.scrollbarX : refs.scrollbarY}
@@ -31,15 +46,20 @@ const ScrollBar: React.FC<Props> = ({ axis }) => {
       }
       className={`luckysheet-scrollbars luckysheet-scrollbar-ltr luckysheet-scrollbar-${axis}`}
       onScroll={() => {
-        if (axis === "x") {
-          setContext((draftCtx) => {
-            draftCtx.scrollLeft = refs.scrollbarX.current!.scrollLeft;
-          });
-        } else {
-          setContext((draftCtx) => {
-            draftCtx.scrollTop = refs.scrollbarY.current!.scrollTop;
-          });
+        const bar = (axis === "x" ? refs.scrollbarX : refs.scrollbarY).current!;
+        const pos = axis === "x" ? bar.scrollLeft : bar.scrollTop;
+        const next = Math.max(pos, minScroll);
+        if (next !== pos) {
+          if (axis === "x") bar.scrollLeft = next;
+          else bar.scrollTop = next;
         }
+        setContext((draftCtx) => {
+          if (axis === "x") {
+            draftCtx.scrollLeft = next;
+          } else {
+            draftCtx.scrollTop = next;
+          }
+        });
       }}
     >
       <div
