@@ -50,8 +50,13 @@ const FilterOptions: React.FC = () => {
     ) => {
       if (filterOptions == null) return;
       setContext((draftCtx) => {
-        if (draftCtx.filterContextMenu?.col === filterOptions.startCol + i)
+        if (
+          draftCtx.filterContextMenu?.col === filterOptions.startCol + i &&
+          !draftCtx.filterScope
+        )
           return;
+        // the menu acts on the sheet autofilter (not a table's filter)
+        draftCtx.filterScope = undefined;
         // the outline gutters shift the sheet area right / down
         const outline = getOutlineGutterSize(draftCtx);
         draftCtx.filterContextMenu = {

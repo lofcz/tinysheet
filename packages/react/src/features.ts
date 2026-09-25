@@ -10,6 +10,7 @@ import { installSparklineUI } from "./components/Sparkline";
 import { installOutlineUI } from "./components/Outline";
 import { registerShapesFeature } from "./components/Shapes";
 import { registerPivotTableFeatures } from "./components/PivotTable";
+import { installTablesUI } from "./components/Tables";
 
 let loaded = false;
 
@@ -21,4 +22,5 @@ export function loadBuiltinFeatures() {
   installOutlineUI();
   registerShapesFeature();
   registerPivotTableFeatures();
+  installTablesUI();
 }

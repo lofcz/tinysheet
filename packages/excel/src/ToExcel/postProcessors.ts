@@ -24,7 +24,7 @@
  *   processor. Built-ins run as: conditional-formatting, dynamic-arrays,
  *   cell-images, internal-hyperlinks, visible-notes, threaded-comments,
  *   sheet-xml-fixups, worksheet-exts, cell-hyperlinks, data-validation,
- *   tables, charts, shapes, pivot-tables, feature-fixups.
+ *   tables, table-extras, charts, shapes, pivot-tables, feature-fixups.
  * - Share data from a sheet writer (SheetExportFeature) with its
  *   post-processor through `ctx.post.features[<your name>]`.
  * - Use the helpers (`addRelationship`, `addContentTypeOverride`,
@@ -55,6 +55,7 @@ import {
 } from "./xlsxParts";
 import { markHiddenDropdowns } from "./ExcelValidation";
 import { markEmptyTables } from "./ExcelTable";
+import { writeTableExtras } from "./ExcelTableZip";
 import { addCellHyperlinks } from "./ExcelStyle";
 
 /** A worksheet part of the written package. */
@@ -149,6 +150,11 @@ export const xlsxPostProcessors: XlsxPostProcessor[] = [
   { name: "data-validation", process: markHiddenDropdowns },
   // tables without data rows (insertRow="1")
   { name: "tables", process: markEmptyTables },
+  // table filter state, calculated columns, custom totals and slicers
+  {
+    name: "table-extras",
+    process: (ctx) => writeTableExtras(ctx.zip, ctx.post),
+  },
   // native chart parts for `sheet.charts`
   {
     name: "charts",

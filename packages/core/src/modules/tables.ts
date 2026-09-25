@@ -20,6 +20,7 @@ import type {
   Sheet,
   SheetTable,
   SheetTableColumn,
+  TableSlicer,
   TableTotalFunction,
 } from "../types";
 import { peek } from "./dependencyGraph";
@@ -34,6 +35,7 @@ import {
 } from "./names";
 import { getCurrentRegion, getSheetNavInfo } from "./navigation";
 import {
+  offsetFormula,
   ReferenceChange,
   rewriteWorkbookFormulas,
   WorkbookFormulaSite,
@@ -74,17 +76,47 @@ export function suggestTableRange(ctx: Context): {
 /* ------------------------------------------------------------------------ */
 
 export type TableStyle = {
-  /** header fill and font colour */
+  /** header fill ("" for none) and font colour */
   header: string;
   headerText: string;
   /** fill of odd bands (the first data row / column) */
   band: string;
-  /** fill of the total row */
+  /** fill of the total row ("" for none) */
   total: string;
+  /** fill of the other data rows (default none) */
+  fill?: string;
+  /** font colour of the data and total rows (default: unchanged) */
+  text?: string;
 };
 
-/** Built-in styles, named after the closest Excel table style. */
+function lightStyle(band: string, headerText = "#000000"): TableStyle {
+  return { header: "", headerText, band, total: "" };
+}
+
+function darkStyle(fill: string, band: string, total: string): TableStyle {
+  return {
+    header: "#000000",
+    headerText: "#FFFFFF",
+    band,
+    total,
+    fill,
+    text: "#FFFFFF",
+  };
+}
+
+/**
+ * Built-in styles, named after the closest Excel table style (the names are
+ * written to xlsx as the table style). Light styles have no header fill,
+ * medium ones an accent header, dark ones dark rows with white text.
+ */
 export const TABLE_STYLES: Record<string, TableStyle> = {
+  TableStyleLight1: lightStyle("#D9D9D9"),
+  TableStyleLight2: lightStyle("#D9E1F2", "#2F5597"),
+  TableStyleLight3: lightStyle("#FCE4D6", "#C55A11"),
+  TableStyleLight4: lightStyle("#EDEDED", "#595959"),
+  TableStyleLight5: lightStyle("#FFF2CC", "#BF8F00"),
+  TableStyleLight6: lightStyle("#DDEBF7", "#2F75B5"),
+  TableStyleLight7: lightStyle("#E2EFDA", "#548235"),
   TableStyleMedium2: {
     header: "#4472C4",
     headerText: "#FFFFFF",
@@ -133,13 +165,35 @@ export const TABLE_STYLES: Record<string, TableStyle> = {
     band: "#E4DFEC",
     total: "#E4DFEC",
   },
+  TableStyleDark1: darkStyle("#737373", "#595959", "#262626"),
+  TableStyleDark2: darkStyle("#4472C4", "#305496", "#203764"),
+  TableStyleDark3: darkStyle("#ED7D31", "#C65911", "#833C0C"),
+  TableStyleDark4: darkStyle("#A5A5A5", "#7B7B7B", "#525252"),
+  TableStyleDark5: darkStyle("#FFC000", "#BF8F00", "#806000"),
+  TableStyleDark6: darkStyle("#5B9BD5", "#2F75B5", "#1F4E78"),
+  TableStyleDark7: darkStyle("#70AD47", "#548235", "#375623"),
+};
+
+export type TableStyleGroup = "light" | "medium" | "dark";
+
+/** The gallery sections: style keys by group, in gallery order. */
+export const TABLE_STYLE_GROUPS: Record<TableStyleGroup, string[]> = {
+  light: Object.keys(TABLE_STYLES).filter((k) => k.includes("Light")),
+  medium: Object.keys(TABLE_STYLES).filter((k) => k.includes("Medium")),
+  dark: Object.keys(TABLE_STYLES).filter((k) => k.includes("Dark")),
 };
 
 export const DEFAULT_TABLE_STYLE = "TableStyleMedium2";
 
 const TABLE_COLORS = new Set<string>();
+const TABLE_TEXT_COLORS = new Set<string>(["#FFFFFF"]);
 Object.values(TABLE_STYLES).forEach((s) => {
-  [s.header, s.band, s.total].forEach((x) => TABLE_COLORS.add(x.toUpperCase()));
+  [s.header, s.band, s.total, s.fill].forEach((x) => {
+    if (x) TABLE_COLORS.add(x.toUpperCase());
+  });
+  [s.headerText, s.text].forEach((x) => {
+    if (x) TABLE_TEXT_COLORS.add(x.toUpperCase());
+  });
 });
 
 function isTableColor(color: any) {
@@ -147,6 +201,15 @@ function isTableColor(color: any) {
     color == null ||
     color === "" ||
     (typeof color === "string" && TABLE_COLORS.has(color.toUpperCase()))
+  );
+}
+
+/** A font colour a table style wrote (or none): the style may replace it. */
+function isTableTextColor(color: any) {
+  return (
+    color == null ||
+    color === "" ||
+    (typeof color === "string" && TABLE_TEXT_COLORS.has(color.toUpperCase()))
   );
 }
 
@@ -204,6 +267,28 @@ export function tableAt(
     }
   });
   return found;
+}
+
+/** Every slicer of the workbook, with its table and sheet. */
+export function getSlicers(ctx: Context) {
+  const out: { sheetId: string; table: SheetTable; slicer: TableSlicer }[] = [];
+  getTables(ctx).forEach(({ sheetId, table }) => {
+    table.slicers?.forEach((slicer) => out.push({ sheetId, table, slicer }));
+  });
+  return out;
+}
+
+/** `base`, or `base1`, `base2`... when a slicer already has that name. */
+export function uniqueSlicerName(
+  ctx: Context,
+  base: string,
+  taken: Set<string> = new Set()
+) {
+  const used = new Set(taken);
+  getSlicers(ctx).forEach(({ slicer }) => used.add(slicer.name.toUpperCase()));
+  let name = base;
+  for (let n = 1; used.has(name.toUpperCase()); n += 1) name = `${base}${n}`;
+  return name;
 }
 
 /** Row spans of a table: header row, data rows, total row. */
@@ -775,7 +860,13 @@ function setBg(cell: Cell, bg: string | null) {
   else delete cell.bg;
 }
 
-/** Write the table look (fills, header font, bold rows) into its cells. */
+function setFc(cell: Cell, fc: string | undefined) {
+  if (!isTableTextColor(cell.fc)) return;
+  if (fc) cell.fc = fc;
+  else delete cell.fc;
+}
+
+/** Write the table look (fills, fonts, bold rows) into its cells. */
 export function applyTableFormatting(
   ctx: Context,
   sheetId: string,
@@ -791,19 +882,19 @@ export function applyTableFormatting(
     for (let c = c1; c <= c2; c += 1) {
       const cell: Cell = { ...(data[r][c] ?? {}) };
       if (r === header) {
-        setBg(cell, style.header);
-        if (!cell.fc || cell.fc.toUpperCase() === "#FFFFFF") {
-          cell.fc = style.headerText;
-        }
+        setBg(cell, style.header || null);
+        setFc(cell, style.headerText);
         cell.bl = 1;
       } else if (r === total) {
-        setBg(cell, style.total);
+        setBg(cell, style.total || null);
+        setFc(cell, style.text);
         cell.bl = 1;
       } else if (r >= dataStart && r <= dataEnd) {
         let banded = false;
         if (table.bandedRows) banded = (r - dataStart) % 2 === 0;
-        else if (table.bandedColumns) banded = (c - c1) % 2 === 0;
-        setBg(cell, banded ? style.band : null);
+        if (table.bandedColumns) banded = banded || (c - c1) % 2 === 0;
+        setBg(cell, banded ? style.band : style.fill ?? null);
+        setFc(cell, style.text);
         if (c === c1 || c === c2) {
           const bold =
             (table.firstColumn && c === c1) || (table.lastColumn && c === c2);
@@ -831,7 +922,7 @@ function clearTableFormatting(
       if (cell) {
         const next: Cell = { ...cell };
         if (cell.bg && isTableColor(cell.bg)) delete next.bg;
-        if (next.fc?.toUpperCase() === "#FFFFFF") delete next.fc;
+        if (next.fc && isTableTextColor(next.fc)) delete next.fc;
         if (next.bl === 1) delete next.bl;
         data[r][c] = next;
       }
@@ -850,7 +941,8 @@ export type TableError =
   | "notFound"
   | "invalidName"
   | "duplicateName"
-  | "noRoom";
+  | "noRoom"
+  | "noRoomAbove";
 
 type Span = { row: [number, number]; column: [number, number] };
 
@@ -883,7 +975,8 @@ function replaceSheetTables(
   else delete sheet.tables;
 }
 
-function updateTableObject(
+/** Replaces table `ref.table` on its sheet by a patched copy (returned). */
+export function updateTableObject(
   ctx: Context,
   ref: TableRef,
   patch: Partial<SheetTable>
@@ -1014,7 +1107,8 @@ export function createTable(
   return { table };
 }
 
-const SUBTOTAL_CODES: Record<string, number> = {
+/** SUBTOTAL function numbers of the total-row functions (hidden rows ignored). */
+export const SUBTOTAL_CODES: Record<string, number> = {
   average: 101,
   countNums: 102,
   count: 103,
@@ -1025,11 +1119,19 @@ const SUBTOTAL_CODES: Record<string, number> = {
   var: 110,
 };
 
-/** The total-row formula for a column (null when there is none). */
-export function totalRowFormula(column: SheetTableColumn): string | null {
+/**
+ * The total-row formula for a column of table `tableName` (null when there
+ * is none): `=SUBTOTAL(109,Table1[Sales])`, or the column's own formula for
+ * a "custom" function.
+ */
+export function totalRowFormula(
+  column: SheetTableColumn,
+  tableName: string
+): string | null {
+  if (column.totalFunction === "custom") return column.totalFormula ?? null;
   const code = SUBTOTAL_CODES[column.totalFunction ?? "none"];
   if (!code) return null;
-  return `=SUBTOTAL(${code},[${escapeColumnName(column.name)}])`;
+  return `=SUBTOTAL(${code},${tableName}[${escapeColumnName(column.name)}])`;
 }
 
 function writeTotalRow(ctx: Context, sheetId: string, table: SheetTable) {
@@ -1038,7 +1140,7 @@ function writeTotalRow(ctx: Context, sheetId: string, table: SheetTable) {
   if (!data || total == null) return;
   table.columns.forEach((col, i) => {
     const c = table.range.column[0] + i;
-    const f = totalRowFormula(col);
+    const f = totalRowFormula(col, table.name);
     if (f) writeFormula(ctx, sheetId, data, total, c, f);
     else if (col.totalLabel != null) writeText(data, total, c, col.totalLabel);
     else clearCell(data, total, c);
@@ -1066,11 +1168,70 @@ export function checkTotalRow(
   return null;
 }
 
+/** Whether the header row can be turned back on (the row above is empty). */
+export function checkHeaderRow(
+  ctx: Context,
+  tableName: string
+): TableError | null {
+  const ref = findTable(ctx, tableName);
+  if (!ref) return "notFound";
+  const data = sheetById(ctx, ref.sheetId)?.data;
+  if (!data) return "notFound";
+  const above = ref.table.range.row[0] - 1;
+  if (above < 0) return "noRoomAbove";
+  for (
+    let c = ref.table.range.column[0];
+    c <= ref.table.range.column[1];
+    c += 1
+  ) {
+    if (!isEmptyCell(data[above]?.[c])) return "noRoomAbove";
+  }
+  if (
+    getTables(ctx, ref.sheetId).some(
+      (t) =>
+        t.table.name !== ref.table.name &&
+        rangesOverlap(t.table.range, {
+          row: [above, above],
+          column: ref.table.range.column,
+        })
+    )
+  ) {
+    return "noRoomAbove";
+  }
+  return null;
+}
+
+/**
+ * The columns with their stored formulas (calculated column, custom total)
+ * mapped by `fn`, or null when none changed.
+ */
+function renameInStoredFormulas(
+  table: SheetTable,
+  fn: (formula: string) => string
+): SheetTableColumn[] | null {
+  let changed = false;
+  const columns = table.columns.map((col) => {
+    const next = { ...col };
+    (["calculatedFormula", "totalFormula"] as const).forEach((key) => {
+      const f = col[key];
+      if (typeof f !== "string") return;
+      const mapped = fn(f);
+      if (mapped !== f) {
+        next[key] = mapped;
+        changed = true;
+      }
+    });
+    return next;
+  });
+  return changed ? columns : null;
+}
+
 export type TableOptionsPatch = Partial<
   Pick<
     SheetTable,
     | "name"
     | "style"
+    | "headerRow"
     | "totalRow"
     | "bandedRows"
     | "bandedColumns"
@@ -1108,7 +1269,27 @@ export function setTableOptions(
   }
   if (patch.style != null && !TABLE_STYLES[patch.style]) delete next.style;
   const { table } = ref;
-  const [r1, r2] = table.range.row;
+  let r1 = table.range.row[0];
+  const r2 = table.range.row[1];
+  if (patch.headerRow === true && !table.headerRow) {
+    // the header comes back in the row above the data (it must be empty)
+    const err = checkHeaderRow(ctx, table.name);
+    if (err) return err;
+    r1 -= 1;
+    table.columns.forEach((col, i) =>
+      writeText(data, r1, table.range.column[0] + i, col.name)
+    );
+    next.range = { row: [r1, r2], column: table.range.column };
+  } else if (patch.headerRow === false && table.headerRow) {
+    // the column names stay with the table; the header cells are emptied
+    if (r2 - r1 < (table.totalRow ? 2 : 1)) return "invalidRange";
+    for (let c = table.range.column[0]; c <= table.range.column[1]; c += 1) {
+      clearCell(data, r1, c);
+    }
+    clearTableFormatting(ctx, sheetId, [r1, r1], table.range.column);
+    r1 += 1;
+    next.range = { row: [r1, r2], column: table.range.column };
+  }
   if (patch.totalRow === true && !table.totalRow) {
     const below = r2 + 1;
     const err = checkTotalRow(ctx, table.name);
@@ -1128,9 +1309,23 @@ export function setTableOptions(
     clearTableFormatting(ctx, sheetId, [r2, r2], table.range.column);
     next.range = { row: [r1, r2 - 1], column: table.range.column };
   }
-  const updated = updateTableObject(ctx, ref, next);
+  let updated = updateTableObject(ctx, ref, next);
   if (patch.name != null && patch.name !== table.name) {
     renameTableReferences(ctx, table.name, patch.name);
+    const renamed = renameInStoredFormulas(updated, (formula) =>
+      mapStructuredReferences(formula, (refTable, content) => {
+        if (refTable == null) return null;
+        if (refTable.toUpperCase() !== table.name.toUpperCase()) return null;
+        return content == null ? patch.name : `${patch.name}[${content}]`;
+      })
+    );
+    if (renamed) {
+      updated = updateTableObject(
+        ctx,
+        { sheetId, table: updated },
+        { columns: renamed }
+      );
+    }
   }
   // the table must be updated before its total formulas are evaluated
   if (patch.totalRow === true && !table.totalRow) {
@@ -1141,26 +1336,284 @@ export function setTableOptions(
   return null;
 }
 
-/** Sets the total-row function of column `index` (0-based). */
+/**
+ * Sets the total-row function of column `index` (0-based). "custom" keeps
+ * `formula` (More Functions…) as the column's total formula; "none" shows
+ * `label` instead.
+ */
 export function setTableTotalFunction(
   ctx: Context,
   tableName: string,
   index: number,
   fn: TableTotalFunction,
-  label?: string
+  label?: string,
+  formula?: string
 ): TableError | null {
   const ref = findTable(ctx, tableName);
   if (!ref) return "notFound";
   const columns = ref.table.columns.map((col, i) => {
     if (i !== index) return col;
-    const next: SheetTableColumn = { name: col.name, totalFunction: fn };
+    const next: SheetTableColumn = { ...col, totalFunction: fn };
+    delete next.totalLabel;
+    delete next.totalFormula;
     if (fn === "none" && label != null) next.totalLabel = label;
+    if (fn === "custom" && formula) next.totalFormula = formula;
     return next;
   });
   const table = updateTableObject(ctx, ref, { columns });
   writeTotalRow(ctx, ref.sheetId, table);
   recalculateWorkbook(ctx);
   return null;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Calculated columns                                                       */
+/* ------------------------------------------------------------------------ */
+
+function isFormulaCell(cell: Cell | null | undefined): cell is Cell {
+  return typeof cell?.f === "string" && cell.f.length > 1;
+}
+
+/** The formula a calculated column holds in row `r` of its table. */
+export function calculatedFormulaAt(
+  table: SheetTable,
+  column: SheetTableColumn,
+  r: number
+): string | null {
+  if (!column.calculatedFormula) return null;
+  const { dataStart } = tableAreas(table);
+  return offsetFormula(column.calculatedFormula, r - dataStart, 0);
+}
+
+/**
+ * Fills the empty cells of the calculated columns of `table` in rows
+ * `from`..`to` (new rows of the table inherit the column formulas).
+ */
+function fillCalculatedRows(
+  ctx: Context,
+  sheetId: string,
+  table: SheetTable,
+  from: number,
+  to: number
+) {
+  const data = sheetById(ctx, sheetId)?.data;
+  if (!data) return false;
+  const { dataStart, dataEnd } = tableAreas(table);
+  let filled = false;
+  table.columns.forEach((col, k) => {
+    if (!col.calculatedFormula) return;
+    const c = table.range.column[0] + k;
+    for (
+      let r = Math.max(from, dataStart);
+      r <= Math.min(to, dataEnd);
+      r += 1
+    ) {
+      if (isEmptyCell(data[r]?.[c])) {
+        writeFormula(
+          ctx,
+          sheetId,
+          data,
+          r,
+          c,
+          calculatedFormulaAt(table, col, r)!
+        );
+        filled = true;
+      }
+    }
+  });
+  return filled;
+}
+
+/**
+ * Makes column `index` of table `tableName` a calculated column holding the
+ * formula of cell (`fromRow`, column): every other data cell gets that
+ * formula (relative references follow the row). "Overwrite all cells in
+ * this column with this formula".
+ */
+export function fillCalculatedColumn(
+  ctx: Context,
+  tableName: string,
+  index: number,
+  fromRow: number
+): boolean {
+  const ref = findTable(ctx, tableName);
+  if (!ref) return false;
+  const { table, sheetId } = ref;
+  const data = sheetById(ctx, sheetId)?.data;
+  const c = table.range.column[0] + index;
+  const source = data?.[fromRow]?.[c];
+  if (!data || !isFormulaCell(source) || !table.columns[index]) return false;
+  const { dataStart, dataEnd } = tableAreas(table);
+  if (fromRow < dataStart || fromRow > dataEnd) return false;
+  for (let r = dataStart; r <= dataEnd; r += 1) {
+    if (r !== fromRow) {
+      writeFormula(
+        ctx,
+        sheetId,
+        data,
+        r,
+        c,
+        offsetFormula(source.f!, r - fromRow, 0)
+      );
+    }
+  }
+  const columns = table.columns.map((col, k) =>
+    k === index
+      ? {
+          ...col,
+          calculatedFormula: offsetFormula(source.f!, dataStart - fromRow, 0),
+        }
+      : col
+  );
+  updateTableObject(ctx, ref, { columns });
+  recalculateWorkbook(ctx);
+  return true;
+}
+
+/**
+ * "Undo Calculated Column": the formula stays in row `keepRow` only; the
+ * other cells of the column that hold the calculated formula are cleared.
+ */
+export function undoCalculatedColumn(
+  ctx: Context,
+  tableName: string,
+  index: number,
+  keepRow: number
+): boolean {
+  const ref = findTable(ctx, tableName);
+  if (!ref) return false;
+  const { table, sheetId } = ref;
+  const col = table.columns[index];
+  const data = sheetById(ctx, sheetId)?.data;
+  if (!data || !col) return false;
+  const c = table.range.column[0] + index;
+  const { dataStart, dataEnd } = tableAreas(table);
+  if (col.calculatedFormula) {
+    for (let r = dataStart; r <= dataEnd; r += 1) {
+      if (
+        r !== keepRow &&
+        data[r]?.[c]?.f === calculatedFormulaAt(table, col, r)
+      ) {
+        clearCell(data, r, c);
+      }
+    }
+  }
+  const next = { ...col };
+  delete next.calculatedFormula;
+  updateTableObject(ctx, ref, {
+    columns: table.columns.map((x, k) => (k === index ? next : x)),
+  });
+  recalculateWorkbook(ctx);
+  return true;
+}
+
+/**
+ * A formula typed into a table column: an empty column (or a calculated
+ * column being changed) becomes a calculated column filled with it; a
+ * column holding other data only offers to overwrite it (AutoCorrect).
+ */
+function onTableFormulaEdited(
+  ctx: Context,
+  ref: TableRef,
+  r: number,
+  c: number
+): boolean {
+  const { table, sheetId } = ref;
+  const data = sheetById(ctx, sheetId)?.data;
+  const cell = data?.[r]?.[c];
+  if (!data || !isFormulaCell(cell)) return false;
+  const k = c - table.range.column[0];
+  const col = table.columns[k];
+  const { dataStart, dataEnd } = tableAreas(table);
+  let others = 0;
+  let consistent = true;
+  let empty = true;
+  for (let rr = dataStart; rr <= dataEnd; rr += 1) {
+    if (rr !== r) {
+      others += 1;
+      const other = data[rr]?.[c];
+      if (!isEmptyCell(other)) empty = false;
+      if (
+        !col.calculatedFormula ||
+        other?.f !== calculatedFormulaAt(table, col, rr)
+      ) {
+        consistent = false;
+      }
+    }
+  }
+  const expected = calculatedFormulaAt(table, col, r);
+  if (expected === cell.f) return false;
+  if (others === 0 || empty || (col.calculatedFormula && consistent)) {
+    fillCalculatedColumn(ctx, table.name, k, r);
+    if (others > 0) {
+      ctx.tableAutoCorrect = {
+        sheetId,
+        table: table.name,
+        column: k,
+        r,
+        c,
+        kind: "created",
+      };
+    }
+    return true;
+  }
+  ctx.tableAutoCorrect = {
+    sheetId,
+    table: table.name,
+    column: k,
+    r,
+    c,
+    kind: "overwrite",
+  };
+  return false;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Filter hidden rows                                                       */
+/* ------------------------------------------------------------------------ */
+
+/** Rows the filters of a table hide. */
+export function tableFilterRows(table: SheetTable): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!table.filters) return out;
+  Object.values(table.filters).forEach((f) => Object.assign(out, f?.rowhidden));
+  return out;
+}
+
+/** Rows hidden by the sheet autofilter and by every table filter. */
+export function filterOwnedRows(sheet: Sheet): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (sheet.filter) {
+    Object.values(sheet.filter).forEach((f: any) =>
+      Object.assign(out, f?.rowhidden)
+    );
+  }
+  sheet.tables?.forEach((t) => Object.assign(out, tableFilterRows(t)));
+  return out;
+}
+
+/**
+ * Updates a sheet's hidden rows after filters changed: the `release` rows
+ * (what the changed filter hid before) are shown again unless another
+ * filter still hides them, and every row a filter hides is hidden. Rows
+ * hidden by hand stay hidden.
+ */
+export function syncFilterHiddenRows(
+  ctx: Context,
+  sheetId: string,
+  release: Record<string, number>
+) {
+  const sheet = sheetById(ctx, sheetId);
+  if (!sheet) return;
+  const current = sheetId === ctx.currentSheetId;
+  const base = (current ? ctx.config : sheet.config) ?? {};
+  const rowhidden = {
+    ..._.omit(base.rowhidden ?? {}, Object.keys(release)),
+    ...filterOwnedRows(sheet),
+  };
+  const cfg = { ...base, rowhidden };
+  sheet.config = cfg;
+  if (current) ctx.config = cfg;
 }
 
 /**
@@ -1233,7 +1686,29 @@ export function resizeTable(
       oldRange.column[1],
     ]);
   }
-  const next = updateTableObject(ctx, ref, { range: span, columns });
+  // filters follow their columns; slicers of dropped columns go away
+  const patch: Partial<SheetTable> = { range: span, columns };
+  if (table.filters) {
+    const filters: NonNullable<SheetTable["filters"]> = {};
+    Object.entries(table.filters).forEach(([k, f]) => {
+      const nk = Number(k) + oldRange.column[0] - column[0];
+      if (nk >= 0 && nk < columns.length) filters[nk] = f;
+    });
+    patch.filters = _.isEmpty(filters) ? undefined : filters;
+  }
+  if (table.slicers) {
+    const kept = new Set(columns.map((col) => col.name.toUpperCase()));
+    const slicers = table.slicers.filter((x) =>
+      kept.has(x.column.toUpperCase())
+    );
+    patch.slicers = slicers.length > 0 ? slicers : undefined;
+  }
+  const next = updateTableObject(ctx, ref, patch);
+  // new rows inherit the calculated columns
+  const oldEnd = tableAreas(table).dataEnd;
+  const { dataEnd } = tableAreas(next);
+  if (dataEnd > oldEnd)
+    fillCalculatedRows(ctx, sheetId, next, oldEnd + 1, dataEnd);
   applyTableFormatting(ctx, sheetId, next);
   if (options.recalculate !== false) recalculateWorkbook(ctx);
   return null;
@@ -1285,6 +1760,9 @@ export function convertTableToRange(ctx: Context, tableName: string) {
   replaceSheetTables(ctx, ref.sheetId, (list) =>
     list.filter((t) => t.name !== ref.table.name)
   );
+  // rows its filters hid (and its slicers) go with the table
+  const released = tableFilterRows(ref.table);
+  if (!_.isEmpty(released)) syncFilterHiddenRows(ctx, ref.sheetId, released);
   recalculateWorkbook(ctx);
   return true;
 }
@@ -1296,9 +1774,10 @@ export function convertTableToRange(ctx: Context, tableName: string) {
 /**
  * Called after a cell was edited (updateCell). Typing into the row directly
  * below a table (without a total row) or the column directly right of it
- * extends the table (formulas of calculated `[@...]` columns are copied to
- * the new row); editing a header cell renames the column. Returns true when
- * a table changed (the workbook was then recalculated).
+ * extends the table (calculated columns fill the new row); editing a header
+ * cell renames the column; a formula typed into a data cell can make its
+ * column a calculated column. Returns true when a table changed (the
+ * workbook was then recalculated).
  */
 export function onTableCellEdited(
   ctx: Context,
@@ -1306,6 +1785,7 @@ export function onTableCellEdited(
   r: number,
   c: number
 ): boolean {
+  ctx.tableAutoCorrect = undefined;
   const tables = getTables(ctx, sheetId);
   if (tables.length === 0) return false;
   const data = sheetById(ctx, sheetId)?.data;
@@ -1324,14 +1804,63 @@ export function onTableCellEdited(
         table.columns.filter((_col, j) => j !== k).map((col) => col.name)
       );
       if (name !== cellText(cell)) writeText(data, r, c, name);
-      if (name === table.columns[k].name) return false;
-      const columns = table.columns.map((col, j) =>
+      const oldName = table.columns[k].name;
+      if (name === oldName) return false;
+      let columns = table.columns.map((col, j) =>
         j === k ? { ...col, name } : col
       );
       // formulas follow the renamed column (Excel)
-      renameTableColumnReferences(ctx, table.name, table.columns[k].name, name);
-      updateTableObject(ctx, ref, { columns });
+      renameTableColumnReferences(ctx, table.name, oldName, name);
+      const upper = table.name.toUpperCase();
+      columns =
+        renameInStoredFormulas({ ...table, columns }, (formula) =>
+          mapStructuredReferences(formula, (tableName, content) => {
+            if (content == null) return null;
+            if (tableName != null && tableName.toUpperCase() !== upper) {
+              return null;
+            }
+            const next = renameColumnInReference(content, oldName, name);
+            return next == null ? null : `${tableName ?? ""}[${next}]`;
+          })
+        ) ?? columns;
+      const slicers = table.slicers?.map((s) =>
+        s.column.toUpperCase() === oldName.toUpperCase()
+          ? { ...s, column: name }
+          : s
+      );
+      updateTableObject(ctx, ref, slicers ? { columns, slicers } : { columns });
       recalculateWorkbook(ctx);
+      return true;
+    }
+    const { dataStart, dataEnd, total } = tableAreas(table);
+    if (r >= dataStart && r <= dataEnd && c >= c1 && c <= c2) {
+      return onTableFormulaEdited(ctx, ref, r, c);
+    }
+    if (r === total && c >= c1 && c <= c2) {
+      // a formula typed into the total row is a custom total, text a label
+      const k = c - c1;
+      const col = table.columns[k];
+      if (typeof cell?.f === "string" && cell.f.length > 1) {
+        if (cell.f === totalRowFormula(col, table.name)) return false;
+        const next: SheetTableColumn = {
+          ...col,
+          totalFunction: "custom",
+          totalFormula: cell.f,
+        };
+        delete next.totalLabel;
+        updateTableObject(ctx, ref, {
+          columns: table.columns.map((x, j) => (j === k ? next : x)),
+        });
+        return true;
+      }
+      const next: SheetTableColumn = { ...col, totalFunction: "none" };
+      delete next.totalFormula;
+      const text = cellText(cell);
+      if (text) next.totalLabel = text;
+      else delete next.totalLabel;
+      updateTableObject(ctx, ref, {
+        columns: table.columns.map((x, j) => (j === k ? next : x)),
+      });
       return true;
     }
     if (!isEmptyCell(cell)) {
@@ -1339,7 +1868,10 @@ export function onTableCellEdited(
         const next = updateTableObject(ctx, ref, {
           range: { row: [r1, r2 + 1], column: [c1, c2] },
         });
-        // calculated columns: copy [@...] formulas of the row above
+        // calculated columns: the new row inherits their formulas
+        fillCalculatedRows(ctx, ref.sheetId, next, r, r);
+        // copy [@...] formulas of the row above (columns without a
+        // calculated formula)
         for (let cc = c1; cc <= c2; cc += 1) {
           const above = data[r2]?.[cc];
           if (
@@ -1571,6 +2103,83 @@ function breakStructuredReferences(
   );
 }
 
+/** Row keys of a rowhidden map after a row insert/delete. */
+function shiftRowKeys(
+  rows: Record<string, number>,
+  change: ReferenceChange
+): Record<string, number> {
+  if (
+    (change.type !== "insert" && change.type !== "delete") ||
+    change.axis !== "row"
+  ) {
+    return rows;
+  }
+  const out: Record<string, number> = {};
+  Object.keys(rows).forEach((k) => {
+    const r = Number(k);
+    if (change.type === "insert") {
+      out[r >= change.index ? r + change.count : r] = rows[k];
+    } else if (r < change.start) out[r] = rows[k];
+    else if (r > change.end) out[r - (change.end - change.start + 1)] = rows[k];
+  });
+  return out;
+}
+
+/** A slicer anchor after a whole row/column insert or delete. */
+function shiftAnchor(index: number, change: ReferenceChange, axis: string) {
+  if (change.type === "insert" && change.axis === axis) {
+    return index >= change.index ? index + change.count : index;
+  }
+  if (change.type === "delete" && change.axis === axis) {
+    if (index > change.end) return index - (change.end - change.start + 1);
+    if (index >= change.start) return change.start;
+  }
+  return index;
+}
+
+/**
+ * Table state stored by row or column (filter hidden rows, filter column
+ * keys, slicers and their cell anchors) after a structural change; `t` is
+ * the table with its new range and columns, `orig` the table before.
+ */
+function adjustTableState(
+  t: SheetTable,
+  orig: SheetTable,
+  change: ReferenceChange
+): SheetTable {
+  let out = t;
+  if (t.filters) {
+    const names = new Map(orig.columns.map((col, i) => [i, col.name]));
+    const filters: NonNullable<SheetTable["filters"]> = {};
+    Object.entries(t.filters).forEach(([k, f]) => {
+      const name = names.get(Number(k));
+      const nk = t.columns.findIndex((col, i) =>
+        t.columns === orig.columns ? i === Number(k) : col.name === name
+      );
+      if (nk < 0) return;
+      filters[nk] = { ...f, rowhidden: shiftRowKeys(f.rowhidden, change) };
+    });
+    out = { ...out, filters: _.isEmpty(filters) ? undefined : filters };
+  }
+  if (t.slicers) {
+    const names = new Set(t.columns.map((col) => col.name.toUpperCase()));
+    const slicers = t.slicers
+      .filter((x) => names.has(x.column.toUpperCase()))
+      .map((x) => {
+        const r = shiftAnchor(x.r, change, "row");
+        const c = shiftAnchor(x.c, change, "column");
+        return r === x.r && c === x.c ? x : { ...x, r, c };
+      });
+    const same =
+      slicers.length === t.slicers.length &&
+      slicers.every((x, i) => x === t.slicers![i]);
+    if (!same) {
+      out = { ...out, slicers: slicers.length > 0 ? slicers : undefined };
+    }
+  }
+  return out;
+}
+
 /**
  * Keeps tables in sync with a structural change (registered with refAdjust,
  * see modelSync.ts; called once per change, before the cells move):
@@ -1720,18 +2329,46 @@ export function adjustTablesForChange(
       range: { ...t.range, row: nextSpan },
     });
   });
+  // filters, slicers and calculated columns follow the change
+  const calcFills: { name: string; from: number; to: number }[] = [];
+  const originals = new Map(sheet.tables.map((t) => [t.name, t]));
+  const final = next.map((t) => {
+    const orig = originals.get(t.name)!;
+    const out = adjustTableState(t, orig, change);
+    if (out !== t) changed = true;
+    if (
+      change.type === "insert" &&
+      change.axis === "row" &&
+      out.columns.some((col) => col.calculatedFormula)
+    ) {
+      const { dataStart, dataEnd } = tableAreas(out);
+      const from = Math.max(change.index, dataStart);
+      const to = Math.min(change.index + change.count - 1, dataEnd);
+      if (from <= to && change.index > orig.range.row[0]) {
+        calcFills.push({ name: out.name, from, to });
+      }
+    }
+    return out;
+  });
   // references are rewritten while the old table ranges still resolve
   // unqualified references ([@Col]) of cells inside the tables
   breakStructuredReferences(ctx, before, deadTables, deadColumns);
   if (changed) {
-    if (next.length > 0) sheet.tables = next;
+    if (final.length > 0) sheet.tables = final;
     else delete sheet.tables;
   }
-  if (headerWrites.length === 0) return undefined;
+  if (headerWrites.length === 0 && calcFills.length === 0) return undefined;
   return () => {
     headerWrites.forEach(({ sheetId, r, c, text }) => {
       const data = sheetById(ctx, sheetId)?.data;
       if (data) writeText(data, r, c, text);
+    });
+    // inserted rows inherit the calculated columns
+    calcFills.forEach(({ name, from, to }) => {
+      const table = sheetById(ctx, change.sheetId)?.tables?.find(
+        (t) => t.name === name
+      );
+      if (table) fillCalculatedRows(ctx, change.sheetId, table, from, to);
     });
   };
 }
@@ -1750,6 +2387,7 @@ export function renameDuplicatedTables(
   const taken = new Set<string>();
   getNameIndex(ctx).entries.forEach((e) => taken.add(e.name.toUpperCase()));
   tableIndexOf(ctx).forEach((_t, upper) => taken.add(upper));
+  const slicerNames = new Set<string>();
   copy.tables = copy.tables.map((t) => {
     let n = 2;
     let name = `${t.name}${n}`;
@@ -1759,7 +2397,13 @@ export function renameDuplicatedTables(
     }
     taken.add(name.toUpperCase());
     renames.set(t.name.toUpperCase(), name);
-    return { ...t, name };
+    // slicer names are workbook-unique too
+    const slicers = t.slicers?.map((x) => {
+      const slicerName = uniqueSlicerName(ctx, x.name, slicerNames);
+      slicerNames.add(slicerName.toUpperCase());
+      return { ...x, name: slicerName };
+    });
+    return slicers ? { ...t, name, slicers } : { ...t, name };
   });
   const rename = (formula: string) =>
     mapStructuredReferences(formula, (tableName, content) => {

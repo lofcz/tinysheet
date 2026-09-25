@@ -39,6 +39,7 @@ test("built-in post-processors run in a documented order", () => {
       "cell-hyperlinks",
       "data-validation",
       "tables",
+      "table-extras",
       "charts",
       "shapes",
       "pivot-tables",

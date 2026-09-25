@@ -310,6 +310,7 @@ export const defaultSettings: Required<Settings> = {
     "sparkline",
     "shapes",
     "pivotTable",
+    "slicer",
     "link",
     "comment",
     "threaded-comment", // New Comment, Previous/Next, Comments pane

@@ -9,6 +9,7 @@ import React, {
 import _ from "lodash";
 import {
   absoluteRangeText,
+  checkHeaderRow,
   checkTableRange,
   checkTotalRow,
   convertTableToRange,
@@ -18,11 +19,14 @@ import {
   locale,
   parseRangeText,
   resizeTable,
+  setTableFilterButton,
   setTableOptions,
   setTableTotalFunction,
   suggestTableRange,
+  TABLE_STYLE_GROUPS,
   TABLE_STYLES,
   tableAt,
+  tableToolsLocale,
   validateDefinedName,
 } from "@lofcz/tinysheet-core";
 import type {
@@ -35,7 +39,31 @@ import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import Combo from "../Toolbar/Combo";
 import { activateOnKey } from "../Toolbar/Button";
+import { registerSheetOverlay, registerToolbarItem } from "../../extensions";
+import TableOverlay from "./TableOverlay";
+import {
+  InsertSlicerDialog,
+  SlicerLayer,
+  SlicerToolbarButton,
+  useInsertSlicer,
+} from "./Slicers";
 import "./index.css";
+
+let installed = false;
+
+/**
+ * Table chrome over the grid (header filter buttons, total-row dropdown,
+ * resize handle, AutoCorrect), slicer panels and the Slicer toolbar item.
+ */
+export function installTablesUI() {
+  if (installed) return;
+  installed = true;
+  registerSheetOverlay("tables", TableOverlay);
+  registerSheetOverlay("slicers", SlicerLayer);
+  registerToolbarItem("slicer", () => <SlicerToolbarButton />);
+}
+
+export { InsertSlicerDialog, SlicerLayer, TableOverlay };
 
 const STYLE_LABELS: Record<string, string> = {
   TableStyleMedium2: "styleBlue",
@@ -56,6 +84,7 @@ const ERROR_KEYS: Record<TableError, string> = {
   invalidName: "errorInvalidName",
   duplicateName: "errorDuplicateName",
   noRoom: "errorNoRoom",
+  noRoomAbove: "errorNoRoomAbove",
 };
 
 const TOTAL_FUNCTIONS: [TableTotalFunction, string][] = [
@@ -74,6 +103,25 @@ type TablesLocale = ReturnType<typeof locale>["tables"];
 
 function tr(t: TablesLocale, key: string): string {
   return (t as Record<string, string>)[key] ?? key;
+}
+
+/** Gallery label of a style: its colour (medium) or "Light 3". */
+function styleLabel(ctx: Context, key: string) {
+  const t = locale(ctx).tables;
+  if (STYLE_LABELS[key]) return tr(t, STYLE_LABELS[key]);
+  const tt = tableToolsLocale(ctx);
+  const m = /(Light|Medium|Dark)(\d+)$/.exec(key);
+  if (!m) return key;
+  return tt.styleLabel
+    .replace("{group}", tt.styleGroups[m[1].toLowerCase()] ?? m[1])
+    .replace("{n}", m[2]);
+}
+
+/** Error text of a table error code. */
+function errorText(ctx: Context, err: TableError) {
+  const tt = tableToolsLocale(ctx) as unknown as Record<string, string>;
+  const key = ERROR_KEYS[err];
+  return tt[key] ?? tr(locale(ctx).tables, key);
 }
 
 /** The table containing the active cell, if any. */
@@ -111,8 +159,8 @@ export const TableStylePreview: React.FC<{
   const style = TABLE_STYLES[styleKey];
   // actual cell colours of the style (data, not theme colours)
   const rowColor = (row: number) => {
-    if (row === 0) return style.header;
-    return row % 2 === 1 ? style.band : "#FFFFFF";
+    if (row === 0) return style.header || "#FFFFFF";
+    return row % 2 === 1 ? style.band : style.fill ?? "#FFFFFF";
   };
   return (
     <div
@@ -135,6 +183,37 @@ export const TableStylePreview: React.FC<{
         />
       ))}
     </div>
+  );
+};
+
+/** The style gallery: light, medium and dark sections. */
+const StyleGallery: React.FC<{
+  selected?: string;
+  onPick: (key: string) => void;
+}> = ({ selected, onPick }) => {
+  const { context } = useContext(WorkbookContext);
+  const tt = tableToolsLocale(context);
+  return (
+    <>
+      {(["light", "medium", "dark"] as const).map((group) => (
+        <div key={group} className="fortune-table-style-section">
+          <div className="fortune-table-menu-title">
+            {tt.styleGroups[group]}
+          </div>
+          <div className="fortune-table-style-grid">
+            {TABLE_STYLE_GROUPS[group].map((key) => (
+              <TableStylePreview
+                key={key}
+                styleKey={key}
+                label={styleLabel(context, key)}
+                selected={selected === key}
+                onClick={() => onPick(key)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
   );
 };
 
@@ -186,7 +265,7 @@ export const CreateTableDialog: React.FC<{ styleKey: string }> = ({
       hasHeaders,
     });
     if ("error" in checked) {
-      setError(tr(t, ERROR_KEYS[checked.error]));
+      setError(errorText(context, checked.error));
       return;
     }
     setContext((ctx) => {
@@ -240,18 +319,22 @@ export const CreateTableDialog: React.FC<{ styleKey: string }> = ({
 };
 
 type BoolOption =
+  | "headerRow"
   | "totalRow"
   | "bandedRows"
   | "bandedColumns"
   | "firstColumn"
-  | "lastColumn";
+  | "lastColumn"
+  | "filterButton";
 
 const OPTION_KEYS: BoolOption[] = [
+  "headerRow",
   "totalRow",
   "bandedRows",
-  "bandedColumns",
   "firstColumn",
   "lastColumn",
+  "bandedColumns",
+  "filterButton",
 ];
 
 /** Table Design: name, style options, styles, totals, resize, convert. */
@@ -261,6 +344,7 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
   const { context, setContext } = useContext(WorkbookContext);
   const { hideDialog, showDialog } = useDialog();
   const { tables: t, button } = locale(context);
+  const tt = tableToolsLocale(context);
   const [name, setName] = useState(tableName);
   // follow renames made in this dialog
   const [current, setCurrent] = useState(tableName);
@@ -289,7 +373,7 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
   }
 
   const showError = (err: TableError | null) => {
-    setError(err ? tr(t, ERROR_KEYS[err]) : null);
+    setError(err ? errorText(context, err) : null);
     return !err;
   };
 
@@ -322,11 +406,30 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
     ) {
       return;
     }
+    if (
+      key === "headerRow" &&
+      value &&
+      !showError(checkHeaderRow(context, table.name))
+    ) {
+      return;
+    }
+    if (key === "headerRow" && !value) {
+      const minRows = table.totalRow ? 3 : 2;
+      if (table.range.row[1] - table.range.row[0] + 1 < minRows) {
+        setError(tt.errorHeaderOnly);
+        return;
+      }
+    }
     setError(null);
     setContext((ctx) => {
-      setTableOptions(ctx, table.name, { [key]: value });
+      if (key === "filterButton") setTableFilterButton(ctx, table.name, value);
+      else setTableOptions(ctx, table.name, { [key]: value });
     });
   };
+  const optionValue = (key: BoolOption) =>
+    key === "filterButton"
+      ? table.headerRow && table.filterButton !== false
+      : !!table[key];
 
   const resize = () => {
     const range = parseRangeText(
@@ -390,30 +493,26 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
             <input
               id={`${uid}-${key}`}
               type="checkbox"
-              checked={!!table[key]}
+              checked={optionValue(key)}
+              disabled={key === "filterButton" && !table.headerRow}
               onChange={(e) => toggle(key, e.target.checked)}
             />
-            <label htmlFor={`${uid}-${key}`}>{tr(t, key)}</label>
+            <label htmlFor={`${uid}-${key}`}>
+              {key === "filterButton" ? tt.filterButton : tr(t, key)}
+            </label>
           </div>
         ))}
       </fieldset>
       <fieldset className="fortune-table-dialog-group">
         <legend>{t.tableStyles}</legend>
-        <div className="fortune-table-style-grid">
-          {Object.keys(TABLE_STYLES).map((key) => (
-            <TableStylePreview
-              key={key}
-              styleKey={key}
-              label={tr(t, STYLE_LABELS[key] ?? key)}
-              selected={table.style === key}
-              onClick={() =>
-                setContext((ctx) => {
-                  setTableOptions(ctx, table.name, { style: key });
-                })
-              }
-            />
-          ))}
-        </div>
+        <StyleGallery
+          selected={table.style}
+          onPick={(key) =>
+            setContext((ctx) => {
+              setTableOptions(ctx, table.name, { style: key });
+            })
+          }
+        />
       </fieldset>
       {table.totalRow && (
         <fieldset className="fortune-table-dialog-group">
@@ -468,6 +567,13 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
         >
           {t.convertToRange}
         </TextButton>
+        <TextButton
+          onClick={() =>
+            showDialog(<InsertSlicerDialog tableName={table.name} />)
+          }
+        >
+          {tt.insertSlicer}
+        </TextButton>
         <div className="fortune-table-dialog-spacer" />
         <TextButton primary onClick={hideDialog}>
           {button.close}
@@ -497,37 +603,31 @@ export const FormatAsTableButton: React.FC = () => {
   const { context, setContext } = useContext(WorkbookContext);
   const { showDialog } = useDialog();
   const { tables: t } = locale(context);
+  const tt = tableToolsLocale(context);
   const inTable = activeTable(context);
+  const insertSlicer = useInsertSlicer();
   return (
     <>
       <TableIconSymbol />
       <Combo iconId="tinysheet-format-as-table" tooltip={t.formatAsTable}>
         {(setOpen) => (
           <div className="fortune-table-menu">
-            <div className="fortune-table-menu-title">{t.tableStyles}</div>
-            <div className="fortune-table-style-grid">
-              {Object.keys(TABLE_STYLES).map((key) => (
-                <TableStylePreview
-                  key={key}
-                  styleKey={key}
-                  label={tr(t, STYLE_LABELS[key] ?? key)}
-                  selected={inTable?.table.style === key}
-                  onClick={() => {
-                    setOpen(false);
-                    if (context.allowEdit === false) return;
-                    if (inTable) {
-                      setContext((ctx) => {
-                        setTableOptions(ctx, inTable.table.name, {
-                          style: key,
-                        });
-                      });
-                    } else {
-                      showDialog(<CreateTableDialog styleKey={key} />);
-                    }
-                  }}
-                />
-              ))}
-            </div>
+            <StyleGallery
+              selected={inTable?.table.style}
+              onPick={(key) => {
+                setOpen(false);
+                if (context.allowEdit === false) return;
+                if (inTable) {
+                  setContext((ctx) => {
+                    setTableOptions(ctx, inTable.table.name, {
+                      style: key,
+                    });
+                  });
+                } else {
+                  showDialog(<CreateTableDialog styleKey={key} />);
+                }
+              }}
+            />
             {inTable && (
               <div
                 className="fortune-table-menu-item"
@@ -542,6 +642,20 @@ export const FormatAsTableButton: React.FC = () => {
                 onKeyDown={activateOnKey}
               >
                 {t.tableDesign}
+              </div>
+            )}
+            {inTable && inTable.table.headerRow && (
+              <div
+                className="fortune-table-menu-item"
+                role="menuitem"
+                tabIndex={0}
+                onClick={() => {
+                  setOpen(false);
+                  insertSlicer();
+                }}
+                onKeyDown={activateOnKey}
+              >
+                {`${tt.insertSlicer}…`}
               </div>
             )}
           </div>

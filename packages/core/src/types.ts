@@ -325,6 +325,60 @@ export type SheetTableColumn = {
   totalFunction?: TableTotalFunction;
   /** Text shown in the total row when there is no function. */
   totalLabel?: string;
+  /**
+   * Calculated column: the formula every data cell of the column holds,
+   * written as in the first data row (relative references follow the row).
+   * New rows of the table inherit it.
+   */
+  calculatedFormula?: string;
+  /** Total-row formula of a "custom" total function (More Functions…). */
+  totalFormula?: string;
+};
+
+/**
+ * Filter state of one table column (the header filter button or a slicer).
+ * `condition` is a filter.ts FilterCondition; `{ type: "values" }` keeps the
+ * rows whose display text is not in `hidden` ("" stands for blanks).
+ */
+export type TableColumnFilter = {
+  condition: { type: string; hidden?: string[]; [key: string]: any };
+  /** Rows (absolute, sheet-wide) this column's filter hides. */
+  rowhidden: Record<string, number>;
+};
+
+/**
+ * A slicer: a floating panel of buttons that filters one table column.
+ * Anchored to the cell (r, c) at an offset (px at 100% zoom), so it follows
+ * row and column resizes.
+ */
+export type TableSlicer = {
+  /** Unique within the workbook (`Slicer_Region`). */
+  name: string;
+  /** Table column the slicer filters (column name). */
+  column: string;
+  caption: string;
+  showCaption?: boolean;
+  r: number;
+  c: number;
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  height: number;
+  /** Buttons per row (default 1). */
+  columnCount?: number;
+  /** Button height in px (default 26). */
+  buttonHeight?: number;
+  /** Button width in px (default: fill the panel width). */
+  buttonWidth?: number;
+  /** Key of a slicer style (SLICER_STYLES in react Tables/slicers). */
+  style?: string;
+  /** Multi-select mode: clicks toggle items instead of selecting one. */
+  multiSelect?: boolean;
+  sortOrder?: "ascending" | "descending";
+  /** Hide items with no data (rows all hidden by other filters). */
+  hideNoData?: boolean;
+  /** Show items with no data last (default true). */
+  noDataLast?: boolean;
 };
 
 /** An Excel-style table on a sheet. */
@@ -342,6 +396,12 @@ export type SheetTable = {
   /** Key of a style from TABLE_STYLES (modules/tables.ts). */
   style: string;
   columns: SheetTableColumn[];
+  /** Filter buttons in the header row (default true). */
+  filterButton?: boolean;
+  /** Per-column filters, keyed by the column's index in the table. */
+  filters?: Record<string, TableColumnFilter>;
+  /** Slicers filtering this table (on the table's sheet). */
+  slicers?: TableSlicer[];
 };
 
 /* ------------------------------------------------------------------------ */
