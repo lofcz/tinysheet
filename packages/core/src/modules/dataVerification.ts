@@ -23,6 +23,8 @@ import { Cell, CellMatrix } from "../types";
 import { dataToolsLocale, formatLocaleText } from "../locale/dataTools";
 import { execfunction } from "./formula";
 import { setEditMode } from "./editMode";
+// eslint-disable-next-line import/no-cycle
+import { normalizeSelection } from "./selection";
 import { genarate } from "./format";
 import { shiftFormula } from "./sort";
 import { registerReferenceAdjuster, ReferenceAdjuster } from "./refAdjust";
@@ -1036,14 +1038,15 @@ export function dismissDataVerificationAlert(ctx: Context) {
   const alert = ctx.dataVerificationAlert;
   ctx.dataVerificationAlert = undefined;
   if (!alert || alert.sheetId !== ctx.currentSheetId) return;
-  ctx.luckysheet_select_save = [
+  // with its pixel geometry, which the selection box and the editor use
+  ctx.luckysheet_select_save = normalizeSelection(ctx, [
     {
       row: [alert.r, alert.r],
       column: [alert.c, alert.c],
       row_focus: alert.r,
       column_focus: alert.c,
     },
-  ];
+  ]);
 }
 
 /**

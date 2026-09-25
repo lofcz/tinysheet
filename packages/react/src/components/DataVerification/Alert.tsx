@@ -48,16 +48,25 @@ const DataVerificationAlert: React.FC = () => {
   const retry = useCallback(() => {
     const current = context.dataVerificationAlert;
     const input = refs.cellInput?.current;
-    if (current && input && current.sheetId === context.currentSheetId) {
+    const retrying =
+      !!current && !!input && current.sheetId === context.currentSheetId;
+    if (retrying) {
       // the editor keeps this text instead of loading the cell's value
       refs.globalCache.ignoreWriteCell = true;
       input.innerText = current.value;
-      if (refs.fxInput?.current) refs.fxInput.current.innerText = current.value;
     }
     setContext((ctx) => {
       retryDataVerificationAlert(ctx);
     });
     hideDialog();
+    if (retrying) {
+      // the formula bar shows the text too, once it has followed the
+      // selection back to the cell
+      window.setTimeout(() => {
+        const fx = refs.fxInput?.current;
+        if (fx) fx.innerText = current.value;
+      });
+    }
   }, [context, hideDialog, refs, setContext]);
 
   if (!alert) return null;

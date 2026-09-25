@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import React, { useMemo, useState } from "react";
 import produce from "immer";
 import { defaultContext, Context } from "@lofcz/tinysheet-core";
@@ -6,7 +6,7 @@ import WorkbookContext from "../src/context";
 import DataVerificationAlert from "../src/components/DataVerification/Alert";
 
 describe("data validation Stop alert", () => {
-  it("Retry reopens the editor with the rejected text", () => {
+  it("Retry reopens the editor with the rejected text", async () => {
     const ctx = {
       ...defaultContext({} as any),
       lang: "en",
@@ -67,7 +67,7 @@ describe("data validation Stop alert", () => {
     expect(current.luckysheetCellUpdate).toEqual([1, 1]);
     expect(current.editState?.mode).toBe("edit");
     expect(cellInput.innerText).toBe("50");
-    expect(fxInput.innerText).toBe("50");
+    await waitFor(() => expect(fxInput.innerText).toBe("50"));
     // the editor keeps the text instead of loading the cell
     expect(globalCache.ignoreWriteCell).toBe(true);
   });
