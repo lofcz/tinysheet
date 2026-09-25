@@ -231,6 +231,34 @@ describe("applyFormatCells", () => {
     expect(ctx.luckysheetfile[0].config.merge["1_1"]).toBeUndefined();
   });
 
+  test("a larger font grows the rows, with borders applied too", () => {
+    const ctx = makeCtx({ row: [0, 0], column: [0, 0] });
+    ctx.luckysheetfile[0].defaultRowHeight = 19;
+    // text metrics proportional to the font size
+    const canvas = {
+      font: "",
+      textAlign: "",
+      textBaseline: "",
+      measureText(t) {
+        const pt = parseFloat(/(\d+)pt/.exec(this.font)?.[1] ?? "10");
+        return {
+          width: t.length * pt,
+          actualBoundingBoxAscent: pt,
+          actualBoundingBoxDescent: pt / 4,
+        };
+      },
+    };
+    applyFormatCells(
+      ctx,
+      { fs: 40, borders: { bottom: { style: "13", color: "#000" } } },
+      canvas
+    );
+    const cfg = ctx.luckysheetfile[0].config;
+    expect(cfg.rowlen?.[0]).toBeGreaterThan(19);
+    expect(ctx.config).toBe(cfg);
+    expect(cfg.borderInfo).toHaveLength(1);
+  });
+
   test("read-only selections are not changed", () => {
     const ctx = makeCtx();
     ctx.config.rowReadOnly = { 0: 1 };

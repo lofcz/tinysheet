@@ -397,7 +397,11 @@ function eachCell(
  * Apply Format Cells changes to every selected cell (one undo step when
  * run inside one setContext).
  */
-export function applyFormatCells(ctx: Context, changes: FormatCellsChanges) {
+export function applyFormatCells(
+  ctx: Context,
+  changes: FormatCellsChanges,
+  canvas?: CanvasRenderingContext2D
+) {
   if (!isAllowEdit(ctx)) return;
   const d = getFlowdata(ctx);
   const ranges = (ctx.luckysheet_select_save ?? []) as Rect[];
@@ -457,6 +461,27 @@ export function applyFormatCells(ctx: Context, changes: FormatCellsChanges) {
   });
 
   if (changes.borders) applyBorders(ctx, changes.borders, ranges);
+
+  if (changes.fs !== undefined && canvas) {
+    // grow rows for the larger font, like the toolbar's font size (this
+    // writes row heights to the sheet's config; keep ctx.config in step)
+    ranges.forEach((range) =>
+      updateFormatCell(
+        ctx,
+        d,
+        "fs",
+        changes.fs,
+        range.row[0],
+        range.row[1],
+        range.column[0],
+        range.column[1],
+        canvas
+      )
+    );
+    const index = getSheetIndex(ctx, ctx.currentSheetId);
+    const cfg = index == null ? null : ctx.luckysheetfile[index].config;
+    if (cfg) ctx.config = cfg;
+  }
 
   if (changes.merge !== undefined) {
     handleMerge(ctx, changes.merge ? "merge-all" : "merge-cancel");
@@ -650,9 +675,12 @@ export function getCellStyles(currency = "$"): CellStyleDef[] {
 export function applyCellStyle(
   ctx: Context,
   id: CellStyleId,
-  currency = ctx.currency || "$"
+  currency?: string,
+  canvas?: CanvasRenderingContext2D
 ) {
-  const style = getCellStyles(currency).find((s) => s.id === id);
+  const style = getCellStyles(currency || ctx.currency || "$").find(
+    (s) => s.id === id
+  );
   if (!style) return;
   if (id === "normal") {
     applyFormatCells(ctx, {
@@ -692,5 +720,5 @@ export function applyCellStyle(
   if (style.border) {
     changes.borders = { none: true, ...style.border };
   }
-  applyFormatCells(ctx, changes);
+  applyFormatCells(ctx, changes, canvas);
 }
