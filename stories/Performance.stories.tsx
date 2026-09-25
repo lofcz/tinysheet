@@ -6,6 +6,8 @@ import { Workbook, WorkbookInstance } from "@lofcz/tinysheet-react";
 export default {
   title: "Performance",
   component: Workbook,
+  // data generators, not stories
+  excludeStories: /^make/,
   parameters: {
     // Storybook's JSX source decorator would otherwise serialise the whole
     // data prop on every render and dominate the measurements.
@@ -178,40 +180,104 @@ export function makeLargeSheet(rows = 5000, id = "perf"): Sheet {
   } as Sheet;
 }
 
+/**
+ * A tall, sparse sheet: `rows` x `cols` with a populated header block and a
+ * marker row every 1000 rows, for geometry and scrolling at 1M rows.
+ */
+export function makeHugeSheet(
+  rows = 1_000_000,
+  cols = 100,
+  id = "huge"
+): Sheet {
+  const celldata: CellWithRowAndCol[] = [];
+  for (let r = 0; r < Math.min(rows, 200); r += 1) {
+    for (let c = 0; c < Math.min(cols, 20); c += 1) {
+      const v = r * cols + c;
+      celldata.push({
+        r,
+        c,
+        v: { v, m: String(v), ct: { fa: "General", t: "n" } },
+      });
+    }
+  }
+  for (let r = 999; r < rows; r += 1000) {
+    const t = `Row ${r + 1}`;
+    celldata.push({ r, c: 0, v: { v: t, m: t, bg: "#e2f0fd" } });
+    celldata.push({ r, c: cols - 1, v: { v: r + 1, m: String(r + 1) } });
+  }
+  return {
+    name: "Huge",
+    id,
+    status: 1,
+    order: 0,
+    row: rows,
+    column: cols,
+    celldata,
+    config: { rowlen: { 5: 40 }, columnlen: { 0: 110 } },
+  } as Sheet;
+}
+
 declare global {
   interface Window {
     __perf?: {
       workbook: WorkbookInstance | null;
+      /** performance.now() when the Workbook first committed */
       mountedAt: number;
+      /** ms spent generating the sheet data (not part of load time) */
       createdAt: number;
+      /** performance.now() once the data was generated */
+      dataReadyAt: number;
       cells: number;
     };
   }
 }
 
+type PerfProps = {
+  rows: number;
+  frozen?: boolean;
+  /** number of sheets; the first one is active */
+  sheets?: number;
+  /** build sheets with makeHugeSheet(rows, cols) instead */
+  huge?: boolean;
+  cols?: number;
+};
+
 // State lives in an inner component so onChange does not re-render the story
 // function itself (keeps Storybook decorators out of the measurements).
-const PerfWorkbook: React.FC<{ rows: number; frozen?: boolean }> = ({
+const PerfWorkbook: React.FC<PerfProps> = ({
   rows,
   frozen,
+  sheets = 1,
+  huge,
+  cols,
 }) => {
   const ref = useRef<WorkbookInstance>(null);
   const [data, setData] = useState<Sheet[]>(() => {
     const t0 = performance.now();
-    const sheet = makeLargeSheet(rows);
-    if (frozen) {
-      sheet.frozen = {
-        type: "rangeBoth",
-        range: { row_focus: 0, column_focus: 0 },
-      };
+    const list: Sheet[] = [];
+    for (let i = 0; i < sheets; i += 1) {
+      const sheet = huge
+        ? makeHugeSheet(rows, cols, `huge${i}`)
+        : makeLargeSheet(rows, i === 0 ? "perf" : `perf${i}`);
+      sheet.name = i === 0 ? sheet.name : `${sheet.name} ${i + 1}`;
+      sheet.order = i;
+      sheet.status = i === 0 ? 1 : 0;
+      if (frozen) {
+        sheet.frozen = {
+          type: "rangeBoth",
+          range: { row_focus: 0, column_focus: 0 },
+        };
+      }
+      list.push(sheet);
     }
     window.__perf = {
       workbook: null,
       mountedAt: 0,
       createdAt: performance.now() - t0,
-      cells: sheet.celldata?.length ?? 0,
+      dataReadyAt: performance.now(),
+      cells: list.reduce((n, s) => n + (s.celldata?.length ?? 0), 0),
     };
-    return [sheet];
+    return list;
   });
   const onChange = useCallback((d: Sheet[]) => setData(d), []);
   useEffect(() => {
@@ -238,3 +304,29 @@ export const LargeSheetFrozen: StoryFn<{ rows: number }> = ({ rows }) => (
   <PerfWorkbook rows={rows} frozen />
 );
 LargeSheetFrozen.args = { rows: 5000 };
+
+/** Load benchmark: ~100k populated cells. */
+export const Load100k: StoryFn<{ rows: number }> = ({ rows }) => (
+  <PerfWorkbook rows={rows} />
+);
+Load100k.args = { rows: 3800 };
+
+/** Load benchmark: ~1M populated cells on one sheet. */
+export const Load1M: StoryFn<{ rows: number }> = ({ rows }) => (
+  <PerfWorkbook rows={rows} />
+);
+Load1M.args = { rows: 38000 };
+
+/** Load benchmark: ~1M populated cells over four sheets (one active). */
+export const Load1MFourSheets: StoryFn<{ rows: number; sheets: number }> = ({
+  rows,
+  sheets,
+}) => <PerfWorkbook rows={rows} sheets={sheets} />;
+Load1MFourSheets.args = { rows: 9500, sheets: 4 };
+
+/** 1M rows x 100 columns, sparsely populated: geometry and scrolling. */
+export const MillionRows: StoryFn<{ rows: number; cols: number }> = ({
+  rows,
+  cols,
+}) => <PerfWorkbook rows={rows} cols={cols} huge />;
+MillionRows.args = { rows: 1_000_000, cols: 100 };
