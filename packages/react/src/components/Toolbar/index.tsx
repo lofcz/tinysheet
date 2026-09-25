@@ -144,63 +144,6 @@ const Toolbar: React.FC<{
   const [customColor, setcustomColor] = useState("#000000");
   const [customStyle, setcustomStyle] = useState("1");
 
-  const showSubMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>, className: string) => {
-      const target = e.target as HTMLDivElement;
-      const menuItem =
-        target.className === "fortune-toolbar-menu-line"
-          ? target.parentElement!
-          : target;
-      const menuItemRect = menuItem.getBoundingClientRect();
-      const workbookContainerRect =
-        refs.workbookContainer.current!.getBoundingClientRect();
-      const subMenu = menuItem.querySelector(`.${className}`) as HTMLDivElement;
-      if (_.isNil(subMenu)) return;
-      const menuItemStyle = window.getComputedStyle(menuItem);
-      const menuItemPaddingRight = parseFloat(
-        menuItemStyle.getPropertyValue("padding-right").replace("px", "")
-      );
-
-      if (
-        workbookContainerRect.right - menuItemRect.right <
-        parseFloat(subMenu.style.width.replace("px", ""))
-      ) {
-        subMenu.style.display = "block";
-        subMenu.style.right = `${menuItemRect.width - menuItemPaddingRight}px`;
-      } else {
-        subMenu.style.display = "block";
-        subMenu.style.right =
-          className === "more-format"
-            ? `${-(parseFloat(subMenu.style.width.replace("px", "")) + 0)}px`
-            : `${-(
-                parseFloat(subMenu.style.width.replace("px", "")) +
-                menuItemPaddingRight
-              )}px`;
-      }
-    },
-    [refs.workbookContainer]
-  );
-
-  const hideSubMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>, className: string) => {
-      const target = e.target as HTMLDivElement;
-
-      if (target.className === `${className}`) {
-        target.style.display = "none";
-        return;
-      }
-
-      const subMenu = (
-        target.className === "condition-format-item"
-          ? target.parentElement
-          : target.querySelector(`.${className}`)
-      ) as HTMLDivElement;
-      if (_.isNil(subMenu)) return;
-      subMenu.style.display = "none";
-    },
-    []
-  );
-
   // rerenders the entire toolbar and trigger recalculation of item locations
   useEffect(() => {
     setToolbarWrapIndex(-1);
@@ -1490,8 +1433,6 @@ const Toolbar: React.FC<{
       context.allowEdit,
       comment,
       fontarray,
-      hideSubMenu,
-      showSubMenu,
       refs.canvas,
       customColor,
       customStyle,
