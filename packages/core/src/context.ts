@@ -62,6 +62,17 @@ export type Context = {
   rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
   // 提醒弹窗
   warnDialog?: string;
+  /**
+   * An edit refused by sheet/workbook protection (see checkProtection); the
+   * UI shows `message` and clears it. `seq` makes a repeated message show.
+   */
+  protectionAlert?: { message: string; seq: number };
+  /** Edit hit an Allow Edit Range with a password: ask for it (Unlock Range). */
+  protectionUnlock?: { sheetId: string; name: string };
+  /** Allow Edit Ranges unlocked this session ("sheetId|name"). */
+  unlockedEditRanges?: string[];
+  /** View › Formula Bar unchecked (hides the formula bar). */
+  hideFormulaBar?: boolean;
   /** Open Format Cells dialog and its tab (see openFormatCells). */
   formatCellsDialog?: { tab: string };
   currency?: string;

@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "../modules/protection";
 import { Context, getFlowdata } from "../context";
 import { locale } from "../locale";
 import { delFunctionGroup, execfunction } from "../modules/formula";
@@ -104,6 +105,7 @@ function pasteHandler(ctx: Context, parsed: ParsedClipboard) {
     column: [anchor.c, anchor.c + w - 1],
   };
   if (rangeCutsMerge(cfg.merge || {}, target)) return;
+  if (!checkProtection(ctx, "editCells", [target])) return;
 
   const addr = target.row[1] - d.length + 1;
   const addc = target.column[1] - (d[0]?.length ?? 0) + 1;
@@ -193,6 +195,7 @@ function pasteTextHandler(ctx: Context, rows: string[][]) {
     column: [anchor.c, anchor.c + w - 1],
   };
   if (rangeCutsMerge(cfg.merge || {}, target)) return;
+  if (!checkProtection(ctx, "editCells", [target])) return;
 
   const addr = target.row[1] - d.length + 1;
   const addc = target.column[1] - (d[0]?.length ?? 0) + 1;
@@ -331,6 +334,7 @@ export function pasteClipboardContent(
 }
 
 export function handlePaste(ctx: Context, e: ClipboardEvent) {
+  if (!checkProtection(ctx, "editCells")) return;
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) return;
 
@@ -382,6 +386,7 @@ export function handlePasteByClick(
   clipboardData: string,
   triggerType?: string
 ) {
+  if (!checkProtection(ctx, "editCells")) return;
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) return;
 
@@ -407,6 +412,7 @@ export function handlePasteByClick(
  * Returns false when there is no copied range to paste from.
  */
 export function handlePasteSpecial(ctx: Context, options: PasteSpecialOptions) {
+  if (!checkProtection(ctx, "editCells")) return false;
   if (!isAllowEdit(ctx)) return false;
   if (!ctx.luckysheet_copy_save?.copyRange?.length) return false;
   if (ctx.luckysheet_paste_iscut) {
@@ -423,6 +429,7 @@ export function handlePasteSpecial(ctx: Context, options: PasteSpecialOptions) {
  * to a normal paste.
  */
 export function openPasteSpecial(ctx: Context) {
+  if (!checkProtection(ctx, "editCells")) return false;
   if (!isAllowEdit(ctx)) return false;
   if (!ctx.luckysheet_copy_save?.copyRange?.length) return false;
   if ((ctx.luckysheet_select_save?.length ?? 0) !== 1) return false;

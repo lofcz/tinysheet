@@ -46,6 +46,7 @@ import {
 } from "../modules/location";
 import { wheelScrollPosition } from "../modules/geometry";
 import {
+  checkProtection,
   checkProtectionAllSelected,
   checkProtectionSelectLockedOrUnLockedCells,
 } from "../modules/protection";
@@ -223,6 +224,18 @@ export function handleCellAreaMouseDown(
     [col_pre, col, col_index, col_index_ed] = margeset.column;
   }
 
+  // protected sheet: locked / unlocked cells may not be selectable
+  if (
+    ctx.luckysheetCellUpdate.length === 0 &&
+    !checkProtectionSelectLockedOrUnLockedCells(
+      ctx,
+      row_index,
+      col_index,
+      ctx.currentSheetId
+    )
+  ) {
+    return;
+  }
   showLinkCard(ctx, row_index, col_index, false, true);
   // //单元格单击之前
   if (
@@ -1194,7 +1207,10 @@ export function handleCellAreaDoubleClick(
   }
   // 禁止前台编辑(只可 框选单元格、滚动查看表格)
   const allowEdit = isAllowEdit(ctx);
-  if (!allowEdit) return;
+  if (!allowEdit) {
+    checkProtection(ctx, "editCells");
+    return;
+  }
 
   // if (parseInt($("#luckysheet-input-box").css("top")) > 0) {
   //   return;

@@ -162,7 +162,7 @@ describe("editing rules", () => {
       authority: { sheet: 1, hintText: "protected" },
     };
     expect(addCFRule(ctx, rule("greaterThan"))).toBe(-1);
-    expect(ctx.warnDialog).toBe("protected");
+    expect(ctx.protectionAlert.message).toBe("protected");
     expect(setCFRules(ctx, [rule("equal")])).toBe(false);
   });
 

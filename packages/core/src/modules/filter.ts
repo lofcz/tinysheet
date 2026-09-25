@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { locale } from "../locale";
 import { dataToolsLocale } from "../locale/dataTools";
 import { Context, getFlowdata } from "../context";
@@ -205,6 +206,7 @@ export function createFilterOptions(
 }
 
 export function clearFilter(ctx: Context) {
+  if (!checkProtection(ctx, "protected")) return;
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) return;
   const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
@@ -227,6 +229,7 @@ export function clearFilter(ctx: Context) {
 }
 
 export function createFilter(ctx: Context) {
+  if (!checkProtection(ctx, "protected")) return;
   // if (!checkProtectionAuthorityNormal(ctx.currentSheetIndex, "filter")) {
   //   return;
   // }
@@ -635,6 +638,7 @@ export function saveFilter(
   st_c: number,
   ed_c: number
 ) {
+  if (!checkProtection(ctx, "filter")) return;
   const { otherHiddenRows, hiddenRows: prevHiddenRows } = getFilterHiddenRows(
     ctx,
     cindex,
@@ -1081,6 +1085,7 @@ export function clearColumnFilter(ctx: Context, col: number) {
 
 /** Excel's Data › Clear: show every row but keep the filter buttons. */
 export function clearAllFilterConditions(ctx: Context) {
+  if (!checkProtection(ctx, "filter")) return;
   const hiddenRows = _.reduce(
     ctx.filter,
     (pre, curr) => _.assign(pre, curr?.rowhidden || {}),

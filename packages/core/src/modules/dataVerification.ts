@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import {
   colLocationByIndex,
   Context,
@@ -846,6 +847,7 @@ export function setDataVerification(
   item: Partial<DataVerificationItem>,
   sheetId?: string
 ) {
+  if (!checkProtection(ctx, "protected", null, sheetId)) return;
   installAnchorAdjuster();
   const list = toRanges(ctx, ranges);
   if (list.length === 0) return;
@@ -887,6 +889,7 @@ export function removeDataVerification(
   ranges: RangeArg,
   sheetId?: string
 ) {
+  if (!checkProtection(ctx, "protected", null, sheetId)) return;
   const index = getSheetIndex(ctx, sheetId ?? ctx.currentSheetId);
   if (index == null) return;
   const file = ctx.luckysheetfile[index];
@@ -908,6 +911,7 @@ export function deleteDataVerificationRule(
   ruleId: string,
   sheetId?: string
 ) {
+  if (!checkProtection(ctx, "protected", null, sheetId)) return;
   const rule = getDataVerificationRules(ctx, sheetId).find(
     (x) => x.id === ruleId
   );

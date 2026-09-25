@@ -105,7 +105,12 @@ export type SheetConfig = {
   customHeight?: Record<string, number>;
   customWidth?: Record<string, number>;
   borderInfo?: any[]; // 边框
-  authority?: any;
+  /**
+   * Sheet protection (Review › Protect Sheet), Luckysheet-compatible: see
+   * `SheetProtection` and modules/protection.ts.
+   */
+  // eslint-disable-next-line no-use-before-define
+  authority?: SheetProtection;
   rowReadOnly?: Record<number, number>;
   colReadOnly?: Record<number, number>;
 };
@@ -145,6 +150,19 @@ export type Sheet = {
   defaultRowHeight?: number;
   defaultColWidth?: number;
   showGridLines?: boolean | number;
+  /** View › Headings: false hides the row and column headers. */
+  showRowColHeaders?: boolean;
+  /**
+   * Sheet direction right-to-left (xlsx `sheetView rightToLeft`). Stored and
+   * round-tripped; the grid is still drawn left-to-right (see ROADMAP R9).
+   */
+  rightToLeft?: boolean;
+  /**
+   * Protect Workbook (structure). Kept on one sheet of the workbook (the
+   * first one by order when set from the UI); see modules/protection.ts.
+   */
+  // eslint-disable-next-line no-use-before-define
+  workbookProtection?: WorkbookProtection;
   pivotTable?: any;
   isPivotTable?: boolean;
   filter?: Record<string, any>;
@@ -174,6 +192,75 @@ export type Sheet = {
   /** Excel-style tables ("Format as Table") of this sheet, see modules/tables.ts */
   // eslint-disable-next-line no-use-before-define
   tables?: SheetTable[];
+};
+
+/**
+ * A protection password as a hash (passwords are never stored in plain
+ * text): Excel's iterated hash (`algorithmName` SHA-512 by default,
+ * base64 `hashValue`/`saltValue`, `spinCount`) or the legacy 16-bit hash of
+ * xlsx `password` attributes (hex). No hash: no password.
+ */
+export type ProtectionPasswordHash = {
+  algorithmName?: string;
+  hashValue?: string;
+  saltValue?: string;
+  spinCount?: number;
+  /** Excel 97-2003 password hash (4 hex digits). */
+  legacyHash?: string;
+  /**
+   * Luckysheet data only: a plain-text password (`algorithmName` "None").
+   * Read for compatibility, never written.
+   */
+  password?: string;
+};
+
+/** Review › Allow Edit Ranges: a range editable while the sheet is protected. */
+export type AllowEditRange = ProtectionPasswordHash & {
+  /** Title (Excel's protectedRange `name`). */
+  name: string;
+  /** Space-separated A1 references ("A1:B5 D1"). */
+  sqref: string;
+  hintText?: string;
+};
+
+/**
+ * Sheet protection settings (Luckysheet's `config.authority`). The allow
+ * flags are 1 when users may do that on the protected sheet; a missing flag
+ * uses Excel's default (select locked / unlocked cells allowed, everything
+ * else not allowed).
+ */
+export type SheetProtection = ProtectionPasswordHash & {
+  /** 1: the sheet is protected. */
+  sheet?: number | boolean;
+  selectLockedCells?: number;
+  selectunLockedCells?: number;
+  formatCells?: number;
+  formatColumns?: number;
+  formatRows?: number;
+  insertColumns?: number;
+  insertRows?: number;
+  insertHyperlinks?: number;
+  deleteColumns?: number;
+  deleteRows?: number;
+  sort?: number;
+  /** Use AutoFilter */
+  filter?: number;
+  /** Use PivotTable & PivotChart */
+  usePivotTablereports?: number;
+  editObjects?: number;
+  editScenarios?: number;
+  /** Message shown instead of Excel's when an edit is refused. */
+  hintText?: string;
+  allowRangeList?: AllowEditRange[];
+  [key: string]: any;
+};
+
+/** Review › Protect Workbook. */
+export type WorkbookProtection = ProtectionPasswordHash & {
+  /** No adding, deleting, renaming, moving, copying, hiding sheets. */
+  lockStructure?: boolean;
+  /** Kept for round trips (Excel 2013+ ignores it). */
+  lockWindows?: boolean;
 };
 
 /** A defined name (Excel Name Manager entry). */

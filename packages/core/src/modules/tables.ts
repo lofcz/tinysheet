@@ -14,6 +14,7 @@
  * When a table is created, resized or removed the workbook is recalculated.
  */
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import type { Context } from "../context";
 import type {
   Cell,
@@ -976,6 +977,7 @@ export function createTable(
   range: Span,
   options: CreateTableOptions = {}
 ): { table?: SheetTable; error?: TableError } {
+  if (!checkProtection(ctx, "protected", null, sheetId)) return {};
   const checked = checkTableRange(ctx, sheetId, range, options);
   if ("error" in checked) return { error: checked.error };
   const { row, column } = checked.span;
@@ -1278,6 +1280,7 @@ export function structuredReferencesToA1(ctx: Context, tableName: string) {
  * formula of the workbook.
  */
 export function convertTableToRange(ctx: Context, tableName: string) {
+  if (!checkProtection(ctx, "protected")) return false;
   const ref = findTable(ctx, tableName);
   if (!ref) return false;
   // rewrite formulas first, while the table still resolves

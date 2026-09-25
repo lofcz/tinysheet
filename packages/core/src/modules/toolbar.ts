@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { mergeCells } from "./merge";
 import { Context, getFlowdata } from "../context";
 // import { locale } from "../locale";
@@ -236,11 +237,14 @@ export function updateFormat(
   foucsStatus: any,
   canvas?: CanvasRenderingContext2D
 ) {
-  //   if (!checkProtectionFormatCells(ctx.currentSheetId)) {
-  //     return;
-  //   }
-
-  const allowEdit = isAllowEdit(ctx);
+  // formatting is its own permission on a protected sheet
+  if (
+    ctx.luckysheetCellUpdate.length === 0 &&
+    !checkProtection(ctx, "formatCells")
+  ) {
+    return;
+  }
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
 
   if (attr in inlineStyleAffectAttribute) {
@@ -720,6 +724,7 @@ export function autoSelectionFormula(
   formula: string,
   cache: GlobalCache
 ) {
+  if (!checkProtection(ctx, "editCells")) return;
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) return;
   const flowdata = getFlowdata(ctx);
@@ -1069,7 +1074,8 @@ export function startFormatPainter(ctx: Context, sticky: boolean) {
 
   // let _locale = locale();
   // let locale_paint = _locale.paint;
-  const allowEdit = isAllowEdit(ctx);
+  // picking up formats is allowed on locked cells
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   if (
     ctx.luckysheet_select_save == null ||
@@ -1186,6 +1192,7 @@ export function handleFormatPainter(ctx: Context) {
 // 2022-10-10 废弃了handleClearFormat中的foreach写法，改为可跳出的every写法，以防止选区多次覆盖
 export function handleClearFormat(ctx: Context) {
   if (ctx.allowEdit === false) return;
+  if (!checkProtection(ctx, "formatCells")) return;
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;
   ctx.luckysheet_select_save?.every((selection) => {
@@ -1297,7 +1304,8 @@ export function handleBorder(
   // const d = editor.deepCopyFlowData(Store.flowdata);
   // let type = $(this).attr("type");
   // let type = "border-all";
-  const allowEdit = isAllowEdit(ctx);
+  if (!checkProtection(ctx, "formatCells")) return;
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   if (type == null) {
     type = "border-all";
@@ -1369,6 +1377,7 @@ export function handleBorder(
 }
 
 export function handleMerge(ctx: Context, type: string) {
+  if (!checkProtection(ctx, "protected")) return;
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) return;
   // if (!checkProtectionNotEnable(ctx.currentSheetId)) {
@@ -1434,7 +1443,8 @@ export function handleFreeze(
   ctx: Context,
   type: string
 ): "ok" | "tooLarge" | "noop" | undefined {
-  const allowEdit = isAllowEdit(ctx);
+  // freezing panes is allowed on protected sheets
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return undefined;
   if (FREEZE_MENU_MODES[type]) return freezePanes(ctx, FREEZE_MENU_MODES[type]);
   if (type === "split") return toggleSplitPanes(ctx) ? "ok" : "noop";
@@ -1487,7 +1497,8 @@ export function handleSum(
 }
 
 export function handleLink(ctx: Context) {
-  const allowEdit = isAllowEdit(ctx);
+  if (!checkProtection(ctx, "insertHyperlinks")) return;
+  const allowEdit = isAllowEdit(ctx, undefined, true);
   if (!allowEdit) return;
   const selection = ctx.luckysheet_select_save?.[0];
   const flowdata = getFlowdata(ctx);

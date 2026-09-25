@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { GlobalCache } from "../types";
 import { mergeBorder } from ".";
 import { Context, getFlowdata } from "../context";
@@ -66,6 +67,7 @@ export function saveImage(ctx: Context) {
 }
 
 export function removeActiveImage(ctx: Context) {
+  if (!checkProtection(ctx, "editObjects")) return;
   ctx.insertedImgs = _.filter(
     ctx.insertedImgs,
     (image) => image.id !== ctx.activeImg
@@ -75,6 +77,7 @@ export function removeActiveImage(ctx: Context) {
 }
 
 export function insertImage(ctx: Context, image: HTMLImageElement) {
+  if (!checkProtection(ctx, "editObjects")) return;
   try {
     const last =
       ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
@@ -141,6 +144,7 @@ export function onImageMoveStart(
   e: MouseEvent
   // { r, c, rc }: { r: number; c: number; rc: string },
 ) {
+  if (!checkProtection(ctx, "editObjects")) return;
   const position = getImagePosition();
   if (position) {
     const { top, left } = position;

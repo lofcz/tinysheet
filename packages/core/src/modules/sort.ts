@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 import { execfunction, functionCopy, update } from ".";
 import { Cell, CellMatrix, Context, getFlowdata, isRealNull } from "..";
 import { locale } from "../locale";
@@ -374,6 +375,11 @@ export function shiftFormula(ctx: Context, f: string, dr: number, dc: number) {
  * Hidden rows (columns when sorting left to right) keep their place.
  */
 export function sortRange(ctx: Context, options: SortOptions): string | null {
+  if (
+    !checkProtection(ctx, "sort") ||
+    !checkProtection(ctx, "editCells", [options.range])
+  )
+    return null;
   const { sort: sortLocale } = locale(ctx);
   if (ctx.allowEdit === false) return null;
   const data = getFlowdata(ctx);

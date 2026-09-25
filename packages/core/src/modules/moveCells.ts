@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { checkProtection } from "./protection";
 
 import { Context, getFlowdata } from "../context";
 import {
@@ -189,6 +190,12 @@ export function moveCellRange(
   const sameSheet = source.sheetId === target.sheetId;
   if (sameSheet && dr === 0 && dc === 0) return false;
   if (target.row < 0 || target.column < 0) return false;
+  if (
+    !checkProtection(ctx, "editCells", [range], source.sheetId) ||
+    !checkProtection(ctx, "editCells", [dest], target.sheetId)
+  ) {
+    return false;
+  }
 
   const srcCfg = liveSheetConfig(ctx, source.sheetId);
   const dstCfg = sameSheet ? srcCfg : liveSheetConfig(ctx, target.sheetId);
@@ -386,6 +393,7 @@ export function onCellsMoveStart(
   const allowEdit = isAllowEdit(ctx);
   if (allowEdit === false) {
     // 此模式下禁用选区拖动
+    checkProtection(ctx, "editCells");
     return;
   }
 
