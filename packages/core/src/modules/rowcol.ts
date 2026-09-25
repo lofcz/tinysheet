@@ -4,7 +4,7 @@ import { Sheet } from "../types";
 import { getSheetIndex } from "../utils";
 import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
 // eslint-disable-next-line import/no-cycle
-import { onSpillStructureChange } from "./spill";
+import { onSpillStructureChange, spillAnchorsOf } from "./spill";
 // names, tables, charts and notes follow structural changes through the
 // reference adjusters registered by modelSync (run by adjustReferences)
 import "./modelSync";
@@ -76,6 +76,8 @@ export function insertRowCol(
 
   const d = file.data;
   if (!d) return;
+  // spill anchors as they are before the change (see onSpillStructureChange)
+  const spillAnchors = spillAnchorsOf(ctx, id);
 
   const cfg = file.config || {};
 
@@ -1081,7 +1083,17 @@ export function insertRowCol(
 
   refreshLocalMergeData(merge_new, file);
   recalcAfterStructuralChange(ctx);
-  onSpillStructureChange(ctx, id);
+  onSpillStructureChange(
+    ctx,
+    id,
+    {
+      type,
+      insert: true,
+      index: direction === "rightbottom" ? index + 1 : index,
+      count,
+    },
+    spillAnchors
+  );
 
   // if (type === "row") {
   //   const scrollLeft = $("#luckysheet-cell-main").scrollLeft();
@@ -1153,6 +1165,8 @@ export function deleteRowCol(
 
   const d = file.data;
   if (!d) return;
+  // spill anchors as they are before the change (see onSpillStructureChange)
+  const spillAnchors = spillAnchorsOf(ctx, id);
 
   if (start < 0) {
     start = 0;
@@ -1943,7 +1957,12 @@ export function deleteRowCol(
     // );
   } else {
   }
-  onSpillStructureChange(ctx, id);
+  onSpillStructureChange(
+    ctx,
+    id,
+    { type, insert: false, start, end },
+    spillAnchors
+  );
 }
 
 // 计算表格行高数组

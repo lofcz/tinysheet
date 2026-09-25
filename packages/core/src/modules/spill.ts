@@ -48,6 +48,25 @@ import {
 } from "./dependencyGraph";
 // eslint-disable-next-line import/no-cycle
 import { insertRowCol } from "./rowcol";
+import {
+  anchorIndexes,
+  graphToken,
+  isSpillStructureFullScan,
+  mapRect,
+  PENDING_INDEX,
+  SheetAnchorIndex,
+  SpillAnchor,
+  spillAnchorsOf,
+  SpillStructureChange,
+} from "./spillIndex";
+
+export {
+  invalidateSpillAnchors,
+  noteSpillAnchor,
+  setSpillStructureFullScan,
+  spillAnchorsOf,
+} from "./spillIndex";
+export type { SpillAnchor, SpillStructureChange } from "./spillIndex";
 
 type RangeLike = { row: number[]; column: number[] };
 type ChangedCell = { r: number; c: number; i: string };
@@ -62,6 +81,12 @@ export type SpillReconcileOptions = {
   changed?: RangeLike[] | null;
   /** Re-spill every anchor of the sheet (rows or columns moved). */
   all?: boolean;
+  /**
+   * With `all`: regions known to hold every spilled cell of the sheet (the
+   * rectangles of its anchors, see onSpillStructureChange), so the sheet is
+   * not scanned as a whole.
+   */
+  scope?: RangeLike[] | null;
 };
 
 /** Sheet limits (Excel's grid). */
@@ -380,9 +405,13 @@ export function reconcileSpills(
   if (!view) return;
 
   const chain = peek(peekSheet(ctx, id)?.calcChain);
-  const scan = scanSpillCells(view, options, chain);
+  // all anchors re-spill; with a scope only its regions (plus the formula
+  // cells and the anchors' rectangles) are looked at
+  const scanOptions: SpillReconcileOptions =
+    all && options.scope ? { changed: options.scope } : options;
+  const scan = scanSpillCells(view, scanOptions, chain);
   if (scanVerifier)
-    scanVerifier(scan, scanSpillCells(view, options, chain, true));
+    scanVerifier(scan, scanSpillCells(view, scanOptions, chain, true));
   const { anchors, ghosts, pastedFormulas, taggedFormulas } = scan;
 
   const respill = new Set<number>();
@@ -453,11 +482,37 @@ export function reconcileSpills(
  * adjusted too), spilled cells cut off from their anchor are cleared, and
  * anchors on other sheets whose formulas mention this sheet are re-spilled.
  */
-export function onSpillStructureChange(ctx: Context, id: string | undefined) {
+export function onSpillStructureChange(
+  ctx: Context,
+  id: string | undefined,
+  change?: SpillStructureChange,
+  before?: SpillAnchor[] | null
+) {
   // growing a sheet for a spill only appends rows / columns at its edge
   if (id == null || isGrowingSheet(ctx)) return;
   forgetDynamicDependencies(ctx, id);
-  reconcileSpills(ctx, id, { all: true });
+  // Every spilled cell lay in the rectangle of an anchor before the change
+  // (the sheet was reconciled), so the images of those rectangles hold every
+  // spilled cell now: only they are looked at, not the whole sheet.
+  const scope =
+    change && before && !isSpillStructureFullScan()
+      ? before
+          .map((a) => mapRect(a, change))
+          .filter((g): g is RangeLike => g != null)
+      : null;
+  // the anchor index of the sheet is rebuilt by the re-spills (noteSpillAnchor)
+  const indexes = anchorIndexes(ctx);
+  const rebuilt: SheetAnchorIndex = {
+    token: PENDING_INDEX,
+    anchors: new Map(),
+  };
+  indexes?.set(id, rebuilt);
+  reconcileSpills(ctx, id, { all: true, scope });
+  if (indexes?.get(id) === rebuilt) {
+    const token = graphToken(ctx);
+    if (token != null) rebuilt.token = token;
+    else indexes.delete(id);
+  }
   const idx = getSheetIndex(ctx, id);
   const name = (idx == null ? "" : ctx.luckysheetfile[idx].name ?? "")
     .toLowerCase()
@@ -467,14 +522,14 @@ export function onSpillStructureChange(ctx: Context, id: string | undefined) {
     if (file.id == null || file.id === id) return;
     const view = getSheetDataCached(ctx, file.id);
     const cells: { r: number; c: number }[] = [];
-    (peek(file.calcChain) ?? []).forEach((item: any) => {
-      const it = peek(item);
-      const cell = peekCell(view, it.r, it.c) as SpillCell | null;
-      if (cell?.spill && cell.f?.toLowerCase().includes(name)) {
-        cells.push({ r: it.r, c: it.c });
+    spillAnchorsOf(ctx, file.id).forEach((a) => {
+      const cell = peekCell(view, a.r, a.c) as SpillCell | null;
+      if (cell?.f?.toLowerCase().includes(name)) {
+        cells.push({ r: a.r, c: a.c });
       }
     });
     if (cells.length > 0) {
+      cells.sort((x, y) => x.r - y.r || x.c - y.c);
       reconcileSpills(ctx, file.id, {
         changed: cells.map(({ r, c }) => ({ row: [r, r], column: [c, c] })),
       });

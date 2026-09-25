@@ -18,6 +18,7 @@ import {
   Sheet,
   CellMatrix,
   CellWithRowAndCol,
+  invalidateSpillAnchors,
 } from "@lofcz/tinysheet-core";
 import { applyPatches } from "immer";
 import _ from "lodash";
@@ -135,6 +136,8 @@ export function generateAPIs(
 
           try {
             applyPatches(ctx_, validPatches);
+            // cells may now hold spill anchors the anchor index does not know
+            invalidateSpillAnchors(ctx_);
           } catch (e) {
             console.error(e);
           }

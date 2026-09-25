@@ -42,6 +42,7 @@ import {
   reconcileChunkedSheets,
   runDataSession,
 } from "./rowStore";
+import { invalidateSpillAnchors } from "./spillIndex";
 
 enablePatches();
 export type HistoryOptions = PatchOptions & {
@@ -449,6 +450,8 @@ function refreshFormulaCache(
   type: "undo" | "redo",
   options: PatchOptions | undefined
 ) {
+  // restored cells may hold spill anchors the anchor index does not know
+  invalidateSpillAnchors(ctx);
   if (
     options?.deleteRowColOp ||
     options?.insertRowColOp ||
