@@ -16,6 +16,7 @@
  * borders -> images -> data validation -> views.
  */
 import ExcelJS from "@protobi/exceljs";
+import JSZip from "jszip";
 import type { XlsxPostProcessInfo } from "./postProcess";
 import type { XlsxWorksheetPart } from "./postProcessors";
 import { runXlsxPostProcessors } from "./postProcessors";
@@ -42,6 +43,7 @@ import { writePageSetup, writePrintNames } from "../common/pageSetup";
 import { writeOutline } from "../common/outline";
 import { setConditionalFormatting } from "./ExcelConditionFormat";
 import { writeSparklines } from "./ExcelSparkline";
+import { collectCheckboxes } from "./ExcelCheckbox";
 
 export type XlsxExportOptions = {
   /** Skip sheets with hide=1 instead of exporting them as hidden. */
@@ -133,6 +135,8 @@ export const sheetExportFeatures: SheetExportFeature[] = [
   { name: "sparklines", write: writeSparklines },
   // sheetProtection / protectedRanges (the "protection" post-processor)
   { name: "protection", write: writeSheetProtection },
+  // cell checkboxes: marked here, written by the "checkboxes" post-processor
+  { name: "checkboxes", write: collectCheckboxes },
   // Charts are added to the written zip (the "charts" post-processor).
 ];
 

@@ -78,6 +78,8 @@ export type Cell = {
   img?: CellImage;
   /** Styles a PivotTable wrote into this cell (see modules/pivot.ts). */
   pvs?: Record<string, any>;
+  /** Checkbox cell format (Insert › Checkbox); see modules/checkbox.ts. */
+  cb?: number;
 } & CellStyle;
 
 export type CellWithRowAndCol = {
@@ -257,6 +259,14 @@ export type Sheet = {
   /** PivotTables whose report is on this sheet, see modules/pivot.ts */
   // eslint-disable-next-line no-use-before-define
   pivotTables?: PivotTable[];
+  /** What-If data tables of this sheet (see modules/whatIf.ts). */
+  // eslint-disable-next-line no-use-before-define
+  dataTables?: DataTableSpec[];
+  /** In-place Advanced Filter (see modules/advancedFilter.ts). */
+  advancedFilter?: {
+    list: { row: [number, number]; column: [number, number] };
+    hidden: number[];
+  };
 };
 
 /** Excel's calculation modes. */
@@ -375,6 +385,20 @@ export type WorkbookProtection = ProtectionPasswordHash & {
   lockStructure?: boolean;
   /** Kept for round trips (Excel 2013+ ignores it). */
   lockWindows?: boolean;
+};
+
+/**
+ * A What-If data table (`{=TABLE(row_input, col_input)}`). `range` is the
+ * whole table: the first row and column hold the input values and the
+ * formulas, the rest is the body filled by substituting the inputs.
+ */
+export type DataTableSpec = {
+  id: string;
+  range: { row: [number, number]; column: [number, number] };
+  /** Row input cell (values across the first row are substituted here). */
+  rowInput?: { r: number; c: number } | null;
+  /** Column input cell (values down the first column are substituted here). */
+  colInput?: { r: number; c: number } | null;
 };
 
 /** A defined name (Excel Name Manager entry). */

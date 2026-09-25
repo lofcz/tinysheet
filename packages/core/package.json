@@ -14,7 +14,11 @@
   "files": [
     "dist"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "**/modules/checkbox.ts",
+    "**/modules/flashFill.ts",
+    "**/modules/whatIf.ts"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lofcz/tinysheet.git"

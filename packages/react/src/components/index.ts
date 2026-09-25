@@ -15,3 +15,9 @@ export type {
   ContextMenuItem,
   ContextMenuItemBuilder,
 } from "./ContextMenu/actions";
+export {
+  registerCellTools,
+  AdvancedFilter,
+  DataTable,
+  GoalSeek,
+} from "./CellTools";

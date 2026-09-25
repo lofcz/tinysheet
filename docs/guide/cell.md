@@ -11,6 +11,13 @@
         <td>Aspose method or attribute</td>
     </tr>
     <tr>
+        <td>cb</td>
+        <td>checkbox</td>
+        <td>Checkbox cell format (Insert › Checkbox): a TRUE/FALSE value is drawn as a checkbox</td>
+        <td>1</td>
+        <td></td>
+    </tr>
+    <tr>
         <td>ct</td>
         <td>celltype</td>
         <td>Cell value format: text, time, etc.</td>

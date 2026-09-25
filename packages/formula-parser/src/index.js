@@ -59,3 +59,4 @@ export {
 };
 
 export { LEGACY_FUNCTION_NAMES } from "./functions";
+export { databaseCriterion } from "./functions/database";

@@ -314,12 +314,14 @@ export const defaultSettings: Required<Settings> = {
     "link",
     "comment",
     "threaded-comment", // New Comment, Previous/Next, Comments pane
+    "checkbox", // Insert › Checkbox (cell controls)
     "|",
     // Formulas / Data
     "nameManager",
     "dataVerification",
     "splitColumn",
     "outline", // Group / Ungroup, Subtotal, Auto Outline (Data › Outline)
+    "data-tools", // Flash Fill, Advanced Filter, What-If Analysis
     "locationCondition",
     "screenshot",
     "|",

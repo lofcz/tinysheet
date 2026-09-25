@@ -13,6 +13,7 @@ import { registerPivotTableFeatures } from "./components/PivotTable";
 import { installTablesUI } from "./components/Tables";
 import { registerProtectionFeatures } from "./components/Protection";
 import { registerPageLayoutFeature } from "./components/PageLayout";
+import { registerCellTools } from "./components/CellTools";
 
 let loaded = false;
 
@@ -27,4 +28,5 @@ export function loadBuiltinFeatures() {
   installTablesUI();
   registerProtectionFeatures();
   registerPageLayoutFeature();
+  registerCellTools();
 }

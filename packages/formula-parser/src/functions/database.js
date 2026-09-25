@@ -74,8 +74,11 @@ function fieldIndex(header, field, optional) {
   return index;
 }
 
-/** Predicate for one database criteria cell. */
-function databaseCriterion(value) {
+/**
+ * Predicate for one database criteria cell (also used by core's Advanced
+ * Filter). Returns null for an empty condition.
+ */
+export function databaseCriterion(value) {
   if (typeof value === "string" && !isErrorValue(value)) {
     const text = value;
     if (text === "") return null;

@@ -11,6 +11,7 @@ import {
 import { getSheetIndex, indexToColumnChar, rgbToHex } from "../utils";
 import { checkCF, getComputeMap } from "./ConditionFormat";
 import { checkDataVerificationInput } from "./dataVerification";
+import { checkEditGuards } from "./extensions";
 import { formatValue, is_date, resolveTypedInput } from "./format";
 import {
   delFunctionGroup,
@@ -661,6 +662,17 @@ export function updateCell(
 
   // 数据验证: invalid input raises the rule's error alert instead
   if (!checkDataVerificationInput(ctx, r, c, inputText ?? value)) {
+    cancelNormalSelected(ctx);
+    return;
+  }
+  // read-only regions registered by features (data table bodies, ...)
+  const refused = checkEditGuards(
+    ctx,
+    [{ row: [r, r], column: [c, c] }],
+    "edit"
+  );
+  if (refused) {
+    ctx.warnDialog = refused;
     cancelNormalSelected(ctx);
     return;
   }

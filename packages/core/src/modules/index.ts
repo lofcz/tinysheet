@@ -80,3 +80,8 @@ export { formulaAuditLocale } from "../locale/formulaAudit";
 export type { FormulaAuditLocale } from "../locale/formulaAudit";
 export * from "./outline";
 export * from "./subtotal";
+export * from "./checkbox";
+export * from "./flashFill";
+export * from "./advancedFilter";
+export * from "./whatIf";
+export * from "./cellRef";

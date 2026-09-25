@@ -38,6 +38,8 @@ import {
   readSheetProtection,
   readWorkbookProtection,
 } from "./importProtection";
+// eslint-disable-next-line import/no-cycle
+import { readCheckboxes } from "./FortuneCheckbox";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -446,6 +448,7 @@ export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "shapes", read: readShapes },
   // sheetProtection, protectedRanges, sheetView flags
   { name: "protection", read: readSheetProtection },
+  { name: "checkboxes", read: (ctx) => readCheckboxes(ctx) },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 

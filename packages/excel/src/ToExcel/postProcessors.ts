@@ -24,7 +24,8 @@
  *   processor. Built-ins run as: conditional-formatting, dynamic-arrays,
  *   cell-images, internal-hyperlinks, visible-notes, threaded-comments,
  *   sheet-xml-fixups, worksheet-exts, protection, cell-hyperlinks, data-validation,
- *   tables, table-extras, charts, shapes, pivot-tables, feature-fixups.
+ *   tables, table-extras, charts, shapes, pivot-tables, checkboxes,
+ *   feature-fixups.
  * - Share data from a sheet writer (SheetExportFeature) with its
  *   post-processor through `ctx.post.features[<your name>]`.
  * - Use the helpers (`addRelationship`, `addContentTypeOverride`,
@@ -57,6 +58,7 @@ import { markHiddenDropdowns } from "./ExcelValidation";
 import { markEmptyTables } from "./ExcelTable";
 import { writeTableExtras } from "./ExcelTableZip";
 import { applyProtectionToZip } from "./ExcelProtection";
+import { writeCheckboxParts } from "./ExcelCheckbox";
 import { addCellHyperlinks } from "./ExcelStyle";
 
 /** A worksheet part of the written package. */
@@ -178,6 +180,11 @@ export const xlsxPostProcessors: XlsxPostProcessor[] = [
   {
     name: "pivot-tables",
     process: (ctx) => addPivotTablesToZip(ctx.zip, ctx.sheets),
+  },
+  // checkbox cell formats (feature property bags in styles.xml)
+  {
+    name: "checkboxes",
+    process: (ctx) => writeCheckboxParts(ctx.zip, ctx.post),
   },
   {
     // zip edits sheet/workbook writers queued in `post.fixups` (run last)

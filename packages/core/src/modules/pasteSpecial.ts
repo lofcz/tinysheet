@@ -132,6 +132,7 @@ export const STYLE_KEYS = [
   "tb",
   "tr",
   "rt",
+  "cb", // checkbox cell format
 ] as const;
 
 const CONTENT_KEYS = ["v", "m", "f", "qp", "img"] as const;
