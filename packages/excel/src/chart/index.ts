@@ -27,3 +27,6 @@ export {
 } from "./render";
 export { parseChartNumber, resolveChartSpecToSeries } from "./resolve";
 export { refreshSheetChartImages } from "./refresh";
+export { importChartXml } from "./importXlsx";
+export type { ImportedChart, ImportChartOptions } from "./importXlsx";
+export { addChartsToXlsx, chartToXml } from "./exportXlsx";

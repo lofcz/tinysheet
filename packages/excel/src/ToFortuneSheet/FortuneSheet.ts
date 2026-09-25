@@ -65,6 +65,8 @@ import {
   escapeXml as chartEscapeXml,
   roundSvgNumber as chartRoundSvgNumber,
 } from "../chart";
+import { importChartXml, ImportedChart } from "../chart/importXlsx";
+import { parseChartRange } from "@lofcz/tinysheet-core";
 
 interface DrawingAnchorRect {
   fromCol: number;
@@ -115,6 +117,9 @@ export class FortuneSheet extends FortuneSheetBase {
   private sheetList: IattributeList;
 
   private imageList: ImageList;
+
+  /** Live chart objects with their drawing anchors (positioned later). */
+  chartObjects: any[] = [];
 
   private formulaRefList: IFormulaSI;
 
@@ -425,6 +430,12 @@ export class FortuneSheet extends FortuneSheetBase {
         continue;
       }
 
+      let liveChart = this.buildLiveChart(chartFile);
+      if (liveChart != null) {
+        this.addChartObject(anchor, liveChart);
+        continue;
+      }
+
       let chartSpec = this.buildChartSpec(chartFile, rect.width, rect.height);
       if (chartSpec == null) {
         continue;
@@ -446,6 +457,48 @@ export class FortuneSheet extends FortuneSheetBase {
         chartSpec: chartSpec,
       });
     }
+  }
+
+  /** Supported chart types become live chart objects (see chart/importXlsx). */
+  private buildLiveChart(chartFile: string): ImportedChart | null {
+    let spaces = this.readXml.getElementsByTagName("c:chartSpace", chartFile);
+    if (spaces == null || spaces.length == 0) {
+      return null;
+    }
+    let sheets = Object.keys(this.sheetList).map((name) => ({
+      name: this.decodeXml(name),
+      id: String(this.sheetList[name]),
+    }));
+    try {
+      return importChartXml(spaces[0].elementString, {
+        resolveRange: (ref) =>
+          parseChartRange({ luckysheetfile: sheets as any }, ref, this.id),
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  private addChartObject(anchor: Element, chart: ImportedChart) {
+    let rect = this.getAnchorRect(anchor);
+    if (rect == null) {
+      return;
+    }
+    this.chartObjects.push({
+      chart: chart,
+      fromCol: rect.fromCol,
+      fromColOff: rect.fromColOff,
+      fromRow: rect.fromRow,
+      fromRowOff: rect.fromRowOff,
+      toCol: rect.toCol,
+      toColOff: rect.toColOff,
+      toRow: rect.toRow,
+      toRowOff: rect.toRowOff,
+      originWidth: rect.width,
+      originHeight: rect.height,
+      crop: { height: rect.height, width: rect.width, offsetLeft: 0, offsetTop: 0 },
+      default: { height: rect.height, width: rect.width, left: 0, top: 0 },
+    });
   }
 
   private addDrawingImage(anchor: Element, imageObject: any) {

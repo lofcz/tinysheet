@@ -7,6 +7,7 @@ import { setBorder } from "./ExcelBorder";
 import { setDataValidations } from "./ExcelValidation";
 import { setHiddenRowCol } from "./ExcelConfig";
 import { IFileType } from "../common/ICommon";
+import { addChartsToXlsx } from "../chart/exportXlsx";
 
 
 export async function exportSheetExcel(
@@ -34,7 +35,10 @@ export async function exportSheetExcel(
     fileData = new Blob([buffer]);
   } else {
     const buffer = await workbook.xlsx.writeBuffer();
-    fileData = new Blob([buffer]);
+    // exceljs cannot create charts: add native chart parts to its output.
+    fileData = new Blob([
+      (await addChartsToXlsx(buffer as ArrayBuffer, luckysheet)) as BlobPart,
+    ]);
   }
   if (download)
     fileSaver.saveAs(fileData, `${luckysheetRef.current.getSheet().name}.${fileType}`);

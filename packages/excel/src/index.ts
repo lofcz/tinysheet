@@ -14,8 +14,13 @@ export {
   computeNiceAxisMax,
   formatAxisTick,
   DEFAULT_CHART_COLORS,
+  importChartXml,
+  addChartsToXlsx,
+  chartToXml,
 } from "./chart";
 export type {
+  ImportedChart,
+  ImportChartOptions,
   FortuneChartSpec,
   FortuneChartSeriesSpec,
   FortuneChartValueAxis,
