@@ -124,52 +124,345 @@ function onlyScrolled(prev: Context, next: Context) {
 // cells bleeding across its edge are repainted too (the strip is clipped).
 const STRIP_MARGIN = 4;
 
+// Leading px of a scrolling band that are redrawn instead of copied.
+const BAND_EDGE = 4;
+
+/**
+ * One step of a sheet redraw, in canvas (CSS px) coordinates. A frozen sheet
+ * is drawn as up to four cell panes, the header parts and the freeze lines;
+ * later steps paint over what earlier ones spilled across pane edges.
+ */
+type DrawPass =
+  | {
+      kind: "cells";
+      scrollWidth: number;
+      scrollHeight: number;
+      drawWidth: number;
+      drawHeight: number;
+      offsetLeft: number;
+      offsetTop: number;
+      clear?: boolean;
+    }
+  | {
+      kind: "colHeader";
+      scrollWidth: number;
+      drawWidth: number;
+      offsetLeft: number;
+    }
+  | {
+      kind: "rowHeader";
+      scrollHeight: number;
+      drawHeight: number;
+      offsetTop: number;
+    }
+  | { kind: "freezeLine"; horizontalTop?: number; verticalLeft?: number };
+
+/** The passes of a full redraw, in drawing order. */
+function sheetPasses(context: Context, freeze: Freeze | undefined): DrawPass[] {
+  const [W, H] = context.luckysheetTableContentHW;
+  const { rowHeaderWidth: rhw, columnHeaderHeight: chh } = context;
+  const horizontalData = freeze?.horizontal?.freezenhorizontaldata;
+  const verticalData = freeze?.vertical?.freezenverticaldata;
+  // frozen rows: height, and scroll offset they were frozen at
+  const [hPx, , hScroll] = horizontalData ?? [0, 0, 0];
+  const [vPx, , vScroll] = verticalData ?? [0, 0, 0];
+  const mainLeft = verticalData ? vPx - vScroll + rhw : rhw;
+  const mainTop = horizontalData ? hPx - hScroll + chh : chh;
+  const mainScrollX = context.scrollLeft + (verticalData ? vPx - vScroll : 0);
+  const mainScrollY = context.scrollTop + (horizontalData ? hPx - hScroll : 0);
+  const passes: DrawPass[] = [
+    {
+      kind: "cells",
+      scrollWidth: mainScrollX,
+      scrollHeight: mainScrollY,
+      drawWidth: W,
+      drawHeight: H,
+      offsetLeft: mainLeft,
+      offsetTop: mainTop,
+      clear: true,
+    },
+  ];
+  if (horizontalData) {
+    // frozen rows, scrolling horizontally with the main pane
+    passes.push({
+      kind: "cells",
+      scrollWidth: mainScrollX,
+      scrollHeight: hScroll,
+      drawWidth: W,
+      drawHeight: hPx,
+      offsetLeft: mainLeft,
+      offsetTop: chh,
+    });
+  }
+  if (verticalData) {
+    // frozen columns, scrolling vertically with the main pane
+    passes.push({
+      kind: "cells",
+      scrollWidth: vScroll,
+      scrollHeight: mainScrollY,
+      drawWidth: vPx,
+      drawHeight: H,
+      offsetLeft: rhw,
+      offsetTop: mainTop,
+    });
+  }
+  if (horizontalData && verticalData) {
+    passes.push({
+      kind: "cells",
+      scrollWidth: vScroll,
+      scrollHeight: hScroll,
+      drawWidth: vPx,
+      drawHeight: hPx,
+      offsetLeft: rhw,
+      offsetTop: chh,
+    });
+  }
+  // headers: the scrolling part, then the frozen part
+  passes.push({
+    kind: "colHeader",
+    scrollWidth: mainScrollX,
+    drawWidth: W,
+    offsetLeft: mainLeft,
+  });
+  if (verticalData) {
+    passes.push({
+      kind: "colHeader",
+      scrollWidth: vScroll,
+      drawWidth: vPx,
+      offsetLeft: rhw,
+    });
+  }
+  passes.push({
+    kind: "rowHeader",
+    scrollHeight: mainScrollY,
+    drawHeight: H,
+    offsetTop: mainTop,
+  });
+  if (horizontalData) {
+    passes.push({
+      kind: "rowHeader",
+      scrollHeight: hScroll,
+      drawHeight: hPx,
+      offsetTop: chh,
+    });
+  }
+  if (horizontalData || verticalData) {
+    passes.push({
+      kind: "freezeLine",
+      horizontalTop: horizontalData ? mainTop - 2 : undefined,
+      verticalLeft: verticalData ? mainLeft - 2 : undefined,
+    });
+  }
+  return passes;
+}
+
+/**
+ * Narrow one axis of a pass to [lo, hi) (canvas px, margin included):
+ * shifting the scroll offset and the draw offset by the same k keeps every
+ * cell where a full pass puts it. Returns null when nothing is left.
+ */
+function narrow(
+  scroll: number,
+  offset: number,
+  size: number,
+  lo: number,
+  hi: number
+) {
+  const start = Math.max(offset, lo);
+  const end = Math.min(offset + size, hi);
+  if (end <= start) return null;
+  const k = start - offset;
+  return { scroll: scroll + k, offset: offset + k, size: end - start };
+}
+
+type Strip = { axis: "x" | "y"; start: number; size: number };
+
+function runPass(canvas: Canvas, pass: DrawPass, strip?: Strip) {
+  // narrowed to the strip (plus margin) along its axis only
+  const lo = strip ? strip.start - STRIP_MARGIN : -Infinity;
+  const hi = strip ? strip.start + strip.size + STRIP_MARGIN : Infinity;
+  const onX = strip?.axis === "x";
+  const onY = strip?.axis === "y";
+  if (pass.kind === "cells") {
+    const nx = onX
+      ? narrow(pass.scrollWidth, pass.offsetLeft, pass.drawWidth, lo, hi)
+      : {
+          scroll: pass.scrollWidth,
+          offset: pass.offsetLeft,
+          size: pass.drawWidth,
+        };
+    const ny = onY
+      ? narrow(pass.scrollHeight, pass.offsetTop, pass.drawHeight, lo, hi)
+      : {
+          scroll: pass.scrollHeight,
+          offset: pass.offsetTop,
+          size: pass.drawHeight,
+        };
+    if (!nx || !ny) return;
+    canvas.drawMain({
+      scrollWidth: nx.scroll,
+      scrollHeight: ny.scroll,
+      drawWidth: nx.size,
+      drawHeight: ny.size,
+      offsetLeft: nx.offset,
+      offsetTop: ny.offset,
+      clear: pass.clear,
+    });
+  } else if (pass.kind === "colHeader") {
+    if (onY && lo > canvas.sheetCtx.columnHeaderHeight) return;
+    const nx = onX
+      ? narrow(pass.scrollWidth, pass.offsetLeft, pass.drawWidth, lo, hi)
+      : {
+          scroll: pass.scrollWidth,
+          offset: pass.offsetLeft,
+          size: pass.drawWidth,
+        };
+    if (!nx) return;
+    canvas.drawColumnHeader(nx.scroll, nx.size, nx.offset);
+  } else if (pass.kind === "rowHeader") {
+    if (onX && lo > canvas.sheetCtx.rowHeaderWidth) return;
+    const ny = onY
+      ? narrow(pass.scrollHeight, pass.offsetTop, pass.drawHeight, lo, hi)
+      : {
+          scroll: pass.scrollHeight,
+          offset: pass.offsetTop,
+          size: pass.drawHeight,
+        };
+    if (!ny) return;
+    canvas.drawRowHeader(ny.scroll, ny.size, ny.offset);
+  } else {
+    canvas.drawFreezeLine(pass);
+  }
+}
+
+/**
+ * Draw the sheet, or only a strip of it: clipped to the strip, with each
+ * pass narrowed to the rows (or columns) that reach it, so the pixels in the
+ * strip are exactly those of a full redraw.
+ */
+function drawSheet(
+  canvasElement: HTMLCanvasElement,
+  context: Context,
+  freeze: Freeze | undefined,
+  strip?: Strip
+) {
+  const tableCanvas = new Canvas(canvasElement, context);
+  const passes = sheetPasses(context, freeze);
+  if (!strip) {
+    passes.forEach((pass) => runPass(tableCanvas, pass));
+    return;
+  }
+  const ctx2d = canvasElement.getContext("2d");
+  if (!ctx2d) return;
+  const dpr = context.devicePixelRatio;
+  const [width, height] = context.luckysheetTableContentHW;
+  ctx2d.save();
+  ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+  ctx2d.beginPath();
+  if (strip.axis === "y") {
+    ctx2d.rect(0, strip.start * dpr, width * dpr, strip.size * dpr);
+  } else {
+    ctx2d.rect(strip.start * dpr, 0, strip.size * dpr, height * dpr);
+  }
+  ctx2d.clip();
+  passes.forEach((pass) => runPass(tableCanvas, pass, strip));
+  ctx2d.restore();
+}
+
+/**
+ * Whether a merged cell spans the frozen/scrolling boundary on `axis`: the
+ * frozen pane then paints part of the scrolling band, which a blit cannot
+ * reproduce.
+ */
+function mergeCrossesFreeze(
+  context: Context,
+  freeze: Freeze | undefined,
+  axis: "x" | "y"
+) {
+  const data =
+    axis === "y"
+      ? freeze?.horizontal?.freezenhorizontaldata
+      : freeze?.vertical?.freezenverticaldata;
+  const merge = context.config?.merge;
+  if (!data || !merge) return false;
+  const frozenCount = data[1] as number;
+  // the frozen panes (frozen rows for a vertical scroll) and the sheet
+  // range they draw across the other axis
+  const panes = sheetPasses(context, freeze).flatMap((p) => {
+    if (p.kind !== "cells") return [];
+    if (axis === "y") {
+      return p.offsetTop === context.columnHeaderHeight
+        ? [[p.scrollWidth, p.scrollWidth + p.drawWidth]]
+        : [];
+    }
+    return p.offsetLeft === context.rowHeaderWidth
+      ? [[p.scrollHeight, p.scrollHeight + p.drawHeight]]
+      : [];
+  });
+  const edges =
+    axis === "y" ? context.visibledatacolumn : context.visibledatarow;
+  return Object.values(merge).some((m) => {
+    const [start, span, from, count] =
+      axis === "y" ? [m.r, m.rs, m.c, m.cs] : [m.c, m.cs, m.r, m.rs];
+    if (!(start < frozenCount && start + span > frozenCount)) return false;
+    const lo = from > 0 ? edges[from - 1] ?? 0 : 0;
+    const hi = edges[Math.min(from + count, edges.length) - 1] ?? lo;
+    return panes.some(([s0, s1]) => hi >= s0 && lo <= s1);
+  });
+}
+
 /**
  * Scroll by moving the pixels already on the canvas and drawing only the
- * newly exposed strip. Applies to unfrozen sheets scrolled along one axis by
- * less than half the view, when every edge lands on a device pixel (so the
- * copy is exact). Returns false when a full redraw is needed instead.
+ * newly exposed strip. Along the scrolled axis everything past the frozen
+ * panes moves: for a vertical scroll, the band below the frozen rows (row
+ * header, frozen columns and main pane alike); the frozen rows stay put.
+ * Applies to scrolls along one axis by less than half the band, when every
+ * edge lands on a device pixel (so the copy is exact). Returns false when a
+ * full redraw is needed instead.
  */
 function blitScroll(
   canvasElement: HTMLCanvasElement,
   prev: Context,
-  next: Context
+  next: Context,
+  freeze: Freeze | undefined
 ) {
   const dx = next.scrollLeft - prev.scrollLeft;
   const dy = next.scrollTop - prev.scrollTop;
   if ((dx !== 0) === (dy !== 0)) return false;
   const dpr = next.devicePixelRatio;
   const [width, height] = next.luckysheetTableContentHW;
-  // main cell area: drawMain paints from one pixel above/left of the headers
-  const left = next.rowHeaderWidth - 1;
-  const top = next.columnHeaderHeight - 1;
+  const main = sheetPasses(next, freeze)[0] as Extract<
+    DrawPass,
+    { kind: "cells" }
+  >;
+  const axis = dx ? "x" : "y";
+  // The moving band starts where the main pane's fill does. Its first
+  // BAND_EDGE px are redrawn rather than copied: frozen panes and header
+  // parts reach across the boundary there (borders, header clears) and do
+  // not move with the scroll.
+  const bandStart = dx ? main.offsetLeft - 1 : main.offsetTop - 1;
+  const end = dx ? width : height;
   const delta = dx || dy;
-  const span = dx ? width - left : height - top;
-  if (Math.abs(delta) * 2 > span) return false;
+  const copyStart = bandStart + BAND_EDGE;
+  const len = end - copyStart - Math.abs(delta);
+  if (Math.abs(delta) * 2 > end - copyStart) return false;
   if (
-    ![left, top, width, height, delta].every((v) => Number.isInteger(v * dpr))
+    ![bandStart, copyStart, width, height, delta].every((v) =>
+      Number.isInteger(v * dpr)
+    )
   ) {
     return false;
   }
+  if (mergeCrossesFreeze(next, freeze, axis)) return false;
   const ctx2d = canvasElement.getContext("2d");
   if (!ctx2d || typeof ctx2d.setTransform !== "function") return false;
 
-  // 1. shift the existing cell area (device pixels, identity transform)
-  let w = width - left;
-  let h = height - top;
-  let sx = left;
-  let sy = top;
-  let tx = left;
-  let ty = top;
-  if (dy) {
-    h -= Math.abs(dy);
-    if (dy > 0) sy += dy;
-    else ty -= dy;
-  } else {
-    w -= Math.abs(dx);
-    if (dx > 0) sx += dx;
-    else tx -= dx;
-  }
+  // 1. shift the band (device pixels, identity transform)
+  const src = delta > 0 ? copyStart + delta : copyStart;
+  const dst = delta > 0 ? copyStart : copyStart - delta;
+  const [sx, sy, tx, ty, w, h] = dx
+    ? [src, 0, dst, 0, len, height]
+    : [0, src, 0, dst, width, len];
   ctx2d.save();
   ctx2d.setTransform(1, 0, 0, 1, 0, 0);
   ctx2d.beginPath();
@@ -189,184 +482,26 @@ function blitScroll(
   );
   ctx2d.restore();
 
-  // 2. draw the exposed strip, clipped to it
-  let stripX = left;
-  let stripY = top;
-  let stripW = width - left;
-  let stripH = height - top;
-  if (dy) {
-    stripH = Math.abs(dy);
-    if (dy > 0) stripY = height - dy;
-  } else {
-    stripW = Math.abs(dx);
-    if (dx > 0) stripX = width - dx;
-  }
-  const tableCanvas = new Canvas(canvasElement, next);
-  ctx2d.save();
-  ctx2d.setTransform(1, 0, 0, 1, 0, 0);
-  ctx2d.beginPath();
-  ctx2d.rect(stripX * dpr, stripY * dpr, stripW * dpr, stripH * dpr);
-  ctx2d.clip();
-  // Shifting scroll offset and draw offset by the same k keeps every cell
-  // at the canvas position a full draw would give it.
-  if (dy) {
-    const k = stripY - STRIP_MARGIN - next.columnHeaderHeight;
-    tableCanvas.drawMain({
-      scrollWidth: next.scrollLeft,
-      scrollHeight: next.scrollTop + k,
-      drawHeight: stripH + 2 * STRIP_MARGIN,
-      offsetTop: next.columnHeaderHeight + k,
-      clear: true,
+  // 2. redraw the exposed strip and the band edge with every pass, clipped
+  if (delta > 0) {
+    drawSheet(canvasElement, next, freeze, {
+      axis,
+      start: end - delta,
+      size: delta,
+    });
+    drawSheet(canvasElement, next, freeze, {
+      axis,
+      start: bandStart,
+      size: BAND_EDGE,
     });
   } else {
-    const k = stripX - STRIP_MARGIN - next.rowHeaderWidth;
-    tableCanvas.drawMain({
-      scrollWidth: next.scrollLeft + k,
-      scrollHeight: next.scrollTop,
-      drawWidth: stripW + 2 * STRIP_MARGIN,
-      offsetLeft: next.rowHeaderWidth + k,
-      clear: true,
+    drawSheet(canvasElement, next, freeze, {
+      axis,
+      start: bandStart,
+      size: BAND_EDGE - delta,
     });
   }
-  ctx2d.restore();
-
-  // 3. headers are cheap: redraw the one that moved
-  if (dy) tableCanvas.drawRowHeader(next.scrollTop);
-  else tableCanvas.drawColumnHeader(next.scrollLeft);
   return true;
-}
-
-function drawSheet(
-  canvasElement: HTMLCanvasElement,
-  context: Context,
-  freeze: Freeze | undefined
-) {
-  const tableCanvas = new Canvas(canvasElement, context);
-  if (
-    freeze?.horizontal?.freezenhorizontaldata ||
-    freeze?.vertical?.freezenverticaldata
-  ) {
-    // with frozen
-    const horizontalData = freeze?.horizontal?.freezenhorizontaldata;
-    const verticallData = freeze?.vertical?.freezenverticaldata;
-    if (horizontalData && verticallData) {
-      const [horizontalPx, , horizontalScrollTop] = horizontalData;
-      const [verticalPx, , verticalScrollWidth] = verticallData;
-      // main
-      tableCanvas.drawMain({
-        scrollWidth: context.scrollLeft + verticalPx - verticalScrollWidth,
-        scrollHeight: context.scrollTop + horizontalPx - horizontalScrollTop,
-        offsetLeft: verticalPx - verticalScrollWidth + context.rowHeaderWidth,
-        offsetTop:
-          horizontalPx - horizontalScrollTop + context.columnHeaderHeight,
-        clear: true,
-      });
-      // right top
-      tableCanvas.drawMain({
-        scrollWidth: context.scrollLeft + verticalPx - verticalScrollWidth,
-        scrollHeight: horizontalScrollTop,
-        drawHeight: horizontalPx,
-        offsetLeft: verticalPx - verticalScrollWidth + context.rowHeaderWidth,
-      });
-      // left down
-      tableCanvas.drawMain({
-        scrollWidth: verticalScrollWidth,
-        scrollHeight: context.scrollTop + horizontalPx - horizontalScrollTop,
-        drawWidth: verticalPx,
-        offsetTop:
-          horizontalPx - horizontalScrollTop + context.columnHeaderHeight,
-      });
-      // left top
-      tableCanvas.drawMain({
-        scrollWidth: verticalScrollWidth,
-        scrollHeight: horizontalScrollTop,
-        drawWidth: verticalPx,
-        drawHeight: horizontalPx,
-      });
-      // headers
-      tableCanvas.drawColumnHeader(
-        context.scrollLeft + verticalPx - verticalScrollWidth,
-        undefined,
-        verticalPx - verticalScrollWidth + context.rowHeaderWidth
-      );
-      tableCanvas.drawColumnHeader(verticalScrollWidth, verticalPx);
-      tableCanvas.drawRowHeader(
-        context.scrollTop + horizontalPx - horizontalScrollTop,
-        undefined,
-        horizontalPx - horizontalScrollTop + context.columnHeaderHeight
-      );
-      tableCanvas.drawRowHeader(horizontalScrollTop, horizontalPx);
-      tableCanvas.drawFreezeLine({
-        horizontalTop:
-          horizontalPx - horizontalScrollTop + context.columnHeaderHeight - 2,
-        verticalLeft:
-          verticalPx - verticalScrollWidth + context.rowHeaderWidth - 2,
-      });
-    } else if (horizontalData) {
-      const [horizontalPx, , horizontalScrollTop] = horizontalData;
-      // main
-      tableCanvas.drawMain({
-        scrollWidth: context.scrollLeft,
-        scrollHeight: context.scrollTop + horizontalPx - horizontalScrollTop,
-        offsetTop:
-          horizontalPx - horizontalScrollTop + context.columnHeaderHeight,
-        clear: true,
-      });
-      // top
-      tableCanvas.drawMain({
-        scrollWidth: context.scrollLeft,
-        scrollHeight: horizontalScrollTop,
-        drawHeight: horizontalPx,
-      });
-      // headers
-      tableCanvas.drawColumnHeader(context.scrollLeft);
-      tableCanvas.drawRowHeader(
-        context.scrollTop + horizontalPx - horizontalScrollTop,
-        undefined,
-        horizontalPx - horizontalScrollTop + context.columnHeaderHeight
-      );
-      tableCanvas.drawRowHeader(horizontalScrollTop, horizontalPx);
-      tableCanvas.drawFreezeLine({
-        horizontalTop:
-          horizontalPx - horizontalScrollTop + context.columnHeaderHeight - 2,
-      });
-    } else if (verticallData) {
-      const [verticalPx, , verticalScrollWidth] = verticallData;
-      // main
-      tableCanvas.drawMain({
-        scrollWidth: context.scrollLeft + verticalPx - verticalScrollWidth,
-        scrollHeight: context.scrollTop,
-        offsetLeft: verticalPx - verticalScrollWidth + context.rowHeaderWidth,
-      });
-      // left
-      tableCanvas.drawMain({
-        scrollWidth: verticalScrollWidth,
-        scrollHeight: context.scrollTop,
-        drawWidth: verticalPx,
-      });
-      // headers
-      tableCanvas.drawRowHeader(context.scrollTop);
-      tableCanvas.drawColumnHeader(
-        context.scrollLeft + verticalPx - verticalScrollWidth,
-        undefined,
-        verticalPx - verticalScrollWidth + context.rowHeaderWidth
-      );
-      tableCanvas.drawColumnHeader(verticalScrollWidth, verticalPx);
-      tableCanvas.drawFreezeLine({
-        verticalLeft:
-          verticalPx - verticalScrollWidth + context.rowHeaderWidth - 2,
-      });
-    }
-  } else {
-    // without frozen
-    tableCanvas.drawMain({
-      scrollWidth: context.scrollLeft,
-      scrollHeight: context.scrollTop,
-      clear: true,
-    });
-    tableCanvas.drawColumnHeader(context.scrollLeft);
-    tableCanvas.drawRowHeader(context.scrollTop);
-  }
 }
 
 const requestFrame: (cb: () => void) => number =
@@ -535,10 +670,12 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
         painted.width === canvasElement.width &&
         painted.height === canvasElement.height &&
         painted.sheetId === sheet.id &&
-        !freeze &&
-        !painted.freeze &&
+        painted.freeze === freeze &&
         onlyScrolled(painted.context, context);
-      if (!canBlit || !blitScroll(canvasElement, painted!.context, context)) {
+      if (
+        !canBlit ||
+        !blitScroll(canvasElement, painted!.context, context, freeze)
+      ) {
         drawSheet(canvasElement, context, freeze);
       }
       lastPainted.current = {
