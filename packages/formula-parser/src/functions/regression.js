@@ -568,29 +568,32 @@ function fitEts(series, m) {
       })
     )
   );
-  // Local refinement around the best grid point.
+  // Local refinement around the best grid point (coordinate search).
+  const keys = m > 1 ? ["alpha", "beta", "gamma"] : ["alpha", "beta"];
   let stepSize = 0.05;
   for (let iter = 0; iter < 30 && stepSize > 1e-4; iter++) {
     let improved = false;
-    ["alpha", "beta", "gamma"].forEach((key) => {
-      if (key === "gamma" && m <= 1) return;
-      [-stepSize, stepSize].forEach((delta) => {
-        const trial = { ...best, [key]: best[key] + delta };
-        if (trial[key] < 0.001 || trial[key] > 0.999) return;
-        const run = holtWinters(
-          series,
-          m,
-          trial.alpha,
-          trial.beta,
-          trial.gamma
-        );
-        const cost = sse(run.errors);
-        if (cost < best.cost - 1e-12) {
-          best = { ...trial, cost, run };
-          improved = true;
+    for (let k = 0; k < keys.length; k++) {
+      for (let sign = -1; sign <= 1; sign += 2) {
+        const key = keys[k];
+        const value = best[key] + sign * stepSize;
+        if (value >= 0.001 && value <= 0.999) {
+          const trial = { ...best, [key]: value };
+          const run = holtWinters(
+            series,
+            m,
+            trial.alpha,
+            trial.beta,
+            trial.gamma
+          );
+          const cost = sse(run.errors);
+          if (cost < best.cost - 1e-12) {
+            best = { ...trial, cost, run };
+            improved = true;
+          }
         }
-      });
-    });
+      }
+    }
     if (!improved) stepSize /= 2;
   }
   return best;

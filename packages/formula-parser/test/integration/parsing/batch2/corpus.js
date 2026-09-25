@@ -14,7 +14,9 @@ function parseComplex(text) {
   const re = m[1] === undefined ? 0 : Number(m[1]);
   let im = 0;
   if (m[3] !== undefined) {
-    im = m[2] === "" || m[2] === "+" ? 1 : m[2] === "-" ? -1 : Number(m[2]);
+    if (m[2] === "" || m[2] === "+") im = 1;
+    else if (m[2] === "-") im = -1;
+    else im = Number(m[2]);
   }
   return [re, im];
 }

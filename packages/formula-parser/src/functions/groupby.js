@@ -191,12 +191,9 @@ function headerText(v) {
  */
 function prepare(gridsByKind, fieldHeaders) {
   const valuesGrid = gridsByKind.values;
-  const auto = isBlank(fieldHeaders);
-  const fh = auto
-    ? hasAutoHeaders(valuesGrid)
-      ? 1
-      : 0
-    : mode(fieldHeaders, 0, [0, 1, 2, 3]);
+  let fh;
+  if (isBlank(fieldHeaders)) fh = hasAutoHeaders(valuesGrid) ? 1 : 0;
+  else fh = mode(fieldHeaders, 0, [0, 1, 2, 3]);
   const hasHeaders = fh === 1 || fh === 3;
   const out = { hasHeaders, show: fh === 2 || fh === 3, generate: fh === 2 };
   Object.keys(gridsByKind).forEach((kind) => {
@@ -226,13 +223,14 @@ function groupKey(v) {
 function compareKeys(a, b) {
   const aBlank = isBlank(a) || a === "";
   const bBlank = isBlank(b) || b === "";
-  if (aBlank || bBlank) return aBlank === bBlank ? 0 : aBlank ? 1 : -1;
+  if (aBlank && bBlank) return 0;
+  if (aBlank || bBlank) return aBlank ? 1 : -1;
   const aErr = a instanceof Error;
   const bErr = b instanceof Error;
   if (aErr || bErr) {
-    if (aErr && bErr)
-      return a.message < b.message ? -1 : a.message > b.message ? 1 : 0;
-    return aErr ? 1 : -1;
+    if (!aErr || !bErr) return aErr ? 1 : -1;
+    if (a.message === b.message) return 0;
+    return a.message < b.message ? -1 : 1;
   }
   try {
     return compare(a, b);
@@ -409,7 +407,7 @@ function labelCells(entry, levels) {
   const path = entry.node.path;
   for (let i = 0; i < path.length && i < levels; i++) {
     const v = path[i];
-    cells[i] = v instanceof Error ? v : isBlank(v) ? null : v;
+    cells[i] = isBlank(v) ? null : v;
   }
   return cells;
 }

@@ -85,7 +85,7 @@ function thaiGroup(n, higher) {
     } else if (place === 1) {
       if (d === 1) out += "สิบ";
       else if (d === 2) out += "ยี่สิบ";
-      else out += THAI_DIGITS[d] + "สิบ";
+      else out += `${THAI_DIGITS[d]}สิบ`;
     } else {
       out += THAI_DIGITS[d] + THAI_PLACES[place];
     }
@@ -137,7 +137,7 @@ const SEMI = "パピプペポ";
 
 function toHalfWidth(str) {
   let out = "";
-  for (const ch of str) {
+  Array.from(str).forEach((ch) => {
     const code = ch.codePointAt(0);
     if (code >= 0xff01 && code <= 0xff5e) {
       out += String.fromCharCode(code - 0xfee0);
@@ -145,16 +145,16 @@ function toHalfWidth(str) {
       out += " ";
     } else if (VOICED.includes(ch)) {
       const base = VOICED_BASE[VOICED.indexOf(ch)];
-      out += HALF_KANA[FULL_KANA.indexOf(base)] + "ﾞ";
+      out += `${HALF_KANA[FULL_KANA.indexOf(base)]}ﾞ`;
     } else if (SEMI.includes(ch)) {
       const base = SEMI_BASE[SEMI.indexOf(ch)];
-      out += HALF_KANA[FULL_KANA.indexOf(base)] + "ﾟ";
+      out += `${HALF_KANA[FULL_KANA.indexOf(base)]}ﾟ`;
     } else if (FULL_KANA.includes(ch)) {
       out += HALF_KANA[FULL_KANA.indexOf(ch)];
     } else {
       out += ch;
     }
-  }
+  });
   return out;
 }
 
