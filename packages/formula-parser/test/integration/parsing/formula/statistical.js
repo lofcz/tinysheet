@@ -595,9 +595,10 @@ describe(".parse() statistical formulas", () => {
     parser.setVariable("foo", [79, 85, 78, 85, 50, 81, 95, 88, 97]);
     parser.setVariable("bar", [70, 79, 89]);
 
+    // Excel returns a vertical array with one extra (overflow) bin.
     expect(parser.parse("FREQUENCY(foo, bar)")).toMatchObject({
       error: null,
-      result: [1, 2, 4, 2],
+      result: [[1], [2], [4], [2]],
     });
   });
 
@@ -691,17 +692,19 @@ describe(".parse() statistical formulas", () => {
     parser.setVariable("baz", [11, 12, 13, 14, 15, 16, 17, 18, 19]);
 
     const result = parser.parse("GROWTH(foo, bar, baz)");
+    // Array results are 2D (one row here, the shape of new_x's).
+    const row = result.result[0];
 
     expect(result.error).toBeNull();
-    expect(result.result[0]).toBeCloseTo(32618.20377353843);
-    expect(result.result[1]).toBeCloseTo(47729.422614746654);
-    expect(result.result[2]).toBeCloseTo(69841.30085621699);
-    expect(result.result[3]).toBeCloseTo(102197.07337883323);
-    expect(result.result[4]).toBeCloseTo(149542.4867400496);
-    expect(result.result[5]).toBeCloseTo(218821.8762146044);
-    expect(result.result[6]).toBeCloseTo(320196.71836349065);
-    expect(result.result[7]).toBeCloseTo(468536.05418408196);
-    expect(result.result[8]).toBeCloseTo(685597.3889812973);
+    expect(row[0]).toBeCloseTo(32618.20377353843);
+    expect(row[1]).toBeCloseTo(47729.422614746654);
+    expect(row[2]).toBeCloseTo(69841.30085621699);
+    expect(row[3]).toBeCloseTo(102197.07337883323);
+    expect(row[4]).toBeCloseTo(149542.4867400496);
+    expect(row[5]).toBeCloseTo(218821.8762146044);
+    expect(row[6]).toBeCloseTo(320196.71836349065, 4);
+    expect(row[7]).toBeCloseTo(468536.05418408196, 3);
+    expect(row[8]).toBeCloseTo(685597.3889812973, 3);
   });
 
   it("HARMEAN", () => {
@@ -779,7 +782,7 @@ describe(".parse() statistical formulas", () => {
 
     expect(parser.parse("LINEST(foo, bar)")).toMatchObject({
       error: null,
-      result: [2, 1],
+      result: [[2, 1]],
     });
     expect(parser.parse('LINEST(foo, "aaaaaa")')).toMatchObject({
       error: "#VALUE!",
@@ -791,10 +794,11 @@ describe(".parse() statistical formulas", () => {
     parser.setVariable("foo", [1, 9, 5, 7]);
     parser.setVariable("bar", [0, 4, 2, 3]);
 
-    expect(parser.parse("LOGEST(foo, bar)")).toMatchObject({
-      error: null,
-      result: [1.751116, 1.194316],
-    });
+    const { error, result } = parser.parse("LOGEST(foo, bar)");
+
+    expect(error).toBeNull();
+    expect(result[0][0]).toBeCloseTo(1.751116, 6);
+    expect(result[0][1]).toBeCloseTo(1.194316, 6);
     expect(parser.parse('LOGEST(foo, "aaaaaa")')).toMatchObject({
       error: "#VALUE!",
       result: null,
@@ -1578,7 +1582,7 @@ describe(".parse() statistical formulas", () => {
 
     expect(parser.parse("TREND(foo, bar, baz)")).toMatchObject({
       error: null,
-      result: [11, 17],
+      result: [[11, 17]],
     });
     expect(parser.parse('TREND(foo, bar, "dwe")')).toMatchObject({
       error: "#VALUE!",

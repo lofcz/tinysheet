@@ -16,6 +16,8 @@ import text from "./text";
 import mathStats from "./math-stats";
 import dateFinancial from "./date-financial";
 import lambda from "./lambda";
+import database from "./database";
+import regression from "./regression";
 import LEGACY_FUNCTION_NAMES from "./legacy";
 import formulajs from "../formulajs";
 
@@ -27,6 +29,8 @@ const CUSTOM_FUNCTIONS = Object.assign(
   dateFinancial,
   lambda
 );
+// Functions batch 2 (phase 2, stream P2).
+Object.assign(CUSTOM_FUNCTIONS, database, regression);
 
 function resolveFunction(name) {
   if (CUSTOM_FUNCTIONS[name]) {
