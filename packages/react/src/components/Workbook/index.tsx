@@ -23,6 +23,7 @@ import {
   calcSelectionInfo,
   groupValuesRefresh,
   setFormulaCellInfoMap,
+  expandCellData,
 } from "@lofcz/tinysheet-core";
 import React, {
   useMemo,
@@ -64,6 +65,17 @@ type AdditionalProps = {
   onChange?: (data: SheetType[]) => void;
   onOp?: (op: Op[]) => void;
 };
+
+/** Run `cb` when the browser is idle (after paint); returns a canceller. */
+function scheduleIdle(cb: () => void) {
+  const w: any = typeof window !== "undefined" ? window : undefined;
+  if (w?.requestIdleCallback) {
+    const id = w.requestIdleCallback(cb, { timeout: 500 });
+    return () => w.cancelIdleCallback(id);
+  }
+  const id = setTimeout(cb, 1);
+  return () => clearTimeout(id);
+}
 
 const triggerGroupValuesRefresh = (ctx: Context) => {
   if (ctx.groupValuesRefreshData.length > 0) {
@@ -162,40 +174,23 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       mergedSettings.lang,
     ]);
 
+    // Expands a sheet's celldata into its data matrix (see expandCellData:
+    // frozen rows keep immer from walking every cell on the next produce).
     const initSheetData = useCallback(
       (
         draftCtx: Context,
         newData: SheetType,
         index: number
       ): CellMatrix | null => {
-        const { celldata, row, column } = newData;
-        const lastRow = _.maxBy<CellWithRowAndCol>(celldata, "r");
-        const lastCol = _.maxBy(celldata, "c");
-        let lastRowNum = (lastRow?.r ?? 0) + 1;
-        let lastColNum = (lastCol?.c ?? 0) + 1;
-        if (row != null && column != null && row > 0 && column > 0) {
-          lastRowNum = Math.max(lastRowNum, row);
-          lastColNum = Math.max(lastColNum, column);
-        } else {
-          lastRowNum = Math.max(lastRowNum, draftCtx.defaultrowNum);
-          lastColNum = Math.max(lastColNum, draftCtx.defaultcolumnNum);
-        }
-        if (lastRowNum && lastColNum) {
-          const expandedData: SheetType["data"] = _.times(lastRowNum, () =>
-            _.times(lastColNum, () => null)
-          );
-          celldata?.forEach((d) => {
-            // TODO setCellValue(draftCtx, d.r, d.c, expandedData, d.v);
-            expandedData[d.r][d.c] = d.v;
-          });
-          draftCtx.luckysheetfile = produce(draftCtx.luckysheetfile, (d) => {
-            d[index!].data = expandedData;
-            delete d[index!].celldata;
-            return d;
-          });
-          return expandedData;
-        }
-        return null;
+        const expandedData = expandCellData(
+          newData,
+          draftCtx.defaultrowNum,
+          draftCtx.defaultcolumnNum
+        );
+        const target = draftCtx.luckysheetfile[index];
+        target.data = expandedData;
+        delete target.celldata;
+        return expandedData;
       },
       []
     );
@@ -282,11 +277,22 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     const setContextWithProduce = useCallback(
       (recipe: (ctx: Context) => void, options: SetContextOptions = {}) => {
         setContext((ctx_) => {
+          if (options.noHistory) {
+            // no undo entry and no op: skip patch generation altogether
+            const next = produce(
+              ctx_,
+              concatProducer(recipe, triggerGroupValuesRefresh)
+            );
+            if (next.luckysheetfile.length < ctx_.luckysheetfile.length) {
+              reduceUndoList(next, ctx_);
+            }
+            return next;
+          }
           const [result, patches, inversePatches] = produceWithPatches(
             ctx_,
             concatProducer(recipe, triggerGroupValuesRefresh)
           );
-          if (patches.length > 0 && !options.noHistory) {
+          if (patches.length > 0) {
             if (options.logPatch) {
               // eslint-disable-next-line no-console
               console.info("patch", patches);
@@ -486,20 +492,23 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           draftCtx.defaultrowNum = mergedSettings.row;
           draftCtx.defaultFontSize = mergedSettings.defaultFontSize;
           if (_.isEmpty(draftCtx.luckysheetfile)) {
-            const newData = produce(originalData, (draftData) => {
-              ensureSheetIndex(draftData, mergedSettings.generateSheetId);
+            // Shallow copies: ensureSheetIndex fills in ids and status.
+            // (Running it through produce would deep-freeze every cell of
+            // every sheet, which dominated load time for big workbooks.)
+            const newData = originalData.map((sheet) => ({ ...sheet }));
+            ensureSheetIndex(newData, mergedSettings.generateSheetId);
+            newData.forEach((sheet) => {
+              // pending sheets keep their celldata until expanded; a frozen
+              // copy spares immer from walking it
+              if (sheet.celldata && _.isEmpty(sheet.data)) {
+                sheet.celldata = Object.freeze(
+                  sheet.celldata.slice()
+                ) as CellWithRowAndCol[];
+              }
             });
             draftCtx.luckysheetfile = newData;
-            newData.forEach((newDatum) => {
-              const index = getSheetIndex(draftCtx, newDatum.id!) as number;
-              const sheet = draftCtx.luckysheetfile?.[index];
-              const cellMatrixData = initSheetData(draftCtx, sheet, index);
-              setFormulaCellInfoMap(
-                draftCtx,
-                sheet.calcChain,
-                cellMatrixData || undefined
-              );
-            });
+            // Only the sheet shown first is expanded here, below; the others
+            // are expanded after the first paint (see expandPendingSheets).
           }
           if (mergedSettings.devicePixelRatio > 0) {
             draftCtx.devicePixelRatio = mergedSettings.devicePixelRatio;
@@ -531,6 +540,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             if (!_.isNull(temp)) {
               data = temp;
             }
+            setFormulaCellInfoMap(draftCtx, sheet.calcChain, data);
           }
 
           if (
@@ -630,6 +640,33 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       mergedSettings.addRows,
       mergedSettings.currency,
     ]);
+
+    // Sheets other than the one shown are expanded from celldata after the
+    // first paint, one per idle slot, so opening a big multi-sheet workbook
+    // does not wait for sheets nobody is looking at yet.
+    const pendingSheets = context.luckysheetfile.reduce(
+      (n, s) =>
+        s.id !== context.currentSheetId && _.isEmpty(s.data) ? n + 1 : n,
+      0
+    );
+    useEffect(() => {
+      if (pendingSheets === 0) return undefined;
+      return scheduleIdle(() => {
+        setContextWithProduce(
+          (draftCtx) => {
+            const files = draftCtx.luckysheetfile;
+            const idx = files.findIndex(
+              (s) => s.id !== draftCtx.currentSheetId && _.isEmpty(s.data)
+            );
+            if (idx < 0) return;
+            const sheet = files[idx];
+            const data = initSheetData(draftCtx, sheet, idx);
+            setFormulaCellInfoMap(draftCtx, sheet.calcChain, data ?? undefined);
+          },
+          { noHistory: true }
+        );
+      });
+    }, [pendingSheets, initSheetData, setContextWithProduce]);
 
     // Colour theme: resolved here so the canvas (ctx.theme) and the CSS
     // tokens (data-theme on the root) always agree. Layout effect so the

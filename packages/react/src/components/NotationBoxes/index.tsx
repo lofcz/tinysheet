@@ -1,4 +1,4 @@
-import React, { useContext, useEffect } from "react";
+import React, { useContext, useEffect, useRef } from "react";
 import {
   getFlowdata,
   onCommentBoxMoveStart,
@@ -10,23 +10,50 @@ import _ from "lodash";
 import ContentEditable from "../SheetOverlay/ContentEditable";
 import WorkbookContext from "../../context";
 
+const NO_COLS: number[] = [];
+
 const NotationBoxes: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const flowdata = getFlowdata(context);
 
-  // TODO use patch to detect ps isShow change may be more effecient
+  // Columns of shown comments per row. Rows are immutable (immer), so after
+  // an edit only rows whose identity changed are rescanned, not every cell.
+  const shownByRow = useRef(new WeakMap<object, number[]>());
+  const lastScan = useRef<{ data: unknown[]; cols: number[][] } | null>(null);
+  const hasCommentBoxes = (context.commentBoxes?.length ?? 0) > 0;
+  const hasCommentBoxesRef = useRef(hasCommentBoxes);
+  hasCommentBoxesRef.current = hasCommentBoxes;
   useEffect(() => {
     if (flowdata) {
       const psShownCells: { r: number; c: number }[] = [];
+      const cache = shownByRow.current;
+      const last = lastScan.current;
+      const aligned = last != null && last.data.length === flowdata.length;
+      const colsByRow: number[][] = new Array(flowdata.length);
       for (let i = 0; i < flowdata.length; i += 1) {
-        for (let j = 0; j < flowdata[i].length; j += 1) {
-          const cell = flowdata[i][j];
-          if (!cell) continue;
-          if (cell.ps?.isShow) {
-            psShownCells.push({ r: i, c: j });
+        const row = flowdata[i];
+        let cols: number[] | undefined;
+        if (!row) cols = NO_COLS;
+        else if (aligned && last!.data[i] === row) cols = last!.cols[i];
+        else cols = cache.get(row);
+        if (cols === undefined) {
+          cols = NO_COLS;
+          for (let j = 0; j < row.length; j += 1) {
+            if (row[j]?.ps?.isShow) {
+              if (cols === NO_COLS) cols = [];
+              cols.push(j);
+            }
           }
+          cache.set(row, cols);
+        }
+        colsByRow[i] = cols;
+        for (let k = 0; k < cols.length; k += 1) {
+          psShownCells.push({ r: i, c: cols[k] });
         }
       }
+      lastScan.current = { data: flowdata, cols: colsByRow };
+      // nothing shown and nothing to clear: skip the extra context update
+      if (psShownCells.length === 0 && !hasCommentBoxesRef.current) return;
       setContext((ctx) => showComments(ctx, psShownCells));
     }
   }, [flowdata, setContext]);
