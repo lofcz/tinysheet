@@ -98,6 +98,40 @@ export type PivotError =
   | "replaceData"
   | "notFound";
 
+export type CreatePivotOptions = {
+  /** Put the report on a new sheet (default) or at `anchor` of `sheetId`. */
+  newSheet?: boolean;
+  sheetId?: string;
+  anchor?: { r: number; c: number };
+  name?: string;
+  newSheetId?: string;
+  force?: boolean;
+};
+
+export type PivotPatch = Partial<
+  Pick<
+    PivotTable,
+    | "name"
+    | "rows"
+    | "columns"
+    | "values"
+    | "filters"
+    | "fields"
+    | "anchor"
+    | "rowHeaderCaption"
+    | "colHeaderCaption"
+    | "source"
+  >
+> & { options?: Partial<PivotOptions> };
+
+function applyPatch(prev: PivotTable, patch: PivotPatch): PivotTable {
+  return {
+    ...prev,
+    ...patch,
+    options: { ...prev.options, ...patch.options },
+  } as PivotTable;
+}
+
 /* ------------------------------------------------------------------------ */
 /* Lookup                                                                   */
 /* ------------------------------------------------------------------------ */
@@ -1366,7 +1400,7 @@ export function buildPivotReport(
       put(r, labelCols + j, {
         v: empty ? emptyText || null : shown,
         fa: valueFormat(comp.values[vi]),
-        bold: bold || col.t !== "item",
+        bold: bold || col.t === "subtotal",
       });
     });
     if (isTotal) {
@@ -1518,6 +1552,125 @@ export type RefreshOptions = {
   recalculate?: boolean;
 };
 
+type RefreshPlan = {
+  report: PivotReport;
+  anchor: { r: number; c: number };
+  span: Span;
+  top: number;
+};
+
+/**
+ * Computes a PivotTable's report and where it goes, checking that it fits
+ * (no other report, table, its own source or - without `force` - data in
+ * the way). Changes nothing.
+ */
+function planRefresh(
+  ctx: Context,
+  sheetId: string,
+  pivot: PivotTable,
+  force?: boolean
+): RefreshPlan | { error: PivotError } {
+  const sheet = sheetOf(ctx, sheetId);
+  if (!sheet?.data) return { error: "notFound" };
+  const comp = computePivot(ctx, pivot);
+  if ("error" in comp) return { error: comp.error };
+  const report = buildPivotReport(ctx, pivot, comp);
+  const filterRows = report.filters.length ? report.filters.length + 1 : 0;
+  const anchor = {
+    r: Math.max(pivot.anchor.r, filterRows),
+    c: pivot.anchor.c,
+  };
+  const height = report.cells.length;
+  const width = report.cells[0]?.length ?? 1;
+  const top = anchor.r - filterRows;
+  const span: Span = {
+    row: [top, anchor.r + Math.max(1, height) - 1],
+    column: [
+      anchor.c,
+      anchor.c + Math.max(width, report.filters.length ? 2 : 1) - 1,
+    ],
+  };
+  if (anchor.r < 0 || anchor.c < 0) return { error: "location" };
+  if (
+    comp.source.sheetId === sheetId &&
+    spansOverlap(comp.source.range, span)
+  ) {
+    return { error: "location" };
+  }
+  // other reports and tables
+  if (
+    getPivotTables(ctx, sheetId).some(
+      (p) =>
+        p.pivot.id !== pivot.id &&
+        p.pivot.output &&
+        spansOverlap(p.pivot.output, span)
+    )
+  ) {
+    return { error: "overlapPivot" };
+  }
+  if (getTables(ctx, sheetId).some((t) => spansOverlap(t.table.range, span))) {
+    return { error: "overlapTable" };
+  }
+  const data = peek(sheet.data);
+  const old = pivot.output;
+  if (!force) {
+    for (let r = span.row[0]; r <= span.row[1]; r += 1) {
+      for (let c = span.column[0]; c <= span.column[1]; c += 1) {
+        if (!inSpan(old, r, c)) {
+          const cell = peek(peek(data[r])?.[c]);
+          if (cell && (!isBlankCell(cell) || cell.f)) {
+            return { error: "replaceData" };
+          }
+        }
+      }
+    }
+  }
+  return { report, anchor, span, top };
+}
+
+/**
+ * Whether a change to a PivotTable (or its refresh, without `patch`) can be
+ * applied; the error it would give otherwise ("replaceData": ask the user,
+ * then apply with `force`).
+ */
+export function checkPivotUpdate(
+  ctx: Context,
+  sheetId: string,
+  id: string,
+  patch?: PivotPatch
+): PivotError | null {
+  const pivot = findPivotTable(ctx, sheetId, id);
+  if (!pivot) return "notFound";
+  const next = patch ? applyPatch(pivot, patch) : pivot;
+  const plan = planRefresh(ctx, sheetId, next);
+  return "error" in plan ? plan.error : null;
+}
+
+/** Whether Insert › PivotTable can put an empty PivotTable there. */
+export function checkNewPivotTable(
+  ctx: Context,
+  source: PivotSource,
+  options: CreatePivotOptions = {}
+): PivotError | null {
+  const src = readPivotSource(ctx, source);
+  if ("error" in src) return src.error;
+  if (options.newSheet !== false) return null;
+  const sheetId = options.sheetId ?? ctx.currentSheetId;
+  const probe: PivotTable = {
+    id: "\u0000probe",
+    name: options.name || nextPivotTableName(ctx),
+    source,
+    anchor: options.anchor ?? { r: 2, c: 0 },
+    rows: [],
+    columns: [],
+    values: [],
+    filters: [],
+    options: { ...DEFAULT_PIVOT_OPTIONS },
+  };
+  const plan = planRefresh(ctx, sheetId, probe);
+  return "error" in plan ? plan.error : null;
+}
+
 /**
  * Recomputes a PivotTable and writes its report. Returns an error code and
  * changes nothing on failure ("replaceData": non-empty cells are in the
@@ -1532,48 +1685,11 @@ export function refreshPivotTable(
   const sheet = sheetOf(ctx, sheetId);
   const pivot = sheet?.pivotTables?.find((p) => p.id === id);
   if (!sheet?.data || !pivot) return { error: "notFound" };
-  const comp = computePivot(ctx, pivot);
-  if ("error" in comp) return { error: comp.error };
-  const report = buildPivotReport(ctx, pivot, comp);
-  const filterRows = report.filters.length ? report.filters.length + 1 : 0;
-  const anchor = { r: Math.max(pivot.anchor.r, filterRows), c: pivot.anchor.c };
-  const height = report.cells.length;
-  const width = report.cells[0]?.length ?? 1;
-  const top = anchor.r - filterRows;
-  const span: Span = {
-    row: [top, anchor.r + Math.max(1, height) - 1],
-    column: [
-      anchor.c,
-      anchor.c + Math.max(width, report.filters.length ? 2 : 1) - 1,
-    ],
-  };
-  // other reports and tables
-  if (
-    getPivotTables(ctx, sheetId).some(
-      (p) =>
-        p.pivot.id !== id &&
-        p.pivot.output &&
-        spansOverlap(p.pivot.output, span)
-    )
-  ) {
-    return { error: "overlapPivot" };
-  }
-  if (getTables(ctx, sheetId).some((t) => spansOverlap(t.table.range, span))) {
-    return { error: "overlapTable" };
-  }
+  const plan = planRefresh(ctx, sheetId, pivot, options.force);
+  if ("error" in plan) return { error: plan.error };
+  const { report, anchor, span, top } = plan;
   const { data } = sheet;
   const old = pivot.output;
-  if (!options.force) {
-    for (let r = span.row[0]; r <= span.row[1]; r += 1) {
-      for (let c = span.column[0]; c <= span.column[1]; c += 1) {
-        if (!inSpan(old, r, c)) {
-          const cell = peek(peek(data[r])?.[c]);
-          if (cell && (!isBlankCell(cell) || cell.f))
-            return { error: "replaceData" };
-        }
-      }
-    }
-  }
   const preserve = pivot.options.preserveFormatting !== false;
   if (old) {
     for (let r = old.row[0]; r <= old.row[1]; r += 1) {
@@ -1670,16 +1786,6 @@ export function deletePivotTable(ctx: Context, sheetId: string, id: string) {
 /* ------------------------------------------------------------------------ */
 /* Creation and editing                                                     */
 /* ------------------------------------------------------------------------ */
-
-export type CreatePivotOptions = {
-  /** Put the report on a new sheet (default) or at `anchor` of `sheetId`. */
-  newSheet?: boolean;
-  sheetId?: string;
-  anchor?: { r: number; c: number };
-  name?: string;
-  newSheetId?: string;
-  force?: boolean;
-};
 
 /** The source Insert › PivotTable proposes (the table or current region). */
 export function suggestPivotSource(ctx: Context): PivotSource | null {
@@ -1847,22 +1953,6 @@ export function createPivotTable(
   return { pivot: created, sheetId };
 }
 
-export type PivotPatch = Partial<
-  Pick<
-    PivotTable,
-    | "name"
-    | "rows"
-    | "columns"
-    | "values"
-    | "filters"
-    | "fields"
-    | "anchor"
-    | "rowHeaderCaption"
-    | "colHeaderCaption"
-    | "source"
-  >
-> & { options?: Partial<PivotOptions> };
-
 /**
  * Changes a PivotTable and refreshes it. On error (e.g. the report would
  * run into data) nothing changes.
@@ -1878,11 +1968,7 @@ export function updatePivotTable(
   const index = sheet?.pivotTables?.findIndex((p) => p.id === id) ?? -1;
   if (!sheet || index < 0) return { error: "notFound" };
   const prev = sheet.pivotTables![index];
-  const next: PivotTable = {
-    ...prev,
-    ...patch,
-    options: { ...prev.options, ...patch.options },
-  } as PivotTable;
+  const next = applyPatch(prev, patch);
   const list = [...sheet.pivotTables!];
   list[index] = next;
   sheet.pivotTables = list;
@@ -2007,6 +2093,120 @@ export function defaultPivotAggregate(field?: {
   isNumeric: boolean;
 }): PivotAggregate {
   return field?.isNumeric ? "sum" : "count";
+}
+
+export type PivotArea = "filters" | "rows" | "columns" | "values";
+
+export type PivotAreaPosition = { area: PivotArea; index: number };
+
+/** The axis entries of an area (field ids; Σ Values included). */
+export function pivotAreaFields(pivot: PivotTable, area: PivotArea): string[] {
+  const sigma = pivot.values.length > 1;
+  switch (area) {
+    case "filters":
+      return pivot.filters.map((f) => f.field);
+    case "rows":
+      return sigma && pivot.options.valuesOnRows
+        ? [...pivot.rows, PIVOT_VALUES_FIELD]
+        : [...pivot.rows];
+    case "columns":
+      return sigma && !pivot.options.valuesOnRows
+        ? [...pivot.columns, PIVOT_VALUES_FIELD]
+        : [...pivot.columns];
+    default:
+      return pivot.values.map((v) => v.field);
+  }
+}
+
+/** Whether a field is used on any area (the Fields pane check boxes). */
+export function isPivotFieldUsed(pivot: PivotTable, field: string) {
+  const up = field.toUpperCase();
+  // date-group levels ("Date|years") count for their field
+  const same = (x: string) => {
+    const u = x.toUpperCase();
+    return u === up || (!up.includes("|") && u.startsWith(`${up}|`));
+  };
+  return (
+    pivot.rows.some(same) ||
+    pivot.columns.some(same) ||
+    pivot.filters.some((f) => same(f.field)) ||
+    pivot.values.some((v) => same(v.field))
+  );
+}
+
+/**
+ * The change dragging a field makes: from an area position (null: from the
+ * field list) to an area (null: removed). A field is on one of Filters /
+ * Rows / Columns at a time; Values may hold it (several times) as well.
+ * Σ Values moves between Rows and Columns only.
+ */
+export function pivotMoveField(
+  pivot: PivotTable,
+  field: string,
+  from: PivotAreaPosition | null,
+  to: { area: PivotArea; index?: number } | null,
+  aggregate: PivotAggregate = "sum"
+): PivotPatch {
+  if (field === PIVOT_VALUES_FIELD) {
+    if (to?.area === "rows") return { options: { valuesOnRows: true } };
+    if (to?.area === "columns") return { options: { valuesOnRows: false } };
+    return {};
+  }
+  const up = field.toUpperCase();
+  const other = (x: string) => x.toUpperCase() !== up;
+  let rows = [...pivot.rows];
+  let columns = [...pivot.columns];
+  let filters = [...pivot.filters];
+  let values = [...pivot.values];
+  const insertAt = <T>(list: T[], item: T, index?: number) => {
+    const i =
+      index == null ? list.length : Math.max(0, Math.min(index, list.length));
+    list.splice(i, 0, item);
+  };
+  if (!to) {
+    if (from?.area === "values") values.splice(from.index, 1);
+    else if (from?.area === "rows") rows = rows.filter(other);
+    else if (from?.area === "columns") columns = columns.filter(other);
+    else if (from?.area === "filters")
+      filters = filters.filter((f) => other(f.field));
+    else {
+      rows = rows.filter(other);
+      columns = columns.filter(other);
+      filters = filters.filter((f) => other(f.field));
+      values = values.filter((v) => other(v.field));
+    }
+    return { rows, columns, filters, values };
+  }
+  if (to.area === "values") {
+    if (from?.area === "values") {
+      const [moved] = values.splice(from.index, 1);
+      let index = to.index ?? values.length;
+      if (to.index != null && from.index < to.index) index -= 1;
+      insertAt(values, moved, index);
+      return { values };
+    }
+    if (from) {
+      rows = rows.filter(other);
+      columns = columns.filter(other);
+      filters = filters.filter((f) => other(f.field));
+    }
+    insertAt(values, { field, aggregate }, to.index);
+    return { rows, columns, filters, values };
+  }
+  // to an axis: the field leaves the other axes
+  let { index } = to;
+  if (from && from.area === to.area && index != null && from.index < index) {
+    index -= 1;
+  }
+  const keep = filters.find((f) => !other(f.field));
+  rows = rows.filter(other);
+  columns = columns.filter(other);
+  filters = filters.filter((f) => other(f.field));
+  if (from?.area === "values") values.splice(from.index, 1);
+  if (to.area === "rows") insertAt(rows, field, index);
+  else if (to.area === "columns") insertAt(columns, field, index);
+  else insertAt(filters, keep ?? { field }, index);
+  return { rows, columns, filters, values };
 }
 
 /* ------------------------------------------------------------------------ */

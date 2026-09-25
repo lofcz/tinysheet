@@ -17,6 +17,12 @@ import {
   updatePivotField,
   updatePivotTable,
   PIVOT_HEADER_BG,
+  PIVOT_VALUES_FIELD,
+  checkNewPivotTable,
+  checkPivotUpdate,
+  isPivotFieldUsed,
+  pivotAreaFields,
+  pivotMoveField,
 } from "../../src/modules/pivot";
 import { createTable } from "../../src/modules/tables";
 import { insertRowCol } from "../../src/modules/rowcol";
@@ -578,5 +584,96 @@ describe("GETPIVOTDATA", () => {
     expect(
       getPivotData(ctx, "id_2", 2, 0, "Count of Sales", [["Date", "2023"]])
     ).toBe(3);
+  });
+});
+
+describe("fields pane helpers", () => {
+  const base = {
+    rows: ["Region"],
+    columns: [],
+    filters: [],
+    values: [{ field: "Sales", aggregate: "sum" }],
+    options: { layout: "compact" },
+  };
+
+  test("moving fields between areas", () => {
+    expect(
+      pivotMoveField(base, "Product", null, { area: "rows" }).rows
+    ).toEqual(["Region", "Product"]);
+    expect(
+      pivotMoveField(base, "Product", null, { area: "rows", index: 0 }).rows
+    ).toEqual(["Product", "Region"]);
+    const toCols = pivotMoveField(
+      base,
+      "Region",
+      { area: "rows", index: 0 },
+      { area: "columns" }
+    );
+    expect(toCols.rows).toEqual([]);
+    expect(toCols.columns).toEqual(["Region"]);
+    const toFilter = pivotMoveField(base, "Region", null, { area: "filters" });
+    expect(toFilter.filters).toEqual([{ field: "Region" }]);
+    expect(toFilter.rows).toEqual([]);
+    const toValues = pivotMoveField(
+      base,
+      "Region",
+      { area: "rows", index: 0 },
+      { area: "values" },
+      "count"
+    );
+    expect(toValues.rows).toEqual([]);
+    expect(toValues.values[1]).toEqual({ field: "Region", aggregate: "count" });
+    const removed = pivotMoveField(
+      base,
+      "Sales",
+      { area: "values", index: 0 },
+      null
+    );
+    expect(removed.values).toEqual([]);
+    const unchecked = pivotMoveField(base, "Region", null, null);
+    expect(unchecked.rows).toEqual([]);
+    const two = { ...base, rows: ["A", "B", "C"] };
+    expect(
+      pivotMoveField(
+        two,
+        "A",
+        { area: "rows", index: 0 },
+        { area: "rows", index: 2 }
+      ).rows
+    ).toEqual(["B", "A", "C"]);
+  });
+
+  test("Σ Values", () => {
+    const many = { ...base, values: [base.values[0], base.values[0]] };
+    expect(pivotAreaFields(many, "columns")).toEqual([PIVOT_VALUES_FIELD]);
+    expect(
+      pivotMoveField(many, PIVOT_VALUES_FIELD, null, { area: "rows" }).options
+    ).toEqual({ valuesOnRows: true });
+    expect(pivotAreaFields(base, "columns")).toEqual([]);
+    expect(isPivotFieldUsed(base, "sales")).toBe(true);
+    expect(isPivotFieldUsed(base, "Product")).toBe(false);
+  });
+
+  test("checks before applying", () => {
+    const { ctx, pivot } = setup();
+    input(ctx, "D6", "x", "id_2");
+    expect(checkPivotUpdate(ctx, "id_2", pivot.id, { rows: ["Region"] })).toBe(
+      null
+    );
+    expect(
+      checkPivotUpdate(ctx, "id_2", pivot.id, {
+        rows: ["Region"],
+        columns: ["Product"],
+        values: [SUM_SALES],
+      })
+    ).toBe("replaceData");
+    expect(
+      checkNewPivotTable(ctx, SOURCE, {
+        newSheet: false,
+        sheetId: "id_1",
+        anchor: { r: 1, c: 1 },
+      })
+    ).toBe("location");
+    expect(checkNewPivotTable(ctx, SOURCE)).toBeNull();
   });
 });

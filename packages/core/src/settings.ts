@@ -241,6 +241,7 @@ export const defaultSettings: Required<Settings> = {
     "freeze",
     "image",
     "chart",
+    "pivotTable",
     "link",
     "comment",
     "|",
@@ -261,6 +262,11 @@ export const defaultSettings: Required<Settings> = {
     "copy",
     "paste",
     "paste-special",
+    "|",
+    // PivotTable entries (shown inside a report, see react PivotTable)
+    "pivot-refresh",
+    "pivot-value-settings",
+    "pivot-field-list",
     "|",
     "insert-cells", // Insert… (shift cells right / down, entire row / column)
     "delete-cells", // Delete… (shift cells left / up, entire row / column)
