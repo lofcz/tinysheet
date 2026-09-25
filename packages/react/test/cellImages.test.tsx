@@ -113,14 +113,20 @@ describe("pictures in cells", () => {
     expect(images[0]).toMatchObject({ src: URL, alt: "Logo" });
   });
 
-  it("the toolbar item opens the insert dialog", async () => {
+  it("Insert › Pictures › Place in Cell opens the insert dialog", async () => {
     const { container, getByText } = renderBook();
-    showRibbonItem(container, "picture-in-cell");
-    const button = container.querySelector(
-      '.fortune-toolbar-item[aria-label="Picture in Cell"]'
+    const button = showRibbonItem(container, "pictures")!.querySelector(
+      'button[aria-label="Pictures"]'
     ) as HTMLElement;
     expect(button).toBeTruthy();
     fireEvent.click(button);
+    // the menu and its submenu are popovers (portaled)
+    const entry = (label: string) =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      ).find((el) => el.textContent?.trim() === label)!;
+    fireEvent.click(entry("Place in Cell"));
+    fireEvent.click(entry("From a Web Address…"));
     await waitFor(() =>
       expect(getByText("Insert Picture in Cell")).toBeTruthy()
     );

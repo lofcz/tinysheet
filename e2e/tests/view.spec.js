@@ -1,4 +1,4 @@
-const { test, expect, Sheet, ribbonItem } = require("../fixtures");
+const { test, expect, Sheet, toolbarButton } = require("../fixtures");
 
 // Relative luminance (0 = black, 1 = white) of a CSS rgb()/rgba() colour.
 const luminance = (css) => {
@@ -63,12 +63,7 @@ test.describe("freeze", () => {
     page,
   }) => {
     await sheet.click(3, 2);
-    await (
-      await ribbonItem(
-        page,
-        '.fortune-toolbar-combo-button[data-tips="Freeze"]'
-      )
-    ).click();
+    await (await toolbarButton(page, "Freeze Panes")).click();
     // rows 1-3 and columns A-B: above and left of the active cell C4
     await expect
       .poll(async () => (await sheet.sheetInfo()).frozen)
@@ -110,12 +105,7 @@ test.describe("freeze", () => {
     await sheet.click(3, 2, { wait: false });
     await sheet.waitForSelection(top + 3, left + 2);
 
-    await (
-      await ribbonItem(
-        page,
-        '.fortune-toolbar-combo-button[data-tips="Freeze"]'
-      )
-    ).click();
+    await (await toolbarButton(page, "Freeze Panes")).click();
     // the rows/columns from the top-left visible cell up to the active cell
     await expect
       .poll(async () => (await sheet.sheetInfo()).frozen)
@@ -147,12 +137,7 @@ test.describe("freeze", () => {
     await expect.poll(async () => (await sheet.sheetInfo()).zoomRatio).toBe(1);
 
     // Unfreeze: the old top-left cell is at the top-left of the window again
-    await (
-      await ribbonItem(
-        page,
-        '.fortune-toolbar-combo-button[data-tips="Freeze"]'
-      )
-    ).click();
+    await (await toolbarButton(page, "Freeze Panes")).click();
     await expect
       .poll(async () => (await sheet.sheetInfo()).frozen ?? null)
       .toBeNull();
@@ -168,9 +153,7 @@ test.describe("freeze", () => {
     await sheet.click(0, 0, { wait: false });
     await expect.poll(() => sheet.selection()).not.toBeNull();
     const top = (await sheet.selection()).row[0];
-    await (
-      await ribbonItem(page, '.fortune-toolbar-combo-arrow[data-tips="Freeze"]')
-    ).click();
+    await (await toolbarButton(page, "Freeze Panes: more options")).click();
     await page.getByText("Freeze Top Row", { exact: true }).click();
     await expect
       .poll(async () => (await sheet.sheetInfo()).frozen)

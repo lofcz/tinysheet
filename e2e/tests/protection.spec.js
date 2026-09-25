@@ -3,12 +3,6 @@ const { test, expect, ribbonItem } = require("../fixtures");
 const PROTECTED =
   "The cell or chart you're trying to change is on a protected sheet.";
 
-/** Open a toolbar combo's menu (switching to its ribbon tab). */
-async function openMenu(page, testId) {
-  const item = await ribbonItem(page, `[data-testid="${testId}"]`);
-  await item.locator(".fortune-toolbar-combo-arrow").click();
-}
-
 /** A Review › Protect command by its item id. */
 async function protectCommand(page, id) {
   await (await ribbonItem(page, `[data-item="${id}"] button`)).click();
@@ -109,26 +103,35 @@ test.describe("view options", () => {
     const headerBox = await header.boundingBox();
     expect(headerBox.height).toBeGreaterThan(10);
 
-    await openMenu(page, "toolbar-view-options");
-    await page.getByTestId("menu-headings").click();
+    // View › Show
+    await (
+      await ribbonItem(page, '[data-item="show-headings"] input')
+    ).click({
+      force: true,
+    });
     await expect
       .poll(async () => (await header.boundingBox())?.height ?? 0)
       .toBeLessThan(2);
 
-    await openMenu(page, "toolbar-view-options");
-    await page.getByTestId("menu-formula-bar").click();
+    await (
+      await ribbonItem(page, '[data-item="show-formula-bar"] input')
+    ).click({ force: true });
     await expect(page.locator(".fortune-fx-editor")).toBeHidden();
 
-    await openMenu(page, "toolbar-view-options");
-    await page.getByTestId("menu-gridlines").click();
+    await (
+      await ribbonItem(page, '[data-item="show-gridlines"] input')
+    ).click({ force: true });
     await expect
       .poll(() =>
         page.evaluate(() => window.__tinysheet.getSheet().showGridLines)
       )
       .toBe(0);
 
-    await openMenu(page, "toolbar-view-options");
-    await page.getByTestId("menu-headings").click();
+    await (
+      await ribbonItem(page, '[data-item="show-headings"] input')
+    ).click({
+      force: true,
+    });
     await expect
       .poll(async () => (await header.boundingBox())?.height ?? 0)
       .toBeGreaterThan(10);

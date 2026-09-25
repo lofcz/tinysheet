@@ -170,7 +170,7 @@ describe("Ctrl+- / Ctrl+Shift+= keyboard", () => {
     select(ref, [{ row: [0, 0], column: [0, 0] }]);
 
   it("opens the Delete… dialog for a cell range", () => {
-    const { container, ref, getByText, getByLabelText } = renderBook();
+    const { container, ref, getByLabelText } = renderBook();
     focusSheet(ref);
     select(ref, [{ row: [0, 1], column: [0, 0] }]);
     fireEvent.keyDown(workbookEl(container), {
@@ -178,7 +178,10 @@ describe("Ctrl+- / Ctrl+Shift+= keyboard", () => {
       code: "Minus",
       ctrlKey: true,
     });
-    expect(getByText("Delete")).toBeTruthy();
+    // the dialog's title (the ribbon has a Delete button too)
+    expect(
+      document.querySelector(".fortune-cellmenu-dialog .title")?.textContent
+    ).toBe("Delete");
     expect(getByLabelText("Shift cells up")).toBeTruthy();
   });
 

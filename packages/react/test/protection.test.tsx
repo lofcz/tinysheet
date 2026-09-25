@@ -37,12 +37,6 @@ function ribbonButton(container: HTMLElement, id: string) {
   return showRibbonItem(container, id)!.querySelector("button")!;
 }
 
-function openMenu(container: HTMLElement, testId: string) {
-  showRibbonItem(container, testId.replace(/^toolbar-/, ""));
-  const item = container.querySelector(`[data-testid="${testId}"]`)!;
-  fireEvent.click(item.querySelector(".fortune-toolbar-combo-arrow")!);
-}
-
 describe("protection UI", () => {
   it("protects the sheet from the Protection menu and refuses edits", async () => {
     const { container, ref, getByTestId, getByText } = renderBook([sheet()]);
@@ -163,23 +157,22 @@ describe("protection UI", () => {
     );
   });
 
-  it("toggles gridlines and the formula bar from the View menu", async () => {
-    const { container, ref, getByTestId } = renderBook([sheet()]);
-    openMenu(container, "toolbar-view-options");
-    expect(getByTestId("menu-gridlines").getAttribute("aria-checked")).toBe(
-      "true"
-    );
-    fireEvent.click(getByTestId("menu-gridlines"));
+  it("toggles gridlines and the formula bar from View › Show", async () => {
+    const { container, ref } = renderBook([sheet()]);
+    const box = (id: string) =>
+      showRibbonItem(container, id)!.querySelector<HTMLInputElement>(
+        "input[type=checkbox]"
+      )!;
+    expect(box("show-gridlines").checked).toBe(true);
+    fireEvent.click(box("show-gridlines"));
     await waitFor(() => expect(ref.current!.getSheet().showGridLines).toBe(0));
-    openMenu(container, "toolbar-view-options");
-    fireEvent.click(getByTestId("menu-formula-bar"));
+    fireEvent.click(box("show-formula-bar"));
     await waitFor(() =>
       expect(
         container.querySelector(".fortune-fx-editor")!.parentElement!.hidden
       ).toBe(true)
     );
-    openMenu(container, "toolbar-view-options");
-    fireEvent.click(getByTestId("menu-headings"));
+    fireEvent.click(box("show-headings"));
     await waitFor(() =>
       expect(ref.current!.getSheet().showRowColHeaders).toBe(false)
     );

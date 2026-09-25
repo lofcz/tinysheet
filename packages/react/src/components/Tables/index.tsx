@@ -126,7 +126,7 @@ function errorText(ctx: Context, err: TableError) {
 }
 
 /** The table containing the active cell, if any. */
-function activeTable(ctx: Context) {
+export function activeTable(ctx: Context) {
   const last = _.last(ctx.luckysheet_select_save);
   if (!last) return null;
   const r = last.row_focus ?? last.row[0];
@@ -273,7 +273,8 @@ export const TableStyleGallery: React.FC<{
   );
 };
 
-const StyleGallery = TableStyleGallery;
+/** Alias used by the Home tab's Format as Table button. */
+export const StyleGallery = TableStyleGallery;
 
 /** "Create Table" dialog: range + "My table has headers". */
 export const CreateTableDialog: React.FC<{ styleKey: string }> = ({

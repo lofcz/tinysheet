@@ -3,7 +3,7 @@ import React from "react";
 import { defaultSettings, ribbonLocale } from "@lofcz/tinysheet-core";
 // the package entry, which also registers the built-in toolbar features
 import { Workbook, registerRibbonCommand } from "../src";
-import { resolveRibbon } from "../src/components/Ribbon";
+import { getRibbonCommand, resolveRibbon } from "../src/components/Ribbon";
 import { showRibbonItem, showRibbonTab } from "./ribbonHelpers";
 
 const tabIds = (container: HTMLElement) =>
@@ -28,11 +28,19 @@ function ribbonItems(lang = "en") {
   return out;
 }
 
-/** Accessible names of an item's buttons. */
+/** Accessible names of an item's controls (buttons, checkboxes, fields). */
 const buttonNames = (item: HTMLElement) =>
-  Array.from(item.querySelectorAll<HTMLElement>("[role=button], button")).map(
-    (el) => el.getAttribute("aria-label") ?? el.textContent ?? ""
-  );
+  Array.from(
+    item.querySelectorAll<HTMLElement>(
+      '[role=button], button:not([aria-hidden="true"]), input:not([type=file])'
+    )
+  ).map((el) => el.getAttribute("aria-label") ?? el.textContent ?? "");
+
+/** An item id and the legacy toolbar names its command stands for. */
+const withAliases = (id: string) => [
+  id,
+  ...(getRibbonCommand(id)?.options.aliases ?? []),
+];
 
 describe("translated chrome", () => {
   it.each([
@@ -101,14 +109,19 @@ describe("default toolbar items", () => {
       t: ribbonLocale({ lang: "en" }),
     });
     const placed = new Set(quickAccess);
+    // a legacy name is placed when a command standing for it is
     tabs.forEach((tab) =>
       tab.groups.forEach((g) =>
         g.columns.forEach((c) =>
           (c.kind === "large" ? [c.item] : c.rows.flat()).forEach((i) =>
-            placed.add(i.id)
+            withAliases(i.id).forEach((id) => placed.add(id))
           )
         )
       )
+    );
+    // a ribbon command places the legacy names it stands for (aliases)
+    Array.from(placed).forEach((id) =>
+      getRibbonCommand(id)?.options.aliases?.forEach((a) => placed.add(a))
     );
     const missing = defaultSettings.toolbarItems.filter(
       (n) => n !== "|" && !placed.has(n)
@@ -127,7 +140,9 @@ describe("default toolbar items", () => {
   });
 
   it("renders every item of every tab", () => {
-    const rendered = new Set(ribbonItems().map(([, name]) => name));
+    const rendered = new Set(
+      ribbonItems().flatMap(([, name]) => withAliases(name))
+    );
     const missing = defaultSettings.toolbarItems.filter(
       (n) => n !== "|" && !rendered.has(n)
     );
@@ -187,6 +202,7 @@ describe("ribbon", () => {
       "Alignment",
       "Number",
       "Styles",
+      "Cells",
       "Editing",
     ]);
   });
@@ -303,21 +319,31 @@ describe("ribbon", () => {
 describe("theme switch", () => {
   const themeOf = (container: HTMLElement) =>
     container.querySelector(".fortune-container")?.getAttribute("data-theme");
-  const themeButton = (container: HTMLElement) => {
-    showRibbonItem(container, "theme");
-    return container.querySelector<HTMLElement>(
-      '.fortune-toolbar [aria-label^="Theme: "]'
+  const themeButton = (container: HTMLElement) =>
+    showRibbonItem(container, "theme")!.querySelector<HTMLElement>(
+      'button[aria-label="Theme"]'
     )!;
-  };
-  /** View > Theme > `label` (Light / Dark / System). */
+  const themeOptions = () =>
+    Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[role=menu][aria-label="Theme"] [role=menuitemradio]'
+      )
+    );
+  /** View > Appearance > Theme > `label` (Light / Dark / System). */
   const pickTheme = (container: HTMLElement, label: string) => {
     fireEvent.click(themeButton(container));
-    const option = Array.from(
-      container.querySelectorAll<HTMLElement>(
-        ".fortune-toolbar-combo-popup [role=menuitemradio]"
-      )
-    ).find((el) => el.textContent?.includes(label))!;
+    const option = themeOptions().find((el) =>
+      el.textContent?.includes(label)
+    )!;
     fireEvent.click(option);
+  };
+  const checkedTheme = (container: HTMLElement) => {
+    fireEvent.click(themeButton(container));
+    const checked = themeOptions()
+      .filter((el) => el.getAttribute("aria-checked") === "true")
+      .map((el) => el.textContent);
+    fireEvent.click(themeButton(container));
+    return checked;
   };
 
   it("switches an uncontrolled workbook and reports the choice", () => {
@@ -333,9 +359,7 @@ describe("theme switch", () => {
     pickTheme(container, "Dark");
     expect(themeOf(container)).toBe("dark");
     expect(onThemeChange).toHaveBeenLastCalledWith("dark");
-    expect(themeButton(container).getAttribute("aria-label")).toBe(
-      "Theme: Dark"
-    );
+    expect(checkedTheme(container)).toEqual(["Dark"]);
     pickTheme(container, "Light");
     expect(themeOf(container)).toBe("light");
   });
@@ -351,15 +375,9 @@ describe("theme switch", () => {
     const { container } = render(
       <Workbook lang="en" data={[{ name: "Sheet1" }]} defaultTheme="auto" />
     );
-    fireEvent.click(themeButton(container));
-    const checked = Array.from(
-      container.querySelectorAll(
-        ".fortune-toolbar-combo-popup [role=menuitemradio]"
-      )
-    )
-      .filter((el) => el.getAttribute("aria-checked") === "true")
-      .map((el) => el.textContent);
-    expect(checked).toEqual([expect.stringContaining("System")]);
+    expect(checkedTheme(container)).toEqual([
+      expect.stringContaining("System"),
+    ]);
   });
 
   it("only reports the choice while the theme prop controls it", () => {

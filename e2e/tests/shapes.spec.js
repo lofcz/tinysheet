@@ -12,10 +12,10 @@ async function openStory(page, id = "shapes--gallery") {
   return sheet;
 }
 
-/** Open the Insert › Shapes gallery (it may sit in the "More" overflow). */
+/** Open the Insert › Shapes gallery. */
 async function openGallery(page) {
-  await (await toolbarButton(page, "Shapes: Dropdown")).click();
-  await expect(page.locator(".fortune-shape-gallery")).toBeVisible();
+  await (await toolbarButton(page, "Shapes")).click();
+  await expect(page.locator(".ts-shape-gallery")).toBeVisible();
 }
 
 async function center(locator) {
@@ -166,7 +166,7 @@ test.describe("shapes", () => {
     await expect(page.locator("[data-shape-id]")).toHaveCount(7);
     await openGallery(page);
     const bg = await page
-      .locator(".fortune-shape-gallery")
+      .locator(".ts-shape-gallery")
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(bg).not.toBe("rgb(255, 255, 255)");
   });

@@ -13,7 +13,8 @@ type Step = { group: string; to: GroupState };
 /**
  * Excel's ribbon scaling. As the window narrows, groups get smaller in
  * their reduce order (lowest `priority` first, i.e. right to left by
- * default): first their large buttons turn small ("compact"), then each
+ * default): first their large buttons turn small and labelled small
+ * buttons lose their labels ("compact"), then each
  * group collapses into one drop-down button that opens the whole group.
  * Never a "More" dump of loose buttons.
  *
@@ -33,9 +34,9 @@ export function useRibbonScaling(
       .map((g, i) => ({ g, i }))
       .sort((a, b) => a.g.priority - b.g.priority || b.i - a.i)
       .map(({ g }) => g);
-    const compactable = order.filter((g) =>
-      g.columns.some((c) => c.kind === "large")
-    );
+    // every group can go compact: large buttons turn small, and labelled
+    // small buttons (Wrap Text, Merge & Center) drop their labels
+    const compactable = order;
     return [
       ...compactable.map((g) => ({ group: g.id, to: "compact" as const })),
       ...order.map((g) => ({ group: g.id, to: "collapsed" as const })),
@@ -123,6 +124,10 @@ export function useRibbonScaling(
         if (w == null) {
           if (strict) return Infinity;
           if (s === "collapsed") w = COLLAPSED_ESTIMATE;
+          // a compact group is narrower than its full size (large
+          // buttons turn small): guess so, a wrong guess is corrected
+          // on the next pass once it is measured
+          else if (s === "compact" && rec.full != null) w = rec.full * 0.75;
           else w = rec.full ?? rec.compact ?? COLLAPSED_ESTIMATE * 3;
         }
         total += w;
@@ -152,6 +157,12 @@ export function useRibbonScaling(
           setLevel(l);
           return;
         }
+      }
+      // the next level down has states never measured (shrinking skipped
+      // them): try it; if it overflows, it is measured and not tried again
+      if (estimate(current - 1, false) <= avail - 1) {
+        setLevel(current - 1);
+        return;
       }
     }
     // settled: later changes (window, selection) may adjust again

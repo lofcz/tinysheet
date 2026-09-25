@@ -1,9 +1,11 @@
 import type { RibbonTabConfig } from "@lofcz/tinysheet-core";
 
 /**
- * Home: Clipboard · Font · Alignment · Number · Styles · Cells · Editing
- * (docs/DESIGN.md). Items are ribbon command ids or legacy toolbar item
- * names; `rows` stacks small items like Excel's two-row groups.
+ * Home: Clipboard · Font · Alignment · Number · Styles · Cells · Editing,
+ * in Excel's order and arrangement (docs/DESIGN.md). The commands live in
+ * ../commands/home (and ../commands/clipboard.tsx); `rows` stacks small
+ * items like Excel's two-row groups, `size: "large"` is an icon over its
+ * label.
  */
 export const homeTab: RibbonTabConfig = {
   id: "home",
@@ -22,7 +24,7 @@ export const homeTab: RibbonTabConfig = {
       items: [
         {
           rows: [
-            ["font", "font-size"],
+            ["font", "font-size", "font-grow", "font-shrink"],
             [
               "bold",
               "italic",
@@ -43,7 +45,12 @@ export const homeTab: RibbonTabConfig = {
         {
           rows: [
             ["vertical-align", "text-rotation", "text-wrap"],
-            ["horizontal-align", "merge-cell"],
+            [
+              "horizontal-align",
+              "indent-decrease",
+              "indent-increase",
+              "merge-cell",
+            ],
           ],
         },
       ],
@@ -58,8 +65,9 @@ export const homeTab: RibbonTabConfig = {
             [
               "currency-format",
               "percentage-format",
-              "number-decrease",
+              "comma-style",
               "number-increase",
+              "number-decrease",
             ],
           ],
         },
@@ -69,19 +77,27 @@ export const homeTab: RibbonTabConfig = {
       id: "styles",
       icon: "conditionFormat",
       items: [
-        { rows: [["conditionFormat", "formatAsTable"], ["cell-styles"]] },
+        { id: "conditionFormat", size: "large" },
+        { id: "formatAsTable", size: "large" },
+        { id: "cell-styles", size: "large" },
+      ],
+    },
+    {
+      id: "cells",
+      icon: "home-cells",
+      items: [
+        { id: "cells-insert", size: "large" },
+        { id: "cells-delete", size: "large" },
+        { id: "cells-format", size: "large" },
       ],
     },
     {
       id: "editing",
       icon: "formula-sum",
       items: [
-        {
-          rows: [
-            ["quick-formula", "clear-format"],
-            ["filter", "search", "locationCondition"],
-          ],
-        },
+        { rows: [["autosum"], ["fill", "clear-format"]] },
+        { id: "sort-filter", size: "large" },
+        { id: "search", size: "large" },
       ],
     },
   ],

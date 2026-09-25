@@ -193,6 +193,14 @@
   height: 100%;
 }
 
+/* a large button fills the column (its tooltip anchor too), so icons and
+   captions line up whether or not the button has a drop-down */
+.fortune-ribbon-column--large
+  .fortune-ribbon-item
+  > .ts-tooltip-anchor:has(> .ts-large) {
+  align-self: stretch;
+}
+
 /* collapsed group: one button that opens the whole group */
 .fortune-ribbon-group-button {
   display: flex;

@@ -366,6 +366,8 @@ export type Context = {
   pageLayout?: {
     /** Page Break Preview view of these sheets (by id). */
     breakPreviewSheets?: string[];
+    /** Page Layout view of these sheets (by id): the pages outlined. */
+    layoutViewSheets?: string[];
     /** Sheets whose automatic page breaks show in Normal view (after printing). */
     shownBreakSheets?: string[];
     /** Open the Print Preview (set by Ctrl+P, read by the React UI). */

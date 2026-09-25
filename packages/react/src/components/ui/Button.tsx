@@ -421,7 +421,7 @@ export const LargeButton: React.FC<LargeButtonProps> = ({
   );
 };
 
-export type MenuButtonProps = Omit<IconButtonProps, "onClick"> & {
+export type MenuButtonProps = Omit<IconButtonProps, "onClick" | "popover"> & {
   /** Keep the chevron hidden (icon-only drop-down). */
   hideChevron?: boolean;
 } & DropdownContent;

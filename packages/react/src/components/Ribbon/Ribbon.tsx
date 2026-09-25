@@ -63,6 +63,32 @@ const RibbonItemView: React.FC<{
   );
 };
 
+/**
+ * A compact group stacks its (now small) large buttons two rows high
+ * instead of one small button per column.
+ */
+function stackLargeColumns(columns: RibbonColumn[]): RibbonColumn[] {
+  const out: RibbonColumn[] = [];
+  let run: RibbonItem[] = [];
+  const flush = () => {
+    if (run.length === 1) out.push({ kind: "large", item: run[0] });
+    else if (run.length > 1) {
+      const half = Math.ceil(run.length / 2);
+      out.push({ kind: "rows", rows: [run.slice(0, half), run.slice(half)] });
+    }
+    run = [];
+  };
+  columns.forEach((col) => {
+    if (col.kind === "large") run.push(col.item);
+    else {
+      flush();
+      out.push(col);
+    }
+  });
+  flush();
+  return out;
+}
+
 const Columns: React.FC<{
   group: RibbonGroup;
   compact: boolean;
@@ -125,7 +151,7 @@ const Columns: React.FC<{
           </div>
         </div>
       )}
-      {group.columns.map(column)}
+      {(compact ? stackLargeColumns(group.columns) : group.columns).map(column)}
     </>
   );
 };

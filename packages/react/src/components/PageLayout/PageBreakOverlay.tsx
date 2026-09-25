@@ -5,6 +5,7 @@ import {
   computeSheetPageLayout,
   getPageSetup,
   isPageBreakPreview,
+  isPageLayoutView,
   isShowingPageBreaks,
   movePageBreak,
   updatePageSetup,
@@ -43,7 +44,10 @@ function nearestBoundary(ends: readonly number[], px: number) {
   return Math.abs(px - before) <= Math.abs(after - px) ? i : i + 1;
 }
 
-const PageBreaks: React.FC<{ preview: boolean }> = ({ preview }) => {
+const PageBreaks: React.FC<{ preview: boolean; pageView?: boolean }> = ({
+  preview,
+  pageView,
+}) => {
   const { setContext, refs } = useContext(WorkbookContext);
   const raw = useRawContext();
   const t = usePageLayoutText();
@@ -51,6 +55,7 @@ const PageBreaks: React.FC<{ preview: boolean }> = ({ preview }) => {
     c.luckysheetfile.find((s) => s.id === c.currentSheetId)
   );
   const rows = useWorkbookSelector((c) => c.visibledatarow);
+  const zoom = useWorkbookSelector((c) => c.zoomRatio || 1);
   const cols = useWorkbookSelector((c) => c.visibledatacolumn);
   const view = useWorkbookSelector(
     (c) => ({
@@ -226,6 +231,46 @@ const PageBreaks: React.FC<{ preview: boolean }> = ({ preview }) => {
       );
   }
 
+  // Page Layout view: every page outlined at its paper's printable size
+  // (the last page of a row / column of pages shows the unused room), with
+  // its number
+  let pageFrames: React.ReactNode = null;
+  if (pageView && !preview && vw > 0 && vh > 0) {
+    const scale = layout.scale || 1;
+    const pageW = (layout.printable.width / scale) * zoom;
+    const pageH = (layout.printable.height / scale) * zoom;
+    pageFrames = layout.pages.map((p, i) => {
+      const rr = rectOf({ row: p.rows, column: p.cols });
+      const hasRight = layout.pages.some(
+        (q) =>
+          q.area === p.area && q.rows[0] === p.rows[0] && q.cols[0] > p.cols[1]
+      );
+      const hasBelow = layout.pages.some(
+        (q) =>
+          q.area === p.area && q.cols[0] === p.cols[0] && q.rows[0] > p.rows[1]
+      );
+      const w = hasRight ? rr.w : Math.max(rr.w, pageW - p.headingWidth * zoom);
+      const h = hasBelow
+        ? rr.h
+        : Math.max(rr.h, pageH - p.headingHeight * zoom);
+      const visible =
+        rr.x < vx + vw && rr.x + w > vx && rr.y < vy + vh && rr.y + h > vy;
+      if (!visible) return null;
+      return (
+        <div
+          // eslint-disable-next-line react/no-array-index-key
+          key={`page-${i}`}
+          className="fortune-page-layout-page"
+          style={{ left: rr.x, top: rr.y, width: w, height: h }}
+        >
+          <span className="fortune-page-layout-label">
+            {formatText(t.pageWatermark, { n: firstNumber + i })}
+          </span>
+        </div>
+      );
+    });
+  }
+
   let mask: React.ReactNode = null;
   if (preview && vw > 0 && vh > 0) {
     const holes = areaRects
@@ -276,10 +321,13 @@ const PageBreaks: React.FC<{ preview: boolean }> = ({ preview }) => {
 
   return (
     <div
-      className={`fortune-page-breaks${preview ? " preview" : ""}`}
+      className={`fortune-page-breaks${preview ? " preview" : ""}${
+        pageView && !preview ? " page-view" : ""
+      }`}
       data-testid="page-breaks"
     >
       {mask}
+      {pageFrames}
       {preview &&
         areaRects.map((r, i) => (
           <div
@@ -297,13 +345,15 @@ const PageBreaks: React.FC<{ preview: boolean }> = ({ preview }) => {
 
 /**
  * Sheet overlay of the page layout feature: Page Break Preview (page areas,
- * watermarks, draggable breaks), the automatic page breaks of Normal view,
+ * watermarks, draggable breaks), Page Layout view (the pages outlined and
+ * numbered), the automatic page breaks of Normal view,
  * and opening Print Preview when Ctrl+P asks for it.
  */
 const PageLayoutOverlay: React.FC = () => {
   const request = useWorkbookSelector((c) => c.pageLayout?.printPreviewRequest);
   const preview = useWorkbookSelector((c: Context) => isPageBreakPreview(c));
   const shown = useWorkbookSelector((c: Context) => isShowingPageBreaks(c));
+  const pageView = useWorkbookSelector((c: Context) => isPageLayoutView(c));
   const { openPrintPreview } = usePageLayoutDialogs();
   const handled = useRef(request);
   useEffect(() => {
@@ -312,8 +362,8 @@ const PageLayoutOverlay: React.FC = () => {
       openPrintPreview();
     }
   }, [request, openPrintPreview]);
-  if (!preview && !shown) return null;
-  return <PageBreaks preview={preview} />;
+  if (!preview && !shown && !pageView) return null;
+  return <PageBreaks preview={preview} pageView={pageView} />;
 };
 
 export default PageLayoutOverlay;

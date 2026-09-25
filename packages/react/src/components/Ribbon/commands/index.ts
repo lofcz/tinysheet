@@ -7,6 +7,11 @@ import { requestPrintPreview, ribbonLocale } from "@lofcz/tinysheet-core";
 import { registerFileMenuItem, registerRibbonCommand } from "../registry";
 import { CopyCommand, CutCommand, PasteCommand } from "./clipboard";
 import { registerFormulasDataReviewCommands } from "./registerFormulasDataReview";
+import { registerHomeCommands } from "./home";
+import { registerInsertCommands } from "./insert";
+import { registerPageLayoutCommands } from "./pageLayout";
+import { registerViewCommands } from "./view";
+import { registerTabGroupIcons } from "./tabsCommon";
 
 let registered = false;
 
@@ -17,6 +22,12 @@ export function registerBuiltinRibbonCommands() {
   registerRibbonCommand("cut", CutCommand);
   registerRibbonCommand("copy", CopyCommand);
   registerFormulasDataReviewCommands();
+  registerHomeCommands();
+  // Insert, Page Layout and View tabs
+  registerInsertCommands();
+  registerPageLayoutCommands();
+  registerViewCommands();
+  registerTabGroupIcons();
 
   // File menu: New / Open / Save As show when the host handles them
   registerFileMenuItem({

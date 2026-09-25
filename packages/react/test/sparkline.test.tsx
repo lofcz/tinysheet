@@ -1,4 +1,10 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import React from "react";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 import { showRibbonItem } from "./ribbonHelpers";
@@ -63,9 +69,8 @@ describe("sparklines UI", () => {
   it("Insert Sparklines from the toolbar creates a group; undo removes it", async () => {
     const { container, ref, getByLabelText, getByText } = renderBook();
     select(ref, [{ row: [0, 1], column: [0, 2] }]);
-    showRibbonItem(container, "sparkline");
-    const button = container.querySelector(
-      '[data-tips="Insert Sparklines"]'
+    const button = showRibbonItem(container, "sparkline-line")!.querySelector(
+      'button[aria-label="Line"]'
     ) as HTMLElement;
     expect(button).toBeTruthy();
     fireEvent.click(button);
@@ -73,7 +78,12 @@ describe("sparklines UI", () => {
     expect((getByLabelText("Data Range") as HTMLInputElement).value).toBe(
       "A1:C2"
     );
-    fireEvent.click(getByText("Column"));
+    // the dialog's Column type (the ribbon has a Column sparkline button)
+    fireEvent.click(
+      within(
+        document.querySelector<HTMLElement>(".fortune-sparkline-dialog")!
+      ).getByText("Column")
+    );
     // the location must match the data
     fireEvent.change(getByLabelText("Location Range"), {
       target: { value: "D1:D4" },
@@ -185,9 +195,10 @@ describe("sparklines UI", () => {
     const { container, ref, getByLabelText, getByText, getByRole } =
       renderBook();
     select(ref, [{ row: [0, 0], column: [4, 4] }]);
-    showRibbonItem(container, "sparkline");
     fireEvent.click(
-      container.querySelector('[data-tips="Insert Sparklines"]') as HTMLElement
+      showRibbonItem(container, "sparkline-line")!.querySelector(
+        'button[aria-label="Line"]'
+      ) as HTMLElement
     );
     // a single empty cell prefills the location
     expect((getByLabelText("Location Range") as HTMLInputElement).value).toBe(

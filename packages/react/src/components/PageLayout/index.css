@@ -428,6 +428,33 @@
   z-index: 17;
 }
 
+/* Page Layout view: each printed page framed like a sheet of paper */
+.fortune-page-layout-page {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--ts-subtle);
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--ts-muted) 14%, transparent),
+    0 6px 18px rgba(24, 24, 27, 0.08);
+  pointer-events: none;
+}
+
+.fortune-page-layout-label {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  padding: 1px 8px;
+  border-radius: 0 2px 0 6px;
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+  font-family: var(--ts-font, var(--fortune-font-family));
+  font-size: 11px;
+  line-height: 16px;
+  opacity: 0.78;
+  user-select: none;
+}
+
 .fortune-page-break-preview {
   position: absolute;
   overflow: visible;

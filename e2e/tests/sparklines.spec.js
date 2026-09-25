@@ -40,8 +40,8 @@ test.describe("sparklines", () => {
     await sheet.fillColumn(0, 2, ["2", "5"]);
     await sheet.select(0, 0, 1, 2);
 
-    // in the bar, or under "More" when the window is too narrow
-    await (await toolbarButton(page, "Insert Sparklines")).click();
+    // Insert › Sparklines › Line (the type can change in the dialog)
+    await (await toolbarButton(page, "Line")).click();
     const dialog = page.locator(".fortune-sparkline-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel("Data Range", { exact: true })).toHaveValue(
@@ -109,8 +109,8 @@ test.describe("sparklines", () => {
   test("sparklines follow inserted rows", async ({ sheet, page }) => {
     await sheet.fillColumn(0, 0, ["1", "2", "3"]);
     await sheet.select(0, 0, 2, 0);
-    // in the bar, or under "More" when the window is too narrow
-    await (await toolbarButton(page, "Insert Sparklines")).click();
+    // Insert › Sparklines › Line (the type can change in the dialog)
+    await (await toolbarButton(page, "Line")).click();
     const dialog = page.locator(".fortune-sparkline-dialog");
     await dialog.getByLabel("Location Range", { exact: true }).fill("B4");
     await dialog.getByRole("button", { name: "OK" }).click();

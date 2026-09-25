@@ -99,20 +99,21 @@ describe("shape layer", () => {
 
   it("the toolbar offers the Shapes gallery", () => {
     const { container } = renderBook();
-    showRibbonItem(container, "shapes");
-    const button = container.querySelector<HTMLElement>(
-      '.fortune-toolbar [aria-label="Shapes: Dropdown"]'
-    );
+    const button = showRibbonItem(
+      container,
+      "shapes"
+    )!.querySelector<HTMLElement>('button[aria-label="Shapes"]');
     expect(button).toBeTruthy();
     act(() => {
       fireEvent.click(button!);
     });
-    const items = container.querySelectorAll("[data-shape-key]");
+    // the gallery is a popover (portaled)
+    const items = document.querySelectorAll("[data-shape-key]");
     expect(items.length).toBeGreaterThanOrEqual(21);
     // arming the draw mode shows the drawing surface
     act(() => {
       fireEvent.click(
-        container.querySelector<HTMLElement>('[data-shape-key="ellipse"]')!,
+        document.querySelector<HTMLElement>('[data-shape-key="ellipse"]')!,
         { detail: 1 }
       );
     });

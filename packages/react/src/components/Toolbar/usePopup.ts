@@ -180,7 +180,13 @@ export function useToolbarPopup(
       if (closeOpenPopup === close) closeOpenPopup = null;
       const active = document.activeElement;
       if (closedByEscape.current) {
-        trigger?.focus({ preventScroll: true });
+        // a wrapper anchor (split / large ribbon buttons) is not focusable:
+        // its drop-down button is
+        const focusable =
+          trigger && !trigger.matches("button, [tabindex], input")
+            ? (trigger.querySelector<HTMLElement>("[aria-haspopup]") ?? trigger)
+            : trigger;
+        focusable?.focus({ preventScroll: true });
       } else if (!active || active === document.body) {
         // the focused item was removed with the popup
         restoreFocusRef.current?.();

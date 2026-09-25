@@ -44,7 +44,7 @@ async function values(page, r1, c1, r2, c2) {
 async function insertPivot(sheet, page) {
   await fillData(page);
   await sheet.click(1, 0);
-  await (await toolbarButton(page, "Pivot Table")).click();
+  await (await toolbarButton(page, "PivotTable")).click();
   const dialog = page.getByTestId("pivot-create-dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel("Table/Range")).toHaveValue(

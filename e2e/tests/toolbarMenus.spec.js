@@ -35,12 +35,12 @@ async function canvasLuminance(sheet, r, c) {
   );
 }
 
-const popup = (page) => page.locator(".fortune-toolbar-combo-popup");
+const themeMenu = (page) => page.getByRole("menu", { name: "Theme" });
 
-/** Toolbar > Theme > `label`. */
+/** View › Appearance › Theme › `label`. */
 async function pickTheme(page, label) {
-  await (await toolbarButton(page, /^Theme: /)).click();
-  await popup(page).getByRole("menuitemradio", { name: label }).click();
+  await (await toolbarButton(page, "Theme")).click();
+  await themeMenu(page).getByRole("menuitemradio", { name: label }).click();
 }
 
 test.describe("theme switch", () => {
@@ -54,17 +54,18 @@ test.describe("theme switch", () => {
 
     await pickTheme(page, "Dark");
     await expect(container).toHaveAttribute("data-theme", "dark");
-    await expect(popup(page)).toHaveCount(0);
+    await expect(themeMenu(page)).toHaveCount(0);
     const toolbarBg = await page
       .locator(".fortune-ribbon-pane")
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(luminance(toolbarBg)).toBeLessThan(0.3);
     await expect.poll(() => canvasLuminance(sheet, 3, 3)).toBeLessThan(0.2);
-    // the button shows the theme in effect
-    await expect(await toolbarButton(page, /^Theme: /)).toHaveAttribute(
-      "aria-label",
-      "Theme: Dark"
-    );
+    // the menu checks the theme in effect
+    await (await toolbarButton(page, "Theme")).click();
+    await expect(
+      themeMenu(page).getByRole("menuitemradio", { name: "Dark" })
+    ).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
 
     // dialogs rendered outside the workbook follow
     await sheet.click(0, 0);
@@ -92,34 +93,40 @@ test.describe("theme switch", () => {
     await expect(container).toHaveAttribute("data-theme", "light");
     await expect.poll(() => canvasLuminance(sheet, 2, 2)).toBeGreaterThan(0.9);
     // the menu marks the chosen setting, not the resolved theme
-    await (await toolbarButton(page, /^Theme: /)).click();
+    await (await toolbarButton(page, "Theme")).click();
     await expect(
-      popup(page).getByRole("menuitemradio", { name: "System" })
+      themeMenu(page).getByRole("menuitemradio", { name: "System" })
     ).toHaveAttribute("aria-checked", "true");
   });
 });
+
+// Home's ribbon commands (ui primitives): menus and panels are .ts-popover
+const dropdown = (page) =>
+  page.locator(".ts-popover:not(.fortune-ribbon-group-popover)");
 
 test.describe("toolbar drop-downs", () => {
   test("the arrow toggles the menu; Escape and a click outside close it", async ({
     sheet,
     page,
   }) => {
-    const arrow = page.getByRole("button", { name: "Font size: Dropdown" });
+    const arrow = page.getByRole("button", {
+      name: "More options for Borders",
+    });
     await arrow.click();
-    await expect(popup(page)).toHaveCount(1);
+    await expect(dropdown(page)).toHaveCount(1);
     await arrow.click();
-    await expect(popup(page)).toHaveCount(0);
+    await expect(dropdown(page)).toHaveCount(0);
 
     await arrow.click();
     await page.keyboard.press("Escape");
-    await expect(popup(page)).toHaveCount(0);
+    await expect(dropdown(page)).toHaveCount(0);
     // Escape hands the keyboard back to the button
     await expect(arrow).toBeFocused();
 
     await arrow.click();
     const { x, y } = sheet.point(6, 6);
     await page.mouse.click(x, y);
-    await expect(popup(page)).toHaveCount(0);
+    await expect(dropdown(page)).toHaveCount(0);
   });
 
   test("only one menu is open at a time, also from the keyboard", async ({
@@ -127,15 +134,17 @@ test.describe("toolbar drop-downs", () => {
     page,
   }) => {
     await sheet.click(0, 0);
-    await page.getByRole("button", { name: "Font: Dropdown" }).focus();
+    await page
+      .getByRole("button", { name: "More options for Borders" })
+      .focus();
     await page.keyboard.press("Enter");
-    await expect(popup(page)).toHaveCount(1);
-    await page.getByRole("button", { name: "Font size: Dropdown" }).focus();
+    await expect(dropdown(page)).toHaveCount(1);
+    await page
+      .getByRole("button", { name: "More options for Fill Color" })
+      .focus();
     await page.keyboard.press("Enter");
-    await expect(popup(page)).toHaveCount(1);
-    await expect(
-      popup(page).getByRole("menuitemradio", { name: "36" })
-    ).toBeVisible();
+    await expect(dropdown(page)).toHaveCount(1);
+    await expect(dropdown(page).locator(".ts-home-colors")).toBeVisible();
   });
 
   test("keyboard: open, arrow to an item, pick it, type into the sheet", async ({
@@ -143,31 +152,31 @@ test.describe("toolbar drop-downs", () => {
     page,
   }) => {
     await sheet.click(1, 1);
-    await page.getByRole("button", { name: "Font size: Dropdown" }).focus();
-    await page.keyboard.press("Enter");
+    await page.getByRole("combobox", { name: "Font Size" }).focus();
+    await page.keyboard.press("Alt+ArrowDown");
     // the current size has the focus (and is checked); arrows move on
-    const current = popup(page).getByRole("menuitemradio", { name: "10" });
+    const current = dropdown(page).getByRole("menuitemradio", { name: "10" });
     await expect(current).toBeFocused();
     await expect(current).toHaveAttribute("aria-checked", "true");
     await page.keyboard.press("End");
     await expect(
-      popup(page).getByRole("menuitemradio", { name: "72" })
+      dropdown(page).getByRole("menuitemradio", { name: "72" })
     ).toBeFocused();
     await page.keyboard.press("ArrowDown");
     await expect(
-      popup(page).getByRole("menuitemradio", { name: "8", exact: true })
+      dropdown(page).getByRole("menuitemradio", { name: "8", exact: true })
     ).toBeFocused();
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("ArrowDown");
     await expect(
-      popup(page).getByRole("menuitemradio", { name: "11" })
+      dropdown(page).getByRole("menuitemradio", { name: "11" })
     ).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(popup(page)).toHaveCount(0);
-    await expect(
-      page.getByRole("textbox", { name: "Font size", exact: true })
-    ).toHaveValue("11");
+    await expect(dropdown(page)).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Font Size" })).toHaveValue(
+      "11"
+    );
     // the sheet has the keyboard again, as after picking in Excel
     await expect(page.locator(".luckysheet-cell-input")).toBeFocused();
     await page.keyboard.type("42");
@@ -180,7 +189,7 @@ test.describe("toolbar drop-downs", () => {
     page,
   }) => {
     await sheet.click(3, 1);
-    const box = page.getByRole("textbox", { name: "Font size", exact: true });
+    const box = page.getByRole("combobox", { name: "Font Size" });
     await expect(box).toHaveValue("10");
     await box.click();
     await box.fill("15");
@@ -206,11 +215,13 @@ test.describe("toolbar drop-downs", () => {
     page,
   }) => {
     await sheet.click(2, 0);
-    await page.getByRole("button", { name: "Font: Dropdown" }).click();
-    await popup(page).getByRole("menuitemradio", { name: "Verdana" }).click();
+    await page.getByRole("button", { name: "Font: open list" }).click();
+    await dropdown(page)
+      .getByRole("menuitemradio", { name: "Verdana" })
+      .click();
     await expect(
-      page.getByRole("button", { name: "Font: Verdana", exact: true })
-    ).toBeVisible();
+      page.getByRole("combobox", { name: "Font", exact: true })
+    ).toHaveValue("Verdana");
     await expect(page.locator(".luckysheet-cell-input")).toBeFocused();
     await page.keyboard.type("x");
     await page.keyboard.press("Enter");
@@ -218,7 +229,7 @@ test.describe("toolbar drop-downs", () => {
   });
 
   test("bold reflects the selected cell", async ({ sheet, page }) => {
-    const bold = page.getByRole("button", { name: "Bold (Ctrl+B)" });
+    const bold = page.getByRole("button", { name: "Bold", exact: true });
     await sheet.click(0, 0);
     await bold.click();
     await expect(bold).toHaveAttribute("aria-pressed", "true");
@@ -232,22 +243,32 @@ test.describe("toolbar drop-downs", () => {
     sheet,
     page,
   }) => {
+    const lower = (v) => (v == null ? v : String(v).toLowerCase());
     await sheet.click(0, 0);
-    await page.getByRole("button", { name: "Font color", exact: true }).click();
-    await expect.poll(() => sheet.value(0, 0, "fc")).toBe("#ff0000");
-    await page.getByRole("button", { name: "Fill color", exact: true }).click();
-    await expect.poll(() => sheet.value(0, 0, "bg")).toBe("#ffff00");
-    // Excel's Standard Colors row: Dark Red, Red, Orange, Yellow, ...
-    await page.getByRole("button", { name: "Fill color: Dropdown" }).click();
-    await popup(page)
+    await page.getByRole("button", { name: "Font Color", exact: true }).click();
+    await expect
+      .poll(async () => lower(await sheet.value(0, 0, "fc")))
+      .toBe("#ff0000");
+    await page.getByRole("button", { name: "Fill Color", exact: true }).click();
+    await expect
+      .poll(async () => lower(await sheet.value(0, 0, "bg")))
+      .toBe("#ffff00");
+    // Standard Colors: dark red, red, orange, yellow, ...
+    await page
+      .getByRole("button", { name: "More options for Fill Color" })
+      .click();
+    await dropdown(page)
       .getByRole("button", { name: "Orange", exact: true })
       .click();
-    await expect.poll(() => sheet.value(0, 0, "bg")).toBe("#ffc000");
-    await expect(popup(page)).toHaveCount(0);
+    await expect
+      .poll(async () => lower(await sheet.value(0, 0, "bg")))
+      .toBe("#ffc000");
     // the button now applies the colour picked last
     await sheet.click(1, 0);
-    await page.getByRole("button", { name: "Fill color", exact: true }).click();
-    await expect.poll(() => sheet.value(1, 0, "bg")).toBe("#ffc000");
+    await page.getByRole("button", { name: "Fill Color", exact: true }).click();
+    await expect
+      .poll(async () => lower(await sheet.value(1, 0, "bg")))
+      .toBe("#ffc000");
   });
 
   test("border menu: line colour submenu from the keyboard, kept between openings", async ({
@@ -255,25 +276,28 @@ test.describe("toolbar drop-downs", () => {
     page,
   }) => {
     await sheet.click(0, 0);
-    const arrow = page.getByRole("button", { name: "Border: Dropdown" });
+    const arrow = page.getByRole("button", {
+      name: "More options for Borders",
+    });
     await arrow.click();
-    const lineColor = popup(page).getByRole("menuitem", {
+    const lineColor = dropdown(page).getByRole("menuitem", {
       name: "Line Color",
     });
     await lineColor.focus();
     await page.keyboard.press("Enter");
-    const swatch = popup(page).getByRole("button", {
+    const swatch = dropdown(page).getByRole("button", {
       name: "Blue",
       exact: true,
     });
     await expect(swatch).toBeVisible();
     await swatch.click();
-    await expect(popup(page)).toHaveCount(0);
+    await expect(dropdown(page)).toHaveCount(0);
     await arrow.click();
-    await expect(popup(page).locator(".ts-border-color-chip")).toHaveCSS(
-      "background-color",
-      "rgb(0, 112, 192)"
-    );
+    await expect(
+      dropdown(page).locator(
+        '[data-menu-id="line-color"] .ts-home-swatch-static'
+      )
+    ).toHaveCSS("background-color", "rgb(0, 112, 192)");
   });
 });
 
@@ -288,7 +312,9 @@ test.describe("ribbon scaling", () => {
     const groupPopup = page.locator(".fortune-ribbon-group-popover");
     // Excel's scaling: the rightmost groups go first, never a "More" dump
     await expect(collapsed.first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "More" })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "More", exact: true })
+    ).toHaveCount(0);
     const ids = await collapsed.evaluateAll((els) =>
       els.map((el) => el.dataset.groupButton)
     );
@@ -313,24 +339,31 @@ test.describe("ribbon scaling", () => {
     await page.locator('[data-group-button="number"]').click();
     await expect(groupPopup).toBeVisible();
     await groupPopup
-      .getByRole("button", { name: "Format as percent", exact: true })
+      .getByRole("button", { name: "Percent Style", exact: true })
       .click();
     await expect.poll(() => sheet.value(0, 0, "m")).toMatch(/^25(\.0+)?%$/);
+    // the command gave the keyboard back to the sheet, which closes the
+    // group (Excel); opened again, it shows the new format
+    await expect(groupPopup).toHaveCount(0);
+    await page.locator('[data-group-button="number"]').click();
     await expect(
-      groupPopup.getByRole("button", { name: /^Format: Percent/ })
+      groupPopup.getByRole("button", { name: /^Number Format: Percent/ })
     ).toBeVisible();
 
     // Escape closes an inner drop-down first, then the group
-    await groupPopup.getByRole("button", { name: /^Format: Percent/ }).click();
-    await expect(popup(page)).toHaveCount(1);
+    await groupPopup
+      .getByRole("button", { name: /^Number Format: Percent/ })
+      .click();
+    await expect(dropdown(page)).toHaveCount(1);
     await page.keyboard.press("Escape");
-    await expect(popup(page)).toHaveCount(0);
+    await expect(dropdown(page)).toHaveCount(0);
     await expect(groupPopup).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(groupPopup).toHaveCount(0);
 
     // a dialog opened from a collapsed group closes the group
-    await (await toolbarButton(page, "Find and replace")).click();
+    await (await toolbarButton(page, "Find & Select")).click();
+    await page.locator('[data-menu-id="find"]').click();
     await expect(page.locator("#fortune-search-replace")).toBeVisible();
     await expect(groupPopup).toHaveCount(0);
     await page.keyboard.press("Escape");
@@ -541,7 +574,8 @@ test.describe("dialogs", () => {
     page,
   }) => {
     await sheet.click(4, 4);
-    await (await toolbarButton(page, "Find and replace")).click();
+    await (await toolbarButton(page, "Find & Select")).click();
+    await page.locator('[data-menu-id="find"]').click();
     const dialog = "#fortune-search-replace";
     await expect(page.locator(dialog)).toBeVisible();
     for (let i = 0; i < 15; i += 1) {
