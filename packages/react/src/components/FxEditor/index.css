@@ -14,27 +14,92 @@
 }
 
 .fortune-name-box-container {
-  width: 99px;
+  position: relative;
+  width: 120px;
+  flex-shrink: 0;
   border-right: 1px solid var(--fortune-border);
   font-size: 14px;
   display: flex;
   align-items: center;
 }
 
-.fortune-name-box {
-  width: 100%;
-  text-align: center;
+.fortune-fx-editor .fortune-name-box {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0 2px 0 6px;
   margin: 0;
+  border: none;
+  border-radius: 0;
   outline: none;
+  box-shadow: none;
   cursor: text;
-  /* -webkit-user-modify: read-write-plaintext-only; */
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  overflow: hidden;
-  -webkit-transform: translateZ(0);
+  color: var(--fortune-text);
   background-color: var(--fortune-bg);
-  word-wrap: break-word;
-  -webkit-nbsp-mode: space;
-  -webkit-line-break: after-white-space;
+}
+
+.fortune-fx-editor .fortune-name-box:focus {
+  box-shadow: inset 0 0 0 1px var(--fortune-accent);
+}
+
+.fortune-name-box-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 100%;
+  cursor: pointer;
+  color: var(--fortune-icon);
+}
+
+.fortune-name-box-arrow:hover {
+  background-color: var(--fortune-bg-hover);
+}
+
+.fortune-name-box-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1004;
+  min-width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--fortune-space-1, 4px) 0;
+  font-size: var(--fortune-font-size);
+  color: var(--fortune-text);
+  background: var(--fortune-bg-elevated);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  box-shadow: var(--fortune-shadow);
+}
+
+.fortune-name-box-list-item,
+.fortune-name-box-list-empty {
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.fortune-name-box-list-item {
+  cursor: pointer;
+}
+
+.fortune-name-box-list-item:hover,
+.fortune-name-box-list-item:focus-visible {
+  outline: none;
+  background-color: var(--fortune-bg-hover);
+}
+
+.fortune-name-box-list-item[aria-selected="true"] {
+  background-color: var(--fortune-accent-soft);
+}
+
+.fortune-name-box-list-empty {
+  color: var(--fortune-text-muted);
 }
 
 .fortune-fx-input-container {

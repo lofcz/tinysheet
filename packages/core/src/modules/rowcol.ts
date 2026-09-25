@@ -5,6 +5,8 @@ import { getSheetIndex } from "../utils";
 import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
 // eslint-disable-next-line import/no-cycle
 import { onSpillStructureChange } from "./spill";
+import { adjustNamesForRowCol } from "./names";
+import { adjustTablesForRowCol } from "./tables";
 
 const refreshLocalMergeData = (merge_new: Record<string, any>, file: Sheet) => {
   Object.entries(merge_new).forEach(([, v]) => {
@@ -1024,6 +1026,15 @@ export function insertRowCol(
   file.luckysheet_alternateformat_save = newAFarr;
   file.dataVerification = newDataVerification;
   file.hyperlink = newHyperlink;
+  // tables and defined names follow the moved cells (tables.ts / names.ts)
+  const rowColChange = {
+    kind: "insert" as const,
+    type,
+    index: direction === "lefttop" ? index : index + 1,
+    count,
+  };
+  adjustTablesForRowCol(ctx, id, rowColChange);
+  adjustNamesForRowCol(ctx, id, rowColChange);
   if (file.id === ctx.currentSheetId) {
     ctx.config = cfg;
     // jfrefreshgrid_adRC(
@@ -1919,6 +1930,10 @@ export function deleteRowCol(
   file.luckysheet_alternateformat_save = newAFarr;
   file.dataVerification = newDataVerification;
   file.hyperlink = newHyperlink;
+  // tables and defined names follow the moved cells (tables.ts / names.ts)
+  const rowColChange = { kind: "delete" as const, type, start, end };
+  adjustTablesForRowCol(ctx, id, rowColChange);
+  adjustNamesForRowCol(ctx, id, rowColChange);
 
   refreshLocalMergeData(merge_new, file);
   recalcAfterStructuralChange(ctx);

@@ -41,6 +41,7 @@ import { columnCharToIndex, getSheetIndex, indexToColumnChar } from "../utils";
 import { error as ERRORS, isRealNull, valueIsError } from "./validation";
 import { setCellValue } from "./cell";
 import { getSheetDataCached, peek, peekCell } from "./dependencyGraph";
+import { expandFormulaNames, getNameDependencies } from "./names";
 
 // ---------------------------------------------------------------------------
 // Types and per-workbook state
@@ -1242,7 +1243,8 @@ export function prepareFormulaEvaluation(
     deps: [],
     formula: txt,
   };
-  let expr = txt.substring(1);
+  // defined names and table references become plain references (names.ts)
+  let expr = expandFormulaNames(ctx, txt.substring(1), id, r, c);
   // eslint-disable-next-line no-use-before-define
   if (SPILL_REF_HINT.test(expr)) expr = rewriteSpillReferences(ctx, expr, id);
   return rewriteReferenceArgs(ctx, expr, id);
@@ -1335,6 +1337,17 @@ export function getFormulaDependencies(
       id
     );
     if (area) deps = deps.concat(area);
+  }
+  // cells behind defined names / structured references (names.ts)
+  if (f && id) {
+    const named = getNameDependencies(
+      ctx,
+      f,
+      id,
+      formulaObject.r,
+      formulaObject.c
+    );
+    if (named.length) deps = deps.concat(named);
   }
   return deps;
 }

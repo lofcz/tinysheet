@@ -26,6 +26,7 @@ import {
   writeSheetViews,
 } from "./ExcelConfig";
 import { colorToArgb } from "../common/units";
+import { setDefinedNames } from "../common/definedNames";
 
 export type XlsxExportOptions = {
   /** Skip sheets with hide=1 instead of exporting them as hidden. */
@@ -102,12 +103,16 @@ export const sheetExportFeatures: SheetExportFeature[] = [
     write: (ctx) => setDataValidations(ctx.sheet, ctx.worksheet),
   },
   { name: "views", write: writeSheetViews },
-  // Defined names (P3), conditional formatting (P5) and charts (P12) plug in
-  // here with their own writers.
+  // Conditional formatting and charts plug in here with their own writers.
 ];
 
 /** Workbook-level writers (run after every sheet was written). */
-export const workbookExportFeatures: WorkbookExportFeature[] = [];
+export const workbookExportFeatures: WorkbookExportFeature[] = [
+  {
+    name: "defined-names",
+    write: (ctx) => setDefinedNames(ctx.workbook, ctx.sheets),
+  },
+];
 
 export function registerSheetExportFeature(
   feature: SheetExportFeature,

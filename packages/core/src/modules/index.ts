@@ -38,3 +38,5 @@ export * from "./spill";
 export * from "./refAdjust";
 export * from "./pasteSpecial";
 export * from "./shiftCells";
+export * from "./names";
+export * from "./tables";
