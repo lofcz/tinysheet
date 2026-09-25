@@ -32,6 +32,7 @@ import {
   workbookImportFeatures,
   WorkbookImportInfo,
 } from "./importFeatures";
+import {
   importDefinedNames,
   readDefinedNamesXml,
 } from "../common/definedNames";
