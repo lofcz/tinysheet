@@ -111,6 +111,18 @@ const concatProducer = (...producers: ((ctx: Context) => void)[]) => {
   };
 };
 
+function shallowEqualProps(
+  a: Record<string, unknown> | null,
+  b: Record<string, unknown>
+) {
+  if (!a) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  return ka.every(
+    (k) => Object.prototype.hasOwnProperty.call(b, k) && Object.is(a[k], b[k])
+  );
+}
+
 const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
   ({ onChange, onOp, data: originalData, ...props }, ref) => {
     const globalCache = useRef<GlobalCache>({ undoList: [], redoList: [] });
@@ -145,11 +157,19 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     const [moreToolbarItems, setMoreToolbarItems] =
       useState<React.ReactNode>(null);
 
+    // Recompute when any prop changes, including props added or removed after
+    // mount (a values-array dependency list would change length and be
+    // ignored by React).
+    const settingsProps = useRef<typeof props | null>(null);
+    const settingsVersion = useRef(0);
+    if (!shallowEqualProps(settingsProps.current, props)) {
+      settingsProps.current = props;
+      settingsVersion.current += 1;
+    }
     const mergedSettings = useMemo(
       () => _.assign(_.cloneDeep(defaultSettings), props) as Required<Settings>,
-      // props expect data, onChage, onOp
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [..._.values(props)]
+      [settingsVersion.current]
     );
 
     // Keep hooks on a ref so selection / settings effects do not re-subscribe

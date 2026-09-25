@@ -6,15 +6,11 @@ import {
   normalizeSelection,
   fixRowStyleOverflowInFreeze,
   fixColumnStyleOverflowInFreeze,
+  locale,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import "./SpillRange.css";
 
-// Excel's texts for a blocked spill (#SPILL!).
-const SPILL_NOT_BLANK = "Spill range isn't blank";
-const SPILL_NOT_BLANK_DETAIL =
-  "The formula's results can't spill because cells in the way aren't empty.";
-const SELECT_OBSTRUCTING = "Select Obstructing Cells";
 const BADGE_SIZE = 18;
 
 /**
@@ -25,6 +21,8 @@ const BADGE_SIZE = 18;
  */
 const SpillRange: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
+  // Excel's texts for a blocked spill (#SPILL!)
+  const { spill: t } = locale(context);
   const [menuOpen, setMenuOpen] = useState(false);
   const selection = _.last(context.luckysheet_select_save);
   const rf = selection?.row_focus;
@@ -99,7 +97,7 @@ const SpillRange: React.FC = () => {
           <button
             type="button"
             className="fortune-spill-error-badge"
-            aria-label={SPILL_NOT_BLANK}
+            aria-label={t.notBlank}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((open) => !open)}
@@ -114,14 +112,14 @@ const SpillRange: React.FC = () => {
           </button>
           {!menuOpen && (
             <div className="fortune-spill-error-tip" role="tooltip">
-              {SPILL_NOT_BLANK}
+              {t.notBlank}
             </div>
           )}
           {menuOpen && (
             <div className="fortune-spill-error-menu" role="menu">
-              <div className="fortune-spill-error-title">{SPILL_NOT_BLANK}</div>
+              <div className="fortune-spill-error-title">{t.notBlank}</div>
               <div className="fortune-spill-error-detail">
-                {SPILL_NOT_BLANK_DETAIL}
+                {t.notBlankDetail}
               </div>
               <button
                 type="button"
@@ -129,7 +127,7 @@ const SpillRange: React.FC = () => {
                 className="fortune-spill-error-item"
                 onClick={selectObstructingCells}
               >
-                {SELECT_OBSTRUCTING}
+                {t.selectObstructing}
               </button>
             </div>
           )}
