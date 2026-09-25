@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useMemo, useContext } from "react";
 import WorkbookContext from ".";
+import { TrackedScope } from "./store";
 
 const ModalContext = React.createContext<{
   component: React.ReactNode;
@@ -47,7 +48,7 @@ const ModalProvider: React.FC<{ children?: React.ReactNode }> = ({
           className="fortune-popover-backdrop fortune-modal-container"
           data-theme={context.theme || "light"}
         >
-          {component}
+          <TrackedScope>{component}</TrackedScope>
         </div>
       )}
     </ModalContext.Provider>
