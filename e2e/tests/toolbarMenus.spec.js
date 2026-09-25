@@ -495,7 +495,7 @@ test.describe("dialogs", () => {
   }) => {
     // Text to Columns on two columns: "only one column can be split"
     await sheet.select(0, 0, 0, 1);
-    await (await toolbarButton(page, "Text to columns")).click();
+    await (await toolbarButton(page, "Text to Columns")).click();
     const dialog = page.locator(".fortune-modal-container [role=dialog]");
     await expect(dialog).toBeVisible();
     await expect
@@ -504,7 +504,7 @@ test.describe("dialogs", () => {
     await page.keyboard.press("Enter");
     await expect(dialog).toHaveCount(0);
 
-    await (await toolbarButton(page, "Text to columns")).click();
+    await (await toolbarButton(page, "Text to Columns")).click();
     await expect(dialog).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);

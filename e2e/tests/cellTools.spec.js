@@ -1,10 +1,16 @@
-const { test, expect, toolbarButton } = require("../fixtures");
+const { test, expect, toolbarButton, ribbonItem } = require("../fixtures");
 
 // Cell checkboxes, Flash Fill, Goal Seek, Data Tables and Advanced Filter
 // (stream R7).
 
-async function openDataTools(page) {
-  await (await toolbarButton(page, "Data tools")).click();
+/** Data › Forecast › What-If Analysis (Goal Seek, Data Table). */
+async function openWhatIf(page) {
+  await (await toolbarButton(page, "What-If Analysis")).click();
+}
+
+/** A command of the ribbon's Data tab by its item id. */
+async function dataCommand(page, id) {
+  await (await ribbonItem(page, `[data-item="${id}"] button`)).click();
 }
 
 test.describe("cell controls and data tools", () => {
@@ -69,7 +75,7 @@ test.describe("cell controls and data tools", () => {
     await sheet.enter(0, 0, "2");
     await sheet.enter(0, 1, "=A1*A1");
     await sheet.click(0, 1);
-    await openDataTools(page);
+    await openWhatIf(page);
     await page.getByText("Goal Seek…", { exact: true }).click();
     const dialog = page.locator(".fortune-goal-seek");
     await expect(dialog.locator("#fortune-goal-seek-set")).toHaveValue("$B$1");
@@ -100,7 +106,7 @@ test.describe("cell controls and data tools", () => {
     await sheet.enter(2, 1, "=A1*10"); // formula B3
     await sheet.fillColumn(3, 0, ["1", "5"]); // input values A4:A5
     await sheet.select(2, 0, 4, 1);
-    await openDataTools(page);
+    await openWhatIf(page);
     await page.getByText("Data Table…", { exact: true }).click();
     const dialog = page.locator(".fortune-data-table");
     await dialog.locator("#fortune-data-table-col").fill("A1");
@@ -132,8 +138,7 @@ test.describe("cell controls and data tools", () => {
       "Davolio",
     ]);
     await sheet.click(5, 0);
-    await openDataTools(page);
-    await page.getByText("Advanced Filter…", { exact: true }).click();
+    await dataCommand(page, "data-filter-advanced");
     const dialog = page.locator(".fortune-advanced-filter");
     await expect(dialog.locator("#fortune-af-list")).toHaveValue("$A$5:$A$9");
     await dialog.locator("#fortune-af-criteria").fill("D1:D2");
@@ -146,8 +151,8 @@ test.describe("cell controls and data tools", () => {
         )
       )
       .toEqual(["5", "7"]);
-    await openDataTools(page);
-    await page.getByText("Clear Advanced Filter", { exact: true }).click();
+    // Data › Clear shows the rows again
+    await dataCommand(page, "data-filter-clear");
     await expect
       .poll(() =>
         page.evaluate(() =>

@@ -9,9 +9,13 @@ async function openMenu(page, testId) {
   await item.locator(".fortune-toolbar-combo-arrow").click();
 }
 
+/** A Review › Protect command by its item id. */
+async function protectCommand(page, id) {
+  await (await ribbonItem(page, `[data-item="${id}"] button`)).click();
+}
+
 async function protectSheet(page, password) {
-  await openMenu(page, "toolbar-protection");
-  await page.getByTestId("menu-protect-sheet").click();
+  await protectCommand(page, "protection");
   const dialog = page.getByTestId("protect-sheet-dialog");
   await expect(dialog.getByText("Use AutoFilter")).toBeVisible();
   if (password) {
@@ -61,8 +65,7 @@ test.describe("sheet protection", () => {
     await sheet.waitForSelection(1, 1);
 
     // unprotecting asks for the password
-    await openMenu(page, "toolbar-protection");
-    await page.getByTestId("menu-protect-sheet").click();
+    await protectCommand(page, "protection");
     await page.getByTestId("protection-password").fill("wrong");
     await page.getByTestId("protection-ok").click();
     await expect(
@@ -84,8 +87,7 @@ test.describe("sheet protection", () => {
     page,
   }) => {
     expect(sheet).toBeTruthy();
-    await openMenu(page, "toolbar-protection");
-    await page.getByTestId("menu-protect-workbook").click();
+    await protectCommand(page, "protect-workbook");
     await page.getByTestId("protection-ok").click();
     await page.locator(".fortune-sheettab-button").first().click();
     await expect(

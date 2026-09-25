@@ -32,6 +32,11 @@ const sheet = (extra: Record<string, any> = {}) => ({
   ...extra,
 });
 
+/** The button of ribbon command `id` (Review › Protect). */
+function ribbonButton(container: HTMLElement, id: string) {
+  return showRibbonItem(container, id)!.querySelector("button")!;
+}
+
 function openMenu(container: HTMLElement, testId: string) {
   showRibbonItem(container, testId.replace(/^toolbar-/, ""));
   const item = container.querySelector(`[data-testid="${testId}"]`)!;
@@ -41,8 +46,10 @@ function openMenu(container: HTMLElement, testId: string) {
 describe("protection UI", () => {
   it("protects the sheet from the Protection menu and refuses edits", async () => {
     const { container, ref, getByTestId, getByText } = renderBook([sheet()]);
-    openMenu(container, "toolbar-protection");
-    fireEvent.click(getByTestId("menu-protect-sheet"));
+    const protect = ribbonButton(container, "protection");
+    expect(protect.getAttribute("aria-label")).toBe("Protect Sheet");
+    expect(protect.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(protect);
     const dialog = getByTestId("protect-sheet-dialog");
     // Excel's list of allowed actions, selecting cells checked by default
     const boxes = dialog.querySelectorAll<HTMLInputElement>(
@@ -94,11 +101,11 @@ describe("protection UI", () => {
       // legacy hash of "test"
       sheet({ config: { authority: { sheet: 1, legacyHash: "CBEB" } } }),
     ]);
-    openMenu(container, "toolbar-protection");
-    expect(
-      getByTestId("menu-allow-edit-ranges").getAttribute("aria-disabled")
-    ).toBe("true");
-    fireEvent.click(getByTestId("menu-protect-sheet"));
+    expect(ribbonButton(container, "allow-edit-ranges").disabled).toBe(true);
+    const unprotect = ribbonButton(container, "protection");
+    expect(unprotect.getAttribute("aria-label")).toBe("Unprotect Sheet");
+    expect(unprotect.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(unprotect);
     const input = getByTestId("protection-password") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "nope" } });
     fireEvent.click(getByTestId("protection-ok"));
@@ -116,8 +123,7 @@ describe("protection UI", () => {
       sheet(),
       { name: "Sheet2", id: "s2", order: 1, celldata: [] },
     ]);
-    openMenu(container, "toolbar-protection");
-    fireEvent.click(getByTestId("menu-protect-workbook"));
+    fireEvent.click(ribbonButton(container, "protect-workbook"));
     getByTestId("protect-workbook-dialog");
     fireEvent.click(getByTestId("protection-ok"));
     await waitFor(() =>
@@ -139,8 +145,7 @@ describe("protection UI", () => {
     act(() => {
       ref.current!.setSelection([{ row: [1, 2], column: [1, 2] }]);
     });
-    openMenu(container, "toolbar-protection");
-    fireEvent.click(getByTestId("menu-allow-edit-ranges"));
+    fireEvent.click(ribbonButton(container, "allow-edit-ranges"));
     const dialog = getByTestId("allow-edit-ranges-dialog");
     fireEvent.click(
       Array.from(dialog.querySelectorAll<HTMLElement>("[role=button]")).find(

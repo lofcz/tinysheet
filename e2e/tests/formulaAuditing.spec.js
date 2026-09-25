@@ -20,7 +20,7 @@ async function auditMenu(sheet, page, r, c, key) {
 
 /** A toolbar item of the Formulas tab (switching to it in the ribbon). */
 async function toolbarItem(page, name) {
-  const item = await ribbonItem(page, `[data-name="${name}"]`);
+  const item = await ribbonItem(page, `[data-item="${name}"]`);
   await expect(item).toBeVisible();
   return item;
 }
@@ -65,10 +65,9 @@ test.describe("formula auditing", () => {
     await sumSheet(sheet);
     await sheet.click(4, 0);
     await page.keyboard.press("Control+Backquote");
-    await expect(await toolbarItem(page, "show-formulas")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    await expect(
+      (await toolbarItem(page, "show-formulas")).locator("button")
+    ).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("Escape");
 
     await auditMenu(sheet, page, 4, 0, "evaluate-formula");
@@ -122,7 +121,7 @@ test.describe("calculation options", () => {
   test("manual calculation waits for F9", async ({ sheet, page }) => {
     await sumSheet(sheet);
     const combo = await toolbarItem(page, "calculation-options");
-    await combo.locator(".fortune-toolbar-combo-button").click();
+    await combo.locator("button").first().click();
     await page.getByRole("menuitemradio", { name: /^Manual/ }).click();
 
     await sheet.enter(0, 0, "10");
@@ -150,11 +149,11 @@ test.describe("calculation options", () => {
     );
 
     const combo = await toolbarItem(page, "calculation-options");
-    await combo.locator(".fortune-toolbar-combo-button").click();
+    await combo.locator("button").first().click();
     await page.getByRole("menuitem", { name: /Iterative Calculation/ }).click();
     await page.getByTestId("calc-iterate").check();
     await page.getByLabel("Maximum Change:").fill("0.000001");
-    await page.getByRole("button", { name: "OK" }).click();
+    await page.getByRole("button", { name: "OK", exact: true }).click();
     await expect.poll(() => sheet.value(0, 1)).toBeCloseTo(40 / 3, 4);
     await expect(page.getByTestId("status-circular")).toHaveCount(0);
   });

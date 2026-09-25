@@ -1,0 +1,394 @@
+/*
+ * Formulas, Data and Review commands: Excel's small labelled buttons in
+ * three-row columns, the function category drop-downs, the Insert Function
+ * dialog and the File menu. Only `--ts-*` tokens.
+ */
+
+/* a wrapper that must not change the ribbon item's layout */
+.fortune-ribbon-contents {
+  display: contents;
+}
+
+/* ---------- small labelled buttons ---------- */
+
+.fortune-ribbon-row:has(.fortune-ribbon-labeled) > .fortune-ribbon-item {
+  flex: 1 1 auto;
+}
+
+.fortune-ribbon-item .ts-tooltip-anchor:has(> .fortune-ribbon-labeled) {
+  flex: 1 1 auto;
+}
+
+.ts-icon-btn.fortune-ribbon-labeled {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.ts-icon-btn.fortune-ribbon-labeled {
+  gap: 6px;
+  padding: 0 8px 0 7px;
+}
+
+.ts-split.fortune-ribbon-labeled > .ts-split-main {
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 2px 0 7px !important;
+}
+
+.fortune-ribbon-labeled .ts-icon-btn-text {
+  color: inherit;
+}
+
+/* a compacted group (Excel's medium size): the small commands keep
+   their icon and tooltip, the labels go */
+.fortune-ribbon-group[data-state="compact"]
+  .fortune-ribbon-labeled
+  .ts-icon-btn-text {
+  display: none;
+}
+
+.fortune-ribbon-group[data-state="compact"]
+  .ts-icon-btn.fortune-ribbon-labeled {
+  width: auto;
+  padding: 0 7px;
+}
+
+/* Excel's three small commands per column (Trace Precedents / Trace
+   Dependents / Remove Arrows): rows as tall as a third of the cluster */
+.fortune-ribbon-column--rows:has(> .fortune-ribbon-row:nth-child(3)) {
+  gap: 1px;
+  justify-content: space-between;
+}
+
+.fortune-ribbon-column--rows:has(> .fortune-ribbon-row:nth-child(3))
+  > .fortune-ribbon-row {
+  height: 21px;
+}
+
+.fortune-ribbon-column--rows:has(> .fortune-ribbon-row:nth-child(3))
+  :is(.ts-icon-btn, .ts-split) {
+  height: 21px;
+  min-width: 0;
+  border-radius: 6px;
+}
+
+.fortune-ribbon-column--rows:has(> .fortune-ribbon-row:nth-child(3))
+  .ts-split
+  > button {
+  border-radius: 6px;
+}
+
+.fortune-ribbon-column--rows:has(> .fortune-ribbon-row:nth-child(3)) .ts-icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* the labelled rows of a column share its width, left aligned */
+.fortune-ribbon-column--rows:has(.fortune-ribbon-labeled) {
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* ---------- function category drop-down ---------- */
+
+.fortune-fn-menu {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  margin: -6px;
+}
+
+.fortune-fn-menu > .ts-menu {
+  max-height: min(380px, 52vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 0 2px;
+  scrollbar-width: thin;
+}
+
+.fortune-fn-menu > .ts-menu > .ts-menu-item {
+  flex: 0 0 auto;
+  height: 28px;
+  font-family: var(--ts-font);
+  letter-spacing: 0.01em;
+}
+
+.fortune-fn-menu .ts-submenu .ts-menu {
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.fortune-fn-menu .ts-submenu .ts-menu > .ts-menu-item {
+  flex: 0 0 auto;
+  height: 28px;
+}
+
+.fortune-fn-menu-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 52px;
+  margin-top: 2px;
+  padding: 8px 10px 6px;
+  border-top: 1px solid var(--ts-border);
+  white-space: normal;
+}
+
+.fortune-fn-menu-sig {
+  color: var(--ts-text-strong);
+  font-size: var(--ts-font-size-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.fortune-fn-menu-desc {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  line-height: 16px;
+}
+
+.fortune-fn-menu-hint {
+  align-self: center;
+  margin: auto 0;
+}
+
+/* ---------- Insert Function dialog ---------- */
+
+.fortune-insert-function .ts-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.fortune-insert-function-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  color: var(--ts-muted);
+  transition:
+    background-color var(--ts-fast),
+    border-color var(--ts-fast);
+}
+
+.fortune-insert-function-search:focus-within {
+  border-color: var(--ts-ring);
+  background: var(--ts-pane);
+}
+
+.fortune-insert-function-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ts-text-strong);
+  font: inherit;
+  font-size: var(--ts-font-size);
+}
+
+.fortune-insert-function-search input::placeholder {
+  color: var(--ts-muted);
+}
+
+.fortune-insert-function-body {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 8px;
+  height: 300px;
+  min-height: 0;
+}
+
+.fortune-insert-function-categories,
+.fortune-insert-function-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 0;
+  padding: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--ts-radius-cluster);
+  outline: none;
+  scrollbar-width: thin;
+}
+
+.fortune-insert-function-categories {
+  background: var(--ts-surface);
+}
+
+.fortune-insert-function-list {
+  border: 1px solid var(--ts-border);
+}
+
+.fortune-insert-function-categories:focus-visible,
+.fortune-insert-function-list:focus-visible {
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.fortune-insert-function-category,
+.fortune-insert-function-item {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 10px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--ts-radius);
+  color: var(--ts-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.fortune-insert-function-category:hover,
+.fortune-insert-function-item:hover {
+  background: var(--ts-hover);
+  color: var(--ts-text-strong);
+}
+
+.fortune-insert-function-category[aria-selected="true"] {
+  background: var(--ts-pane);
+  color: var(--ts-text-strong);
+  font-weight: 600;
+  box-shadow:
+    var(--ts-pane-shadow),
+    0 0 0 1px var(--ts-border);
+}
+
+.fortune-insert-function-item[aria-selected="true"] {
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+}
+
+.fortune-insert-function-name {
+  flex: 0 0 auto;
+  min-width: 110px;
+  font-weight: 600;
+  font-size: var(--ts-font-size-sm);
+  letter-spacing: 0.01em;
+}
+
+.fortune-insert-function-abstract {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fortune-insert-function-item[aria-selected="true"]
+  .fortune-insert-function-abstract {
+  color: var(--ts-on-ink);
+  opacity: 0.75;
+}
+
+.fortune-insert-function-empty {
+  padding: 24px 12px;
+  color: var(--ts-muted);
+  text-align: center;
+}
+
+.fortune-insert-function-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border-radius: var(--ts-radius-cluster);
+  background: var(--ts-surface);
+}
+
+.fortune-insert-function-sig {
+  color: var(--ts-text-strong);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.fortune-insert-function-desc {
+  color: var(--ts-text);
+  font-size: var(--ts-font-size-sm);
+  line-height: 17px;
+}
+
+@media (max-width: 560px) {
+  .fortune-insert-function-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: 96px 1fr;
+  }
+}
+
+/* ---------- File menu ("backstage lite") ---------- */
+
+.fortune-file-menu.ts-popover {
+  padding: 6px;
+  border-radius: var(--ts-radius-pane);
+}
+
+.fortune-file-menu .ts-menu {
+  gap: 2px;
+}
+
+.fortune-file-menu .ts-menu-item {
+  height: auto;
+  min-height: 46px;
+  gap: 12px;
+  padding: 6px 12px 6px 7px;
+}
+
+.fortune-file-menu .ts-menu-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  color: var(--ts-text);
+  transition: background-color var(--ts-fast);
+}
+
+.fortune-file-menu
+  .ts-menu-item:is(:hover, :focus, .ts-menu-item--open)
+  .ts-menu-icon {
+  background: var(--ts-pane);
+}
+
+.fortune-file-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fortune-file-entry-title {
+  color: var(--ts-text-strong);
+  font-weight: 500;
+  line-height: 17px;
+}
+
+.fortune-file-entry-description {
+  overflow: hidden;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  line-height: 15px;
+  text-overflow: ellipsis;
+}
+
+.fortune-file-menu .ts-menu-shortcut {
+  align-self: center;
+}
+
+/* function names need no icon column (Insert Function… keeps its icon) */
+.fortune-fn-menu .ts-menu-item[data-menu-id^="fn:"] > .ts-menu-icon,
+.fortune-fn-menu .ts-menu-item[data-menu-id^="cat:"] > .ts-menu-icon {
+  display: none;
+}

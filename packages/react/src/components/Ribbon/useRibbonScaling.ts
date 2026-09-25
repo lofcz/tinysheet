@@ -134,7 +134,10 @@ export function useRibbonScaling(
     if (content > avail + 0.5 && current < steps.length) {
       let next = steps.length;
       for (let l = current + 1; l <= steps.length; l += 1) {
-        if (estimate(l, false) <= avail) {
+        // a level with a state never measured is visited (and measured):
+        // a compact group can be much narrower than its full width
+        const known = estimate(l, true);
+        if (known === Infinity || known <= avail) {
           next = l;
           break;
         }

@@ -93,6 +93,8 @@ export type { ExcelIoLocale } from "./excelIo";
 export { cellToolsLocale } from "./cellTools";
 export { ribbonLocale } from "./ribbon";
 export type { RibbonLocale } from "./ribbon";
+export { ribbonFormulasDataReviewLocale } from "./ribbonFormulasDataReview";
+export type { RibbonFormulasDataReviewLocale } from "./ribbonFormulasDataReview";
 export type { CellToolsLocale } from "./cellTools";
 export { FUNCTION_CATEGORIES } from "./functions/types";
 export type { ChartLocale } from "./chart";

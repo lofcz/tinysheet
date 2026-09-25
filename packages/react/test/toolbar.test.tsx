@@ -291,9 +291,9 @@ describe("ribbon", () => {
     fireEvent.click(container.querySelector(".fortune-ribbon-file")!);
     const menu = document.querySelector('[role=menu][aria-label="File"]')!;
     const labels = Array.from(menu.querySelectorAll("[role=menuitem]")).map(
-      (m) => m.textContent
+      (m) => m.querySelector(".fortune-file-entry-title")?.textContent
     );
-    expect(labels).toEqual(["Save As", "Print…Ctrl+P"]);
+    expect(labels).toEqual(["Save As", "Print…"]);
     fireEvent.click(getByText("Save As"));
     fireEvent.click(getByText("Excel Workbook (.xlsx)"));
     expect(onSaveAs).toHaveBeenCalledWith("xlsx");

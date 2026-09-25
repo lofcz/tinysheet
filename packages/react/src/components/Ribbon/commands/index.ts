@@ -6,6 +6,7 @@
 import { requestPrintPreview, ribbonLocale } from "@lofcz/tinysheet-core";
 import { registerFileMenuItem, registerRibbonCommand } from "../registry";
 import { CopyCommand, CutCommand, PasteCommand } from "./clipboard";
+import { registerFormulasDataReviewCommands } from "./registerFormulasDataReview";
 
 let registered = false;
 
@@ -15,6 +16,7 @@ export function registerBuiltinRibbonCommands() {
   registerRibbonCommand("paste", PasteCommand);
   registerRibbonCommand("cut", CutCommand);
   registerRibbonCommand("copy", CopyCommand);
+  registerFormulasDataReviewCommands();
 
   // File menu: New / Open / Save As show when the host handles them
   registerFileMenuItem({
