@@ -104,7 +104,9 @@ jobs:
       - name: Install Playwright and Chromium
         run: |
           npm install -g playwright@${PLAYWRIGHT_VERSION}
-          npx -y playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium
+          # the global CLI: npx in the repo would resolve against the
+          # workspace's package.json (and its overrides)
+          playwright install --with-deps chromium
       - name: Build Storybook and run e2e tests
         run: bun run test:e2e
       - name: Upload traces

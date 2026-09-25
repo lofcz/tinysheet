@@ -40,9 +40,12 @@
     "@storybook/react": "^7.3.2",
     "@storybook/react-webpack5": "^7.3.2",
     "@storybook/testing-library": "^0.2.0",
-    "@testing-library/react": "^13.4.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.3.0",
     "@tsdown/css": "^0.22.14",
     "@types/jest": "^29.2.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@typescript-eslint/eslint-plugin": "^5.48.0",
     "@typescript-eslint/parser": "^5.48.0",
     "babel-jest": "^29.3.1",
@@ -76,23 +79,21 @@
     "yorkie": "^2.0.0"
   },
   "dependencies": {
-    "react": ">= 18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "typescript": "^5.8.3"
   },
   "gitHooks": {
     "pre-commit": "bun run lint"
   },
   "overrides": {
-    "react": "^18.2.0",
+    "react": "^19.3.0",
     "eslint": "^8.31.0",
-    "terser": "5.37.0"
+    "terser": "5.37.0",
+    "react-dom": "^19.3.0"
   },
   "resolutions": {
     "terser": "5.37.0"
-  },
-  "peerDependencies": {
-    "react": ">= 18.2.0"
   },
   "packageManager": "bun@1.4.0"
 }
