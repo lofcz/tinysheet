@@ -21,6 +21,7 @@ import {
   rowLabelToIndex,
 } from "./helper/cell";
 import { isLambda } from "./functions/lambda";
+import { createReference, isReference } from "./helper/reference";
 
 export {
   SUPPORTED_FORMULAS,
@@ -43,6 +44,8 @@ export {
   rowIndexToLabel,
   rowLabelToIndex,
   isLambda,
+  createReference,
+  isReference,
 };
 
 export { LEGACY_FUNCTION_NAMES } from "./functions";

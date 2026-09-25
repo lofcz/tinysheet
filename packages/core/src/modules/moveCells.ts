@@ -17,6 +17,7 @@ import { getSheetIndex, isAllowEdit } from "../utils";
 import { cfSplitRange } from "./conditionalFormat";
 import { GlobalCache } from "../types";
 import { jfrefreshgrid } from "./refresh";
+import { reconcileSpills } from "./spill";
 import { CFSplitRange } from "./ConditionFormat";
 
 const dragCellThreshold = 8;
@@ -557,6 +558,10 @@ export function onCellsMoveEnd(
   // };
 
   jfrefreshgrid(ctx, d, range);
+  reconcileSpills(ctx, ctx.currentSheetId, {
+    pasted: [range[1]],
+    changed: [range[0]],
+  });
 
   // selectHightlightShow();
 

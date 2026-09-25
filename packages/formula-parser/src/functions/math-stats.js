@@ -8,9 +8,10 @@
 //   part in numeric aggregates; text, booleans and blanks are skipped, and
 //   error values propagate (unless a function explicitly ignores them).
 // * Scalars are "direct arguments": numbers, booleans and text that parses as
-//   a number (or a date/time) are coerced. A scalar can't be told apart from a
-//   single-cell reference here, so non-numeric text scalars are skipped rather
-//   than raising #VALUE! (Excel raises #VALUE! only for a typed literal).
+//   a number (or a date/time) are coerced; other text is #VALUE!. The
+//   evaluator passes single-cell references to the aggregates as 1x1 arrays
+//   (see grammar-parser/function-traits.js), so SUM(A1) ignores text in A1
+//   while SUM("abc") is #VALUE!.
 // * Error values arrive either as Error instances or, from the host sheet, as
 //   error strings such as "#N/A"; both are treated as errors.
 //
@@ -407,7 +408,7 @@ export function collectNumbers(args, options = {}) {
     } else if (typeof arg === "string") {
       const n = parseNumberText(arg);
       if (n !== undefined) out.push(n);
-      else if (a) out.push(0);
+      else fail(ERROR_VALUE);
     }
   }
   return out;

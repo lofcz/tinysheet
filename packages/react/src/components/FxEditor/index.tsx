@@ -13,6 +13,7 @@ import {
   isShowHidenCR,
   escapeHTMLTag,
   isAllowEdit,
+  getSpilledCellFormula,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -39,6 +40,8 @@ const FxEditor: React.FC = () => {
   const lastKeyDownEventRef = useRef<KeyboardEvent>(undefined);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const [isHidenRC, setIsHidenRC] = useState<boolean>(false);
+  // a spilled cell shows its anchor's formula, greyed out (like Excel)
+  const [spilledFormula, setSpilledFormula] = useState<string | null>(null);
   const firstSelection = context.luckysheet_select_save?.[0];
   const prevFirstSelection = usePrevious(firstSelection);
   const prevSheetId = usePrevious(context.currentSheetId);
@@ -67,7 +70,11 @@ const FxEditor: React.FC = () => {
       if (_.isNil(r) || _.isNil(c)) return;
 
       const cell = d?.[r]?.[c];
-      if (cell) {
+      const spilled = getSpilledCellFormula(context, r, c);
+      setSpilledFormula(spilled);
+      if (spilled) {
+        value = spilled;
+      } else if (cell) {
         if (isInlineStringCell(cell)) {
           value = getInlineStringNoStyle(r, c, d);
         } else if (cell.f) {
@@ -79,6 +86,7 @@ const FxEditor: React.FC = () => {
       refs.fxInput.current!.innerHTML = escapeHTMLTag(escapeScriptTag(value));
     } else {
       refs.fxInput.current!.innerHTML = "";
+      setSpilledFormula(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -91,6 +99,8 @@ const FxEditor: React.FC = () => {
     if (context.allowEdit === false) {
       return;
     }
+    // the anchor's formula is not this cell's: start from an empty cell
+    if (spilledFormula) refs.fxInput.current!.innerHTML = "";
     if (
       (context.luckysheet_select_save?.length ?? 0) > 0 &&
       !context.luckysheet_cell_selected_move &&
@@ -119,6 +129,7 @@ const FxEditor: React.FC = () => {
     context.currentSheetId,
     refs.globalCache,
     setContext,
+    spilledFormula,
   ]);
 
   const onKeyDown = useCallback(
@@ -239,7 +250,11 @@ const FxEditor: React.FC = () => {
             innerRef={(e) => {
               refs.fxInput.current = e;
             }}
-            className="fortune-fx-input"
+            className={
+              spilledFormula && !focused
+                ? "fortune-fx-input fortune-fx-input-spilled"
+                : "fortune-fx-input"
+            }
             role="textbox"
             id="luckysheet-functionbox-cell"
             aria-label={info.currentCellInput}
