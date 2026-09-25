@@ -1,14 +1,7 @@
 import React, { useContext } from "react";
-import { getEditMode, EditMode } from "@lofcz/tinysheet-core";
+import { getEditMode, locale } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import "./index.css";
-
-const LABELS: Record<EditMode, string> = {
-  ready: "Ready",
-  enter: "Enter",
-  edit: "Edit",
-  point: "Point",
-};
 
 /**
  * Excel's status bar mode: Ready / Enter / Edit / Point, plus "End Mode"
@@ -17,6 +10,7 @@ const LABELS: Record<EditMode, string> = {
 const EditModeIndicator: React.FC = () => {
   const { context } = useContext(WorkbookContext);
   const mode = getEditMode(context);
+  const { editMode: t } = locale(context);
   return (
     <div
       className="fortune-edit-mode"
@@ -24,9 +18,9 @@ const EditModeIndicator: React.FC = () => {
       role="status"
       aria-live="polite"
     >
-      <span className="fortune-edit-mode-label">{LABELS[mode]}</span>
+      <span className="fortune-edit-mode-label">{t[mode]}</span>
       {context.endMode && mode === "ready" && (
-        <span className="fortune-edit-mode-end">End Mode</span>
+        <span className="fortune-edit-mode-end">{t.endMode}</span>
       )}
     </div>
   );

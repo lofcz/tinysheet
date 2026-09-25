@@ -16,37 +16,6 @@ import WorkbookContext from "../../context";
 import { activateOnKey } from "../Toolbar/Button";
 import "./index.css";
 
-/**
- * English labels; a locale can override them with a `pasteSpecial` object
- * using the same keys.
- */
-const LABELS = {
-  title: "Paste Special",
-  paste: "Paste",
-  operation: "Operation",
-  all: "All",
-  formulas: "Formulas",
-  values: "Values",
-  formats: "Formats",
-  comments: "Comments",
-  validation: "Validation",
-  allExceptBorders: "All except borders",
-  columnWidths: "Column widths",
-  formulasAndNumberFormats: "Formulas and number formats",
-  valuesAndNumberFormats: "Values and number formats",
-  allUsingSourceColumnWidths: "All using source column widths",
-  none: "None",
-  add: "Add",
-  subtract: "Subtract",
-  multiply: "Multiply",
-  divide: "Divide",
-  skipBlanks: "Skip blanks",
-  transpose: "Transpose",
-  pasteLink: "Paste Link",
-  ok: "OK",
-  cancel: "Cancel",
-};
-
 const MODES: PasteSpecialMode[] = [
   "all",
   "allUsingSourceColumnWidths",
@@ -87,11 +56,7 @@ const WITH_CONTENT = new Set<PasteSpecialMode>([
  */
 const PasteSpecial: React.FC = () => {
   const { context, setContext } = useContext(WorkbookContext);
-  const labels = {
-    ...LABELS,
-    ...(((locale(context) as any).pasteSpecial as Partial<typeof LABELS>) ||
-      {}),
-  };
+  const { pasteSpecial: labels } = locale(context);
   const [mode, setMode] = useState<PasteSpecialMode>("all");
   const [operation, setOperation] = useState<PasteSpecialOperation>("none");
   const [skipBlanks, setSkipBlanks] = useState(false);
