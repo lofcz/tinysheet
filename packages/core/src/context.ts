@@ -251,6 +251,11 @@ export type Context = {
   defaultCell: Cell;
 
   groupValuesRefreshData: any[];
+  /**
+   * Share (0..1) of a time-sliced recalculation done, while one is queued
+   * (see modules/recalcScheduler.ts); undefined otherwise.
+   */
+  recalcProgress?: number;
   formulaCache: FormulaCache;
   hooks: Hooks;
   showSheetList?: Boolean;

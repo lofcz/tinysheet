@@ -732,6 +732,7 @@ export default {
     max: "最大值",
     sum: "求和",
     calculating: "正在计算…",
+    recalculating: "正在计算 ({0}%)",
     customize: "自定义状态栏",
     copied: "已复制到剪贴板",
     clickToCopy: "点击复制",

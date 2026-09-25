@@ -43,6 +43,8 @@ import {
   runDataSession,
 } from "./rowStore";
 import { invalidateSpillAnchors } from "./spillIndex";
+import { hasPendingRecalc, recalcEpoch } from "./recalcScheduler";
+import { execFunctionGroup, groupValuesRefresh } from "./formula";
 
 enablePatches();
 export type HistoryOptions = PatchOptions & {
@@ -285,6 +287,63 @@ export type HistoryStepResult = {
   applied: { history: History; patches: Patch[]; options?: PatchOptions }[];
 };
 
+/** Steps whose recalculation was time-sliced (see recalcScheduler.ts). */
+const slicedSteps = new WeakSet<History>();
+
+/**
+ * The step's patches hold only the part of its recalculation that ran in
+ * the update itself (the rest ran later, outside of the history), or another
+ * recalculation is still queued: recalculate what depends on the cells the
+ * undo/redo restored, so formula values match their inputs again.
+ */
+function recalcAfterHistory(
+  ctx: Context,
+  history: History,
+  patches: Patch[],
+  applied: HistoryStepResult["applied"]
+): Context {
+  if (!slicedSteps.has(history) && !hasPendingRecalc(ctx)) return ctx;
+  const cells: { r: number; c: number; i: string }[] = [];
+  let everything = false;
+  patches.forEach(({ path, value }) => {
+    if (path[0] !== "luckysheetfile" || path[2] !== "data") return;
+    const id = ctx.luckysheetfile[path[1] as number]?.id;
+    if (id == null) return;
+    if (typeof path[3] !== "number") {
+      everything = true;
+    } else if (typeof path[4] === "number") {
+      cells.push({ r: path[3], c: path[4], i: id });
+    } else {
+      const n = Array.isArray(value) ? value.length : 0;
+      for (let c = 0; c < n; c += 1) cells.push({ r: path[3], c, i: id });
+    }
+  });
+  if (!everything && cells.length === 0) return ctx;
+  const [next, recalcPatches] = produceInSessionWithPatches(ctx, (draft) => {
+    if (!draft.groupValuesRefreshData) draft.groupValuesRefreshData = [];
+    const fc = draft.formulaCache;
+    fc.execFunctionExist = everything
+      ? undefined
+      : _.uniqBy(cells, (x) => `${x.r}_${x.c}_${x.i}`);
+    execFunctionGroup(
+      draft,
+      null as any,
+      null as any,
+      null,
+      draft.currentSheetId,
+      undefined,
+      everything
+    );
+    groupValuesRefresh(draft);
+    fc.execFunctionGlobalData = null;
+  });
+  const workbookPatches = filterPatch(recalcPatches);
+  if (workbookPatches.length > 0) {
+    applied.push({ history, patches: workbookPatches });
+  }
+  return next;
+}
+
 export type ProduceResult = {
   result: Context;
   /** the recorded undo step, when the change was recorded */
@@ -305,10 +364,13 @@ export function produceWithHistory(
   cache: GlobalCache,
   group: number | undefined = cache.undoGroup?.id
 ): ProduceResult {
+  const epoch = recalcEpoch();
   const [result, patches, inversePatches] = produceInSessionWithPatches(
     ctx,
     recipe
   );
+  // the update queued part of its recalculation (time slicing)
+  const sliced = recalcEpoch() !== epoch;
   if (patches.length === 0 || options.noHistory) {
     if (
       patches.length > 0 &&
@@ -354,6 +416,7 @@ export function produceWithHistory(
     options,
   };
   if (group != null) recorded.group = group;
+  if (sliced) slicedSteps.add(recorded);
   cache.undoList.push(recorded);
   cache.redoList = [];
   return { result, recorded, patches };
@@ -554,6 +617,7 @@ export function applyUndoSteps(
       patches: inverse,
       options: inversedOptions,
     });
+    context = recalcAfterHistory(context, history, inverse, applied);
   });
   return { context, applied };
 }
@@ -594,6 +658,7 @@ export function applyRedoSteps(
       patches: history.patches,
       options: history.options,
     });
+    context = recalcAfterHistory(context, history, history.patches, applied);
   });
   return { context, applied };
 }

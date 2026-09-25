@@ -11,6 +11,8 @@ export * from "./freeze";
 export * from "./geometry";
 export * from "./sheetLoad";
 export * from "./rowStore";
+export * from "./recalcScheduler";
+export { flushRecalc, runRecalcSlice } from "./formulaHelper";
 export * from "./history";
 export * from "./inline-string";
 export * from "./location";

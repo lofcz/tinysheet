@@ -721,6 +721,7 @@ export default {
     max: "最大值",
     sum: "加總",
     calculating: "正在計算…",
+    recalculating: "正在計算 ({0}%)",
     customize: "自訂狀態列",
     copied: "已複製到剪貼簿",
     clickToCopy: "按一下以複製",

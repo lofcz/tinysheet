@@ -9,7 +9,21 @@ import {
   FormulaDependency,
   getcellrange,
   iscelldata,
+  execFunctionGroup,
+  groupValuesRefresh,
+  settleSpillGrowth,
 } from "..";
+import {
+  cancelRecalc,
+  deferRecalc,
+  getRecalcBudget,
+  hasPendingRecalc,
+  recalcNow,
+  recalcDeadline,
+  returnRecalcKeys,
+  takeRecalcKeys,
+  withoutRecalcSlicing,
+} from "./recalcScheduler";
 import {
   cellIndex,
   DependencyGraph,
@@ -29,6 +43,8 @@ import {
 import {
   getFormulaDependencies,
   isVolatileFormula as isWorkbookVolatileFormula,
+  runSpillPropagation,
+  takeSpillChanges,
 } from "./formulaFunctions";
 import { formulaUsesNames } from "./names";
 
@@ -623,14 +639,29 @@ function currentFormula(
   return f;
 }
 
+/**
+ * Evaluates the formulas of `order` in turn. With a `deadline`
+ * (performance.now()) it stops once that has passed and returns how many
+ * were evaluated (the caller queues the rest); otherwise all of them.
+ */
 export function executeAffectedFormulas(
   ctx: Context,
   graph: DependencyGraph,
   order: string[],
-  data?: CellMatrix | null
-) {
+  data?: CellMatrix | null,
+  deadline?: number | null
+): number {
   const fc = ctx.formulaCache;
   for (let i = 0; i < order.length; i += 1) {
+    // checked every 16 formulas: reading the clock costs too
+    if (
+      deadline != null &&
+      i > 0 &&
+      (i & 15) === 0 &&
+      recalcNow() >= deadline
+    ) {
+      return i;
+    }
     let info: FormulaCellInfo | undefined = graph.nodes.get(order[i]);
     if (info) {
       // self-healing: the cell may have been overwritten without the graph
@@ -679,6 +710,7 @@ export function executeAffectedFormulas(
       fc.setGlobalCell(r, c, id, { v: v[1], f: v[2] });
     }
   }
+  return order.length;
 }
 
 export type ChangedCell = { r: number; c: number; id: string };
@@ -765,11 +797,83 @@ export function recalculate(
   });
 
   const fc = ctx.formulaCache;
+  // everything is recalculated: a queued remainder is obsolete
+  if (isForce) cancelRecalc(ctx);
+  // a top-level recalculation may stop at the slice deadline and queue the
+  // rest (recalcScheduler.ts)
+  const deadline = fc.recalcDepth === 0 ? recalcDeadline(ctx) : null;
   if (fc.recalcDepth === 0) fc.usedExtentCache.clear();
   fc.recalcDepth += 1;
+  let done = order.length;
   try {
-    executeAffectedFormulas(ctx, graph, order, data);
+    done = executeAffectedFormulas(ctx, graph, order, data, deadline);
   } finally {
     fc.recalcDepth -= 1;
   }
+  if (done < order.length) deferRecalc(ctx, order.slice(done));
+}
+
+const KEY_RE = /^r\d+c\d+i(.*)$/s;
+
+/**
+ * Evaluate the next slice of a queued recalculation (see
+ * recalcScheduler.ts): formulas in order until the slice budget is spent
+ * (or all of them with `unlimited`), then what their results set off (spill
+ * changes, sheet growth). Results are queued in groupValuesRefreshData like
+ * those of execFunctionGroup. Updates `ctx.recalcProgress`.
+ */
+export function runRecalcSlice(ctx: Context, unlimited = false) {
+  if (!hasPendingRecalc(ctx)) {
+    if (ctx.recalcProgress !== undefined) ctx.recalcProgress = undefined;
+    return;
+  }
+  const fc = ctx.formulaCache;
+  const keys = takeRecalcKeys(ctx);
+  const graph = getDependencyGraph(ctx);
+  // the graph may have been rebuilt since the keys were queued
+  const ids = new Set<string>();
+  keys.forEach((k) => {
+    const m = KEY_RE.exec(k);
+    if (m) ids.add(m[1]);
+  });
+  ids.forEach((id) => ensureSheetIndexed(ctx, graph, id, SHEET_FULL));
+  if (!ctx.groupValuesRefreshData) ctx.groupValuesRefreshData = [];
+  fc.execFunctionGlobalData = null;
+  const deadline = unlimited ? null : recalcNow() + getRecalcBudget();
+  if (fc.recalcDepth === 0) fc.usedExtentCache.clear();
+  fc.recalcDepth += 1;
+  let done = keys.length;
+  try {
+    done = executeAffectedFormulas(ctx, graph, keys, undefined, deadline);
+  } finally {
+    fc.recalcDepth -= 1;
+  }
+  returnRecalcKeys(ctx, done, keys.slice(done));
+  // cells whose spilled value changed, spills past the sheet edge
+  const spillChanges = takeSpillChanges(ctx);
+  if (spillChanges) {
+    runSpillPropagation(ctx, () => {
+      fc.execFunctionExist = spillChanges;
+      execFunctionGroup(ctx, null as any, null as any, null);
+    });
+  }
+  settleSpillGrowth(ctx);
+  fc.execFunctionGlobalData = null;
+}
+
+/**
+ * Finish a queued (time-sliced) recalculation right away, so the cells hold
+ * their final values. `ctx` is a context being updated (an immer draft) or
+ * a mutable context; results are applied with groupValuesRefresh.
+ */
+export function flushRecalc(ctx: Context) {
+  withoutRecalcSlicing(() => {
+    let guard = 0;
+    while (hasPendingRecalc(ctx) && guard < 1000) {
+      guard += 1;
+      runRecalcSlice(ctx, true);
+      groupValuesRefresh(ctx);
+    }
+  });
+  if (ctx.recalcProgress !== undefined) ctx.recalcProgress = undefined;
 }

@@ -692,6 +692,7 @@ export default {
     max: "अधिकतम",
     sum: "योग",
     calculating: "गणना हो रही है…",
+    recalculating: "गणना हो रही है ({0}%)",
     customize: "स्थिति पट्टी अनुकूलित करें",
     copied: "क्लिपबोर्ड पर कॉपी किया गया",
     clickToCopy: "कॉपी करने के लिए क्लिक करें",

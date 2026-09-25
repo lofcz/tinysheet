@@ -186,6 +186,18 @@ const StatusBar: React.FC = () => {
       {/* left side: mode indicator (Ready / Enter / Edit / Point) */}
       <div className="fortune-status-bar-left">
         <EditModeIndicator />
+        {context.recalcProgress !== undefined && (
+          <span
+            className="fortune-status-bar-recalc"
+            role="status"
+            aria-live="polite"
+          >
+            {statusBar.recalculating.replace(
+              "{0}",
+              String(Math.floor(context.recalcProgress * 100))
+            )}
+          </span>
+        )}
       </div>
       <div
         className="fortune-status-bar-stats"

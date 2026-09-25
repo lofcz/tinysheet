@@ -101,6 +101,8 @@ const OVERLAY_ONLY_KEYS = new Set<string>([
   "tabReturn",
   "groupedSheetIds",
   "showGoTo",
+  // status bar only
+  "recalcProgress",
 ]);
 
 /** Whether anything the canvas renderer reads differs between two contexts. */
