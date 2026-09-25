@@ -30,6 +30,8 @@ export type ContextMenuActionHelpers = {
   refs: RefValues;
   showDialog: (content: React.ReactNode) => void;
   hideDialog: () => void;
+  /** Show a component that renders its own dialog. */
+  showModal: (content: React.ReactNode) => void;
 };
 
 export type ContextMenuAction = (helpers: ContextMenuActionHelpers) => void;
@@ -59,15 +61,38 @@ export function getContextMenuAction(key: ContextMenuActionKey) {
 }
 
 /**
- * Whole menu entries contributed by features: a name listed in
+ * Menu entries contributed by features. A name listed in
  * `settings.cellContextMenu` / `headerContextMenu` that the menu does not
- * know renders the items its registered builder returns (none to hide it).
+ * know renders its registered entry. Two forms are accepted:
  *
- *   registerContextMenuItem("new-comment", ({ r, c, close }) => [
- *     { key: "new-comment", label: "New Comment", onSelect: () => ... },
- *   ]);
+ * - an item object, one entry (with `menu: "image"` it shows in the menu of
+ *   a floating picture instead):
+ *
+ *     registerContextMenuItem("picture-alt-text", {
+ *       label: (ctx) => locale(ctx).cellImage.altText,
+ *       onSelect: ({ showDialog }) => showDialog(<AltText />),
+ *     });
+ *
+ * - a builder function returning any number of entries for the active cell:
+ *
+ *     registerContextMenuItem("new-comment", ({ r, c, close }) => [
+ *       { key: "new-comment", label: "New Comment", onSelect: () => ... },
+ *     ]);
  */
 export type ContextMenuItem = {
+  label: (context: Context) => string;
+  /** A context-menu icon name (see ./icons.tsx). */
+  icon?: string;
+  menu?: "cell" | "image";
+  /** Hidden when this returns false. */
+  visible?: (context: Context) => boolean;
+  /** Greyed out when this returns true (and when the sheet is read-only). */
+  disabled?: (context: Context) => boolean;
+  onSelect: ContextMenuAction;
+};
+
+/** An entry produced by a {@link ContextMenuItemBuilder}. */
+export type BuiltContextMenuItem = {
   key: string;
   label: string;
   /** a ContextMenu/icons.tsx icon name */
@@ -87,20 +112,30 @@ export type ContextMenuItemBuilder = (
     /** close the menu and give the focus back to the sheet */
     close: () => void;
   }
-) => ContextMenuItem[];
+) => BuiltContextMenuItem[];
 
-const itemBuilders = new Map<string, ContextMenuItemBuilder>();
+export type ContextMenuEntry = ContextMenuItem | ContextMenuItemBuilder;
 
-export function registerContextMenuItem(
-  name: string,
-  build: ContextMenuItemBuilder
-) {
-  itemBuilders.set(name, build);
+const items = new Map<string, ContextMenuEntry>();
+
+/** Add a menu entry named `name`. Returns a function that removes it. */
+export function registerContextMenuItem(name: string, entry: ContextMenuEntry) {
+  items.set(name, entry);
   return () => {
-    if (itemBuilders.get(name) === build) itemBuilders.delete(name);
+    if (items.get(name) === entry) items.delete(name);
   };
 }
 
 export function getContextMenuItem(name: string) {
-  return itemBuilders.get(name);
+  return items.get(name);
+}
+
+/** Names of the item objects registered for `menu`, in registration order. */
+export function getContextMenuItemNames(menu: "cell" | "image") {
+  return [...items.entries()]
+    .filter(
+      ([, entry]) =>
+        typeof entry !== "function" && (entry.menu ?? "cell") === menu
+    )
+    .map(([name]) => name);
 }

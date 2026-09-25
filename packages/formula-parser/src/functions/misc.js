@@ -13,8 +13,9 @@
 //   the ideographic space and katakana, whatever the editing language.
 // * PHONETIC returns the text itself (cells carry no furigana here).
 // * INFO answers with fixed values describing a web host.
-// * IMAGE cannot produce an in-cell picture yet: it returns its alt text (or
-//   the source URL) so dependent formulas still see a value.
+// * IMAGE returns an image value (../helper/image.js) that the host draws in
+//   the cell; its text form is the alt text. Only http(s) and data:image
+//   sources are accepted.
 // * AREAS is evaluated by the evaluator (it counts the areas of unions);
 //   this value-only fallback, reached only through a host override that
 //   declines, counts any argument as one area.
@@ -29,6 +30,8 @@ import {
   toNumber,
 } from "./math-stats";
 import { functionByName } from "./eta";
+import { broadcast } from "../helper/array";
+import { createImageValue, isAllowedImageSource } from "../helper/image";
 
 function scalarOf(v) {
   let x = v;
@@ -388,19 +391,40 @@ function DOLLAR(number, decimals) {
 /* IMAGE / AREAS                                                              */
 /* -------------------------------------------------------------------------- */
 
-function IMAGE(source, altText, sizing, height, width) {
-  if (source === undefined) fail(ERROR_VALUE);
+// IMAGE(source, [alt_text], [sizing], [height], [width]): an image value
+// (../helper/image.js). Lifted over array arguments, so =IMAGE(A1:A3) spills
+// one picture per source.
+function imageOf(source, altText, sizing, height, width) {
   const src = scalarOf(source);
-  if (typeof src !== "string" || src === "") fail(ERROR_VALUE);
-  const mode = Math.trunc(optNumber(sizing, 0));
-  if (mode < 0 || mode > 3) fail(ERROR_VALUE);
-  if (mode === 3) {
-    const h = optNumber(height, 0);
-    const w = optNumber(width, 0);
-    if (h <= 0 && w <= 0) fail(ERROR_VALUE);
-  }
+  if (typeof src !== "string" || !isAllowedImageSource(src)) fail(ERROR_VALUE);
   const alt = altText === undefined || altText === null ? "" : text(altText);
-  return alt || src;
+  const s = scalarOf(sizing);
+  const mode = s === undefined || s === null || s === "" ? 0 : toNumber(s);
+  if (!Number.isInteger(mode) || mode < 0 || mode > 3) fail(ERROR_VALUE);
+  const props = { src: src.trim(), alt, sizing: mode };
+  if (mode === 3) {
+    const h = optNumber(height, null);
+    const w = optNumber(width, null);
+    if (h === null && w === null) fail(ERROR_VALUE);
+    if ((h !== null && !(h > 0)) || (w !== null && !(w > 0))) {
+      fail(ERROR_VALUE);
+    }
+    if (h !== null) props.h = h;
+    if (w !== null) props.w = w;
+  }
+  return createImageValue(props);
+}
+
+function IMAGE(...args) {
+  if (args[0] === undefined || args.length > 5) fail(ERROR_VALUE);
+  if (!args.some(Array.isArray)) return imageOf(...args);
+  return broadcast(args, (...scalars) => {
+    try {
+      return imageOf(...scalars);
+    } catch (e) {
+      return toError(e);
+    }
+  });
 }
 
 function AREAS(reference) {

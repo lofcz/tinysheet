@@ -59,3 +59,6 @@ export * from "./threadedComments";
 export * from "./pageSetup";
 export * from "./headerFooter";
 export * from "./printRender";
+export * from "./cellImage";
+export * from "./cellImageDraw";
+export * from "./cellImageEdit";

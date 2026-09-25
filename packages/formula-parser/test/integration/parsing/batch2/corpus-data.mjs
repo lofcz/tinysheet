@@ -949,7 +949,8 @@ export const CORPUS = {
         ["b", null, 2],
       ],
     ],
-    ['IMAGE("https://example.com/logo.png","Company logo")', "Company logo"],
+    // an image value; its text form is the alt text
+    ['IMAGE("https://example.com/logo.png","Company logo")&""', "Company logo"],
     ["AREAS(A1:B2)", 1],
     ["ROWS({1,2,3;4,5,6})", 2],
     ["COLUMNS({1,2,3;4,5,6})", 3],

@@ -12,10 +12,14 @@
  *   permanently (`ps.isShow`) get `<x:Visible/>` and a visible shape.
  * - Threaded comments: their thread and person parts
  *   (ExcelThreadedComments.ts).
+ * - Pictures placed in cells: richData parts and `vm` metadata
+ *   (ExcelCellImage.ts).
  */
 import JSZip from "jszip";
 import type { ThreadedCommentExportInfo } from "./ExcelThreadedComments";
 import { writeThreadedCommentParts } from "./ExcelThreadedComments";
+import { writeCellImageParts } from "./ExcelCellImage";
+import type { CellImagePostInfo } from "./ExcelCellImage";
 
 export type XlsxPostProcessInfo = {
   /** Worksheet id -> addresses of dynamic-array formula cells. */
@@ -30,6 +34,8 @@ export type XlsxPostProcessInfo = {
    * attributes ExcelJS cannot write (feature writers push them).
    */
   sheetXmlFixups?: Record<number, ((xml: string) => string)[]>;
+  /** Worksheet id -> pictures placed in cells (rich values). */
+  cellImages?: CellImagePostInfo;
 };
 
 const METADATA_XML =
@@ -224,6 +230,8 @@ export async function postProcessXlsx(
 ): Promise<Uint8Array> {
   const zip = await JSZip.loadAsync(buffer);
   await markDynamicArrays(zip, info);
+  // after the dynamic arrays: shares xl/metadata.xml with them
+  await writeCellImageParts(zip, info);
   await fixInternalHyperlinks(zip);
   await showNotes(zip, info);
   await writeThreadedCommentParts(zip, info);

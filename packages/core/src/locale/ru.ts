@@ -2627,6 +2627,26 @@ export default {
     menuItemRows: "Печатать заголовки строк",
     menuItemColumns: "Печатать заголовки столбцов",
   },
+  // pictures in cells (Place in Cell, IMAGE())
+  cellImage: {
+    pictureInCell: "Рисунок в ячейке",
+    insertTitle: "Вставить рисунок в ячейку",
+    placeInCell: "Поместить в ячейку",
+    placeOverCells: "Поместить поверх ячеек",
+    insertPicture: "Поместить рисунок в ячейку…",
+    altText: "Замещающий текст…",
+    altTextTitle: "Замещающий текст",
+    altTextLabel:
+      "Опишите этот рисунок для людей, которые не могут его увидеть",
+    fromFile: "Это устройство…",
+    fromUrl: "По веб-адресу",
+    urlLabel: "Адрес рисунка (https:// или data:image)",
+    invalidUrl: "Введите адрес рисунка, начинающийся с https://.",
+    readFailed: "Не удалось прочитать рисунок.",
+    picture: "Рисунок",
+    deletePicture: "Удалить рисунок",
+    noPicture: "Выберите рисунок или введите его адрес.",
+  },
   edit: {
     typing: "ввод",
   },

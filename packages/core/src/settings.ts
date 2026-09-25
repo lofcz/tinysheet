@@ -296,6 +296,7 @@ export const defaultSettings: Required<Settings> = {
     // View / Insert
     "freeze",
     "image",
+    "picture-in-cell", // Place picture in cell (pictures in cells)
     "chart",
     "link",
     "comment",
@@ -338,6 +339,9 @@ export const defaultSettings: Required<Settings> = {
     "define-name",
     "link",
     "image",
+    "picture-in-cell", // Place Picture in Cell…
+    "picture-over-cells", // on a picture cell: Place over Cells
+    "picture-alt-text", // on a placed picture: Alt Text…
     "data", // Data Validation…
     "chart",
   ], // 自定义单元格右键菜单

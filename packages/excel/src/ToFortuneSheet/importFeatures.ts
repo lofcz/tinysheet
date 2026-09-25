@@ -18,6 +18,7 @@ import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
 import { readThreadedComments, threadedCommentCells } from "./threadedComments";
 import { readPageSetup, readPrintNames } from "../common/pageSetup";
+import { readCellImages } from "./FortuneCellImage";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -320,6 +321,8 @@ export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "threadedComments", read: readThreadedComments },
   { name: "tables", read: readTables },
   { name: "page-setup", read: readPageSetup },
+  // pictures in cells (rich values, see FortuneCellImage.ts)
+  { name: "cell-images", read: (ctx) => readCellImages(ctx) },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 

@@ -32,6 +32,7 @@ import { autoGrowRowAfterEdit } from "./autofit";
 import { setFormulaCellInfo } from "./formulaHelper";
 import { peek } from "./dependencyGraph";
 import { onTableCellEdited } from "./tables";
+import { applyCellImage, isImageValue } from "./cellImage";
 import {
   FORMULA_RESULT_FORMATS,
   inferFormulaFormat,
@@ -227,7 +228,9 @@ export function setCellValue(
 
   let vupdate;
 
-  if (_.isPlainObject(v)) {
+  if (isImageValue(v)) {
+    vupdate = v;
+  } else if (_.isPlainObject(v)) {
     if (_.isNil(cell)) {
       cell = v;
     } else {
@@ -246,7 +249,7 @@ export function setCellValue(
       }
     }
 
-    if (_.isPlainObject(v.v)) {
+    if (_.isPlainObject(v.v) && !isImageValue(v.v)) {
       vupdate = v.v.v;
     } else {
       vupdate = v.v;
@@ -255,11 +258,20 @@ export function setCellValue(
     vupdate = v;
   }
 
+  // a picture (IMAGE() result, placed picture): `img` plus its alt text
+  if (isImageValue(vupdate)) {
+    if (!_.isPlainObject(cell)) cell = {};
+    applyCellImage(cell!, vupdate);
+    d[r][c] = cell;
+    return;
+  }
+
   if (isRealNull(vupdate)) {
     if (_.isPlainObject(cell)) {
       delete cell!.m;
       // @ts-ignore
       delete cell.v;
+      delete cell!.img;
     } else {
       cell = null;
     }
@@ -279,6 +291,8 @@ export function setCellValue(
   }
 
   if (!cell) return;
+  // any other value replaces a picture
+  if (cell.img) delete cell.img;
 
   const vupdateStr = vupdate.toString();
 

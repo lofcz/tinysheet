@@ -20,6 +20,7 @@ import { postProcessXlsx } from "./postProcess";
 import { writeCells, writeNotes } from "./ExcelStyle";
 import { setBorder } from "./ExcelBorder";
 import { setImages } from "./ExcelImage";
+import { writeCellImages } from "./ExcelCellImage";
 import { setDataValidations } from "./ExcelValidation";
 import { writeTables } from "./ExcelTable";
 import { writeThreadedComments } from "./ExcelThreadedComments";
@@ -99,6 +100,8 @@ function borders(ctx: SheetExportContext) {
 export const sheetExportFeatures: SheetExportFeature[] = [
   { name: "columns-rows", write: writeColumnsAndRows },
   { name: "cells", write: writeCells },
+  // pictures placed in cells (rich values, see ExcelCellImage.ts)
+  { name: "cell-images", write: writeCellImages },
   { name: "tables", write: writeTables },
   { name: "notes", write: writeNotes },
   // after notes: a thread's legacy note replaces a note on the same cell

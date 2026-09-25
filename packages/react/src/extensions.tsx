@@ -13,6 +13,13 @@
  */
 import React from "react";
 
+// context-menu entries: see components/ContextMenu/actions.ts
+export {
+  registerContextMenuAction,
+  registerContextMenuItem,
+} from "./components/ContextMenu/actions";
+export type { ContextMenuItem } from "./components/ContextMenu/actions";
+
 export type ToolbarItemRenderer = (props: {
   name: string;
   tooltip: string;

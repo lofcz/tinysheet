@@ -54,7 +54,7 @@ describe("default toolbar", () => {
       "format currency-format percentage-format number-increase number-decrease",
       "conditionFormat formatAsTable cell-styles",
       "quick-formula clear-format filter search",
-      "freeze image chart link comment threaded-comment",
+      "freeze image picture-in-cell chart link comment threaded-comment",
       "nameManager dataVerification splitColumn locationCondition screenshot",
       "pageLayout print",
     ]);

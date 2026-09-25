@@ -13,6 +13,23 @@ const ImgBoxs: React.FC = () => {
   const activeImg = useMemo(() => {
     return _.find(context.insertedImgs, { id: context.activeImg });
   }, [context.activeImg, context.insertedImgs]);
+  // right-click: select the picture and open its menu (Place in Cell, ...)
+  const openImageMenu = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const wb = refs.workbookContainer.current?.getBoundingClientRect();
+    if (!wb) return;
+    setContext((ctx) => {
+      ctx.activeImg = id;
+      ctx.contextMenu = {
+        x: e.pageX - wb.left,
+        y: e.pageY - wb.top,
+        pageX: e.pageX,
+        pageY: e.pageY,
+        imageMenu: true,
+      };
+    });
+  };
 
   return (
     <div id="luckysheet-image-showBoxs">
@@ -48,10 +65,12 @@ const ImgBoxs: React.FC = () => {
               // context.activeImg.height * context.zoomRatio,
             }}
             onMouseDown={(e) => {
+              e.stopPropagation();
+              if (e.button === 2) return;
               const { nativeEvent } = e;
               onImageMoveStart(context, refs.globalCache, nativeEvent);
-              e.stopPropagation();
             }}
+            onContextMenu={(e) => openImageMenu(e, activeImg.id)}
           />
           <div className="luckysheet-modal-dialog-resize">
             {["lt", "mt", "lm", "rm", "rt", "lb", "mb", "rb"].map((v) => (
@@ -117,6 +136,7 @@ const ImgBoxs: React.FC = () => {
                 zIndex: 200,
               }}
               onMouseDown={(e) => e.stopPropagation()}
+              onContextMenu={(e) => openImageMenu(e, id)}
               onClick={(e) => {
                 setContext((ctx) => {
                   ctx.activeImg = id;

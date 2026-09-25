@@ -12,6 +12,7 @@ import type {
   Selection,
 } from "../types";
 import { Context, getFlowdata } from "../context";
+import { cellImageValue } from "./cellImage";
 import {
   columnCharToIndex,
   escapeScriptTag,
@@ -338,6 +339,8 @@ export class FormulaCache {
       const n = Number(cell?.v);
       return Number.isNaN(n) ? cell?.v : n;
     }
+    // a picture reads as an image value (=A1 shows the picture too)
+    if (cell?.img) return cellImageValue(cell.img);
     return cell?.v;
   }
 

@@ -99,6 +99,7 @@ function typeRank(cell: Cell | null | undefined): number {
 
 export function isBlankCell(cell: Cell | null | undefined) {
   if (cell == null) return true;
+  if (cell.img) return false;
   if (cell.ct?.t === "inlineStr") {
     return !cell.ct.s?.some((s: any) => `${s?.v ?? ""}`.length > 0);
   }

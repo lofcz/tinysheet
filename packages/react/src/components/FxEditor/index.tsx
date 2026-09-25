@@ -33,6 +33,7 @@ import FormulaHint from "../SheetOverlay/FormulaHint";
 import NameBox from "./NameBox";
 import usePrevious from "../../hooks/usePrevious";
 import { useFormulaEditorKeys } from "../SheetOverlay/FormulaSearch/useFormulaEditorKeys";
+import { FxPictureChip } from "../CellImages";
 
 const FxEditor: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -263,6 +264,8 @@ const FxEditor: React.FC = () => {
             tabIndex={0}
             allowEdit={allowEdit}
           />
+          {/* a placed picture shows as a chip until the bar is focused */}
+          {!focused && <FxPictureChip />}
           {focused && (
             <>
               <FormulaSearch
