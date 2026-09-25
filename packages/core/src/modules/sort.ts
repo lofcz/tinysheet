@@ -6,6 +6,7 @@ import { getSheetIndex, rgbToHex } from "../utils";
 import { normalizedAttr } from "./cell";
 import { checkCF, getComputeMap } from "./ConditionFormat";
 import { jfrefreshgrid } from "./refresh";
+import { reconcileSpills } from "./spill";
 
 /*
  * Sorting with Excel's semantics.
@@ -494,6 +495,9 @@ export function sortRange(ctx: Context, options: SortOptions): string | null {
   }
 
   jfrefreshgrid(ctx, data, [{ row: [r1, r2], column: [c1, c2] }]);
+  reconcileSpills(ctx, ctx.currentSheetId, {
+    changed: [{ row: [r1, r2], column: [c1, c2] }],
+  });
   return null;
 }
 

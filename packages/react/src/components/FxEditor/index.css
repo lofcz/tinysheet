@@ -72,3 +72,8 @@
 .fortune-fx-input[contenteditable="true"] {
   -webkit-user-modify: read-write-plaintext-only;
 }
+
+/* a spilled cell: the anchor's formula, greyed out */
+.fortune-fx-input-spilled {
+  color: var(--fortune-text-subtle);
+}
