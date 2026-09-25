@@ -47,6 +47,10 @@ export type Context = {
   insertedImgs?: Image[];
   editingInsertedImgs?: Image;
   activeImg?: string;
+  /** Id of the selected chart object, if any. */
+  activeChart?: string;
+  /** Whether the chart editor panel is open for `activeChart`. */
+  chartEditorOpen?: boolean;
   presences?: Presence[];
   showSearch?: boolean;
   showReplace?: boolean;

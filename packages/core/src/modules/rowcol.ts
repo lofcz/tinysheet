@@ -4,6 +4,7 @@ import { Sheet } from "../types";
 import { getSheetIndex } from "../utils";
 import { getcellFormula } from "./cell";
 import { functionStrChange } from "./formula";
+import { adjustChartsForDelete, adjustChartsForInsert } from "./chart";
 
 const refreshLocalMergeData = (merge_new: Record<string, any>, file: Sheet) => {
   Object.entries(merge_new).forEach(([, v]) => {
@@ -1153,6 +1154,13 @@ export function insertRowCol(
 
   refreshLocalMergeData(merge_new, file);
   ctx.formulaCache.formulaCellInfoMap = null;
+  adjustChartsForInsert(
+    ctx,
+    id,
+    type,
+    direction === "lefttop" ? index : index + 1,
+    count
+  );
 
   // if (type === "row") {
   //   const scrollLeft = $("#luckysheet-cell-main").scrollLeft();
@@ -2064,6 +2072,7 @@ export function deleteRowCol(
 
   refreshLocalMergeData(merge_new, file);
   ctx.formulaCache.formulaCellInfoMap = null;
+  adjustChartsForDelete(ctx, id, type, start, end);
 
   if (file.id === ctx.currentSheetId) {
     ctx.config = cfg;
