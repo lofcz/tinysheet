@@ -1,0 +1,139 @@
+/* Cell / row / column context menu (Excel layout: icon, label, shortcut). */
+.fortune-cell-menu {
+  min-width: 232px;
+}
+
+.fortune-cell-menu .fortune-menuitem .fortune-menuitem-content {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  padding: 4px var(--fortune-space-3) 4px var(--fortune-space-2);
+  line-height: 20px;
+}
+
+.fortune-cell-menu .fortune-menuitem-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  color: var(--fortune-icon);
+}
+
+.fortune-cell-menu .fortune-menuitem-label {
+  flex: 1;
+}
+
+.fortune-cell-menu .fortune-menuitem-shortcut {
+  margin-left: var(--fortune-space-5);
+  color: var(--fortune-text-subtle);
+  font-size: var(--fortune-font-size-sm);
+}
+
+.fortune-cell-menu .fortune-menuitem-arrow {
+  display: inline-flex;
+  margin-right: -6px;
+  color: var(--fortune-text-muted);
+}
+
+.fortune-cell-menu .fortune-menuitem-expanded {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-cell-menu .fortune-menuitem.fortune-menuitem-disabled,
+.fortune-cell-menu .fortune-menuitem.fortune-menuitem-disabled:hover {
+  background: transparent;
+  cursor: default;
+}
+
+.fortune-cell-menu
+  .fortune-menuitem.fortune-menuitem-disabled
+  .fortune-menuitem-content,
+.fortune-cell-menu .fortune-menuitem-disabled .fortune-menuitem-icon,
+.fortune-cell-menu .fortune-menuitem-disabled .fortune-menuitem-shortcut {
+  color: var(--fortune-text-disabled);
+  cursor: default;
+}
+
+.fortune-cell-submenu {
+  min-width: 200px;
+}
+
+/* Insert… / Delete… / Row Height… / Column Width… dialogs */
+.fortune-cellmenu-dialog {
+  min-width: 240px;
+}
+
+.fortune-cellmenu-dialog .title {
+  margin-bottom: var(--fortune-space-3);
+}
+
+.fortune-cellmenu-dialog-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2);
+}
+
+.fortune-cellmenu-dialog-option {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+  cursor: pointer;
+}
+
+.fortune-cellmenu-dialog-option input {
+  margin: 0;
+  accent-color: var(--fortune-accent);
+}
+
+.fortune-cellmenu-dialog-field {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-3);
+}
+
+.fortune-cellmenu-dialog-input {
+  width: 96px;
+  height: var(--fortune-control-height);
+  box-sizing: border-box;
+  padding: 0 var(--fortune-space-2);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-input);
+  color: var(--fortune-text);
+  font: inherit;
+}
+
+.fortune-cellmenu-dialog-input:focus {
+  outline: none;
+  border-color: var(--fortune-accent);
+  box-shadow: var(--fortune-focus-ring);
+}
+
+/* Pick From Drop-down List */
+.fortune-pick-list {
+  position: absolute;
+  z-index: 1004;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: var(--fortune-space-1) 0;
+  box-sizing: border-box;
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
+  box-shadow: var(--fortune-shadow);
+  font-size: var(--fortune-font-size);
+  outline: none;
+}
+
+.fortune-pick-list-item {
+  padding: 3px var(--fortune-space-3);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fortune-pick-list-item-active {
+  background: var(--fortune-accent-soft);
+  color: var(--fortune-accent-text);
+}
