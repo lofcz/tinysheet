@@ -165,4 +165,36 @@ describe("data validation, hyperlinks and conditional formats", () => {
     expect(cf.cellrange).toEqual([{ row: [1, 4], column: [0, 0] }]);
     expect(cf.conditionValue).toEqual(["=A2>B3"]);
   });
+
+  test("deleting rows shrinks CF ranges, drops deleted keys, moves panes", () => {
+    const ctx = setup();
+    const file = ctx.luckysheetfile[0];
+    file.config = { merge: { "5_0": { r: 5, c: 0, rs: 2, cs: 1 } } };
+    file.frozen = { type: "rangeRow", range: { row_focus: 4, column_focus: 0 } };
+    file.dataVerification = {
+      "1_0": { type: "dropdown", value1: "a" },
+      "6_0": { type: "dropdown", value1: "$A$5:$A$9" },
+    };
+    file.hyperlink = {
+      "1_1": { linkType: "cellrange", linkAddress: "A1" },
+      "7_1": { linkType: "cellrange", linkAddress: "Sheet1!A9" },
+    };
+    file.luckysheet_conditionformat_save = [
+      { type: "default", cellrange: [{ row: [0, 9], column: [0, 0] }] },
+      { type: "default", cellrange: [{ row: [1, 2], column: [0, 0] }] },
+    ];
+    deleteRowCol(ctx, { type: "row", start: 1, end: 2, id: "id_1" });
+    expect(Object.keys(file.dataVerification)).toEqual(["4_0"]);
+    expect(file.dataVerification["4_0"].value1).toBe("$A$3:$A$7");
+    expect(file.hyperlink).toEqual({
+      "5_1": { linkType: "cellrange", linkAddress: "Sheet1!A7" },
+    });
+    expect(file.luckysheet_conditionformat_save[0].cellrange).toEqual([
+      { row: [0, 7], column: [0, 0] },
+    ]);
+    // a rule whose whole range was deleted goes away
+    expect(file.luckysheet_conditionformat_save).toHaveLength(1);
+    expect(file.config.merge).toEqual({ "3_0": { r: 3, c: 0, rs: 2, cs: 1 } });
+    expect(file.frozen.range.row_focus).toBe(2);
+  });
 });
