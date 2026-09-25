@@ -53,13 +53,15 @@ import MenuIcon from "./icons";
 import CustomSort from "../CustomSort";
 import DataVerification from "../DataVerification";
 import { getContextMenuAction, ContextMenuActionKey } from "./actions";
-import "./defaultActions";
+import { registerDefaultContextMenuActions } from "./defaultActions";
 import {
   InsertDeleteDialog,
   SizeDialog,
   useInsertDeleteRunner,
 } from "./dialogs";
 import PickList, { PickListState } from "./PickList";
+
+registerDefaultContextMenuActions();
 
 type MenuEntry =
   | {
