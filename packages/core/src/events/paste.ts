@@ -20,6 +20,7 @@ import { setRowHeight } from "../api";
 import { CFSplitRange } from "../modules";
 import clipboard from "../modules/clipboard";
 import { setFormulaCellInfo } from "../modules/formulaHelper";
+import { reconcileSpills, reconcileSpillsAfterMove } from "../modules/spill";
 
 function postPasteCut(
   ctx: Context,
@@ -1069,6 +1070,7 @@ function pasteHandlerOfCutPaste(
   } else {
     postPasteCut(ctx, source, target, copyRowlChange);
   }
+  reconcileSpillsAfterMove(ctx, source, target);
 }
 
 function pasteHandlerOfCopyPaste(
@@ -1512,6 +1514,9 @@ function pasteHandlerOfCopyPaste(
     jfrefreshgrid(ctx, d, ctx.luckysheet_select_save);
     // selectHightlightShow();
   }
+  reconcileSpills(ctx, ctx.currentSheetId, {
+    pasted: ctx.luckysheet_select_save,
+  });
 }
 
 function handleFormulaStringPaste(ctx: Context, formulaStr: string) {

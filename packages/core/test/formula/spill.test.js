@@ -143,11 +143,11 @@ describe("dynamic-array spill", () => {
     expect(value(ctx2, "D1")).toBe("#SPILL!");
   });
 
-  test("a spill beyond the sheet edge gives #SPILL!", () => {
+  test("a spill beyond the sheet edge grows the sheet", () => {
+    // more in spill-refs.test.js
     const ctx = makeContext({ rows: 4, cols: 4 });
     input(ctx, "A3", "=ROW(A1:A3)");
-    expect(value(ctx, "A3")).toBe("#SPILL!");
-    expect(cell(ctx, "A4")).toBeNull();
+    expect(values(ctx, "A3", "A5")).toEqual([[1], [2], [3]]);
   });
 
   test("typing into a spilled cell blocks the spill; clearing it re-spills", () => {

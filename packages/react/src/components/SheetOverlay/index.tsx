@@ -53,6 +53,7 @@ import { useDialog } from "../../hooks/useDialog";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import AutocompleteList from "./AutocompleteList";
+import SpillRange from "./SpillRange";
 
 const SheetOverlay: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -624,6 +625,7 @@ const SheetOverlay: React.FC = () => {
             }
             onMouseDown={(e) => e.preventDefault()}
           />
+          <SpillRange />
           {(context.luckysheet_selection_range?.length ?? 0) > 0 && (
             <div id="fortune-selection-copy">
               {context.luckysheet_selection_range!.map((range) => {

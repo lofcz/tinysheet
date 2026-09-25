@@ -1,0 +1,105 @@
+/* Spill range border (Excel draws a thin blue line around the spill range) */
+.fortune-spill-range {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--fortune-spill, var(--fortune-selection));
+  pointer-events: none;
+  z-index: 13;
+}
+
+.fortune-spill-range-blocked {
+  border-style: dashed;
+}
+
+/* #SPILL! warning badge with its tooltip and menu */
+.fortune-spill-error {
+  position: absolute;
+  z-index: 25;
+}
+
+.fortune-spill-error-badge {
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--fortune-border-strong);
+  border-radius: 3px;
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-warning);
+  font: bold 12px/16px var(--fortune-font-family, sans-serif);
+  text-align: center;
+  cursor: pointer;
+  box-shadow: var(--fortune-shadow-sm);
+}
+
+.fortune-spill-error-badge:hover,
+.fortune-spill-error-badge[aria-expanded="true"] {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-spill-error-badge:focus-visible {
+  outline: none;
+  box-shadow: var(--fortune-focus-ring);
+}
+
+.fortune-spill-error-tip {
+  display: none;
+  position: absolute;
+  top: 22px;
+  left: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--fortune-tooltip-bg);
+  color: var(--fortune-tooltip-text);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.fortune-spill-error:hover .fortune-spill-error-tip {
+  display: block;
+}
+
+.fortune-spill-error-menu {
+  position: absolute;
+  top: 22px;
+  left: 0;
+  width: 240px;
+  padding: 6px 0;
+  border: 1px solid var(--fortune-border);
+  border-radius: 6px;
+  background: var(--fortune-bg-elevated);
+  color: var(--fortune-text);
+  font-size: 12px;
+  box-shadow: var(--fortune-shadow);
+}
+
+.fortune-spill-error-title {
+  padding: 2px 12px;
+  font-weight: 600;
+}
+
+.fortune-spill-error-detail {
+  padding: 2px 12px 6px;
+  color: var(--fortune-text-muted);
+  white-space: normal;
+}
+
+.fortune-spill-error-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  border-top: 1px solid var(--fortune-divider);
+  background: none;
+  color: var(--fortune-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fortune-spill-error-item:hover,
+.fortune-spill-error-item:focus-visible {
+  outline: none;
+  background: var(--fortune-bg-hover);
+}

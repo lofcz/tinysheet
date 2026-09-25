@@ -4,6 +4,8 @@ import { Sheet } from "../types";
 import { getSheetIndex } from "../utils";
 import { getcellFormula } from "./cell";
 import { functionStrChange } from "./formula";
+// eslint-disable-next-line import/no-cycle
+import { onSpillStructureChange } from "./spill";
 
 const refreshLocalMergeData = (merge_new: Record<string, any>, file: Sheet) => {
   Object.entries(merge_new).forEach(([, v]) => {
@@ -1153,6 +1155,7 @@ export function insertRowCol(
 
   refreshLocalMergeData(merge_new, file);
   ctx.formulaCache.formulaCellInfoMap = null;
+  onSpillStructureChange(ctx, id);
 
   // if (type === "row") {
   //   const scrollLeft = $("#luckysheet-cell-main").scrollLeft();
@@ -2082,6 +2085,7 @@ export function deleteRowCol(
     // );
   } else {
   }
+  onSpillStructureChange(ctx, id);
 }
 
 // 计算表格行高数组
