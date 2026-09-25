@@ -88,8 +88,9 @@ test.describe("page layout", () => {
     sheet,
     page,
   }) => {
-    for (let r = 0; r < 3; r += 1)
-      await sheet.enter(r * 30, 0, `row ${r * 30}`);
+    await sheet.enter(0, 0, "top");
+    // a value far down: the used range needs two Letter pages
+    await page.evaluate(() => window.__tinysheet.setCellValue(60, 0, "bottom"));
     await sheet.click(0, 1);
     await page.keyboard.press("Control+p");
     const preview = page.locator(".fortune-print-preview");

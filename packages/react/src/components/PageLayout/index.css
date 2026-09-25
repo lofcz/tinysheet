@@ -422,6 +422,11 @@
   pointer-events: none;
 }
 
+/* above the selection box, so break lines stay draggable */
+.fortune-page-breaks.preview {
+  z-index: 17;
+}
+
 .fortune-page-break-preview {
   position: absolute;
   overflow: visible;
