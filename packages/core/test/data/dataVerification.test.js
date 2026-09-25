@@ -26,8 +26,14 @@ import {
 } from "../../src/modules/dataVerification";
 import { locale } from "../../src/locale";
 import { defaultContext } from "../../src/context";
-import { handlePasteByClick } from "../../src/events/paste";
+import {
+  mockClipboard,
+  copy as copyCells,
+  paste as pasteCells,
+} from "../clipboard/helpers";
 import { dropCellCache, updateDropCell } from "../../src/modules/dropCell";
+import { saveDefinedName } from "../../src/modules/names";
+import { insertRowCol } from "../../src/modules/rowcol";
 
 function fill(ctx, cells) {
   Object.entries(cells).forEach(([a1, text]) => input(ctx, a1, text));
@@ -463,29 +469,13 @@ describe("circles, rules and the dialog", () => {
 
 describe("validation travels with cells", () => {
   test("copy/paste carries validation", () => {
+    mockClipboard();
     const ctx = setupCtx();
     ctx.hooks = {};
     setDataVerification(ctx, "A1", { type: "dropdown", value1: "a,b" });
     input(ctx, "A1", "a");
-    ctx.luckysheet_copy_save = {
-      dataSheetId: "id_1",
-      copyRange: [{ row: [0, 0], column: [0, 0] }],
-      RowlChange: false,
-      HasMC: false,
-    };
-    ctx.luckysheet_select_save = [
-      { row: [4, 4], column: [2, 2], row_focus: 4, column_focus: 2 },
-    ];
-    const el = document.createElement("div");
-    el.id = "fortune-copy-content";
-    el.innerHTML =
-      '<table class="fortune-copy-action-table"><tr><td>a</td></tr></table>';
-    document.body.appendChild(el);
-    try {
-      handlePasteByClick(ctx, "");
-    } finally {
-      el.remove();
-    }
+    copyCells(ctx, "A1");
+    pasteCells(ctx, "C5");
     expect(getDataVerificationItem(ctx, 4, 2)).toMatchObject({
       type: "dropdown",
     });
@@ -575,5 +565,42 @@ describe("helpers", () => {
       "Data Validation"
     );
     expect(dataToolsLocale({ lang: "zh-CN" }).filter.months[0]).toBe("一月");
+  });
+});
+
+describe("named ranges and structural changes", () => {
+  test("list source from a defined name (=MyList)", () => {
+    const ctx = setupCtx();
+    fill(ctx, { E1: "north", E2: "south" });
+    saveDefinedName(ctx, { name: "MyList", refersTo: "=Sheet1!$E$1:$E$2" });
+    expect(getDropdownList(ctx, "=MyList", 0, 0)).toEqual(["north", "south"]);
+    const item = rule({ type: "dropdown", value1: "=MyList" });
+    expect(validateCellData(ctx, item, "South", 0, 0)).toBe(true);
+    expect(validateCellData(ctx, item, "east", 0, 0)).toBe(false);
+  });
+
+  test("custom formulas keep pointing at their row after a row insert", async () => {
+    const ctx = setupCtx();
+    ctx.visibledatarow = Array.from({ length: 12 }, (_, i) => (i + 1) * 20);
+    ctx.visibledatacolumn = Array.from({ length: 6 }, (_, i) => (i + 1) * 74);
+    ctx.luckysheetCellUpdate = [];
+    fill(ctx, { A1: "5", B1: "10", A2: "20", B2: "10" });
+    setDataVerification(ctx, "A1:A2", { type: "custom", value1: "=A1<B1" });
+    // let the anchor adjuster install (it registers lazily)
+    await Promise.resolve();
+    expect(isCellDataValid(ctx, 0, 0)).toBe(true);
+    expect(isCellDataValid(ctx, 1, 0)).toBe(false);
+    insertRowCol(ctx, {
+      type: "row",
+      index: 0,
+      count: 1,
+      direction: "lefttop",
+      id: "id_1",
+    });
+    const moved = getDataVerificationItem(ctx, 1, 0);
+    expect(moved.value1).toBe("=A2<B2");
+    expect(moved.anchor).toEqual({ r: 1, c: 0 });
+    expect(isCellDataValid(ctx, 1, 0)).toBe(true);
+    expect(isCellDataValid(ctx, 2, 0)).toBe(false);
   });
 });

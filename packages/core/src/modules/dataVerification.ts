@@ -24,6 +24,7 @@ import { dataToolsLocale, formatLocaleText } from "../locale/dataTools";
 import { execfunction } from "./formula";
 import { genarate } from "./format";
 import { shiftFormula } from "./sort";
+import { registerReferenceAdjuster, ReferenceAdjuster } from "./refAdjust";
 
 export { dataToolsLocale, formatLocaleText } from "../locale/dataTools";
 export type { DataToolsLocale } from "../locale/dataTools";
@@ -114,6 +115,41 @@ function getSheetDV(ctx: Context, sheetId?: string) {
   if (index == null) return null;
   return ctx.luckysheetfile[index]?.dataVerification ?? null;
 }
+
+/**
+ * Keep each rule's anchor on its range's top-left cell when rows or columns
+ * are inserted or deleted or cells move (the formulas themselves are
+ * rewritten by refAdjust). Registered lazily to stay clear of module cycles.
+ */
+const adjustAnchors: ReferenceAdjuster = (ctx, change, api) => {
+  if (change.type === "renameSheet" || change.type === "deleteSheet") return;
+  ctx.luckysheetfile.forEach((file) => {
+    const dv = file.dataVerification;
+    if (!dv || file.id == null) return;
+    const seen = new Set<any>();
+    Object.keys(dv).forEach((key) => {
+      const item = dv[key];
+      const a = item?.anchor;
+      if (!a || seen.has(item)) return;
+      seen.add(item);
+      const rect = api.adjustRange(
+        { row: [a.r, a.r], column: [a.c, a.c] },
+        file.id!
+      );
+      if (rect && (rect.row[0] !== a.r || rect.column[0] !== a.c)) {
+        item.anchor = { r: rect.row[0], c: rect.column[0] };
+      }
+    });
+  });
+};
+
+let anchorAdjusterInstalled = false;
+function installAnchorAdjuster() {
+  if (anchorAdjusterInstalled) return;
+  anchorAdjusterInstalled = true;
+  registerReferenceAdjuster("dataVerification.anchor", adjustAnchors);
+}
+Promise.resolve().then(installAnchorAdjuster);
 
 /** The validation rule of a cell, if any. */
 export function getDataVerificationItem(
@@ -800,6 +836,7 @@ export function setDataVerification(
   item: Partial<DataVerificationItem>,
   sheetId?: string
 ) {
+  installAnchorAdjuster();
   const list = toRanges(ctx, ranges);
   if (list.length === 0) return;
   const index = getSheetIndex(ctx, sheetId ?? ctx.currentSheetId);
@@ -824,7 +861,7 @@ export function setDataVerification(
     for (let r = rg.row[0]; r <= rg.row[1]; r += 1) {
       for (let c = rg.column[0]; c <= rg.column[1]; c += 1) {
         dv[`${r}_${c}`] =
-          rule.type === "checkbox" ? { ...rule, checked: false } : rule;
+          rule.type === "checkbox" ? { ...rule, checked: false } : { ...rule };
         if (rule.type === "checkbox" && data) {
           setCellValue(ctx, r, c, data, rule.value2);
         }
