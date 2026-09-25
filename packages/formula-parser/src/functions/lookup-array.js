@@ -375,15 +375,22 @@ function sameTypeIndices(vec, value) {
  */
 function approxIndex(value, vec, type) {
   const idx = sameTypeIndices(vec, value);
+  // Inclusive-bounds bisection, as Excel probes unsorted data: e.g.
+  // MATCH(40,{25,38,40,41},-1) is #N/A in Excel.
   let lo = 0;
-  let hi = idx.length;
-  while (lo < hi) {
+  let hi = idx.length - 1;
+  let best = -1;
+  while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     const c = compareSame(vec[idx[mid]], value);
-    if (type > 0 ? c <= 0 : c >= 0) lo = mid + 1;
-    else hi = mid;
+    if (type > 0 ? c <= 0 : c >= 0) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
   }
-  return lo > 0 ? idx[lo - 1] : -1;
+  return best >= 0 ? idx[best] : -1;
 }
 
 function exactIndex(value, vec, wildcard) {
