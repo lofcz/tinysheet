@@ -16,6 +16,7 @@ import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
+import { readCellImages } from "./FortuneCellImage";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -326,6 +327,8 @@ export function readTables(ctx: SheetImportContext) {
 export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "notes", read: readNotes },
   { name: "tables", read: readTables },
+  // pictures in cells (rich values, see FortuneCellImage.ts)
+  { name: "cell-images", read: (ctx) => readCellImages(ctx) },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 
