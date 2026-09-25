@@ -30,6 +30,7 @@ import {
 import { isRealNull, isRealNum, valueIsError } from "./validation";
 import { getCellTextInfo } from "./text";
 import { setFormulaCellInfo } from "./formulaHelper";
+import { onTableCellEdited } from "./tables";
 
 // TODO put these in context ref
 // let rangestart = false;
@@ -1018,6 +1019,8 @@ export function updateCell(
 
   setFormulaCellInfo(ctx, { r, c, id: ctx.currentSheetId });
   ctx.formulaCache.execFunctionGlobalData = null;
+  // typing next to a table extends it; header edits rename its columns
+  onTableCellEdited(ctx, ctx.currentSheetId, r, c);
 }
 
 export function getOrigincell(ctx: Context, r: number, c: number, i: string) {

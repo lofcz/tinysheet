@@ -41,6 +41,7 @@ import { columnCharToIndex, getSheetIndex, indexToColumnChar } from "../utils";
 import { error as ERRORS, isRealNull, valueIsError } from "./validation";
 import { setCellValue } from "./cell";
 import { getSheetDataCached, peekCell } from "./dependencyGraph";
+import { expandFormulaNames, getNameDependencies } from "./names";
 
 // ---------------------------------------------------------------------------
 // Types and per-workbook state
@@ -1221,7 +1222,9 @@ export function prepareFormulaEvaluation(
     isCell,
     deps: [],
   };
-  return rewriteReferenceArgs(ctx, txt.substring(1), id);
+  // defined names and table references become plain references (names.ts)
+  const expr = expandFormulaNames(ctx, txt.substring(1), id, r, c);
+  return rewriteReferenceArgs(ctx, expr, id);
 }
 
 /**
@@ -1302,6 +1305,17 @@ export function getFormulaDependencies(
       : null);
   const dynamic = key ? state?.dynamicDeps.get(key) : undefined;
   if (dynamic?.length) deps = deps.concat(dynamic);
+  // cells behind defined names / structured references (names.ts)
+  if (f && id) {
+    const named = getNameDependencies(
+      ctx,
+      f,
+      id,
+      formulaObject.r,
+      formulaObject.c
+    );
+    if (named.length) deps = deps.concat(named);
+  }
   return deps;
 }
 

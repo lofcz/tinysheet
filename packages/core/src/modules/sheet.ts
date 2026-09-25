@@ -7,6 +7,7 @@ import { Settings } from "../settings";
 import { CellMatrix, Sheet } from "../types";
 import { generateRandomSheetName, getSheetIndex } from "../utils";
 import { setFormulaCellInfo } from "./formulaHelper";
+import { moveWorkbookNamesBeforeSheetDelete } from "./names";
 
 function storeSheetParam(ctx: Context) {
   const index = getSheetIndex(ctx, ctx.currentSheetId);
@@ -160,6 +161,7 @@ export function deleteSheet(ctx: Context, id: string) {
   }
 
   // _this.setSheetHide(index, true);
+  moveWorkbookNamesBeforeSheetDelete(ctx, id);
 
   // $(`#luckysheet-sheets-item${index}`).remove();
   // $(`#luckysheet-datavisual-selection-set-${index}`).remove();

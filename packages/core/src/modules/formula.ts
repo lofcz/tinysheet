@@ -367,7 +367,14 @@ export class FormulaCache {
       const patch = changesHistory[i];
       const { path } = patch;
       if (path[0] === "luckysheetfile") {
-        if (path.length <= 2 || path[2] === "name" || path[2] === "id") {
+        if (
+          path.length <= 2 ||
+          path[2] === "name" ||
+          path[2] === "id" ||
+          // defined names / tables changed: references resolve differently
+          path[2] === "definedNames" ||
+          path[2] === "tables"
+        ) {
           // a sheet was added, removed, replaced or renamed: rebuild lazily
           this.formulaCellInfoMap = null;
           return;
