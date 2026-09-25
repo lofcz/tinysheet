@@ -52,8 +52,15 @@ import Menu from "./Menu";
 import MenuIcon from "./icons";
 import CustomSort from "../CustomSort";
 import DataVerification from "../DataVerification";
-import { getContextMenuAction, ContextMenuActionKey } from "./actions";
+import {
+  getContextMenuAction,
+  ContextMenuActionKey,
+  ContextMenuItem,
+  getContextMenuItem,
+  getContextMenuItemNames,
+} from "./actions";
 import { registerDefaultContextMenuActions } from "./defaultActions";
+import { registerCellImageFeature } from "../CellImages";
 import {
   InsertDeleteDialog,
   SizeDialog,
@@ -62,6 +69,8 @@ import {
 import PickList, { PickListState } from "./PickList";
 
 registerDefaultContextMenuActions();
+// pictures in cells: menu items, toolbar item, overlay and drawing
+registerCellImageFeature();
 
 type MenuEntry =
   | {
@@ -218,10 +227,24 @@ const ContextMenu: React.FC = () => {
       action?.({
         ...workbookCtx,
         showDialog: (content) => showDialog(content),
+        showModal,
         hideDialog,
       });
     },
-    [close, hideDialog, showDialog, workbookCtx]
+    [close, hideDialog, showDialog, showModal, workbookCtx]
+  );
+
+  const runItem = useCallback(
+    (custom: ContextMenuItem) => {
+      close();
+      custom.onSelect({
+        ...workbookCtx,
+        showDialog: (content) => showDialog(content),
+        showModal,
+        hideDialog,
+      });
+    },
+    [close, hideDialog, showDialog, showModal, workbookCtx]
   );
 
   const insertOrDeleteRowCol = useCallback(
@@ -794,14 +817,25 @@ const ContextMenu: React.FC = () => {
       case "insert-row":
       case "insert-column":
         return legacyInsertRowCol(name === "insert-row" ? "row" : "column");
-      default:
-        return [];
+      default: {
+        // entries registered by features (actions.ts)
+        const custom = getContextMenuItem(name);
+        if (!custom || custom.visible?.(context) === false) return [];
+        return item({
+          key: name,
+          label: custom.label(context),
+          icon: custom.icon,
+          disabled: !editable || !!custom.disabled?.(context),
+          onSelect: () => runItem(custom),
+        });
+      }
     }
   };
 
-  const names = headerType
+  let names = headerType
     ? settings.headerContextMenu
     : settings.cellContextMenu;
+  if (contextMenu.imageMenu) names = getContextMenuItemNames("image");
   const entries = open
     ? tidyDividers(_.flatMap(names, (name, i) => buildEntry(name, i)))
     : [];

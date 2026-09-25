@@ -30,6 +30,8 @@ export type ContextMenuActionHelpers = {
   refs: RefValues;
   showDialog: (content: React.ReactNode) => void;
   hideDialog: () => void;
+  /** Show a component that renders its own dialog. */
+  showModal: (content: React.ReactNode) => void;
 };
 
 export type ContextMenuAction = (helpers: ContextMenuActionHelpers) => void;
@@ -56,4 +58,48 @@ export function registerContextMenuAction(
 export function getContextMenuAction(key: ContextMenuActionKey) {
   const list = registry[key];
   return list?.[list.length - 1];
+}
+
+/**
+ * Entries a feature adds to a context menu. A "cell" item (the default)
+ * shows where its name is listed in `settings.cellContextMenu`; an "image"
+ * item shows in the menu of a floating picture (in registration order).
+ *
+ *   registerContextMenuItem("picture-alt-text", {
+ *     label: (ctx) => locale(ctx).cellImage.altText,
+ *     visible: (ctx) => ...,
+ *     onSelect: ({ showDialog }) => showDialog(<AltText />),
+ *   });
+ */
+export type ContextMenuItem = {
+  label: (context: Context) => string;
+  /** A context-menu icon name (see ./icons.tsx). */
+  icon?: string;
+  menu?: "cell" | "image";
+  /** Hidden when this returns false. */
+  visible?: (context: Context) => boolean;
+  /** Greyed out when this returns true (and when the sheet is read-only). */
+  disabled?: (context: Context) => boolean;
+  onSelect: ContextMenuAction;
+};
+
+const items = new Map<string, ContextMenuItem>();
+
+/** Add a menu entry named `name`. Returns a function that removes it. */
+export function registerContextMenuItem(name: string, item: ContextMenuItem) {
+  items.set(name, item);
+  return () => {
+    if (items.get(name) === item) items.delete(name);
+  };
+}
+
+export function getContextMenuItem(name: string) {
+  return items.get(name);
+}
+
+/** Names of the items registered for `menu`, in registration order. */
+export function getContextMenuItemNames(menu: "cell" | "image") {
+  return [...items.entries()]
+    .filter(([, item]) => (item.menu ?? "cell") === menu)
+    .map(([name]) => name);
 }

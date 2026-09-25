@@ -109,6 +109,8 @@ export type Context = {
     headerMenu?: boolean;
     pageX?: number;
     pageY?: number;
+    /** the menu of a floating picture (items registered for "image") */
+    imageMenu?: boolean;
   };
   sheetTabContextMenu: {
     x?: number;
