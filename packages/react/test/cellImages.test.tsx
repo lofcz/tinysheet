@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import React from "react";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
+import { showRibbonItem } from "./ribbonHelpers";
 
 const URL = "https://example.com/logo.png";
 
@@ -114,6 +115,7 @@ describe("pictures in cells", () => {
 
   it("the toolbar item opens the insert dialog", async () => {
     const { container, getByText } = renderBook();
+    showRibbonItem(container, "picture-in-cell");
     const button = container.querySelector(
       '.fortune-toolbar-item[aria-label="Picture in Cell"]'
     ) as HTMLElement;

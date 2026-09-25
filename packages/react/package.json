@@ -47,6 +47,7 @@
     "@types/regenerator-runtime": "^0.13.6",
     "immer": "^9.0.12",
     "lodash": "^4.17.21",
+    "lucide-react": "^1.48.0",
     "regenerator-runtime": "^0.14.1"
   },
   "peerDependencies": {

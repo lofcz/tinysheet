@@ -248,7 +248,7 @@ describe("drawing", () => {
       { x: 0, y: 0, w: 74, h: 20 },
       1
     );
-    expect(calls).toContainEqual(["set:fillStyle", "#1e1f22"]);
+    expect(calls).toContainEqual(["set:fillStyle", "#1c1c1f"]);
     expect(calls).toContainEqual(["set:strokeStyle", "#e3e3e3"]);
   });
 });

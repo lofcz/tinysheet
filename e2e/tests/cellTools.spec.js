@@ -1,25 +1,7 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, toolbarButton } = require("../fixtures");
 
 // Cell checkboxes, Flash Fill, Goal Seek, Data Tables and Advanced Filter
 // (stream R7).
-
-/** A toolbar button, opening the "More" overflow menu when it is there. */
-async function toolbarButton(page, name) {
-  const inBar = page.locator(
-    `.fortune-toolbar [role=button][aria-label="${name}"]`
-  );
-  if (
-    !(await inBar
-      .first()
-      .isVisible()
-      .catch(() => false))
-  ) {
-    await page
-      .locator('.fortune-toolbar [role=button][aria-label="More"]')
-      .click();
-  }
-  return page.locator(`[role=button][aria-label="${name}"]`).first();
-}
 
 async function openDataTools(page) {
   await (await toolbarButton(page, "Data tools")).click();

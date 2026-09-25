@@ -91,6 +91,8 @@ export { locale };
 export { excelIoLocale } from "./excelIo";
 export type { ExcelIoLocale } from "./excelIo";
 export { cellToolsLocale } from "./cellTools";
+export { ribbonLocale } from "./ribbon";
+export type { RibbonLocale } from "./ribbon";
 export type { CellToolsLocale } from "./cellTools";
 export { FUNCTION_CATEGORIES } from "./functions/types";
 export type { ChartLocale } from "./chart";

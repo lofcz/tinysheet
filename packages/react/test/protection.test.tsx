@@ -7,6 +7,7 @@ import {
 import React from "react";
 import { protectionLocale } from "@lofcz/tinysheet-core";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
+import { showRibbonItem } from "./ribbonHelpers";
 
 const t = protectionLocale({ lang: "en" });
 
@@ -32,6 +33,7 @@ const sheet = (extra: Record<string, any> = {}) => ({
 });
 
 function openMenu(container: HTMLElement, testId: string) {
+  showRibbonItem(container, testId.replace(/^toolbar-/, ""));
   const item = container.querySelector(`[data-testid="${testId}"]`)!;
   fireEvent.click(item.querySelector(".fortune-toolbar-combo-arrow")!);
 }

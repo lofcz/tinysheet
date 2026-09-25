@@ -22,6 +22,8 @@ export default defineConfig({
       "@lofcz/tinysheet-core$": pkg("core"),
       "@lofcz/tinysheet-react$": pkg("react"),
       "@lofcz/tinysheet-excel$": pkg("excel"),
+      // File > Open / Save As (typed in src/excel.d.ts)
+      "demo-excel$": pkg("excel"),
       "@lofcz/tinysheet-formula-parser$": pkg("formula-parser", "src/index.js"),
       uuid$: fromCore.resolve("uuid"),
       react: real("react"),

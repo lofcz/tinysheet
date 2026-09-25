@@ -695,8 +695,29 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
       });
     }
     window.addEventListener("resize", resize);
+    // the grid pane also changes size without a window resize: the ribbon
+    // collapses, a side pane opens or is dragged wider
+    const placeholder = placeholderRef.current;
+    let observer: ResizeObserver | undefined;
+    let frame = 0;
+    if (placeholder && typeof ResizeObserver !== "undefined") {
+      let last = { w: placeholder.clientWidth, h: placeholder.clientHeight };
+      observer = new ResizeObserver(() => {
+        const next = {
+          w: placeholder.clientWidth,
+          h: placeholder.clientHeight,
+        };
+        if (next.w === last.w && next.h === last.h) return;
+        last = next;
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(resize);
+      });
+      observer.observe(placeholder);
+    }
     return () => {
       window.removeEventListener("resize", resize);
+      observer?.disconnect();
+      cancelAnimationFrame(frame);
     };
   }, [data, refs.canvas, setContext, settings.devicePixelRatio]);
 

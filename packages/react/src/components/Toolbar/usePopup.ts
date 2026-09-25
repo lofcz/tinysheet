@@ -39,7 +39,29 @@ type Options = {
    * drop-down first.
    */
   exclusive?: boolean;
+  /**
+   * false when the caller positions the popup itself (e.g. a portaled,
+   * fixed-position popover, see ui/Popover.tsx).
+   */
+  position?: boolean;
 };
+
+/** Whether `node` is inside the drop-down: its trigger(s) or its popup. */
+function isInside(
+  node: Node | null,
+  containerRef: React.RefObject<HTMLElement | null>,
+  popupRef: React.RefObject<HTMLElement | null>
+) {
+  if (!node) return false;
+  return !!(
+    containerRef.current?.contains(node) || popupRef.current?.contains(node)
+  );
+}
+
+/** Close the toolbar drop-down that is open, if any (e.g. on tab switch). */
+export function closeOpenToolbarPopup() {
+  closeOpenPopup?.();
+}
 
 /**
  * Toolbar drop-down behaviour, as in Excel's ribbon and Google Sheets'
@@ -60,6 +82,7 @@ export function useToolbarPopup(
     triggerRef,
     restoreFocus,
     exclusive = true,
+    position = true,
   }: Options
 ) {
   const setOpenRef = useRef(setOpen);
@@ -73,7 +96,7 @@ export function useToolbarPopup(
   // left when it would overflow the right edge (never past the left edge).
   useLayoutEffect(() => {
     const popup = popupRef.current;
-    if (!open || !exclusive || !popup) return;
+    if (!open || !exclusive || !position || !popup) return;
     popup.style.left = "";
     const rect = popup.getBoundingClientRect();
     const winW = document.documentElement.clientWidth || window.innerWidth;
@@ -83,7 +106,7 @@ export function useToolbarPopup(
       const base = parseFloat(getComputedStyle(popup).left) || 0;
       popup.style.left = `${base - shift}px`;
     }
-  }, [open, exclusive, popupRef]);
+  }, [open, exclusive, position, popupRef]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -117,18 +140,20 @@ export function useToolbarPopup(
     }
 
     const onMouseDown = (e: MouseEvent) => {
-      const container = containerRef.current;
-      if (container && !container.contains(e.target as Node)) close();
+      if (!containerRef.current) return;
+      if (!isInside(e.target as Node, containerRef, popupRef)) close();
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       // an inner drop-down (open after this panel) closes first
       if (!exclusive && closeOpenPopup) return;
-      // a dialog opened from the menu takes Escape itself
       const target = e.target as Element | null;
+      // an open submenu closes first (ui/Menu.tsx)
+      if (target?.closest?.(".ts-submenu")) return;
+      // a dialog opened from the menu takes Escape itself
       if (
         target?.closest?.('[role="dialog"], .fortune-modal-container') &&
-        !containerRef.current?.contains(target)
+        !isInside(target, containerRef, popupRef)
       ) {
         return;
       }
@@ -140,8 +165,8 @@ export function useToolbarPopup(
     const onResize = () => close();
     // the keyboard left it: Tab past its end, or a dialog opened from it
     const onFocusIn = (e: FocusEvent) => {
-      const container = containerRef.current;
-      if (container && !container.contains(e.target as Node)) close();
+      if (!containerRef.current) return;
+      if (!isInside(e.target as Node, containerRef, popupRef)) close();
     };
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("mousedown", onMouseDown, true);

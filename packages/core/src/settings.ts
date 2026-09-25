@@ -246,6 +246,60 @@ export type Settings = {
   calculation?: CalcSettings;
   /** Background error checking rules (green triangles). */
   errorChecking?: ErrorCheckingOptions;
+  /**
+   * A custom ribbon: tabs → groups → items (toolbar item names or ribbon
+   * command ids). `null` shows the default Excel-like ribbon, filtered by
+   * `toolbarItems` when that list is not the default. See the react
+   * package's components/Ribbon.
+   */
+  ribbon?: RibbonTabConfig[] | null;
+  /**
+   * Chrome around the grid: "suite" (default) lays the ribbon, grid and
+   * status bar out as padded panes on the surface colour, like the other
+   * apps of the suite; "compact" drops the outer padding for embedding.
+   */
+  chrome?: "suite" | "compact";
+  /** File > New; the menu item shows when set. */
+  onNewWorkbook?: (() => void) | null;
+  /** File > Open (.xlsx, .csv); the menu item shows when set. */
+  onOpenFile?: ((file: File) => void) | null;
+  /** File > Save As; the menu item shows when set. */
+  onSaveAs?: ((format: "xlsx" | "csv") => void) | null;
+};
+
+/** One ribbon item: a toolbar item name / ribbon command id, and its size. */
+export type RibbonItemConfig =
+  | string
+  | {
+      id: string;
+      /** large: icon over label (Paste, PivotTable); small: 32px button. */
+      size?: "large" | "small";
+    };
+
+/** A ribbon group entry: one item, or small items stacked in rows. */
+export type RibbonEntryConfig =
+  | RibbonItemConfig
+  | { rows: RibbonItemConfig[][] };
+
+export type RibbonGroupConfig = {
+  id: string;
+  /** Shown under the group; built-in group ids have translated labels. */
+  label?: string;
+  /** Icon name of the collapsed group button (see react ui/icons). */
+  icon?: string;
+  items: RibbonEntryConfig[];
+  /**
+   * Scaling order when the window narrows: lower collapses first. Groups
+   * without one collapse right to left.
+   */
+  priority?: number;
+};
+
+export type RibbonTabConfig = {
+  id: string;
+  /** Built-in tab ids have translated labels. */
+  label?: string;
+  groups: RibbonGroupConfig[];
 };
 
 export const defaultSettings: Required<Settings> = {
@@ -449,4 +503,9 @@ export const defaultSettings: Required<Settings> = {
   showPageBreaksAfterPrint: true,
   calculation: {},
   errorChecking: {},
+  ribbon: null,
+  chrome: "suite",
+  onNewWorkbook: null,
+  onOpenFile: null,
+  onSaveAs: null,
 };

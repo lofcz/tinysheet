@@ -1,14 +1,10 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, ribbonItem } = require("../fixtures");
 
 // Outline and subtotals (stream R3): Data › Subtotal, the outline gutter,
 // Group / Ungroup with Shift+Alt+Right / Left.
 
 async function openOutlineMenu(page) {
-  const item = page.locator('[data-tips="Group & Outline"]').first();
-  if (!(await item.isVisible())) {
-    await page.locator('[data-tips="More"]').first().click();
-  }
-  await item.click();
+  await (await ribbonItem(page, '[data-tips="Group & Outline"]')).click();
 }
 
 function config(page) {

@@ -55,7 +55,8 @@ import {
   WorkbookProvider,
   WorkbookStore,
 } from "../../context/store";
-import Toolbar from "../Toolbar";
+import { Ribbon } from "../Ribbon";
+import { SidePaneProvider, SidePaneSlot } from "../SidePane";
 import FxEditor from "../FxEditor";
 import SheetTab from "../SheetTab";
 import ContextMenu from "../ContextMenu";
@@ -75,7 +76,7 @@ enablePatches();
 // Prop-less children as constant elements: React skips them when the
 // Workbook re-renders, and the TrackedScope around each re-renders them only
 // for the context fields they read.
-const TOOLBAR = <Toolbar />;
+const RIBBON = <Ribbon />;
 const FX_EDITOR = <FxEditor />;
 const SHEET_TAB = <SheetTab />;
 const SHEET_LIST = <SheetList />;
@@ -833,75 +834,97 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     return (
       <WorkbookProvider store={store} value={providerValue}>
         <ModalProvider>
-          <div
-            className="fortune-container"
-            data-theme={resolvedTheme}
-            ref={workbookContainer}
-            onKeyDown={onKeyDown}
-          >
-            <section
-              aria-labelledby="shortcuts-heading"
-              id="shortcut-list"
-              className="sr-only"
-              tabIndex={0}
-              aria-live="polite"
+          <SidePaneProvider>
+            <div
+              className="fortune-container"
+              data-theme={resolvedTheme}
+              data-chrome={
+                mergedSettings.chrome === "compact" ? "compact" : "suite"
+              }
+              ref={workbookContainer}
+              onKeyDown={onKeyDown}
             >
-              <h2 id="shortcuts-heading">{info.shortcuts}</h2>
-              <ul>
-                <li>{info.toggleSheetFocusShortcut}</li>
-                <li>{info.selectRangeShortcut}</li>
-                <li>{info.autoFillDownShortcut}</li>
-                <li>{info.autoFillRightShortcut}</li>
-                <li>{info.boldTextShortcut}</li>
-                <li>{info.copyShortcut}</li>
-                <li>{info.pasteShortcut}</li>
-                <li>{info.undoShortcut}</li>
-                <li>{info.redoShortcut}</li>
-                <li>{info.deleteCellContentShortcut}</li>
-                <li>{info.confirmCellEditShortcut}</li>
-                <li>{info.moveRightShortcut}</li>
-                <li>{info.moveLeftShortcut}</li>
-              </ul>
-            </section>
-            {svgDefines}
-            <div className="fortune-workarea">
+              <section
+                aria-labelledby="shortcuts-heading"
+                id="shortcut-list"
+                className="sr-only"
+                tabIndex={0}
+                aria-live="polite"
+              >
+                <h2 id="shortcuts-heading">{info.shortcuts}</h2>
+                <ul>
+                  <li>{info.toggleSheetFocusShortcut}</li>
+                  <li>{info.selectRangeShortcut}</li>
+                  <li>{info.autoFillDownShortcut}</li>
+                  <li>{info.autoFillRightShortcut}</li>
+                  <li>{info.boldTextShortcut}</li>
+                  <li>{info.copyShortcut}</li>
+                  <li>{info.pasteShortcut}</li>
+                  <li>{info.undoShortcut}</li>
+                  <li>{info.redoShortcut}</li>
+                  <li>{info.deleteCellContentShortcut}</li>
+                  <li>{info.confirmCellEditShortcut}</li>
+                  <li>{info.moveRightShortcut}</li>
+                  <li>{info.moveLeftShortcut}</li>
+                </ul>
+              </section>
+              {svgDefines}
+              {/*
+              The suite shell (docs/DESIGN.md): ribbon pane, grid pane
+              (formula bar + grid) with the side pane dock right of it, and
+              the bottom pane (sheet tabs, status bar, zoom).
+            */}
               {mergedSettings.showToolbar && (
-                <TrackedScope>{TOOLBAR}</TrackedScope>
+                <div className="fortune-pane fortune-ribbon-pane">
+                  <TrackedScope>{RIBBON}</TrackedScope>
+                </div>
               )}
-              {mergedSettings.showFormulaBar && (
-                <TrackedScope>{FX_EDITOR}</TrackedScope>
+              <div className="fortune-body">
+                <div className="fortune-pane fortune-grid-pane">
+                  {mergedSettings.showFormulaBar && (
+                    <TrackedScope>{FX_EDITOR}</TrackedScope>
+                  )}
+                  <Sheet sheet={sheet} />
+                </div>
+                <SidePaneSlot />
+              </div>
+              {(mergedSettings.showSheetTabs ||
+                mergedSettings.showStatsBar) && (
+                <div className="fortune-pane fortune-bottom-pane">
+                  {mergedSettings.showSheetTabs && (
+                    <TrackedScope>{SHEET_TAB}</TrackedScope>
+                  )}
+                  {mergedSettings.showStatsBar && (
+                    <TrackedScope>{STATUS_BAR}</TrackedScope>
+                  )}
+                </div>
+              )}
+              <TrackedScope>{CONTEXT_MENU}</TrackedScope>
+              <TrackedScope>{FILTER_MENU}</TrackedScope>
+              <TrackedScope>{DATA_TOOLS_LAYER}</TrackedScope>
+              <TrackedScope>{SHEET_TAB_CONTEXT_MENU}</TrackedScope>
+              {context.formatCellsDialog && (
+                <TrackedScope>{FORMAT_CELLS}</TrackedScope>
+              )}
+              {context.showSheetList && (
+                <TrackedScope>{SHEET_LIST}</TrackedScope>
+              )}
+              {!_.isEmpty(context.contextMenu) && (
+                <div
+                  onMouseDown={closePopovers}
+                  // scrolling the page under an open menu closes it
+                  onWheel={closePopovers}
+                  onMouseMove={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  className="fortune-popover-backdrop"
+                />
               )}
             </div>
-            <Sheet sheet={sheet} />
-            {mergedSettings.showSheetTabs && (
-              <TrackedScope>{SHEET_TAB}</TrackedScope>
-            )}
-            <TrackedScope>{CONTEXT_MENU}</TrackedScope>
-            <TrackedScope>{FILTER_MENU}</TrackedScope>
-            <TrackedScope>{DATA_TOOLS_LAYER}</TrackedScope>
-            <TrackedScope>{SHEET_TAB_CONTEXT_MENU}</TrackedScope>
-            {context.formatCellsDialog && (
-              <TrackedScope>{FORMAT_CELLS}</TrackedScope>
-            )}
-            {context.showSheetList && <TrackedScope>{SHEET_LIST}</TrackedScope>}
-            {!_.isEmpty(context.contextMenu) && (
-              <div
-                onMouseDown={closePopovers}
-                // scrolling the page under an open menu closes it
-                onWheel={closePopovers}
-                onMouseMove={(e) => e.stopPropagation()}
-                onMouseUp={(e) => e.stopPropagation()}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                className="fortune-popover-backdrop"
-              />
-            )}
-            {mergedSettings.showStatsBar && (
-              <TrackedScope>{STATUS_BAR}</TrackedScope>
-            )}
-          </div>
+          </SidePaneProvider>
         </ModalProvider>
       </WorkbookProvider>
     );

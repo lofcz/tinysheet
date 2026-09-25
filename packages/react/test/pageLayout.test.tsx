@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import React from "react";
 import { Workbook, WorkbookInstance, registerPageLayoutFeature } from "../src";
+import { showRibbonItem } from "./ribbonHelpers";
 
 registerPageLayoutFeature();
 
@@ -28,6 +29,7 @@ const setup = (ref: React.RefObject<WorkbookInstance>) =>
   ref.current!.getSheet().pageSetup ?? {};
 
 function menu(container: HTMLElement, action: string) {
+  showRibbonItem(container, "pageLayout");
   fireEvent.click(
     container.querySelector('.fortune-page-layout-menu [role="button"]')!
   );
@@ -118,6 +120,7 @@ describe("page setup dialog", () => {
 describe("print preview", () => {
   it("opens from the Print button and pages through the sheet", async () => {
     const { getByRole, container } = renderBook();
+    showRibbonItem(container, "print");
     fireEvent.click(getByRole("button", { name: "Print (Ctrl+P)" }));
     await waitFor(() =>
       expect(
@@ -147,7 +150,8 @@ describe("print preview", () => {
     const original = window.print;
     window.print = print;
     try {
-      const { getByRole } = renderBook();
+      const { getByRole, container } = renderBook();
+      showRibbonItem(container, "print");
       fireEvent.click(getByRole("button", { name: "Print (Ctrl+P)" }));
       const button = await waitFor(() =>
         getByRole("button", { name: "Print" })

@@ -1,4 +1,4 @@
-const { test, expect, toolbarButton } = require("../fixtures");
+const { test, expect, toolbarButton, ribbonItem } = require("../fixtures");
 
 // Tables and slicers (stream R14): header filter buttons, the total-row
 // dropdown, calculated columns and slicers.
@@ -7,9 +7,12 @@ async function makeTable(sheet, page) {
   await sheet.fillColumn(0, 0, ["Region", "East", "West", "East", "North"]);
   await sheet.fillColumn(0, 1, ["Qty", "2", "1", "4", "3"]);
   await sheet.select(0, 0, 4, 1);
-  await page
-    .locator('.fortune-toolbar-combo-arrow[data-tips="Format as Table"]')
-    .click();
+  await (
+    await ribbonItem(
+      page,
+      '.fortune-toolbar-combo-arrow[data-tips="Format as Table"]'
+    )
+  ).click();
   await page.getByRole("button", { name: "Blue", exact: true }).click();
   await page.getByRole("button", { name: "OK" }).click();
   await expect
@@ -56,9 +59,12 @@ test.describe("tables", () => {
   test("total row function dropdown", async ({ sheet, page }) => {
     await makeTable(sheet, page);
     await sheet.click(1, 0);
-    await page
-      .locator('.fortune-toolbar-combo-arrow[data-tips="Format as Table"]')
-      .click();
+    await (
+      await ribbonItem(
+        page,
+        '.fortune-toolbar-combo-arrow[data-tips="Format as Table"]'
+      )
+    ).click();
     await page.getByText("Table Design…", { exact: true }).click();
     await page.getByLabel("Total row").check();
     await page

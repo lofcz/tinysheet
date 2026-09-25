@@ -1,0 +1,1025 @@
+/*
+ * UI primitives (components/ui). Everything here reads the `--ts-*` tokens
+ * declared in Workbook/index.css; nothing hard-codes a colour.
+ */
+
+.ts-icon {
+  flex-shrink: 0;
+  display: block;
+}
+
+/* ---------- Buttons ---------- */
+
+.ts-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--ts-control);
+  padding: 0 14px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  font: inherit;
+  font-size: var(--ts-font-size);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--ts-fast),
+    border-color var(--ts-fast),
+    color var(--ts-fast);
+}
+
+.ts-btn--sm {
+  height: 26px;
+  padding: 0 10px;
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-btn--primary {
+  color: var(--ts-on-ink);
+  background: var(--ts-ink);
+  border-color: var(--ts-ink);
+}
+
+.ts-btn--primary:hover:not(:disabled) {
+  background: var(--ts-ink-hover);
+  border-color: var(--ts-ink-hover);
+}
+
+.ts-btn--secondary {
+  color: var(--ts-text);
+  background: var(--ts-surface);
+}
+
+.ts-btn--secondary:hover:not(:disabled) {
+  color: var(--ts-text-strong);
+  background: var(--ts-hover);
+}
+
+.ts-btn--ghost {
+  color: var(--ts-text);
+  background: transparent;
+}
+
+.ts-btn--ghost:hover:not(:disabled) {
+  color: var(--ts-text-strong);
+  background: var(--ts-hover);
+}
+
+.ts-btn--danger {
+  color: #ffffff;
+  background: var(--ts-danger);
+}
+
+.ts-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* 32px icon button; toggled = ink pill (Fika tool cluster buttons) */
+.ts-icon-btn,
+.ts-split,
+.ts-large {
+  --ts-btn-fg: var(--ts-text);
+  --ts-btn-hover: var(--ts-active);
+}
+
+.ts-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: var(--ts-control);
+  height: var(--ts-control);
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--ts-radius);
+  background: transparent;
+  color: var(--ts-btn-fg);
+  font: inherit;
+  font-size: var(--ts-font-size-sm);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--ts-fast),
+    color var(--ts-fast);
+}
+
+.ts-icon-btn:not(.ts-icon-btn--text) {
+  width: var(--ts-control);
+  padding: 0;
+}
+
+.ts-icon-btn--sm {
+  min-width: 26px;
+  height: 26px;
+}
+
+.ts-icon-btn--sm:not(.ts-icon-btn--text) {
+  width: 26px;
+}
+
+.ts-icon-btn:hover:not(:disabled, .ts-pressed, .ts-open) {
+  background: var(--ts-btn-hover);
+  color: var(--ts-text-strong);
+}
+
+.ts-icon-btn.ts-pressed,
+.ts-icon-btn.ts-open {
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+}
+
+.ts-icon-btn.ts-pressed:hover {
+  background: var(--ts-ink-hover);
+}
+
+.ts-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ts-icon-btn-text {
+  font-size: var(--ts-font-size-sm);
+  line-height: 1;
+}
+
+.ts-menu-btn-chevron {
+  margin-left: -2px;
+  opacity: 0.7;
+}
+
+.ts-menu-btn:not(.ts-icon-btn--text) {
+  width: auto;
+  padding: 0 4px 0 8px;
+}
+
+/* split: main + arrow share one 8px-radius hover chip */
+.ts-split {
+  display: inline-flex;
+  align-items: stretch;
+  height: var(--ts-control);
+  border-radius: var(--ts-radius);
+  color: var(--ts-btn-fg);
+  transition: background-color var(--ts-fast);
+}
+
+.ts-split > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--ts-font-size-sm);
+  cursor: pointer;
+  border-radius: var(--ts-radius);
+  transition: background-color var(--ts-fast);
+}
+
+.ts-split-main {
+  min-width: 28px;
+  padding: 0 4px 0 6px !important;
+}
+
+.ts-split-arrow {
+  width: 16px;
+}
+
+.ts-split:hover:not(.ts-pressed, .ts-open) {
+  background: var(--ts-btn-hover);
+  color: var(--ts-text-strong);
+}
+
+.ts-split:hover:not(.ts-pressed, .ts-open) > button:hover {
+  background: var(--ts-hover);
+}
+
+.ts-split.ts-pressed,
+.ts-split.ts-open {
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+}
+
+.ts-split.ts-pressed > button:hover,
+.ts-split.ts-open > button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ts-split > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* large ribbon button: 20px icon over the label */
+.ts-large {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 52px;
+  max-width: 84px;
+  height: 100%;
+  border-radius: var(--ts-radius);
+  color: var(--ts-btn-fg);
+  transition: background-color var(--ts-fast);
+}
+
+.ts-large > button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 0;
+  padding: 0 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--ts-radius);
+  transition: background-color var(--ts-fast);
+}
+
+.ts-large-whole {
+  flex: 1;
+  justify-content: flex-start;
+  padding-top: 9px !important;
+  gap: 6px;
+}
+
+.ts-large--split .ts-large-main {
+  flex: 0 0 34px;
+  justify-content: center;
+  padding-top: 4px !important;
+}
+
+.ts-large--split .ts-large-arrow {
+  flex: 1;
+  justify-content: flex-start;
+  gap: 1px;
+  padding-top: 2px;
+}
+
+.ts-large-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: var(--ts-font-size-xs);
+  line-height: 13px;
+  text-align: center;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  max-width: 76px;
+}
+
+.ts-large-label > svg {
+  margin-top: 1px;
+  opacity: 0.7;
+}
+
+.ts-large:hover:not(.ts-pressed, .ts-open) {
+  background: var(--ts-btn-hover);
+  color: var(--ts-text-strong);
+}
+
+.ts-large--split:hover:not(.ts-pressed, .ts-open) > button:hover {
+  background: var(--ts-hover);
+}
+
+.ts-large.ts-pressed,
+.ts-large.ts-open {
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+}
+
+.ts-large > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* keyboard focus */
+.ts-btn:focus-visible,
+.ts-icon-btn:focus-visible,
+.ts-split > button:focus-visible,
+.ts-large > button:focus-visible,
+.ts-select:focus-visible,
+.ts-tab:focus-visible,
+.ts-switch-track:focus-visible,
+.ts-dialog-close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+/* ---------- Tooltip ---------- */
+
+.ts-tooltip-anchor {
+  display: inline-flex;
+  position: relative;
+}
+
+.ts-tooltip {
+  position: fixed;
+  z-index: 3000;
+  max-width: 280px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+  font-family: var(--ts-font);
+  font-size: var(--ts-font-size-sm);
+  line-height: 16px;
+  box-shadow: var(--ts-shadow);
+  pointer-events: none;
+  animation: ts-fade-in 120ms ease;
+}
+
+.ts-tooltip-title {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ts-tooltip-shortcut {
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+.ts-tooltip-description {
+  margin-top: 2px;
+  opacity: 0.75;
+  white-space: normal;
+}
+
+@keyframes ts-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- Popover & menus ---------- */
+
+.ts-popover {
+  position: fixed;
+  z-index: 1010;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--ts-pane);
+  color: var(--ts-text);
+  border: 1px solid var(--ts-border);
+  box-shadow: var(--ts-shadow);
+  font-family: var(--ts-font);
+  font-size: var(--ts-font-size);
+  text-align: left;
+  user-select: none;
+  outline: none;
+  animation: ts-pop-in 160ms var(--ts-ease);
+}
+
+@keyframes ts-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+.ts-popover--panel {
+  padding: 10px;
+  border-radius: var(--ts-radius-pane);
+}
+
+.ts-popover--menu {
+  padding: 4px;
+  border-radius: var(--ts-radius);
+}
+
+.ts-popover--bare {
+  padding: 0;
+  border-radius: var(--ts-radius-pane);
+}
+
+.ts-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  outline: none;
+}
+
+.ts-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--ts-radius);
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+}
+
+.ts-menu-item:hover,
+.ts-menu-item:focus,
+.ts-menu-item.ts-menu-item--open {
+  background: var(--ts-hover);
+  color: var(--ts-text-strong);
+}
+
+.ts-menu-item[aria-disabled="true"] {
+  color: var(--ts-disabled);
+  cursor: default;
+  background: transparent;
+}
+
+.ts-menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex: 0 0 16px;
+  color: var(--ts-muted);
+}
+
+.ts-menu-item:hover .ts-menu-icon,
+.ts-menu-item:focus .ts-menu-icon {
+  color: var(--ts-text-strong);
+}
+
+.ts-menu-item[aria-checked="true"] .ts-menu-icon {
+  color: var(--ts-text-strong);
+}
+
+.ts-menu-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ts-menu-hint,
+.ts-menu-shortcut {
+  flex: 0 0 auto;
+  margin-left: 16px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-menu-chevron {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  margin-right: -4px;
+  color: var(--ts-muted);
+}
+
+.ts-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--ts-border);
+}
+
+.ts-menu-header {
+  padding: 8px 8px 4px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ts-menu-custom {
+  padding: 4px;
+}
+
+.ts-submenu {
+  z-index: 1011;
+  cursor: default;
+}
+
+/* ---------- Tabs (Fika segmented pill) ---------- */
+
+.ts-tabs {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 34px;
+  padding: 3px;
+  box-sizing: border-box;
+  background: var(--ts-surface);
+  border-radius: var(--ts-radius-cluster);
+  user-select: none;
+}
+
+.ts-tabs--sm {
+  height: 30px;
+}
+
+.ts-tabs--fill {
+  display: flex;
+  width: 100%;
+}
+
+.ts-tabs--fill .ts-tab {
+  flex: 1 1 0;
+}
+
+.ts-tabs-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: var(--ts-radius);
+  background: var(--ts-ink);
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform;
+}
+
+.ts-tabs-pill[data-ready] {
+  transition:
+    transform var(--ts-motion) var(--ts-ease),
+    width var(--ts-motion) var(--ts-ease),
+    height var(--ts-motion) var(--ts-ease);
+}
+
+.ts-tab {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--ts-radius);
+  background: transparent;
+  color: var(--ts-muted);
+  font: inherit;
+  font-size: var(--ts-font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 180ms var(--ts-ease),
+    background-color 180ms var(--ts-ease);
+}
+
+.ts-tab:hover:not(.ts-tab--selected, :disabled) {
+  color: var(--ts-text-strong);
+  background: var(--ts-hover);
+}
+
+.ts-tab--selected {
+  color: var(--ts-on-ink);
+}
+
+.ts-tab:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ---------- Inputs ---------- */
+
+.ts-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--ts-control);
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+  transition:
+    background-color var(--ts-fast),
+    border-color var(--ts-fast);
+}
+
+.ts-input--sm {
+  height: 26px;
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-input:hover:not(.ts-input--disabled) {
+  background: var(--ts-hover);
+}
+
+.ts-input:focus-within {
+  background: var(--ts-pane);
+  border-color: var(--ts-ring);
+}
+
+.ts-input--invalid,
+.ts-input--invalid:focus-within {
+  border-color: var(--ts-danger);
+}
+
+.ts-input input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 2px;
+  border: 0 !important;
+  outline: none;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: inherit;
+  font: inherit;
+}
+
+.ts-input input::placeholder {
+  color: var(--ts-subtle);
+}
+
+.ts-input-affix {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-input--disabled {
+  opacity: 0.55;
+}
+
+.ts-number {
+  padding: 0 2px;
+}
+
+.ts-number input {
+  text-align: center;
+}
+
+.ts-number-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ts-muted);
+  cursor: pointer;
+}
+
+.ts-number-step:hover:not(:disabled) {
+  background: var(--ts-active);
+  color: var(--ts-text-strong);
+}
+
+.ts-number-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* select & combo */
+.ts-select,
+.ts-combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--ts-control);
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  color: var(--ts-text);
+  font: inherit;
+  font-size: var(--ts-font-size);
+  transition: background-color var(--ts-fast);
+}
+
+.ts-select {
+  padding: 0 6px 0 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ts-select--sm {
+  height: 26px;
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-select:hover:not(:disabled),
+.ts-select.ts-open,
+.ts-combo:hover:not(.ts-input--disabled) {
+  background: var(--ts-hover);
+}
+
+.ts-select > svg,
+.ts-combo-arrow > svg {
+  flex-shrink: 0;
+  color: var(--ts-muted);
+}
+
+.ts-select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-select-placeholder {
+  color: var(--ts-subtle);
+}
+
+.ts-select:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ts-select-menu {
+  max-height: 60vh;
+}
+
+.ts-combo {
+  padding: 0 2px 0 8px;
+}
+
+.ts-combo:focus-within {
+  background: var(--ts-pane);
+  border-color: var(--ts-ring);
+}
+
+.ts-combo input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0 !important;
+  outline: none;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: inherit;
+  font: inherit;
+}
+
+.ts-combo-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ts-combo-arrow:hover {
+  background: var(--ts-active);
+}
+
+/* checkbox */
+.ts-checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ts-checkbox input {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.ts-checkbox-box {
+  position: relative;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--ts-ring);
+  border-radius: 4px;
+  background: var(--ts-pane);
+  transition:
+    background-color var(--ts-fast),
+    border-color var(--ts-fast);
+}
+
+.ts-checkbox-box::after {
+  content: "";
+  position: absolute;
+  left: 4.5px;
+  top: 1.5px;
+  width: 4px;
+  height: 8px;
+  border: 2px solid var(--ts-on-ink);
+  border-left: 0;
+  border-top: 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform 120ms ease;
+}
+
+.ts-checkbox input:checked + .ts-checkbox-box,
+.ts-checkbox--mixed .ts-checkbox-box {
+  background: var(--ts-ink);
+  border-color: var(--ts-ink);
+}
+
+.ts-checkbox input:checked + .ts-checkbox-box::after {
+  transform: rotate(45deg) scale(1);
+}
+
+.ts-checkbox--mixed .ts-checkbox-box::after {
+  left: 3px;
+  top: 6.5px;
+  width: 8px;
+  height: 0;
+  border-right: 0;
+  transform: none;
+}
+
+.ts-checkbox input:focus-visible + .ts-checkbox-box {
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.ts-checkbox--disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* switch */
+.ts-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ts-switch-track {
+  position: relative;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--ts-active);
+  cursor: pointer;
+  transition: background-color 200ms var(--ts-ease);
+}
+
+.ts-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ts-pane);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 240ms var(--ts-ease);
+}
+
+.ts-switch--on .ts-switch-track {
+  background: var(--ts-ink);
+}
+
+.ts-switch--on .ts-switch-thumb {
+  transform: translateX(14px);
+  background: var(--ts-on-ink);
+}
+
+.ts-switch--disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* separator */
+.ts-separator {
+  flex-shrink: 0;
+  background: var(--ts-border);
+}
+
+.ts-separator--horizontal {
+  height: 1px;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.ts-separator--vertical {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 2px;
+}
+
+/* ---------- Dialog ---------- */
+
+.ts-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ts-backdrop);
+  animation: ts-fade-in 200ms var(--ts-ease);
+}
+
+.ts-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  padding: 20px;
+  box-sizing: border-box;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius-dialog);
+  background: var(--ts-pane);
+  color: var(--ts-text);
+  box-shadow: var(--ts-shadow);
+  font-family: var(--ts-font);
+  font-size: var(--ts-font-size);
+  animation: ts-dialog-in 240ms var(--ts-ease);
+}
+
+@keyframes ts-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.ts-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px -8px -4px 0;
+  cursor: move;
+  user-select: none;
+}
+
+.ts-dialog-title {
+  flex: 1;
+  margin: 0;
+  color: var(--ts-text-strong);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.ts-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ts-radius);
+  background: transparent;
+  color: var(--ts-muted);
+  cursor: pointer;
+}
+
+.ts-dialog-close:hover {
+  background: var(--ts-surface);
+  color: var(--ts-text-strong);
+}
+
+.ts-dialog-body {
+  min-height: 0;
+  overflow: auto;
+}
+
+.ts-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

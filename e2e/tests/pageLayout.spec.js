@@ -1,15 +1,10 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, toolbarButton } = require("../fixtures");
 
 // Page layout and printing (stream R8): print area, page breaks, Page
 // Break Preview, Page Setup, Print Preview and the browser print flow.
 
 async function menu(page, action) {
-  const button = page.getByRole("button", { name: "Page Layout", exact: true });
-  // the default toolbar may move the item into the "More" overflow
-  if (!(await button.isVisible())) {
-    await page.getByRole("button", { name: "More", exact: true }).click();
-  }
-  await button.click();
+  await (await toolbarButton(page, "Page Layout")).click();
   await page.locator(`[data-action="${action}"]`).click();
 }
 

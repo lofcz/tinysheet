@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import React from "react";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
+import { showRibbonItem } from "./ribbonHelpers";
 
 const num = (r: number, c: number, v: number) => ({
   r,
@@ -45,9 +46,10 @@ function select(ref: React.RefObject<WorkbookInstance>, r: number, c: number) {
 }
 
 const button = (container: HTMLElement, name: string) =>
-  container.querySelector(
+  showRibbonItem(container, name) &&
+  (container.querySelector(
     `[data-name="${name}"][role=button], [data-name="${name}"] [role=button]`
-  ) as HTMLElement;
+  ) as HTMLElement);
 
 describe("formula auditing toolbar", () => {
   it("traces precedents and removes the arrows", async () => {
@@ -92,6 +94,7 @@ describe("formula auditing toolbar", () => {
 
   it("manual calculation shows Calculate until F9", async () => {
     const { container, ref, getByText } = renderBook();
+    showRibbonItem(container, "calculation-options");
     fireEvent.click(
       container.querySelector(
         '[data-name="calculation-options"] .fortune-toolbar-combo-button'

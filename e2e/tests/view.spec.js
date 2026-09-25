@@ -1,4 +1,4 @@
-const { test, expect, Sheet } = require("../fixtures");
+const { test, expect, Sheet, ribbonItem } = require("../fixtures");
 
 // Relative luminance (0 = black, 1 = white) of a CSS rgb()/rgba() colour.
 const luminance = (css) => {
@@ -24,7 +24,7 @@ test.describe("theme", () => {
     const container = page.locator(".fortune-container");
     await expect(container).toHaveAttribute("data-theme", "dark");
     const toolbarBg = await page
-      .locator(".fortune-toolbar")
+      .locator(".fortune-ribbon-pane")
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(luminance(toolbarBg)).toBeLessThan(0.3);
     // Editing still works in dark mode.
@@ -63,9 +63,12 @@ test.describe("freeze", () => {
     page,
   }) => {
     await sheet.click(3, 2);
-    await page
-      .locator('.fortune-toolbar-combo-button[data-tips="Freeze"]')
-      .click();
+    await (
+      await ribbonItem(
+        page,
+        '.fortune-toolbar-combo-button[data-tips="Freeze"]'
+      )
+    ).click();
     // rows 1-3 and columns A-B: above and left of the active cell C4
     await expect
       .poll(async () => (await sheet.sheetInfo()).frozen)
@@ -107,9 +110,12 @@ test.describe("freeze", () => {
     await sheet.click(3, 2, { wait: false });
     await sheet.waitForSelection(top + 3, left + 2);
 
-    await page
-      .locator('.fortune-toolbar-combo-button[data-tips="Freeze"]')
-      .click();
+    await (
+      await ribbonItem(
+        page,
+        '.fortune-toolbar-combo-button[data-tips="Freeze"]'
+      )
+    ).click();
     // the rows/columns from the top-left visible cell up to the active cell
     await expect
       .poll(async () => (await sheet.sheetInfo()).frozen)
@@ -141,9 +147,12 @@ test.describe("freeze", () => {
     await expect.poll(async () => (await sheet.sheetInfo()).zoomRatio).toBe(1);
 
     // Unfreeze: the old top-left cell is at the top-left of the window again
-    await page
-      .locator('.fortune-toolbar-combo-button[data-tips="Freeze"]')
-      .click();
+    await (
+      await ribbonItem(
+        page,
+        '.fortune-toolbar-combo-button[data-tips="Freeze"]'
+      )
+    ).click();
     await expect
       .poll(async () => (await sheet.sheetInfo()).frozen ?? null)
       .toBeNull();
@@ -159,9 +168,9 @@ test.describe("freeze", () => {
     await sheet.click(0, 0, { wait: false });
     await expect.poll(() => sheet.selection()).not.toBeNull();
     const top = (await sheet.selection()).row[0];
-    await page
-      .locator('.fortune-toolbar-combo-arrow[data-tips="Freeze"]')
-      .click();
+    await (
+      await ribbonItem(page, '.fortune-toolbar-combo-arrow[data-tips="Freeze"]')
+    ).click();
     await page.getByText("Freeze Top Row", { exact: true }).click();
     await expect
       .poll(async () => (await sheet.sheetInfo()).frozen)

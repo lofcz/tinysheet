@@ -1,11 +1,14 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, ribbonItem } = require("../fixtures");
 
 // Sort, filter, remove duplicates and data validation (stream P6).
 
 async function openSortFilterMenu(page) {
-  await page
-    .locator('.fortune-toolbar-combo-arrow[data-tips="Sort and filter"]')
-    .click();
+  await (
+    await ribbonItem(
+      page,
+      '.fortune-toolbar-combo-arrow[data-tips="Sort and filter"]'
+    )
+  ).click();
 }
 
 test.describe("data tools", () => {

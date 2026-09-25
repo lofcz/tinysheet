@@ -1,6 +1,6 @@
 const { test, expect, toolbarButton } = require("../fixtures");
 
-// The toolbar's theme switch, drop-downs, "More" overflow, the context menu
+// The ribbon (tabs, scaling, collapse), its drop-downs, the context menu
 // and dialogs: how they open, close and hand the keyboard around (Excel /
 // Google Sheets behaviour).
 
@@ -56,7 +56,7 @@ test.describe("theme switch", () => {
     await expect(container).toHaveAttribute("data-theme", "dark");
     await expect(popup(page)).toHaveCount(0);
     const toolbarBg = await page
-      .locator(".fortune-toolbar")
+      .locator(".fortune-ribbon-pane")
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(luminance(toolbarBg)).toBeLessThan(0.3);
     await expect.poll(() => canvasLuminance(sheet, 3, 3)).toBeLessThan(0.2);
@@ -270,55 +270,124 @@ test.describe("toolbar drop-downs", () => {
   });
 });
 
-test.describe("More overflow", () => {
-  test.use({ viewport: { width: 400, height: 700 } });
+test.describe("ribbon scaling", () => {
+  test.use({ viewport: { width: 760, height: 700 } });
 
-  test("toggles, keeps items live, closes on Escape, follows the width", async ({
+  test("groups collapse right to left into buttons that open the whole group", async ({
     sheet,
     page,
   }) => {
-    const more = page.getByRole("button", { name: "More" });
-    const panel = page.locator(".fortune-toolbar-more-container");
-    await more.click();
-    await expect(panel).toBeVisible();
-    await more.click();
-    await expect(panel).toHaveCount(0);
+    const collapsed = page.locator(".fortune-ribbon [data-group-button]");
+    const groupPopup = page.locator(".fortune-ribbon-group-popover");
+    // Excel's scaling: the rightmost groups go first, never a "More" dump
+    await expect(collapsed.first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "More" })).toHaveCount(0);
+    const ids = await collapsed.evaluateAll((els) =>
+      els.map((el) => el.dataset.groupButton)
+    );
+    expect(ids[ids.length - 1]).toBe("editing");
+    expect(ids).not.toContain("clipboard");
 
-    // an item in the overflow shows the state it changed
+    // nothing overflows the command row
+    const fits = await page
+      .locator(".fortune-ribbon-commands")
+      .evaluate((el) => {
+        const inner = el.querySelector(".fortune-ribbon-groups");
+        return (
+          inner.getBoundingClientRect().right <=
+          el.getBoundingClientRect().right + 0.5
+        );
+      });
+    expect(fits).toBe(true);
+
+    // a collapsed group opens as a whole; its items show the live state
+    await sheet.enter(0, 0, "0.25");
     await sheet.click(0, 0);
-    const strike = await toolbarButton(page, "Strikethrough (Alt+Shift+5)");
-    await expect(panel).toBeVisible();
-    await expect(strike).toHaveAttribute("aria-pressed", "false");
-    await strike.click();
-    await expect(strike).toHaveAttribute("aria-pressed", "true");
-    await expect.poll(() => sheet.value(0, 0, "cl")).toBe(1);
+    await page.locator('[data-group-button="number"]').click();
+    await expect(groupPopup).toBeVisible();
+    await groupPopup
+      .getByRole("button", { name: "Format as percent", exact: true })
+      .click();
+    await expect.poll(() => sheet.value(0, 0, "m")).toMatch(/^25(\.0+)?%$/);
+    await expect(
+      groupPopup.getByRole("button", { name: /^Format: Percent/ })
+    ).toBeVisible();
 
-    // Escape closes an inner drop-down first, then the panel
-    await panel.getByRole("button", { name: /^Theme: Dropdown$/ }).click();
+    // Escape closes an inner drop-down first, then the group
+    await groupPopup.getByRole("button", { name: /^Format: Percent/ }).click();
     await expect(popup(page)).toHaveCount(1);
     await page.keyboard.press("Escape");
     await expect(popup(page)).toHaveCount(0);
-    await expect(panel).toBeVisible();
+    await expect(groupPopup).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(panel).toHaveCount(0);
+    await expect(groupPopup).toHaveCount(0);
 
-    // a dialog opened from the panel closes it
+    // a dialog opened from a collapsed group closes the group
     await (await toolbarButton(page, "Find and replace")).click();
     await expect(page.locator("#fortune-search-replace")).toBeVisible();
-    await expect(panel).toHaveCount(0);
+    await expect(groupPopup).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(page.locator("#fortune-search-replace")).toHaveCount(0);
 
-    // nothing overflows the bar, and a wide window needs no More
-    const bar = page.locator(".fortune-toolbar");
-    const overflow = await bar.evaluate(
-      (el) => el.scrollWidth - el.clientWidth
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
-    await page.setViewportSize({ width: 4000, height: 700 });
-    await expect(more).toHaveCount(0);
-    await page.setViewportSize({ width: 400, height: 700 });
-    await expect(more).toBeVisible();
+    // a wide window shows every group in full, a narrow one collapses again
+    await page.setViewportSize({ width: 2400, height: 700 });
+    await expect(collapsed).toHaveCount(0);
+    await page.setViewportSize({ width: 760, height: 700 });
+    await expect(collapsed.first()).toBeVisible();
+  });
+});
+
+test.describe("ribbon", () => {
+  test("tabs switch the command row; the tab list works with the keyboard", async ({
+    sheet,
+    page,
+  }) => {
+    expect(sheet).toBeTruthy();
+    const home = page.getByRole("tab", { name: "Home" });
+    await expect(home).toHaveAttribute("aria-selected", "true");
+    await page.getByRole("tab", { name: "Formulas" }).click();
+    await expect(
+      page.locator('[data-ribbon-group="formulaAuditing"]')
+    ).toBeVisible();
+    await expect(page.locator('[data-ribbon-group="font"]')).toHaveCount(0);
+    await page.keyboard.press("ArrowRight");
+    const data = page.getByRole("tab", { name: "Data" });
+    await expect(data).toBeFocused();
+    await expect(data).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("Ctrl+F1 and a double-click collapse the ribbon to its tabs", async ({
+    sheet,
+    page,
+  }) => {
+    const commands = page.locator(".fortune-ribbon-commands");
+    const area = page.locator(".fortune-cell-area");
+    const top = (await area.boundingBox()).y;
+    await sheet.click(0, 0);
+    await page.keyboard.press("Control+F1");
+    await expect(commands).toHaveCount(0);
+    // the grid takes the room
+    await expect
+      .poll(async () => (await area.boundingBox()).y)
+      .toBeLessThan(top);
+    // a tab click shows its commands over the grid until a click outside
+    await page.getByRole("tab", { name: "Insert" }).click();
+    await expect(commands).toBeVisible();
+    await page.mouse.click(700, 600);
+    await expect(commands).toHaveCount(0);
+    await page.getByRole("tab", { name: "Insert" }).dblclick();
+    await expect(commands).toBeVisible();
+    await expect.poll(async () => (await area.boundingBox()).y).toBe(top);
+  });
+
+  test("the File menu opens Print Preview", async ({ sheet, page }) => {
+    expect(sheet).toBeTruthy();
+    await page.locator(".fortune-ribbon-file").click();
+    const menu = page.getByRole("menu", { name: "File" });
+    await expect(menu).toBeVisible();
+    await menu.getByRole("menuitem", { name: /Print/ }).click();
+    await expect(menu).toHaveCount(0);
+    await expect(page.locator(".fortune-print-preview")).toBeVisible();
   });
 });
 
@@ -349,7 +418,8 @@ test.describe("context menu", () => {
     const box = await open(area.x + 200, area.y + area.height / 2);
     expect(box.y + box.height).toBeGreaterThan(viewport.height - 40);
 
-    const { x, y } = sheet.point(5, 5);
+    // over the grid, left of the menu (the wheel over a menu scrolls it)
+    const { x, y } = sheet.point(5, 1);
     await page.mouse.move(x, y);
     await page.mouse.wheel(0, 200);
     await expect(menu).toHaveCount(0);

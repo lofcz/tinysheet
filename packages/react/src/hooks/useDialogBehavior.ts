@@ -234,7 +234,10 @@ export function useDialogBehavior(
         if (
           previous?.isConnected &&
           previous !== document.body &&
-          !(fallbackFocusRef.current && previous.closest(".fortune-toolbar"))
+          !(
+            fallbackFocusRef.current &&
+            previous.closest(".fortune-toolbar, .fortune-ribbon")
+          )
         ) {
           previous.focus({ preventScroll: true });
         } else {

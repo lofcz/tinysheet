@@ -1,4 +1,4 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, ribbonItem } = require("../fixtures");
 
 // Formulas tab, R4: trace arrows, Show Formulas, Evaluate Formula, Watch
 // Window, error-checking smart tag and manual calculation with F9.
@@ -18,12 +18,9 @@ async function auditMenu(sheet, page, r, c, key) {
   await page.locator(`[role=menuitem][data-key="${key}"]`).click();
 }
 
-/** A toolbar item of the Formulas group (opening "More" when wrapped). */
+/** A toolbar item of the Formulas tab (switching to it in the ribbon). */
 async function toolbarItem(page, name) {
-  const item = page.locator(`[data-name="${name}"]`);
-  if ((await item.count()) === 0) {
-    await page.locator('.fortune-toolbar-button[data-tips="More"]').click();
-  }
+  const item = await ribbonItem(page, `[data-name="${name}"]`);
   await expect(item).toBeVisible();
   return item;
 }
@@ -84,7 +81,7 @@ test.describe("formula auditing", () => {
     );
     await page.getByRole("button", { name: "Step Out" }).click();
     await expect(text).toHaveText("6*2");
-    await page.getByRole("button", { name: "Evaluate" }).click();
+    await page.getByRole("button", { name: "Evaluate", exact: true }).click();
     await expect(text).toHaveText("12");
     await expect(page.getByRole("button", { name: "Restart" })).toBeVisible();
   });

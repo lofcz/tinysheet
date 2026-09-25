@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import React from "react";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
+import { showRibbonItem } from "./ribbonHelpers";
 
 const num = (r: number, c: number, v: number) => ({
   r,
@@ -62,6 +63,7 @@ describe("sparklines UI", () => {
   it("Insert Sparklines from the toolbar creates a group; undo removes it", async () => {
     const { container, ref, getByLabelText, getByText } = renderBook();
     select(ref, [{ row: [0, 1], column: [0, 2] }]);
+    showRibbonItem(container, "sparkline");
     const button = container.querySelector(
       '[data-tips="Insert Sparklines"]'
     ) as HTMLElement;
@@ -183,6 +185,7 @@ describe("sparklines UI", () => {
     const { container, ref, getByLabelText, getByText, getByRole } =
       renderBook();
     select(ref, [{ row: [0, 0], column: [4, 4] }]);
+    showRibbonItem(container, "sparkline");
     fireEvent.click(
       container.querySelector('[data-tips="Insert Sparklines"]') as HTMLElement
     );

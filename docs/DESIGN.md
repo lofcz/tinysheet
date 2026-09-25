@@ -119,3 +119,32 @@ resize, image/shape/chart/slicer move & resize & rotate, sheet tab reorder,
 pane separators, formula bar resize, dialog drag) uses pointer events with
 pointer capture, has an e2e test, keeps editor focus where Excel does, and
 shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
+
+## Implementation map (for contributors)
+
+- **Tokens**: `--ts-*` on `.fortune-container`, `.fortune-modal-container` and
+  `.ts-theme-root` (light, `data-theme="dark"`), in
+  `packages/react/src/components/Workbook/index.css`. The old `--fortune-*`
+  variables are aliases of them; new CSS uses `--ts-*` only. Canvas colours:
+  `packages/core/src/theme.ts`.
+- **Shell**: `Workbook` renders `.fortune-ribbon-pane`, `.fortune-body`
+  (`.fortune-grid-pane` + side pane dock) and `.fortune-bottom-pane`;
+  `settings.chrome` = `"suite"` (padded panes) | `"compact"` (embedding).
+- **Side panes**: `packages/react/src/components/SidePane` —
+  `<SidePane id title open onClose>` or `useSidePane().openSidePane(id, node,
+  { title })` / `closeSidePane` / `toggleSidePane` / `isSidePaneOpen`.
+- **Icons**: `packages/react/src/components/ui/icons.tsx` — `Icon`,
+  `registerIcon(name, LucideIcon)`; `SVGIcon` draws the lucide icon for every
+  mapped legacy sprite name.
+- **Primitives**: `packages/react/src/components/ui` — Button, IconButton,
+  SplitButton, LargeButton, MenuButton, DropdownMenu / MenuList (MenuItem
+  model with submenus), Popover, Tooltip, Tabs, Select, Combo, Input,
+  NumberInput, Checkbox, Switch, Separator, DialogShell, Dialog.
+- **Ribbon**: `packages/react/src/components/Ribbon` — layout per tab in
+  `tabs/*.ts` (`RibbonTab → groups → items`, `{ rows: [[…], […]] }` stacks
+  small items, `{ id, size: "large" }` for large buttons); commands with
+  `registerRibbonCommand(id, Component)` (an id without a command renders the
+  legacy toolbar item of that name); `placeRibbonItem`, `registerRibbonGroup`,
+  `registerFileMenuItem`; `settings.ribbon` for a custom layout. Scaling:
+  `useRibbonScaling.ts`. Tests: `packages/react/test/ribbonHelpers.ts`
+  (`showRibbonItem`), e2e `toolbarButton` / `ribbonItem` / `ribbonTab`.

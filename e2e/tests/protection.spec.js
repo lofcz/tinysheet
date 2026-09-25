@@ -1,14 +1,11 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, ribbonItem } = require("../fixtures");
 
 const PROTECTED =
   "The cell or chart you're trying to change is on a protected sheet.";
 
-/** Open a toolbar combo's menu (from the "More" overflow if needed). */
+/** Open a toolbar combo's menu (switching to its ribbon tab). */
 async function openMenu(page, testId) {
-  const item = page.locator(`[data-testid="${testId}"]`);
-  if ((await item.count()) === 0) {
-    await page.locator('.fortune-toolbar [aria-label="More"]').click();
-  }
+  const item = await ribbonItem(page, `[data-testid="${testId}"]`);
   await item.locator(".fortune-toolbar-combo-arrow").click();
 }
 

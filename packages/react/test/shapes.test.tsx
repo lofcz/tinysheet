@@ -23,6 +23,7 @@ import {
   htmlToShapeText,
   shapeTextToHtml,
 } from "../src/components/Shapes/richText";
+import { showRibbonItem } from "./ribbonHelpers";
 
 const at = (r: number, c: number, dx = 0, dy = 0) => ({ r, c, dx, dy });
 
@@ -98,6 +99,7 @@ describe("shape layer", () => {
 
   it("the toolbar offers the Shapes gallery", () => {
     const { container } = renderBook();
+    showRibbonItem(container, "shapes");
     const button = container.querySelector<HTMLElement>(
       '.fortune-toolbar [aria-label="Shapes: Dropdown"]'
     );

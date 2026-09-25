@@ -3,6 +3,12 @@
 // zoom, paging, and where keyboard focus goes. Excel is the reference.
 const { test, expect, Sheet } = require("../fixtures");
 
+/** Whole 20px rows that fit the grid's cell area at 100% zoom. */
+async function rowsThatFit(page) {
+  const area = await page.locator(".fortune-cell-area").boundingBox();
+  return Math.floor(area.height / 20);
+}
+
 const blank = (extra = {}) => ({
   name: "Sheet1",
   id: "sheet1",
@@ -170,9 +176,11 @@ test.describe("drag auto-scroll", () => {
   }) => {
     await sheet.enter(1, 1, "mv");
     let from = [1, 1];
+    // near the bottom edge: two rows above the last one that fits
+    const nearBottom = (await rowsThatFit(page)) - 2;
     // dropped with the pointer in the right part of the last whole column
     for (const [r, c, dx] of [
-      [35, 1, 0],
+      [nearBottom, 1, 0],
       [5, 20, 30],
     ]) {
       await sheet.click(from[0], from[1]);
@@ -334,10 +342,13 @@ test.describe("keyboard", () => {
     page,
   }) => {
     await sheet.click(0, 0);
+    const fit = await rowsThatFit(page);
     await page.keyboard.press("PageDown");
-    // 37 rows fit the window: the active cell moves as far as the view
-    await sheet.waitForSelection(37, 0);
-    await expect.poll(() => sheet.scrollPosition()).toEqual({ x: 0, y: 740 });
+    // `fit` rows fit the grid: the active cell moves as far as the view
+    await sheet.waitForSelection(fit, 0);
+    await expect
+      .poll(() => sheet.scrollPosition())
+      .toEqual({ x: 0, y: fit * 20 });
     for (let i = 0; i < 3; i += 1) await page.keyboard.press("PageDown");
     await sheet.waitForSelection(99, 0);
     // the sheet stops where its scrollbar does: what is drawn at the top
@@ -349,7 +360,7 @@ test.describe("keyboard", () => {
     await page.keyboard.press("PageUp");
     const top = Math.floor(y / 20);
     await expect.poll(async () => (await contextScroll(page)).y % 20).toBe(0);
-    await sheet.waitForSelection(top - 37, 0);
+    await sheet.waitForSelection(top - fit, 0);
   });
 
   test("moving up past the top row scrolls it to the top edge", async ({

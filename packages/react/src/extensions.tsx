@@ -3,7 +3,10 @@
  * shared Toolbar and SheetOverlay components:
  *
  * - toolbar items: `registerToolbarItem("insertImage", ({ tooltip }) => ...)`
- *   renders that item wherever its name appears in `settings.toolbarItems`.
+ *   renders that item wherever its name appears in the ribbon (and
+ *   `settings.toolbarItems`); pass `{ tab, group }` to place a new item in
+ *   a ribbon group. Ribbon-native commands built from the ui primitives
+ *   register with `registerRibbonCommand` (components/Ribbon).
  * - sheet overlays: `registerSheetOverlay("traceArrows", TraceArrows)` mounts
  *   a component inside the cell area (positioned like the selection boxes;
  *   use the workbook context for geometry).
@@ -22,6 +25,24 @@
 import React from "react";
 // eslint-disable-next-line import/no-cycle
 import { loadBuiltinFeatures } from "./features";
+// eslint-disable-next-line import/no-cycle
+import { placeRibbonItem, RibbonPlacement } from "./components/Ribbon/registry";
+
+// ribbon: see components/Ribbon
+export {
+  registerRibbonCommand,
+  placeRibbonItem,
+  registerRibbonGroup,
+  registerFileMenuItem,
+} from "./components/Ribbon/registry";
+export type {
+  RibbonCommandProps,
+  RibbonPlacement,
+  FileMenuItem,
+} from "./components/Ribbon/registry";
+// side panes (Comments, Format Shape, PivotTable Fields, Watch Window)
+export { SidePane, useSidePane } from "./components/SidePane";
+export type { SidePaneProps } from "./components/SidePane";
 
 // context-menu entries: see components/ContextMenu/actions.ts
 export {
@@ -40,11 +61,21 @@ export type ToolbarItemRenderer = (props: {
 
 const toolbarItems = new Map<string, ToolbarItemRenderer>();
 
-export function registerToolbarItem(name: string, render: ToolbarItemRenderer) {
+/**
+ * Register a toolbar item. `placement` puts it into a group of the default
+ * ribbon (items the default layout already lists need none).
+ */
+export function registerToolbarItem(
+  name: string,
+  render: ToolbarItemRenderer,
+  placement?: RibbonPlacement
+) {
   loadBuiltinFeatures();
   toolbarItems.set(name, render);
+  const unplace = placement ? placeRibbonItem(name, placement) : undefined;
   return () => {
     if (toolbarItems.get(name) === render) toolbarItems.delete(name);
+    unplace?.();
   };
 }
 
