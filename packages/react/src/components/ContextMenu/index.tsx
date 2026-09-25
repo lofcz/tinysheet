@@ -52,7 +52,12 @@ import Menu from "./Menu";
 import MenuIcon from "./icons";
 import CustomSort from "../CustomSort";
 import DataVerification from "../DataVerification";
-import { getContextMenuAction, ContextMenuActionKey } from "./actions";
+import {
+  getContextMenuAction,
+  getContextMenuItem,
+  ContextMenuActionKey,
+  ContextMenuItem,
+} from "./actions";
 import { registerDefaultContextMenuActions } from "./defaultActions";
 import {
   InsertDeleteDialog,
@@ -794,8 +799,33 @@ const ContextMenu: React.FC = () => {
       case "insert-row":
       case "insert-column":
         return legacyInsertRowCol(name === "insert-row" ? "row" : "column");
-      default:
-        return [];
+      default: {
+        // entries registered by features (registerContextMenuItem)
+        const build = getContextMenuItem(name);
+        const helpers = {
+          ...workbookCtx,
+          showDialog: (content: React.ReactNode) => showDialog(content),
+          hideDialog,
+        };
+        const built = build?.({ ...helpers, headerType });
+        if (!built) return [];
+        const toEntry = (x: ContextMenuItem): ItemEntry => ({
+          type: "item",
+          key: x.key,
+          label: x.label,
+          icon: x.icon,
+          shortcut: x.shortcut,
+          disabled: x.disabled,
+          children: x.children?.map(toEntry),
+          onSelect: x.onSelect
+            ? () => {
+                close();
+                x.onSelect!(helpers);
+              }
+            : undefined,
+        });
+        return (Array.isArray(built) ? built : [built]).map(toEntry);
+      }
     }
   };
 

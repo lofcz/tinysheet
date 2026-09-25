@@ -1,6 +1,8 @@
 import type React from "react";
 import type { Context, Settings } from "@lofcz/tinysheet-core";
 import type { RefValues, SetContextOptions } from "../../context";
+// eslint-disable-next-line import/no-cycle
+import { loadBuiltinFeatures } from "../../features";
 
 /**
  * Hooks for context-menu entries whose feature lives in another module
@@ -56,4 +58,49 @@ export function registerContextMenuAction(
 export function getContextMenuAction(key: ContextMenuActionKey) {
   const list = registry[key];
   return list?.[list.length - 1];
+}
+
+/**
+ * A cell-menu entry contributed by a feature, listed by its name in
+ * `settings.cellContextMenu` / `headerContextMenu`; `children` make it a
+ * submenu. `onSelect` runs after the menu closed.
+ */
+export type ContextMenuItem = {
+  key: string;
+  label: string;
+  /** a ContextMenu/icons.tsx icon name */
+  icon?: string;
+  shortcut?: string;
+  disabled?: boolean;
+  children?: ContextMenuItem[];
+  onSelect?: (helpers: ContextMenuActionHelpers) => void;
+};
+
+export type ContextMenuItemBuilder = (
+  helpers: ContextMenuActionHelpers & {
+    /** "row" / "column" in the header menu, null in the cell menu */
+    headerType: "row" | "column" | null;
+  }
+) => ContextMenuItem | ContextMenuItem[] | null;
+
+const items = new Map<string, ContextMenuItemBuilder>();
+
+/**
+ * Register a feature's menu entry under `name` (the name used in the menu
+ * settings). The builder runs each time the menu opens; return null to hide
+ * the entry. Returns a function that removes it.
+ */
+export function registerContextMenuItem(
+  name: string,
+  build: ContextMenuItemBuilder
+) {
+  items.set(name, build);
+  return () => {
+    if (items.get(name) === build) items.delete(name);
+  };
+}
+
+export function getContextMenuItem(name: string) {
+  loadBuiltinFeatures();
+  return items.get(name);
 }
