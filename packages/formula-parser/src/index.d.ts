@@ -107,7 +107,19 @@ export type CustomFunction = ((
   params: unknown[],
   refs: Array<ReferenceInfo | null>
 ) => unknown) & {
-  arrayParams?: boolean | number[];
+  arrayParams?: boolean | number[] | ((index: number) => boolean);
+  /**
+   * Parameters that take a reference: a reference argument there is passed
+   * unread, as a `createReference` descriptor (`isReference(params[i])`),
+   * so no cell is read and errors in the referenced cells do not abort the
+   * call. Other arguments arrive as values. `true` means every parameter.
+   */
+  referenceParams?: boolean | number[] | ((index: number) => boolean);
+  /**
+   * The function may return `createReference` values: calls to it are then
+   * reference-capable (range operands, `ROWS(...)`, `INDEX(...)`, ...).
+   */
+  returnsReference?: boolean;
 };
 
 export declare class Parser {
@@ -126,7 +138,8 @@ export declare class Parser {
    * area of a union `(A1,B2)` spread over several params, ...
    */
   setFunction(name: string, fn: CustomFunction): this;
-  getFunction(name: string): ((...args: unknown[]) => unknown) | undefined;
+  /** Registered function (names are matched case-insensitively). */
+  getFunction(name: string): CustomFunction | undefined;
   on(event: string, listener: (...args: unknown[]) => void): this;
   once(event: string, listener: (...args: unknown[]) => void): this;
   off(event: string, listener?: (...args: unknown[]) => void): this;

@@ -87,6 +87,15 @@ export function alignmentConvert(
     alignment.vertical = VERTICAL[String(cell.vt)];
   }
   if (String(cell.tb) === "2") alignment.wrapText = true;
+  if (isOn(cell.sk)) alignment.shrinkToFit = true;
+  // indents apply to left- and right-aligned text (as in Excel)
+  const indent = Math.round(Number(cell.ind));
+  if (
+    indent > 0 &&
+    (alignment.horizontal === "left" || alignment.horizontal === "right")
+  ) {
+    alignment.indent = Math.min(indent, 250);
+  }
   if (String(cell.tr) === "3") {
     alignment.textRotation = "vertical";
   } else if (
@@ -100,4 +109,17 @@ export function alignmentConvert(
     alignment.textRotation = ROTATION[String(cell.tr)];
   }
   return Object.keys(alignment).length ? alignment : undefined;
+}
+
+/**
+ * Cell protection (`lo: 0` unlocked, `hi: 1` formula hidden); undefined for
+ * Excel's default (locked, visible).
+ */
+export function protectionConvert(
+  cell: any
+): Partial<ExcelJS.Protection> | undefined {
+  const unlocked = cell.lo != null && Number(cell.lo) === 0;
+  const hidden = isOn(cell.hi);
+  if (!unlocked && !hidden) return undefined;
+  return { locked: !unlocked, hidden };
 }

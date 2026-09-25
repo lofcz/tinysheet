@@ -1,6 +1,7 @@
 import { contextFactory, selectionFactory } from "../factories/context";
 import {
   getCellValue,
+  getCellFormulaHtml,
   setCellValue,
   clearCell,
   setCellFormat,
@@ -45,6 +46,20 @@ describe("cell", () => {
     ].forEach((k) => {
       expect(getCellValue(ctx, 1, 1, { id: k.id, type: k.t })).toBe(k.v);
     });
+  });
+
+  test("getCellValue with type f returns the plain formula", () => {
+    const ctx = getContext();
+    expect(getCellValue(ctx, 1, 0, { id: "id_1", type: "f" })).toBe(
+      "=SUM(A1:B1)"
+    );
+    // no formula: the value
+    expect(getCellValue(ctx, 1, 1, { id: "id_1", type: "f" })).toBe("5");
+    expect(getCellValue(ctx, 0, 0, { id: "id_1", type: "f" })).toBeNull();
+    const html = getCellFormulaHtml(ctx, 1, 0, { id: "id_1" });
+    expect(html).toContain("<span");
+    expect(html.replace(/<[^>]+>/g, "")).toBe("=SUM(A1:B1)");
+    expect(getCellFormulaHtml(ctx, 1, 1, { id: "id_1" })).toBeNull();
   });
 
   test("setCellValue", async () => {

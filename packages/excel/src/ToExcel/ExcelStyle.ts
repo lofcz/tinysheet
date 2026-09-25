@@ -3,7 +3,12 @@
  * rich text, hyperlinks and notes.
  */
 import type ExcelJS from "@protobi/exceljs";
-import { alignmentConvert, fillConvert, fontConvert } from "./ExcelConvert";
+import {
+  alignmentConvert,
+  fillConvert,
+  fontConvert,
+  protectionConvert,
+} from "./ExcelConvert";
 import { cellAddress, toExcelFormula } from "../common/formulaText";
 import type { SheetExportContext } from "./buildWorkbook";
 
@@ -169,6 +174,8 @@ function writeCell(ctx: SheetExportContext, cell: any, r: number, c: number) {
   if (alignment) target.alignment = alignment as ExcelJS.Alignment;
   const fa = cell.ct?.fa;
   if (!isGeneral(fa)) target.numFmt = String(fa);
+  const protection = protectionConvert(cell);
+  if (protection) target.protection = protection;
 
   // Merge slaves only carry style.
   const { mc } = cell;
@@ -217,9 +224,12 @@ export function writeCells(ctx: SheetExportContext) {
   }
 }
 
-/** Cell notes (TinySheet comments, `cell.ps`). */
+/**
+ * Cell notes (TinySheet comments, `cell.ps`). Notes shown permanently
+ * (`isShow`) are made visible by postProcessXlsx.
+ */
 export function writeNotes(ctx: SheetExportContext) {
-  const { data, worksheet } = ctx;
+  const { data, worksheet, post } = ctx;
   for (let r = 0; r < data.length; r += 1) {
     const row = data[r];
     if (!row) continue;
@@ -227,6 +237,10 @@ export function writeNotes(ctx: SheetExportContext) {
       const note = row[c]?.ps;
       if (note?.value == null || String(note.value) === "") continue;
       worksheet.getCell(r + 1, c + 1).note = String(note.value);
+      if (note.isShow) {
+        const shown = (post.visibleNotes ||= {});
+        (shown[worksheet.id] ||= []).push({ r, c });
+      }
     }
   }
 }

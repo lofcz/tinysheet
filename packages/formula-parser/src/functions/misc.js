@@ -15,7 +15,9 @@
 // * INFO answers with fixed values describing a web host.
 // * IMAGE cannot produce an in-cell picture yet: it returns its alt text (or
 //   the source URL) so dependent formulas still see a value.
-// * AREAS only sees values, so every reference counts as one area.
+// * AREAS is evaluated by the evaluator (it counts the areas of unions);
+//   this value-only fallback, reached only through a host override that
+//   declines, counts any argument as one area.
 
 import { ERROR_NUM, ERROR_VALUE } from "../error";
 import {

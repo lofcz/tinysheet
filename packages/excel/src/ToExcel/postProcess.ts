@@ -8,6 +8,8 @@
  * - Internal hyperlinks: ExcelJS stores every link as an external
  *   relationship. Links whose target starts with "#" are rewritten to a
  *   `location` attribute and their relationship is removed.
+ * - Shown notes: ExcelJS writes every note hidden. Notes TinySheet shows
+ *   permanently (`ps.isShow`) get `<x:Visible/>` and a visible shape.
  */
 import JSZip from "jszip";
 
@@ -15,6 +17,8 @@ export type XlsxPostProcessInfo = {
   /** Worksheet id -> addresses of dynamic-array formula cells. */
   dynamicArrayCells: Record<number, string[]>;
   worksheetIds: number[];
+  /** Worksheet id -> cells (0-based) whose note is always shown. */
+  visibleNotes?: Record<number, { r: number; c: number }[]>;
 };
 
 const METADATA_XML =
@@ -144,6 +148,50 @@ async function fixInternalHyperlinks(zip: JSZip) {
   await Promise.all(relFiles.map((relFile) => fixSheetLinks(zip, relFile)));
 }
 
+const VML_REL_TYPE =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing";
+
+/** Make the note shapes of the given cells visible in a sheet's VML part. */
+export function showVmlNotes(vml: string, cells: { r: number; c: number }[]) {
+  const wanted = new Set(cells.map(({ r, c }) => `${r}_${c}`));
+  return vml.replace(/<v:shape\b[\s\S]*?<\/v:shape>/g, (shape) => {
+    const row = /<x:Row>\s*(\d+)\s*<\/x:Row>/.exec(shape)?.[1];
+    const col = /<x:Column>\s*(\d+)\s*<\/x:Column>/.exec(shape)?.[1];
+    if (row == null || col == null || !wanted.has(`${row}_${col}`)) {
+      return shape;
+    }
+    let out = shape.replace(/visibility:hidden/g, "visibility:visible");
+    if (!/<x:Visible\s*\/?>/.test(out)) {
+      out = out.replace(/<\/x:ClientData>/, "<x:Visible/></x:ClientData>");
+    }
+    return out;
+  });
+}
+
+async function showNotes(zip: JSZip, info: XlsxPostProcessInfo) {
+  const entries = Object.entries(info.visibleNotes ?? {}).filter(
+    ([, cells]) => cells.length > 0
+  );
+  await Promise.all(
+    entries.map(async ([id, cells]) => {
+      const rels = await zip
+        .file(`xl/worksheets/_rels/sheet${id}.xml.rels`)
+        ?.async("string");
+      const rel = (rels?.match(/<Relationship\b[^>]*>/g) ?? []).find((el) =>
+        el.includes(`Type="${VML_REL_TYPE}"`)
+      );
+      const target = rel && /Target="([^"]*)"/.exec(rel)?.[1];
+      if (!target) return;
+      const path = target.startsWith("/")
+        ? target.slice(1)
+        : `xl/${target.replace(/^\.\.\//, "")}`;
+      const file = zip.file(path);
+      if (!file) return;
+      zip.file(path, showVmlNotes(await file.async("string"), cells));
+    })
+  );
+}
+
 export async function postProcessXlsx(
   buffer: ArrayBuffer | Uint8Array,
   info: XlsxPostProcessInfo
@@ -151,6 +199,7 @@ export async function postProcessXlsx(
   const zip = await JSZip.loadAsync(buffer);
   await markDynamicArrays(zip, info);
   await fixInternalHyperlinks(zip);
+  await showNotes(zip, info);
   return zip.generateAsync({
     type: "uint8array",
     compression: "DEFLATE",

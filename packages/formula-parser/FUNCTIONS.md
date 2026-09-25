@@ -12,7 +12,7 @@ known to the engine (`SUPPORTED_FORMULAS`) or implemented by core.
 - **Missing**: not implemented, with the reason.
 - **Excluded**: out of scope (Cube and web-service functions).
 
-Totals: 473 supported, 32 partial,
+Totals: 474 supported, 31 partial,
 6 missing, 13 excluded (524 functions).
 
 ## Eta-reduced functions (GROUPBY, PIVOTBY, MAP, ...)
@@ -302,48 +302,48 @@ GROUPBY and PIVOTBY also still accept the name as text (`"SUM"`).
 
 ### Lookup and reference
 
-| Function     | Status    | Notes                                                                                            |
-| ------------ | --------- | ------------------------------------------------------------------------------------------------ |
-| ADDRESS      | Supported | Implemented by core (`formulaFunctions.ts`).                                                     |
-| AREAS        | Partial   | Returns 1 for a single reference; multi-area unions are not counted.                             |
-| CHOOSE       | Supported |                                                                                                  |
-| CHOOSECOLS   | Supported |                                                                                                  |
-| CHOOSEROWS   | Supported |                                                                                                  |
-| COLUMN       | Supported |                                                                                                  |
-| COLUMNS      | Supported |                                                                                                  |
-| DROP         | Supported |                                                                                                  |
-| EXPAND       | Supported |                                                                                                  |
-| FILTER       | Supported |                                                                                                  |
-| FORMULATEXT  | Supported | Implemented by core (`formulaFunctions.ts`).                                                     |
-| GETPIVOTDATA | Missing   | No PivotTable objects.                                                                           |
-| GROUPBY      | Partial   | Bare eta-reduced names (`SUM`) need evaluator support; LAMBDAs and names as text (`"SUM"`) work. |
-| HLOOKUP      | Supported |                                                                                                  |
-| HSTACK       | Supported |                                                                                                  |
-| HYPERLINK    | Supported | Implemented by core (`formulaFunctions.ts`).                                                     |
-| IMAGE        | Partial   | No in-cell pictures yet: returns the alt text (or the source).                                   |
-| INDEX        | Supported |                                                                                                  |
-| INDIRECT     | Supported | Implemented by core (`formulaFunctions.ts`).                                                     |
-| LOOKUP       | Supported |                                                                                                  |
-| MATCH        | Supported |                                                                                                  |
-| OFFSET       | Supported | Implemented by core (`formulaFunctions.ts`).                                                     |
-| PIVOTBY      | Partial   | As GROUPBY; header layout with `field_headers` 3 is a best effort.                               |
-| ROW          | Supported |                                                                                                  |
-| ROWS         | Supported |                                                                                                  |
-| RTD          | Missing   | Needs a COM automation server.                                                                   |
-| SORT         | Supported |                                                                                                  |
-| SORTBY       | Supported |                                                                                                  |
-| TAKE         | Supported |                                                                                                  |
-| TOCOL        | Supported |                                                                                                  |
-| TOROW        | Supported |                                                                                                  |
-| TRANSPOSE    | Supported |                                                                                                  |
-| TRIMRANGE    | Supported |                                                                                                  |
-| UNIQUE       | Supported |                                                                                                  |
-| VLOOKUP      | Supported |                                                                                                  |
-| VSTACK       | Supported |                                                                                                  |
-| WRAPCOLS     | Supported |                                                                                                  |
-| WRAPROWS     | Supported |                                                                                                  |
-| XLOOKUP      | Supported |                                                                                                  |
-| XMATCH       | Supported |                                                                                                  |
+| Function     | Status    | Notes                                                                                                             |
+| ------------ | --------- | ----------------------------------------------------------------------------------------------------------------- |
+| ADDRESS      | Supported | Implemented by core (`formulaFunctions.ts`).                                                                      |
+| AREAS        | Supported | Counts the areas of a reference, unions included: `AREAS((A1:B2,D4))` is 2.                                       |
+| CHOOSE       | Supported |                                                                                                                   |
+| CHOOSECOLS   | Supported |                                                                                                                   |
+| CHOOSEROWS   | Supported |                                                                                                                   |
+| COLUMN       | Supported |                                                                                                                   |
+| COLUMNS      | Supported |                                                                                                                   |
+| DROP         | Supported |                                                                                                                   |
+| EXPAND       | Supported |                                                                                                                   |
+| FILTER       | Supported |                                                                                                                   |
+| FORMULATEXT  | Supported | Implemented by core (`formulaFunctions.ts`).                                                                      |
+| GETPIVOTDATA | Missing   | No PivotTable objects.                                                                                            |
+| GROUPBY      | Partial   | Bare eta-reduced names (`SUM`) need evaluator support; LAMBDAs and names as text (`"SUM"`) work.                  |
+| HLOOKUP      | Supported |                                                                                                                   |
+| HSTACK       | Supported |                                                                                                                   |
+| HYPERLINK    | Supported | Implemented by core (`formulaFunctions.ts`).                                                                      |
+| IMAGE        | Partial   | No in-cell pictures yet: returns the alt text (or the source).                                                    |
+| INDEX        | Supported |                                                                                                                   |
+| INDIRECT     | Supported | Implemented by core (`formulaFunctions.ts`); A1 and R1C1 text, a reference everywhere (`SUM(INDIRECT("A1"):A5)`). |
+| LOOKUP       | Supported |                                                                                                                   |
+| MATCH        | Supported |                                                                                                                   |
+| OFFSET       | Supported | Implemented by core (`formulaFunctions.ts`); a reference everywhere (`OFFSET(A1,1,0):C5`, `ROWS(OFFSET(...))`).   |
+| PIVOTBY      | Partial   | As GROUPBY; header layout with `field_headers` 3 is a best effort.                                                |
+| ROW          | Supported |                                                                                                                   |
+| ROWS         | Supported |                                                                                                                   |
+| RTD          | Missing   | Needs a COM automation server.                                                                                    |
+| SORT         | Supported |                                                                                                                   |
+| SORTBY       | Supported |                                                                                                                   |
+| TAKE         | Supported |                                                                                                                   |
+| TOCOL        | Supported |                                                                                                                   |
+| TOROW        | Supported |                                                                                                                   |
+| TRANSPOSE    | Supported |                                                                                                                   |
+| TRIMRANGE    | Supported |                                                                                                                   |
+| UNIQUE       | Supported |                                                                                                                   |
+| VLOOKUP      | Supported |                                                                                                                   |
+| VSTACK       | Supported |                                                                                                                   |
+| WRAPCOLS     | Supported |                                                                                                                   |
+| WRAPROWS     | Supported |                                                                                                                   |
+| XLOOKUP      | Supported |                                                                                                                   |
+| XMATCH       | Supported |                                                                                                                   |
 
 ### Math and trigonometry
 

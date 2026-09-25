@@ -107,6 +107,10 @@ export class FortuneSheetCelldataValue implements IfortuneSheetCelldataValue {
   f: string | undefined; //formula, f
   rt: number | undefined; //text rotation angle 0-180 alignment
   qp: number | undefined; //quotePrefix, show number as string
+  sk?: number; //shrink to fit, alignment
+  ind?: number; //indent level, alignment
+  lo?: number; //locked (0: unlocked; unset: locked), protection
+  hi?: number; //formula hidden, protection
 }
 
 export class FortuneSheetCellFormat implements IFortuneSheetCellFormat {

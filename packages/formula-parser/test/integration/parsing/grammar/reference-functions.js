@@ -3,7 +3,7 @@
 // and IF return whichever reference argument they select, and OFFSET and
 // INDIRECT return references usable as range endpoints (=OFFSET(A1,1,0):A4).
 import Parser from "../../../../src/parser";
-import { createReference } from "../../../../src/index";
+import { createReference, isReference } from "../../../../src/index";
 import { attachSheet, plain } from "./sheet-fixture.mjs";
 
 //     A      B       C
@@ -162,6 +162,61 @@ describe(".parse() reference-returning functions", () => {
       expect(value("SUM(MYREF():A5)")).toBe(14);
       expect(value("MYREF()")).toEqual([[2], [3], [4]]);
       expect(value("ROWS(MYREF())")).toBe(3);
+    });
+
+    it("returnsReference makes a host function reference-capable", () => {
+      const shift = (params, refs) =>
+        refs[0]
+          ? createReference({
+              sheetName: refs[0].sheetName,
+              startRow: refs[0].startRow + params[1],
+              startColumn: refs[0].startColumn,
+              endRow: refs[0].endRow + params[1],
+              endColumn: refs[0].endColumn,
+            })
+          : "#VALUE!";
+
+      shift.returnsReference = true;
+      shift.referenceParams = [0];
+      parser.setFunction("SHIFT", shift);
+
+      expect(value("SUM(SHIFT(A1:A2,1))")).toBe(5);
+      expect(value("ROWS(SHIFT(A1:A3,1))")).toBe(3);
+      expect(value("ROW(SHIFT(A1,2))")).toBe(3);
+      expect(value("SUM(A1:SHIFT(A1,2))")).toBe(6);
+      expect(value("INDEX(SHIFT(A1:B3,2),1,2)")).toBe("x");
+      expect(value("ISREF(SHIFT(A1,1))")).toBe(true);
+      // nested: the inner call is a reference argument of the outer one
+      expect(value("SHIFT(SHIFT(A1,1),1)")).toBe(3);
+    });
+
+    it("referenceParams pass references unread", () => {
+      log.length = 0;
+      const seen = [];
+      const where = (params, refs) => {
+        seen.push(params.map((p) => (isReference(p) ? "ref" : p)));
+
+        return refs[0] ? refs[0].startRow + 1 : "value";
+      };
+
+      where.referenceParams = [0];
+      parser.setFunction("WHERE", where);
+
+      // C3 holds #DIV/0!: not read, so it does not abort the call
+      expect(value("WHERE(C3)")).toBe(3);
+      expect(value("WHERE(A:A)")).toBe(0);
+      expect(value("WHERE(5)")).toBe("value");
+      expect(value("WHERE(INDEX(A1:A5,4))")).toBe(4);
+      expect(value("WHERE(OFFSET(A1,1,0))")).toBe(2);
+      expect(log).toEqual([]);
+      expect(seen).toEqual([["ref"], ["ref"], [5], ["ref"], ["ref"]]);
+    });
+
+    it("host functions are found case-insensitively", () => {
+      parser.setFunction("TWICE", (params) => params[0] * 2);
+
+      expect(value("twice(4)")).toBe(8);
+      expect(parser.getFunction("Twice")).toBe(parser.getFunction("TWICE"));
     });
 
     it("variables resolved through resolveReference are references", () => {

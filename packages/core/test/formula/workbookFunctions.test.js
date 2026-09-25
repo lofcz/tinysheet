@@ -479,3 +479,82 @@ describe("SUBTOTAL", () => {
     expect(cell(ctx, "C1").f).toBe("=SUBTOTAL(109,A1:A5)");
   });
 });
+
+describe("references through the parser", () => {
+  test("OFFSET and INDIRECT (A1 and R1C1) are range operands", () => {
+    const ctx = makeContext();
+    fill(ctx, { A1: "1", A2: "2", A3: "3", B1: "4", B2: "5", B3: "6" });
+    fill(ctx, {
+      D1: "=SUM(OFFSET(A1,1,0):A3)",
+      D2: '=SUM(INDIRECT("R1C1",FALSE):INDIRECT("R2C2",FALSE))',
+      D3: '=ROWS(INDIRECT("R1C1:R3C2",FALSE))',
+      D4: '=SUM(INDIRECT("R[-3]C[-3]:R[-1]C[-3]",FALSE))',
+      D5: "=INDEX(OFFSET(A1,0,0,3,2),3,2)",
+      D6: '=COLUMNS(INDIRECT("A1:B1"):C1)',
+      D7: '=ROW(INDIRECT("R3C1",FALSE))',
+      D8: "=ISREF(OFFSET(A1,1,1))",
+    });
+    expect(values(ctx, "D1", "D8")).toEqual([
+      [5],
+      [12],
+      [3],
+      [6],
+      [6],
+      [3],
+      [3],
+      [true],
+    ]);
+  });
+
+  test("reference functions do not read (or fail on) their argument", () => {
+    const ctx = makeContext();
+    fill(ctx, { B1: "=1/0", B2: "=NA()", B3: "7" });
+    fill(ctx, {
+      A1: "=ISFORMULA(B1)",
+      A2: '=CELL("type",B1)',
+      A3: "=ROW(B2)",
+      A4: "=FORMULATEXT(B2)",
+      A5: "=OFFSET(B1,2,0)",
+      A6: "=SHEET(B2)",
+    });
+    expect(values(ctx, "A1", "A6")).toEqual([
+      [true],
+      ["v"],
+      [2],
+      ["=NA()"],
+      [7],
+      [1],
+    ]);
+  });
+
+  test("OFFSET/INDIRECT range operands recalculate with their targets", () => {
+    const ctx = makeContext();
+    fill(ctx, { A1: "1", A2: "2", A3: "3" });
+    input(ctx, "C1", '=SUM(INDIRECT("R1C1",FALSE):A3)');
+    input(ctx, "C2", "=SUM(OFFSET(A1,1,0):OFFSET(A1,2,0))");
+    expect(value(ctx, "C1")).toBe(6);
+    expect(value(ctx, "C2")).toBe(5);
+    input(ctx, "A2", "20");
+    expect(value(ctx, "C1")).toBe(24);
+    expect(value(ctx, "C2")).toBe(23);
+  });
+
+  test("AREAS counts the areas of unions", () => {
+    const ctx = makeContext();
+    fill(ctx, {
+      A1: "=AREAS(B1:C3)",
+      A2: "=AREAS((B1:C3,E1,F2:F4))",
+      A3: '=AREAS(INDIRECT("B1:C2"))',
+      A4: "=AREAS((B1,OFFSET(B1,1,1)))",
+    });
+    expect(values(ctx, "A1", "A4")).toEqual([[1], [3], [1], [2]]);
+  });
+
+  test("formulas rewritten with legacy markers still evaluate", () => {
+    const ctx = makeContext();
+    fill(ctx, { A1: "1", A2: "2", A3: "3" });
+    const expr = rewriteReferenceArgs(ctx, "ROWS(OFFSET(A1,0,0,3))", "id_1");
+    input(ctx, "C1", `=${expr}`);
+    expect(value(ctx, "C1")).toBe(3);
+  });
+});
