@@ -197,13 +197,105 @@ pass `bun run test:formula-parser`, `bun run test:jest` and `bun run build`.
 - **T63** Make `tsc --noEmit` pass (React types resolution, strictness fixes) and add typecheck and lint for every package to CI; fix `formula-parser` lint (`babel-eslint`).
 - **T64** Playwright e2e suite on the static Storybook build (formulas, spill, autocomplete, keyboard, theme, CF, paste) that runs in CI; docs updates for all new options and shortcuts.
 
-## Phase 3: next
+## Phase 3: in progress (15 streams, T65–T119)
 
-* Chunked row storage and a web-worker calculation engine (removes the per-edit row copy and whole-sheet spill scans).
-* A pivot table UI on top of GROUPBY/PIVOTBY, and GETPIVOTDATA.
-* Slicers and timeline filters for tables.
-* Sparklines (cell-level mini charts) and more chart types (combo, radar, waterfall, histogram).
-* Threaded comments and @mentions; review/track changes.
-* Freeze from the scrolled position, cross-sheet Point mode, and multi-window split editing.
-* Collaborative editing hardening: operational transforms for formulas.
-* Printing and page layout.
+Close the fixable phase 2 gaps and add the Excel features that are still
+missing entirely. Same rules as before. In addition, features plug into shared
+code through the extension registries instead of editing it:
+
+* `registerCellDecorator` (core): draw cell backgrounds, replacement content or foreground marks on the canvas.
+* `registerShortcut` (core): keyboard shortcuts.
+* `registerToolbarItem` / `registerSheetOverlay` (react): toolbar items and components in the cell area.
+* `registerContextMenuAction` (react): context-menu entries.
+* `sheetExportFeatures` / `sheetImportFeatures` (excel): xlsx writers and readers.
+
+### R1 · Images in cells
+- **T65** `IMAGE(source, [alt_text], [sizing], [height], [width])` renders the picture inside the cell (sizing 0–3, async load and cache, placeholder while loading, `#VALUE!` on bad input, spills for arrays).
+- **T66** Place in Cell / Place over Cells: insert a picture into a cell from a file, URL or clipboard paste; convert between the two modes; alt text; picture cells copy, sort, filter and fill like values.
+- **T67** xlsx: in-cell pictures (`xl/richData`, `vm` metadata) and `_xlfn.IMAGE` import/export.
+- **T68** Image cells in the formula bar, tooltips, zoom, dark theme and printing.
+
+### R2 · PivotTables
+- **T69** PivotTable model and Create dialog (source range or table, new or existing sheet).
+- **T70** Fields pane: rows, columns, values (Sum/Count/Average/Max/Min/Product/StdDev/Var, % of total/row/column), filters; drag and drop; compact/outline/tabular layouts; subtotals and grand totals; sorting; label and value filters.
+- **T71** Refresh, drill-down (double-click a value → detail sheet), date grouping (years/quarters/months), number formats.
+- **T72** `GETPIVOTDATA`; xlsx import/export of pivot tables (definitions where feasible, values otherwise).
+
+### R3 · Outline and subtotals
+- **T73** Group/Ungroup rows and columns (Shift+Alt+→/←), outline levels 1–8, +/− and level buttons in an outline gutter, collapse/expand.
+- **T74** Data › Subtotal dialog (at each change in, function, add to columns, replace current, summary below) and Remove All.
+- **T75** Auto Outline, Clear Outline, summary position settings; xlsx `outlineLevel`/`collapsed`/`summaryBelow` round-trip.
+
+### R4 · Formula auditing and calculation
+- **T76** Trace Precedents/Dependents arrows (including a cross-sheet marker), Remove Arrows.
+- **T77** Show Formulas (Ctrl+`), Evaluate Formula dialog (step through evaluation), Watch Window.
+- **T78** Error-checking indicators (number stored as text, inconsistent formula, formula omits adjacent cells, unlocked formula cells) with a smart-tag menu (convert to number, ignore error, help) and rule settings.
+- **T79** Calculation options: Automatic / Manual with F9, Shift+F9 and Ctrl+Alt+F9; iterative calculation (max iterations / max change) for circular references; circular-reference status indicator.
+
+### R5 · Sparklines
+- **T80** Line, column and win/loss sparklines drawn in cells (markers for high/low/first/last/negative, axis, colours, empty-cell handling).
+- **T81** Insert Sparklines dialog and sparkline editing (group, ungroup, clear, style).
+- **T82** xlsx `x14:sparklineGroups` round-trip.
+
+### R6 · Charts, round 2
+- **T83** More chart types: combo charts with a secondary axis, radar, bubble, waterfall, histogram, funnel, stock.
+- **T84** Trendlines (linear, exponential, logarithmic, polynomial, moving average, equation and R²), error bars, data-label formats.
+- **T85** Charts follow their cells: cell shifts, moves, row/column resize and hide ("move and size with cells"); fixes the phase 2 gap.
+- **T86** Chart style and colour galleries, copy chart as image, export PNG/SVG.
+
+### R7 · Cell controls and data tools
+- **T87** Excel cell checkboxes (Insert › Checkbox): boolean cells render as checkboxes, toggled by click or Space; xlsx round-trip.
+- **T88** Flash Fill (Ctrl+E): infer split, combine and reformat patterns from examples.
+- **T89** What-If: Goal Seek dialog and one- and two-variable Data Tables.
+- **T90** Advanced Filter (criteria range, filter in place or copy to, unique records only).
+
+### R8 · Page layout and printing
+- **T91** Page Setup model and dialog: orientation, paper size, margins, fit-to-pages scaling, print area, print titles, centring, gridlines/headings, headers/footers with codes (`&P &N &D &T &F &A`).
+- **T92** Page Break Preview: page break lines and manual page breaks (insert/remove/drag).
+- **T93** Print and export to PDF: paginated, print-ready rendering and the browser print flow.
+- **T94** xlsx `pageSetup`/`pageMargins`/`printOptions`/`headerFooter`/`rowBreaks`/`colBreaks` round-trip.
+
+### R9 · Protection and view options
+- **T95** Protect Sheet with password and allowed actions, enforced for every edit path (cells, formats, rows/columns, sort, filter, objects); locked cells; hidden formulas hidden in the formula bar; Allow Edit Ranges.
+- **T96** Protect Workbook structure (no add/delete/rename/move/hide sheets).
+- **T97** View options: gridlines, headings and formula bar toggles, zoom to selection, right-to-left sheets.
+- **T98** xlsx `sheetProtection`/`workbookProtection` round-trip (SHA-512 password hashes).
+
+### R10 · Performance, round 3
+- **T99** Chunked row storage, so an edit no longer copies the whole row array (about 50 ms at 1M rows).
+- **T100** Anchor index for spills, so row/column insert/delete don't scan the whole sheet.
+- **T101** Blit scrolling with merged cells crossing the freeze line and with CF data bars/icons (clip-correct redraw).
+- **T102** Time-sliced recalculation of long dependency chains (no frozen UI, progress indicator).
+
+### R11 · Editing gaps
+- **T103** Freeze Panes from the scrolled position (Excel semantics).
+- **T104** Point mode across sheets: click another sheet's tab while editing a formula and pick references there.
+- **T105** Cut/paste and moves carry autofilter ranges and filter state.
+- **T106** Formula bar: expand/collapse and resize, Ctrl+Shift+U, multi-line editing with line breaks.
+- **T107** Autocomplete for table names and columns, defined names and sheet names while typing formulas; clicking an argument in the hint selects it.
+
+### R12 · Threaded comments
+- **T108** Threaded comments (author, time, replies, resolve/reopen, edit/delete) separate from notes, a cell indicator and a Comments pane.
+- **T109** @mentions through a host-provided user list and events.
+- **T110** xlsx `threadedComments`/`persons` round-trip with a legacy note fallback.
+
+### R13 · Shapes and text boxes
+- **T111** Shapes (rectangle, rounded rectangle, ellipse, line, arrow, triangle, callout) and text boxes with rich text: move, resize, rotate, z-order, group; fill, outline and shadow.
+- **T112** xlsx DrawingML shapes and text boxes round-trip.
+
+### R14 · Tables and slicers
+- **T113** Slicers for tables: button panels that filter table rows (multi-select, clear, styles, resize).
+- **T114** Table polish: filter buttons in headers, total-row function dropdown, calculated columns (a formula typed in a column fills the whole column), resize handle, table styles gallery.
+- **T115** xlsx round-trip of table filters, calculated columns and slicers where feasible.
+
+### R15 · I/O robustness and localisation
+- **T116** Fill the remaining exceljs gaps through zip post-processing (list validation "show dropdown", tables without data rows, any other dropped attributes).
+- **T117** Localise the excel package's toolbar, import and export labels.
+- **T118** xlsx import robustness corpus: generated fixtures for every feature, no crashes, fidelity checks.
+- **T119** Import performance for large xlsx files (100k+ cells): measured, streamed, and off the main thread where possible.
+
+## Phase 4: later
+
+* A web-worker calculation engine and multi-threaded recalculation.
+* Collaborative editing hardening (operational transforms for formulas, presence).
+* Power Query-like data import.
