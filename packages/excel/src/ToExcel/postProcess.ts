@@ -10,8 +10,12 @@
  *   `location` attribute and their relationship is removed.
  * - Shown notes: ExcelJS writes every note hidden. Notes TinySheet shows
  *   permanently (`ps.isShow`) get `<x:Visible/>` and a visible shape.
+ * - Threaded comments: their thread and person parts
+ *   (ExcelThreadedComments.ts).
  */
 import JSZip from "jszip";
+import type { ThreadedCommentExportInfo } from "./ExcelThreadedComments";
+import { writeThreadedCommentParts } from "./ExcelThreadedComments";
 
 export type XlsxPostProcessInfo = {
   /** Worksheet id -> addresses of dynamic-array formula cells. */
@@ -19,6 +23,8 @@ export type XlsxPostProcessInfo = {
   worksheetIds: number[];
   /** Worksheet id -> cells (0-based) whose note is always shown. */
   visibleNotes?: Record<number, { r: number; c: number }[]>;
+  /** Threads and persons to write (writeThreadedComments). */
+  threadedComments?: ThreadedCommentExportInfo;
 };
 
 const METADATA_XML =
@@ -200,6 +206,7 @@ export async function postProcessXlsx(
   await markDynamicArrays(zip, info);
   await fixInternalHyperlinks(zip);
   await showNotes(zip, info);
+  await writeThreadedCommentParts(zip, info);
   return zip.generateAsync({
     type: "uint8array",
     compression: "DEFLATE",
