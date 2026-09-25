@@ -1580,6 +1580,12 @@ export function luckysheetUpdateCell(
   col_index: number
 ) {
   ctx.luckysheetCellUpdate = [row_index, col_index];
+  // double-click editing is Excel's Edit mode (arrows move the caret)
+  ctx.editState = {
+    mode: "edit",
+    cell: [row_index, col_index],
+    sheetId: ctx.currentSheetId,
+  };
 }
 
 export function getDataBySelectionNoCopy(ctx: Context, range: Selection) {

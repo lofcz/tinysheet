@@ -6,6 +6,7 @@ export * from "./cursor";
 export * from "./format";
 export * from "./formula";
 export * from "./formulaEditor";
+export * from "./editMode";
 export * from "./freeze";
 export * from "./history";
 export * from "./inline-string";
