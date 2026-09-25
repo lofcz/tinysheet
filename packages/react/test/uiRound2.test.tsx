@@ -113,16 +113,20 @@ describe("cell context menu", () => {
       "Cut",
       "Copy",
       "Paste",
+      "Paste Special…",
       "Insert…",
       "Delete…",
       "Clear Contents",
       "Filter",
       "Sort",
       "Insert Comment",
+      "Format Cells…",
       "Pick From Drop-down List…",
+      "Define Name…",
       "Link…",
       "Insert Image…",
       "Data Validation…",
+      "Insert Chart",
     ]);
     // A1 has values below it to pick from
     expect(

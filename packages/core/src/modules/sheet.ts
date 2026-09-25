@@ -12,6 +12,7 @@ import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
 import { moveWorkbookNamesBeforeSheetDelete } from "./names";
 import { prepareDuplicatedSheet } from "./modelSync";
 import { updateCell } from "./cell";
+import { delFunctionGroup } from "./formula";
 import { quoteSheetName, tokenizeFormula } from "./formulaFunctions";
 
 function storeSheetParam(ctx: Context) {
@@ -726,6 +727,60 @@ export function onSheetTabActivated(ctx: Context, sheetId: string) {
   }
 }
 
+/** Updates that applied themselves to every grouped sheet (not mirrored). */
+const GROUP_EDIT_HANDLED = new WeakSet<Context>();
+
+/**
+ * Delete / Clear Contents with grouped sheets: clears the contents of the
+ * selected cells on every other grouped sheet as well, including cells that
+ * are already empty on the active sheet. Each sheet keeps its own formats,
+ * so the update is then not mirrored. Call it in the same update, after
+ * clearing the active sheet.
+ */
+export function clearGroupedSheetsContents(ctx: Context) {
+  const ids = getGroupedSheetIds(ctx);
+  const selection = ctx.luckysheet_select_save;
+  if (ids.length < 2 || !selection?.length) return;
+  GROUP_EDIT_HANDLED.add(ctx);
+  ids.forEach((id) => {
+    if (id === ctx.currentSheetId) return;
+    const j = getSheetIndex(ctx, id);
+    if (j == null) return;
+    const sheet = ctx.luckysheetfile[j];
+    if (_.isEmpty(sheet.data)) initSheetData(ctx, j, sheet);
+    const { data } = sheet;
+    if (!data) return;
+    const changed: { r: number; c: number; id: string }[] = [];
+    selection.forEach(({ row, column }) => {
+      const r2 = Math.min(row[1] ?? row[0], data.length - 1);
+      for (let r = row[0]; r <= r2; r += 1) {
+        const c2 = Math.min(column[1] ?? column[0], (data[r]?.length ?? 0) - 1);
+        for (let c = column[0]; c <= c2; c += 1) {
+          const cell = data[r][c];
+          if (cell && (cell.v != null || cell.f != null || cell.m != null)) {
+            if (cell.f) delFunctionGroup(ctx, r, c, id);
+            const kept: Cell = _.omit(cell, ["v", "m", "f", "spl", "qp", "hl"]);
+            if (kept.ct?.t === "inlineStr") kept.ct = { fa: "General", t: "g" };
+            data[r][c] = kept;
+            changed.push({ r, c, id });
+          }
+          if (sheet.hyperlink?.[`${r}_${c}`]) {
+            delete sheet.hyperlink[`${r}_${c}`];
+          }
+        }
+      }
+    });
+    if (changed.length === 0) return;
+    const prev = ctx.currentSheetId;
+    ctx.currentSheetId = id;
+    try {
+      recalculate(ctx, changed, null);
+    } finally {
+      ctx.currentSheetId = prev;
+    }
+  });
+}
+
 const MIRRORED_CONFIG_MAPS = [
   "rowlen",
   "columnlen",
@@ -746,6 +801,8 @@ const MIRRORED_CONFIG_MAPS = [
  * inserted/deleted) are not mirrored.
  */
 export function mirrorGroupedSheetEdits(base: Context, draft: Context) {
+  // the update already handled every grouped sheet itself
+  if (GROUP_EDIT_HANDLED.delete(draft)) return;
   const ids = getGroupedSheetIds(draft);
   if (ids.length < 2) return;
   if (base.currentSheetId !== draft.currentSheetId) return;

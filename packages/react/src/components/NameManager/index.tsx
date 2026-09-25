@@ -248,18 +248,22 @@ const CreateFromSelection: React.FC<{ onDone: () => void }> = ({ onDone }) => {
   );
 };
 
-/** Excel's Name Manager: list, filter, new, edit, delete. */
-export const NameManager: React.FC<{ initialMode?: "fromSelection" }> = ({
-  initialMode,
-}) => {
-  const { context, setContext } = useContext(WorkbookContext);
+/**
+ * Excel's Name Manager: list, filter, new, edit, delete. `initialMode`
+ * "newName" shows only the New Name form (Define Name), closing the dialog
+ * when it is done.
+ */
+export const NameManager: React.FC<{
+  initialMode?: "fromSelection" | "newName";
+}> = ({ initialMode }) => {
+  const { context, setContext, refs } = useContext(WorkbookContext);
   const { hideDialog } = useDialog();
   const { definedNames: t, button } = locale(context);
-  const [mode, setMode] = useState<Mode>(
-    initialMode === "fromSelection"
-      ? { kind: "fromSelection" }
-      : { kind: "list" }
-  );
+  const [mode, setMode] = useState<Mode>(() => {
+    if (initialMode === "fromSelection") return { kind: "fromSelection" };
+    if (initialMode === "newName") return { kind: "edit", entry: null };
+    return { kind: "list" };
+  });
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -296,7 +300,14 @@ export const NameManager: React.FC<{ initialMode?: "fromSelection" }> = ({
       <div className="fortune-name-manager">
         <NameEditor
           entry={mode.entry}
-          onDone={() => setMode({ kind: "list" })}
+          onDone={() => {
+            if (initialMode === "newName") {
+              hideDialog();
+              refs.cellInput.current?.focus({ preventScroll: true });
+            } else {
+              setMode({ kind: "list" });
+            }
+          }}
         />
       </div>
     );

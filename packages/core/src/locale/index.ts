@@ -43,12 +43,37 @@ const baseLocaleObj: Record<string, Omit<Locale, "chart">> = {
   ru: withFunctionList(ru, ruFunctions),
 };
 
-// Chart strings live in ./chart.ts; attach them to every locale.
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  v != null && typeof v === "object" && !Array.isArray(v);
+
+/**
+ * `over` with every key it lacks taken from `base`, recursively through plain
+ * objects (arrays and values of another shape are kept as they are).
+ */
+function withFallback(base: unknown, over: unknown): unknown {
+  if (over === undefined) return base;
+  if (!isPlainObject(base) || !isPlainObject(over)) return over;
+  const out: Record<string, unknown> = { ...over };
+  Object.keys(base).forEach((key) => {
+    out[key] = withFallback(base[key], over[key]);
+  });
+  return out;
+}
+
+// Every language falls back to English key by key, so strings added to en
+// show in English until translated. Chart strings live in ./chart.ts;
+// attach them to every locale.
 const localeObj: Record<string, Locale> = {};
 Object.keys(baseLocaleObj).forEach((lang) => {
   localeObj[lang] = {
-    ...baseLocaleObj[lang],
-    chart: chartLocales[lang] || chartLocales.en,
+    ...(withFallback(baseLocaleObj.en, baseLocaleObj[lang]) as Omit<
+      Locale,
+      "chart"
+    >),
+    chart: withFallback(
+      chartLocales.en,
+      chartLocales[lang] || chartLocales.en
+    ) as ChartLocale,
   };
 });
 

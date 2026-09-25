@@ -22,6 +22,9 @@ import {
 import { Cell, CellMatrix } from "../types";
 import { dataToolsLocale, formatLocaleText } from "../locale/dataTools";
 import { execfunction } from "./formula";
+import { setEditMode } from "./editMode";
+// eslint-disable-next-line import/no-cycle
+import { normalizeSelection } from "./selection";
 import { genarate } from "./format";
 import { shiftFormula } from "./sort";
 import { registerReferenceAdjuster, ReferenceAdjuster } from "./refAdjust";
@@ -1035,14 +1038,29 @@ export function dismissDataVerificationAlert(ctx: Context) {
   const alert = ctx.dataVerificationAlert;
   ctx.dataVerificationAlert = undefined;
   if (!alert || alert.sheetId !== ctx.currentSheetId) return;
-  ctx.luckysheet_select_save = [
+  // with its pixel geometry, which the selection box and the editor use
+  ctx.luckysheet_select_save = normalizeSelection(ctx, [
     {
       row: [alert.r, alert.r],
       column: [alert.c, alert.c],
       row_focus: alert.r,
       column_focus: alert.c,
     },
-  ];
+  ]);
+}
+
+/**
+ * "Retry" (Stop alert): back to editing the cell, in Edit mode, with the
+ * rejected text. Returns that text for the editor, or null when there is
+ * nothing to retry (no alert, or it belongs to another sheet).
+ */
+export function retryDataVerificationAlert(ctx: Context): string | null {
+  const alert = ctx.dataVerificationAlert;
+  dismissDataVerificationAlert(ctx);
+  if (!alert || alert.sheetId !== ctx.currentSheetId) return null;
+  ctx.luckysheetCellUpdate = [alert.r, alert.c];
+  setEditMode(ctx, "edit");
+  return alert.value;
 }
 
 // 复选框处理

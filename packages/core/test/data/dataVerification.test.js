@@ -562,6 +562,10 @@ describe("helpers", () => {
       "数据验证"
     );
     expect(dataToolsLocale({ lang: "es" }).dataValidation.title).toBe(
+      "Validación de datos"
+    );
+    // a language without the key uses the English text
+    expect(dataToolsLocale({ lang: "fr" }).dataValidation.title).toBe(
       "Data Validation"
     );
     expect(dataToolsLocale({ lang: "zh-CN" }).filter.months[0]).toBe("一月");

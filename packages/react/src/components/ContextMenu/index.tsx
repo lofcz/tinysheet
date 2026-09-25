@@ -5,6 +5,8 @@ import {
   insertRowCol,
   removeActiveImage,
   deleteSelectedCellText,
+  clearGroupedSheetsContents,
+  getInsertDeleteCellsShortcut,
   sortSelection,
   createFilter,
   showImgChooser,
@@ -51,12 +53,15 @@ import MenuIcon from "./icons";
 import CustomSort from "../CustomSort";
 import DataVerification from "../DataVerification";
 import { getContextMenuAction, ContextMenuActionKey } from "./actions";
+import { registerDefaultContextMenuActions } from "./defaultActions";
 import {
   InsertDeleteDialog,
   SizeDialog,
   useInsertDeleteRunner,
 } from "./dialogs";
 import PickList, { PickListState } from "./PickList";
+
+registerDefaultContextMenuActions();
 
 type MenuEntry =
   | {
@@ -145,7 +150,7 @@ function activeCellAnchor(
 }
 
 const ContextMenu: React.FC = () => {
-  const { showDialog } = useDialog();
+  const { showDialog, hideDialog } = useDialog();
   const { showModal } = useContext(ModalContext);
   const containerRef = useRef<HTMLDivElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
@@ -212,11 +217,11 @@ const ContextMenu: React.FC = () => {
       close();
       action?.({
         ...workbookCtx,
-        showDialog: (content) => showModal(content),
-        hideDialog: () => showModal(null),
+        showDialog: (content) => showDialog(content),
+        hideDialog,
       });
     },
-    [close, showModal, workbookCtx]
+    [close, hideDialog, showDialog, workbookCtx]
   );
 
   const insertOrDeleteRowCol = useCallback(
@@ -412,14 +417,17 @@ const ContextMenu: React.FC = () => {
           },
         });
       case "paste-special":
-        // TODO(P7): shown once Paste Special registers "pasteSpecial"
         if (!getContextMenuAction("pasteSpecial")) return [];
         return item({
           key: name,
           label: cellMenu.pasteSpecial,
           icon: "paste",
           shortcut: isMac ? "⌃⌘V" : "Ctrl+Alt+V",
-          disabled: !editable,
+          // pastes the last copy of the workbook
+          disabled:
+            multi ||
+            !editable ||
+            !context.luckysheet_copy_save?.copyRange?.length,
           onSelect: () => runRegistered("pasteSpecial"),
         });
       case "insert-cells":
@@ -498,6 +506,8 @@ const ContextMenu: React.FC = () => {
                   showDialog(generalDialog.readOnlyError, "ok");
                 } else if (msg === "dataNullError") {
                   showDialog(generalDialog.dataNullError, "ok");
+                } else if (msg === "success") {
+                  clearGroupedSheetsContents(draftCtx);
                 }
               }
               jfrefreshgrid(draftCtx, null, undefined);
@@ -591,7 +601,6 @@ const ContextMenu: React.FC = () => {
         return out;
       }
       case "cell-format":
-        // TODO(P9): shown once the Format Cells dialog registers "formatCells"
         if (!getContextMenuAction("formatCells")) return [];
         return item({
           key: name,
@@ -630,7 +639,6 @@ const ContextMenu: React.FC = () => {
         });
       }
       case "define-name":
-        // TODO(P3): shown once the Name Manager registers "defineName"
         if (!getContextMenuAction("defineName")) return [];
         return item({
           key: name,
@@ -681,7 +689,6 @@ const ContextMenu: React.FC = () => {
           },
         });
       case "chart":
-        // TODO(P12): shown once charts register "insertChart"
         if (!getContextMenuAction("insertChart")) return [];
         return item({
           key: name,
@@ -940,6 +947,27 @@ const ContextMenu: React.FC = () => {
     const wb = refs.workbookContainer.current;
     if (!wb) return undefined;
     const onKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+- / Ctrl+Shift+= on cells (not entire rows / columns): the
+      // Delete… / Insert… dialog, as in Excel
+      const cellsMode = getInsertDeleteCellsShortcut(
+        contextRef.current,
+        e,
+        refs.cellInput.current,
+        refs.fxInput.current
+      );
+      if (cellsMode) {
+        const s = contextRef.current.luckysheet_select_save?.[0];
+        if (!s) return;
+        e.preventDefault();
+        e.stopPropagation();
+        showModal(
+          <InsertDeleteDialog
+            mode={cellsMode}
+            range={{ row: s.row, column: s.column }}
+          />
+        );
+        return;
+      }
       const isMenuKey =
         e.key === "ContextMenu" || (e.shiftKey && e.key === "F10");
       // Alt+Down: Pick From Drop-down List (validation lists keep the key)
@@ -1002,7 +1030,14 @@ const ContextMenu: React.FC = () => {
     };
     wb.addEventListener("keydown", onKeyDown, true);
     return () => wb.removeEventListener("keydown", onKeyDown, true);
-  }, [refs.cellArea, refs.cellInput, refs.workbookContainer, setContext]);
+  }, [
+    refs.cellArea,
+    refs.cellInput,
+    refs.fxInput,
+    refs.workbookContainer,
+    setContext,
+    showModal,
+  ]);
 
   useLayoutEffect(() => {
     // re-position the context menu if it overflows the window
