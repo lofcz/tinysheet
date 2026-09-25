@@ -249,6 +249,29 @@ export function fitCellToWidth<T extends Cell | null | undefined>(
   return fitted === display ? cell : { ...cell, m: fitted };
 }
 
+/**
+ * Shrink to fit (Format Cells > Alignment): a copy of the cell with a font
+ * size small enough for its text to fit `availableWidth`, or the cell
+ * itself when it fits, is wrapped or has no shrink flag (`sk`).
+ * `measure` measures in the cell's current font.
+ */
+export function shrinkCellToWidth<T extends Cell | null | undefined>(
+  cell: T,
+  availableWidth: number,
+  measure: (text: string) => number,
+  defaultFontSize = 10
+): T {
+  if (!cell || !(cell as any).sk || cell.tb === "2") return cell;
+  if (cell.ct?.t === "inlineStr") return cell;
+  const text = cell.m ?? cell.v;
+  if (text == null || text === "") return cell;
+  const width = measure(`${text}`);
+  if (width <= availableWidth || availableWidth <= 0) return cell;
+  const fs = Number(cell.fs) || defaultFontSize;
+  const next = Math.max(1, Math.floor((fs * availableWidth) / width));
+  return next >= fs ? cell : { ...cell, fs: next };
+}
+
 /* ------------------------------------------------------------------ */
 /* Format colours ([Red], [Color10], ...)                              */
 /* ------------------------------------------------------------------ */

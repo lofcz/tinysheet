@@ -2,7 +2,30 @@ import {
   fitCellToWidth,
   fitNumberToWidth,
   generalCandidates,
+  shrinkCellToWidth,
 } from "../../src/modules/format";
+
+describe("shrinkCellToWidth", () => {
+  // measure proportional to the font size: 0.7 px per point per character
+  const sized = (cell) => (s) => s.length * 0.7 * (cell.fs || 10);
+
+  test("shrinks the font until the text fits", () => {
+    const cell = { v: "hello world", m: "hello world", sk: 1 };
+    const out = shrinkCellToWidth(cell, 40, sized(cell), 10);
+    expect(out).not.toBe(cell);
+    expect(out.fs).toBe(5);
+    expect(sized(out)(out.m)).toBeLessThanOrEqual(40);
+  });
+
+  test("leaves fitting, wrapped and non-shrink cells alone", () => {
+    const fits = { v: "hi", m: "hi", sk: 1 };
+    expect(shrinkCellToWidth(fits, 40, sized(fits), 10)).toBe(fits);
+    const wrapped = { v: "hello world", m: "hello world", sk: 1, tb: "2" };
+    expect(shrinkCellToWidth(wrapped, 10, sized(wrapped), 10)).toBe(wrapped);
+    const plain = { v: "hello world", m: "hello world" };
+    expect(shrinkCellToWidth(plain, 10, sized(plain), 10)).toBe(plain);
+  });
+});
 
 // Monospace measure: every character is 7px wide.
 const measure = (s) => s.length * 7;
