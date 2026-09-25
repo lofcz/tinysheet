@@ -58,6 +58,7 @@ import {
   FortuneSheetCelldataValue,
 } from "./FortuneBase";
 import { ImageList } from "./FortuneImage";
+import { readSheetConditionalFormats } from "./FortuneConditionFormat";
 import dayjs from "dayjs";
 import {
   FortuneChartSpec,
@@ -401,6 +402,13 @@ export class FortuneSheet extends FortuneSheetBase {
 
     // sheet default width/height for columns and rows without their own
     this.applyDefaultSizes();
+
+    // conditional formatting
+    this.luckysheet_conditionformat_save = readSheetConditionalFormats(
+      this.readXml,
+      this.sheetFile,
+      this.styles
+    ) as any;
 
     // sheet hide
     this.hide = this.hide;

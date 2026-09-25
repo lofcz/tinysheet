@@ -28,6 +28,10 @@ import {
 import { colorToArgb } from "../common/units";
 import { setDefinedNames } from "../common/definedNames";
 import { addChartsToXlsx } from "../chart/exportXlsx";
+import {
+  finalizeConditionalFormatting,
+  setConditionalFormatting,
+} from "./ExcelConditionFormat";
 
 export type XlsxExportOptions = {
   /** Skip sheets with hide=1 instead of exporting them as hidden. */
@@ -103,8 +107,12 @@ export const sheetExportFeatures: SheetExportFeature[] = [
     name: "data-validation",
     write: (ctx) => setDataValidations(ctx.sheet, ctx.worksheet),
   },
+  {
+    name: "conditional-formatting",
+    write: (ctx) => setConditionalFormatting(ctx.sheet, ctx.worksheet),
+  },
   { name: "views", write: writeSheetViews },
-  // Conditional formatting and charts plug in here with their own writers.
+  // Charts are added to the written zip (addChartsToXlsx).
 ];
 
 /** Workbook-level writers (run after every sheet was written). */
@@ -259,7 +267,11 @@ export async function exportToXlsx(
   options: XlsxExportOptions = {}
 ): Promise<Uint8Array> {
   const { workbook, post } = buildExcelWorkbookWithInfo(sheets, options);
-  const buffer = await workbook.xlsx.writeBuffer();
+  // restore the conditional-format settings exceljs drops (data bars, ...)
+  const buffer = await finalizeConditionalFormatting(
+    workbook,
+    await workbook.xlsx.writeBuffer()
+  );
   const processed = await postProcessXlsx(buffer as ArrayBuffer, post);
   // exceljs cannot create charts: add native chart parts to its output
   const withCharts = await addChartsToXlsx(processed, sheets);
