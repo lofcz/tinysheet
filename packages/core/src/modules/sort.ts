@@ -359,7 +359,7 @@ function hasMergeInRange(
 }
 
 /** Move a formula by (dr, dc), shifting its relative references. */
-function shiftFormula(ctx: Context, f: string, dr: number, dc: number) {
+export function shiftFormula(ctx: Context, f: string, dr: number, dc: number) {
   let func = f;
   if (dr > 0) func = `=${functionCopy(ctx, func, "down", dr)}`;
   else if (dr < 0) func = `=${functionCopy(ctx, func, "up", -dr)}`;
