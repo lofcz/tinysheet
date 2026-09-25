@@ -1,111 +1,17 @@
-#fortune-data-verification {
-  color: var(--fortune-text);
-  min-width: 500px;
-  padding: 10px 0px;
-  user-select: none;
+/* input message / invalid value box shown under the selected cell */
+#luckysheet-dataVerification-showHintBox {
+  white-space: pre-wrap;
+  max-width: 280px;
+  line-height: 1.45;
 }
 
-#fortune-data-verification .title {
-  font-size: 16px;
-}
-
-#fortune-data-verification .box {
-  font-size: 14px;
-}
-
-#fortune-data-verification .box .box-item {
-  padding: 10px;
-  border-bottom: 1px solid var(--fortune-border);
-}
-
-#fortune-data-verification .box .box-item .box-item-title {
-  font-size: 14px;
+#luckysheet-dataVerification-showHintBox .fortune-dv-hint-title {
   font-weight: 600;
-  margin-bottom: 10px;
+  margin-bottom: 2px;
 }
 
-#fortune-data-verification .box .box-item .data-verification-range {
-  width: 100%;
-  height: 30px;
-  border: 1px solid var(--fortune-border);
-}
-
-#fortune-data-verification .box .box-item .show-box-item {
-  margin-top: 6px;
-  font-size: 12px;
-}
-
-#fortune-data-verification .box .box-item .show-box-item .check-box {
-  height: 30px;
-  line-height: 30px;
-  margin-bottom: 10px;
-}
-
-#fortune-data-verification .box .box-item .show-box-item .check-box input {
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--fortune-border);
-  box-sizing: border-box;
-}
-
-#fortune-data-verification .input-box input {
-  height: 30px;
-  padding: 4px 10px 4px 10px;
-  border: 1px solid var(--fortune-border);
-  box-sizing: border-box;
-  margin-top: 6px;
-}
-
-#fortune-data-verification .input-box span {
-  margin: 0px 16px;
-}
-
-.data-verification-range .formulaInputFocus {
-  background: transparent;
-  color: var(--fortune-text);
-  box-shadow: none !important;
-  width: calc(100% - 30px);
-  height: 30px;
-  padding: 0 10px;
-  float: left;
-  border: none;
-  outline-style: none;
-  box-sizing: border-box;
-}
-
-.data-verification-range .icon {
-  float: right;
-  margin-top: 4px;
-  margin-right: 5px;
-  cursor: pointer;
-}
-
-#fortune-data-verification .box .box-item .data-verification-type-select {
-  width: 100%;
-  height: 30px;
-  border-color: var(--fortune-border);
-  outline-style: none;
-}
-
-#fortune-data-verification .box .box-item .check {
-  font-size: 12px;
-  line-height: 24px;
-}
-
-#fortune-data-verification .box .box-item .check input {
-  vertical-align: text-top;
-}
-
-#fortune-data-verification .button-basic {
-  margin-top: 10px;
-}
-
-#fortune-data-verification .button-primary {
-  margin-right: 10px;
-}
-
-#fortune-data-verification .button-close {
-  margin-right: 10px;
+#luckysheet-dataVerification-showHintBox .fortune-dv-hint-invalid {
+  color: var(--fortune-danger);
 }
 
 #range-dialog {

@@ -1,7 +1,7 @@
 import _ from "lodash";
 import { Context, getFlowdata } from "../context";
 import { locale } from "../locale";
-import { Cell } from "../types";
+import { Cell, CellMatrix } from "../types";
 import { getSheetIndex } from "../utils";
 import { execfunction } from "./formula";
 import { update } from "./format";
@@ -49,6 +49,35 @@ export function detectDuplicatesHeader(
   return data ? detectHeaderRow(data, range) : false;
 }
 
+/**
+ * Which rows Remove Duplicates keeps, without changing anything: the first
+ * data row (`start`), the kept rows and how many go.
+ */
+export function analyzeDuplicates(
+  data: CellMatrix,
+  options: RemoveDuplicatesOptions
+): { start: number; keep: number[]; removed: number } {
+  const [r1, r2] = options.range.row;
+  const [c1, c2] = options.range.column;
+  const columns = (
+    options.columns?.length ? options.columns : _.range(c1, c2 + 1)
+  ).filter((c) => c >= c1 && c <= c2);
+  const start = options.hasHeader ? r1 + 1 : r1;
+  if (start > r2 || columns.length === 0) {
+    return { start, keep: [], removed: 0 };
+  }
+  const seen = new Set<string>();
+  const keep: number[] = [];
+  for (let r = start; r <= r2; r += 1) {
+    const key = columns.map((c) => compareText(data[r]?.[c])).join("\u0000");
+    if (!seen.has(key)) {
+      seen.add(key);
+      keep.push(r);
+    }
+  }
+  return { start, keep, removed: r2 - start + 1 - keep.length };
+}
+
 export function removeDuplicates(
   ctx: Context,
   options: RemoveDuplicatesOptions
@@ -68,23 +97,8 @@ export function removeDuplicates(
       }
     }
   }
-  const columns = (
-    options.columns?.length ? options.columns : _.range(c1, c2 + 1)
-  ).filter((c) => c >= c1 && c <= c2);
-  const start = options.hasHeader ? r1 + 1 : r1;
-  if (start > r2 || columns.length === 0) return { removed: 0, unique: 0 };
-
-  const seen = new Set<string>();
-  const keep: number[] = [];
-  for (let r = start; r <= r2; r += 1) {
-    const key = columns.map((c) => compareText(data[r]?.[c])).join("\u0000");
-    if (!seen.has(key)) {
-      seen.add(key);
-      keep.push(r);
-    }
-  }
-  const removed = r2 - start + 1 - keep.length;
-  if (removed === 0) return { removed: 0, unique: keep.length };
+  const { start, keep, removed } = analyzeDuplicates(data, options);
+  if (start > r2 || removed === 0) return { removed: 0, unique: keep.length };
 
   // snapshot, then compact the kept rows to the top of the range
   const rows = keep.map((r) => {

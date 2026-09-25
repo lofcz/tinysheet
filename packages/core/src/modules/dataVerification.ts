@@ -251,6 +251,19 @@ export function getDataVerificationListSource(
   return out;
 }
 
+/** "A1:B5" → "$A$1:$B$5" (sheet prefixes kept), for picked list sources. */
+export function toAbsoluteReference(txt: string) {
+  return `${txt ?? ""}`
+    .split(",")
+    .map((part) => {
+      const bang = part.lastIndexOf("!");
+      const sheet = bang >= 0 ? part.slice(0, bang + 1) : "";
+      const ref = bang >= 0 ? part.slice(bang + 1) : part;
+      return sheet + ref.replace(/\$?([A-Za-z]+)\$?(\d+)/g, "$$$1$$$2");
+    })
+    .join(",");
+}
+
 /** The items a list rule offers, as shown in the dropdown. */
 export function getDropdownList(
   ctx: Context,
@@ -708,6 +721,43 @@ export function getDataVerificationRules(
       a.ranges[0].row[0] - b.ranges[0].row[0] ||
       a.ranges[0].column[0] - b.ranges[0].column[0]
   );
+}
+
+/** A one-line description of a rule, e.g. "Whole number between 1 - 10". */
+export function describeDataVerificationRule(
+  ctx: Context,
+  item: DataVerificationItem
+): string {
+  const t = dataToolsLocale(ctx).dataValidation;
+  const typeName = t.types[item.type] ?? `${item.type}`;
+  const op = DATE_OPERATOR_ALIASES[item.type2] ?? item.type2;
+  switch (item.type) {
+    case "dropdown":
+    case "custom":
+      return `${typeName}: ${item.value1}`;
+    case "checkbox":
+      return `${typeName}: ${item.value1} / ${item.value2}`;
+    case "number":
+    case "number_integer":
+    case "number_decimal":
+    case "date":
+    case "time":
+    case "text_length": {
+      const opText = t.operators[op] ?? op;
+      const two = op === "between" || op === "notBetween";
+      return `${typeName} ${opText} ${item.value1}${
+        two ? ` - ${item.value2}` : ""
+      }`;
+    }
+    case "text_content": {
+      const labels = ctx.dataVerification?.optionLabel_en ?? {};
+      return `${typeName}: ${labels[item.type2] ?? item.type2} "${
+        item.value1
+      }"`;
+    }
+    default:
+      return typeName;
+  }
 }
 
 /** "A1:B3,D1" for a list of ranges on the current sheet. */

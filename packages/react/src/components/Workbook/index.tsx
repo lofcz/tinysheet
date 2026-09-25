@@ -49,6 +49,7 @@ import SheetTab from "../SheetTab";
 import ContextMenu from "../ContextMenu";
 import SVGDefines from "../SVGDefines";
 import SheetTabContextMenu from "../ContextMenu/SheetTab";
+import DataToolsLayer from "../DataVerification/DataToolsLayer";
 import MoreItemsContaier from "../Toolbar/MoreItemsContainer";
 import { generateAPIs } from "./api";
 import { ModalProvider } from "../../context/modal";
@@ -855,6 +856,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             {mergedSettings.showSheetTabs && <SheetTab />}
             <ContextMenu />
             <FilterMenu />
+            <DataToolsLayer />
             <SheetTabContextMenu />
             {context.showSheetList && <SheetList />}
             {moreToolbarItems && (

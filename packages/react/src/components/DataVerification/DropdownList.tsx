@@ -198,7 +198,17 @@ const DropDownList: React.FC = () => {
       const { dataVerification } = context.luckysheetfile[index];
       if (!dataVerification) return;
       const item = dataVerification[`${rowIndex}_${colIndex}`];
-      const dropdownList = item ? getDropdownList(context, item.value1) : [];
+      // only list rules have a dropdown (other rules may exist on the cell)
+      const dropdownList =
+        item?.type === "dropdown"
+          ? getDropdownList(
+              context,
+              item.value1,
+              rowIndex,
+              colIndex,
+              item.anchor
+            )
+          : [];
       // Filter dropdown list by cell input value
       const cellValue = getCellValue(rowIndex, colIndex, d);
       const filteredList = filterText
@@ -275,6 +285,8 @@ const DropDownList: React.FC = () => {
   useEffect(() => {
     setActiveIndex(list.length > 0 ? 0 : -1);
   }, [list]);
+
+  if (list.length === 0) return null;
 
   return (
     <div
