@@ -23,6 +23,7 @@ import { importCalcProperties } from "../common/calcProperties";
 // eslint-disable-next-line import/no-cycle
 import { readSparklines } from "./FortuneSparkline";
 import { readOutline } from "../common/outline";
+import { readShapes } from "../shapes/importXlsx";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -335,6 +336,8 @@ export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "cell-images", read: (ctx) => readCellImages(ctx) },
   { name: "sparklines", read: (ctx) => readSparklines(ctx) },
   { name: "outline", read: readOutline },
+  // shapes, text boxes, connectors and groups of the drawing part
+  { name: "shapes", read: readShapes },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 

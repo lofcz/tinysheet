@@ -75,6 +75,7 @@ import {
   roundSvgNumber as chartRoundSvgNumber,
 } from "../chart";
 import { importChartXml, ImportedChart } from "../chart/importXlsx";
+import { hasCustomGeometry } from "../shapes/importXlsx";
 import { parseChartRange } from "@lofcz/tinysheet-core";
 
 interface DrawingAnchorRect {
@@ -506,6 +507,11 @@ export class FortuneSheet extends FortuneSheetBase {
   }
 
   private addShapeImage(anchor: Element) {
+    // Preset shapes, text boxes, connectors and groups are imported as live
+    // shapes (shapes/importXlsx.ts); only custom geometry stays a picture.
+    if (!hasCustomGeometry(anchor.container)) {
+      return;
+    }
     let svg = this.renderShapeAnchorSvg(anchor);
     if (svg == null) {
       return;

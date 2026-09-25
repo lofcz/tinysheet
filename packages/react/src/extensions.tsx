@@ -36,6 +36,7 @@ export type ToolbarItemRenderer = (props: {
 const toolbarItems = new Map<string, ToolbarItemRenderer>();
 
 export function registerToolbarItem(name: string, render: ToolbarItemRenderer) {
+  loadBuiltinFeatures();
   toolbarItems.set(name, render);
   return () => {
     if (toolbarItems.get(name) === render) toolbarItems.delete(name);
@@ -55,6 +56,7 @@ export function registerSheetOverlay(
   key: string,
   Component: React.ComponentType
 ) {
+  loadBuiltinFeatures();
   overlays = [...overlays.filter((o) => o.key !== key), { key, Component }];
   return () => {
     overlays = overlays.filter(

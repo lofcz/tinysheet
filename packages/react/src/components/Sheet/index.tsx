@@ -94,6 +94,10 @@ const OVERLAY_ONLY_KEYS = new Set<string>([
   // phase 2 dialogs, panels and edit state (DOM only)
   "activeChart",
   "chartEditorOpen",
+  "activeShapes",
+  "editingShape",
+  "shapeDrawKind",
+  "shapeFormatOpen",
   "showPasteSpecial",
   "formatCellsDialog",
   "dataVerificationAlert",

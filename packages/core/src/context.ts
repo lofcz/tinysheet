@@ -61,6 +61,14 @@ export type Context = {
   activeChart?: string;
   /** Whether the chart editor panel is open for `activeChart`. */
   chartEditorOpen?: boolean;
+  /** Ids of the selected shapes on the current sheet (modules/shapes.ts). */
+  activeShapes?: string[];
+  /** Shape whose text is being edited. */
+  editingShape?: string;
+  /** Insert › Shapes: gallery key the next drag on the grid draws. */
+  shapeDrawKind?: string;
+  /** Whether the Format Shape pane is open for the selected shapes. */
+  shapeFormatOpen?: boolean;
   presences?: Presence[];
   showSearch?: boolean;
   showReplace?: boolean;

@@ -308,6 +308,7 @@ export const defaultSettings: Required<Settings> = {
     "picture-in-cell", // Place picture in cell (pictures in cells)
     "chart",
     "sparkline",
+    "shapes",
     "link",
     "comment",
     "threaded-comment", // New Comment, Previous/Next, Comments pane

@@ -741,6 +741,9 @@ export class FortuneFile {
       if ((sheet as any).sparklineGroups != null) {
         sheetout.sparklineGroups = (sheet as any).sparklineGroups;
       }
+      if ((sheet as any).shapes != null) {
+        sheetout.shapes = (sheet as any).shapes;
+      }
 
       if (sheet.hyperlink != null) {
         sheetout.hyperlink = sheet.hyperlink;

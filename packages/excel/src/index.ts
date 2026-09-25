@@ -70,6 +70,8 @@ export {
   setTagAttr,
   tagAttr,
 } from "./ToExcel/xlsxParts";
+export { addShapesToXlsx, shapesToAnchorsXml } from "./shapes/exportXlsx";
+export { readDrawingShapes, readShapes } from "./shapes/importXlsx";
 export type { SheetExportOptions } from "./ToExcel/ExcelFile";
 
 // xlsx import extension points.

@@ -2,6 +2,7 @@ import { Patch as ImmerPatch } from "immer";
 import { PatchOptions } from "./utils";
 import type { Chart } from "./modules/chart";
 import type { SparklineGroup } from "./modules/sparkline";
+import type { Shape } from "./modules/shapes";
 
 export type Op = {
   op:
@@ -172,6 +173,8 @@ export type Sheet = {
   charts?: Chart[];
   /** In-cell sparklines (see `modules/sparkline.ts`). */
   sparklineGroups?: SparklineGroup[];
+  /** Shapes and text boxes (see `modules/shapes.ts`); array order is z-order. */
+  shapes?: Shape[];
   zoomRatio?: number;
   column?: number;
   row?: number;

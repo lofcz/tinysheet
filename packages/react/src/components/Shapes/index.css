@@ -1,0 +1,476 @@
+/* Shapes and text boxes over the grid (sheet coordinates inside .fortune-cell-area). */
+.fortune-shape-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 185;
+}
+
+.fortune-shape-pane {
+  position: absolute;
+  pointer-events: none;
+}
+
+.fortune-shape {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  outline: none;
+  user-select: none;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+}
+
+.fortune-shape-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  cursor: move;
+}
+
+.fortune-shape-geometry,
+.fortune-shape-hit {
+  cursor: move;
+}
+
+.fortune-shape-text {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform-origin: 0 0;
+  font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif;
+  line-height: 1.2;
+  word-break: break-word;
+  pointer-events: auto;
+  cursor: move;
+}
+
+.fortune-shape-paragraph {
+  min-height: 1.2em;
+}
+
+.fortune-shape-editor {
+  min-height: 1.2em;
+  outline: none;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.fortune-shape-editing .fortune-shape-text {
+  overflow: visible;
+  cursor: text;
+}
+
+.fortune-shape:focus-visible .fortune-shape-outline,
+.fortune-shape:focus-visible .fortune-shape-frame {
+  outline: 2px solid var(--fortune-focus-ring, var(--fortune-selection));
+  outline-offset: 2px;
+}
+
+.fortune-shape-outline,
+.fortune-shape-frame {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--fortune-selection);
+  pointer-events: none;
+}
+
+.fortune-shape-outline {
+  border-style: dashed;
+}
+
+.fortune-shape-line .fortune-shape-outline {
+  display: none;
+}
+
+.fortune-shape-frame-multi {
+  inset: auto;
+  z-index: 1;
+  border-style: dashed;
+}
+
+.fortune-shape-handle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  background: var(--fortune-bg);
+  border: 1px solid var(--fortune-selection);
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
+.fortune-shape-handle-end {
+  width: 10px;
+  height: 10px;
+  cursor: crosshair;
+}
+
+.fortune-shape-handle-lt,
+.fortune-shape-handle-lm,
+.fortune-shape-handle-lb {
+  left: -5px;
+}
+.fortune-shape-handle-mt,
+.fortune-shape-handle-mb {
+  left: calc(50% - 4.5px);
+}
+.fortune-shape-handle-rt,
+.fortune-shape-handle-rm,
+.fortune-shape-handle-rb {
+  right: -5px;
+}
+.fortune-shape-handle-lt,
+.fortune-shape-handle-mt,
+.fortune-shape-handle-rt {
+  top: -5px;
+}
+.fortune-shape-handle-lm,
+.fortune-shape-handle-rm {
+  top: calc(50% - 4.5px);
+}
+.fortune-shape-handle-lb,
+.fortune-shape-handle-mb,
+.fortune-shape-handle-rb {
+  bottom: -5px;
+}
+.fortune-shape-handle-lt,
+.fortune-shape-handle-rb {
+  cursor: nwse-resize;
+}
+.fortune-shape-handle-rt,
+.fortune-shape-handle-lb {
+  cursor: nesw-resize;
+}
+.fortune-shape-handle-mt,
+.fortune-shape-handle-mb {
+  cursor: ns-resize;
+}
+.fortune-shape-handle-lm,
+.fortune-shape-handle-rm {
+  cursor: ew-resize;
+}
+
+.fortune-shape-adjust {
+  background: var(--fortune-warning, #f9ab00);
+  border-color: var(--fortune-bg);
+  border-radius: 1px;
+  transform: rotate(45deg);
+  cursor: pointer;
+}
+
+.fortune-shape-rotate {
+  position: absolute;
+  left: calc(50% - 6px);
+  top: -26px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  background: var(--fortune-bg);
+  border: 2px solid var(--fortune-selection);
+  border-radius: 50%;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.fortune-shape-rotate::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 10px;
+  width: 1px;
+  height: 12px;
+  background: var(--fortune-selection);
+}
+
+.fortune-shape-draw {
+  position: absolute;
+  cursor: crosshair;
+  z-index: 2;
+}
+
+.fortune-shape-draw-preview {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed var(--fortune-selection);
+  background: var(--fortune-selection-fill, rgba(26, 115, 232, 0.08));
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Context menu of a shape */
+.fortune-shape-menu {
+  position: fixed;
+  z-index: 1004;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: var(--fortune-space-1) 0;
+  color: var(--fortune-text);
+  font-family: var(--fortune-font-family);
+  font-size: var(--fortune-font-size);
+  background: var(--fortune-bg-elevated);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  box-shadow: var(--fortune-shadow);
+}
+
+.fortune-shape-menu-item {
+  padding: 6px var(--fortune-space-3);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.fortune-shape-menu-item:hover:not(:disabled),
+.fortune-shape-menu-item:focus-visible {
+  background: var(--fortune-bg-hover);
+  outline: none;
+}
+
+.fortune-shape-menu-item:disabled {
+  color: var(--fortune-text-disabled, var(--fortune-text-muted));
+  cursor: default;
+}
+
+/* Insert › Shapes gallery */
+.fortune-shape-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2);
+  width: 232px;
+  padding: var(--fortune-space-2);
+  box-sizing: border-box;
+  white-space: normal;
+  color: var(--fortune-text);
+  font-family: var(--fortune-font-family);
+  background: var(--fortune-bg-elevated);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius);
+  box-shadow: var(--fortune-shadow);
+}
+
+.fortune-shape-gallery-title {
+  margin-bottom: var(--fortune-space-1);
+  color: var(--fortune-text-muted);
+  font-size: 12px;
+}
+
+.fortune-shape-gallery-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.fortune-shape-gallery-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--fortune-icon, var(--fortune-text));
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+}
+
+.fortune-shape-gallery-item:hover,
+.fortune-shape-gallery-item:focus-visible {
+  background: var(--fortune-bg-hover);
+  outline: none;
+}
+
+.fortune-shape-gallery-item-active {
+  background: var(--fortune-bg-active);
+  border-color: var(--fortune-selection);
+}
+
+/* Format Shape pane */
+.fortune-shape-format {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1003;
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  max-width: 100%;
+  box-sizing: border-box;
+  color: var(--fortune-text);
+  font-family: var(--fortune-font-family);
+  font-size: var(--fortune-font-size);
+  background: var(--fortune-bg-elevated);
+  border-left: 1px solid var(--fortune-border);
+  box-shadow: var(--fortune-shadow);
+}
+
+.fortune-shape-format-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--fortune-space-2) var(--fortune-space-3);
+  border-bottom: 1px solid var(--fortune-border);
+}
+
+.fortune-shape-format-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fortune-shape-format-close {
+  width: 28px;
+  height: 28px;
+  color: var(--fortune-icon, var(--fortune-text));
+  font-size: 18px;
+  line-height: 1;
+  background: none;
+  border: 0;
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+}
+
+.fortune-shape-format-close:hover {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-shape-format-body {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--fortune-space-3) var(--fortune-space-3);
+  overflow-y: auto;
+  border: 0;
+}
+
+.fortune-shape-format-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fortune-space-2);
+  padding: var(--fortune-space-3) 0;
+  border-bottom: 1px solid var(--fortune-border);
+}
+
+.fortune-shape-format-section:last-child {
+  border-bottom: 0;
+}
+
+.fortune-shape-format-section h3,
+.fortune-shape-format-section h4 {
+  margin: 0;
+  color: var(--fortune-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.fortune-shape-format-section h4 {
+  text-transform: none;
+}
+
+.fortune-shape-format-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fortune-space-2);
+}
+
+.fortune-shape-format-field input[type="number"],
+.fortune-shape-format-field input[type="text"],
+.fortune-shape-format-field select {
+  width: 120px;
+  height: var(--fortune-control-height);
+  box-sizing: border-box;
+  padding: 0 var(--fortune-space-2);
+  color: var(--fortune-text);
+  font: inherit;
+  background: var(--fortune-bg-input);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+}
+
+.fortune-shape-format-field input[type="color"] {
+  width: 48px;
+  height: var(--fortune-control-height);
+  padding: 2px;
+  background: var(--fortune-bg-input);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+}
+
+.fortune-shape-format-check {
+  display: flex;
+  align-items: center;
+  gap: var(--fortune-space-2);
+}
+
+.fortune-shape-format-row {
+  display: flex;
+  gap: var(--fortune-space-1);
+}
+
+.fortune-shape-format-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  color: var(--fortune-text);
+  font: inherit;
+  background: var(--fortune-bg-input);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+}
+
+.fortune-shape-format-button:hover:not(:disabled) {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-shape-format-button-on {
+  background: var(--fortune-bg-active);
+  border-color: var(--fortune-selection);
+}
+
+.fortune-shape-format-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--fortune-space-1);
+}
+
+.fortune-shape-format-grid button {
+  min-height: 28px;
+  padding: 2px var(--fortune-space-2);
+  color: var(--fortune-text);
+  font: inherit;
+  font-size: 12px;
+  background: var(--fortune-bg-input);
+  border: 1px solid var(--fortune-border);
+  border-radius: var(--fortune-radius-sm);
+  cursor: pointer;
+}
+
+.fortune-shape-format-grid button:hover:not(:disabled) {
+  background: var(--fortune-bg-hover);
+}
+
+.fortune-shape-format-grid button:disabled,
+.fortune-shape-format-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

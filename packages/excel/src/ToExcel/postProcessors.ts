@@ -23,8 +23,8 @@
  * - Order is registration order unless `before` / `after` names another
  *   processor. Built-ins run as: conditional-formatting, dynamic-arrays,
  *   cell-images, internal-hyperlinks, visible-notes, threaded-comments,
- *   sheet-xml-fixups, worksheet-exts, cell-hyperlinks, data-validation, tables, charts,
- *   feature-fixups.
+ *   sheet-xml-fixups, worksheet-exts, cell-hyperlinks, data-validation,
+ *   tables, charts, shapes, feature-fixups.
  * - Share data from a sheet writer (SheetExportFeature) with its
  *   post-processor through `ctx.post.features[<your name>]`.
  * - Use the helpers (`addRelationship`, `addContentTypeOverride`,
@@ -46,6 +46,7 @@ import { writeCellImageParts } from "./ExcelCellImage";
 import { writeThreadedCommentParts } from "./ExcelThreadedComments";
 import { finalizeConditionalFormattingZip } from "./ExcelConditionFormat";
 import { addChartsToZip } from "../chart/exportXlsx";
+import { addShapesToZip } from "../shapes/exportXlsx";
 import {
   addContentTypeOverride,
   addRelationship,
@@ -158,6 +159,8 @@ export const xlsxPostProcessors: XlsxPostProcessor[] = [
       );
     },
   },
+  // shapes and text boxes join the drawing part of pictures and charts
+  { name: "shapes", process: (ctx) => addShapesToZip(ctx.zip, ctx.sheets) },
   {
     // zip edits sheet/workbook writers queued in `post.fixups` (run last)
     name: "feature-fixups",

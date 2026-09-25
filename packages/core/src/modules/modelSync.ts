@@ -13,7 +13,9 @@
  * - charts: series ranges and positions (chart.ts `adjustChartsForChange`),
  * - sparklines: data references and location cells (sparkline.ts
  *   `adjustSparklinesForChange`),
- * - note boxes with an explicit position (`adjustNotesForChange` below).
+ * - note boxes with an explicit position (`adjustNotesForChange` below),
+ * - shapes and text boxes: their cell anchors (shapes.ts
+ *   `adjustShapesForChange`).
  *
  * The data-validation rule anchors register their own adjuster
  * (dataVerification.ts). Cell-keyed data (merges, data-validation and
@@ -46,6 +48,7 @@ import {
   remapDuplicatedSparklines,
 } from "./sparkline";
 import { installSparklineRenderer } from "./sparklineRender";
+import { adjustShapesForChange } from "./shapes";
 import {
   adjustTablesForChange,
   mapStructuredReferences,
@@ -139,6 +142,8 @@ const notesAdjuster: ReferenceAdjuster = (ctx, change) =>
 
 const sparklinesAdjuster: ReferenceAdjuster = (ctx, change, api) =>
   adjustSparklinesForChange(ctx, change, api);
+const shapesAdjuster: ReferenceAdjuster = (ctx, change) =>
+  adjustShapesForChange(ctx, change);
 
 /** Keys the model adjusters are registered under. */
 export const MODEL_ADJUSTER_KEYS = [
@@ -147,6 +152,7 @@ export const MODEL_ADJUSTER_KEYS = [
   "model.charts",
   "model.notes",
   "model.sparklines",
+  "model.shapes",
 ] as const;
 
 /**
@@ -161,6 +167,7 @@ export function installModelAdjusters() {
   registerReferenceAdjuster("model.notes", notesAdjuster);
   registerReferenceAdjuster("model.sparklines", sparklinesAdjuster);
   installSparklineRenderer();
+  registerReferenceAdjuster("model.shapes", shapesAdjuster);
 }
 
 installModelAdjusters();
