@@ -317,6 +317,28 @@ describe("SUBTOTAL respects filtered rows", () => {
     expect(value(ctx, "E1")).toBe(360);
   });
 
+  test("AGGREGATE options skip hidden and filtered rows", () => {
+    const ctx = setup();
+    input(ctx, "E1", "=AGGREGATE(9,5,B2:B9)");
+    input(ctx, "E2", "=AGGREGATE(9,4,B2:B9)");
+    input(ctx, "E3", "=AGGREGATE(4,7,B2:B9)");
+    input(ctx, "E4", "=AGGREGATE(14,5,B2:B9,2)");
+    input(ctx, "E5", "=AGGREGATE(9,0,B2:B9,E1)");
+    expect(value(ctx, "E1")).toBe(360);
+    applyFilterCondition(ctx, 1, {
+      type: "custom",
+      op1: "lessThan",
+      value1: "60",
+    });
+    // B7..B9 (60, 70, 80) filtered out
+    expect(value(ctx, "E1")).toBe(150);
+    expect(value(ctx, "E2")).toBe(360);
+    expect(value(ctx, "E3")).toBe(50);
+    expect(value(ctx, "E4")).toBe(40);
+    // option 0 ignores the nested AGGREGATE in E1 but not hidden rows
+    expect(value(ctx, "E5")).toBe(360);
+  });
+
   test("value-list filters (saveFilter) also recalculate", () => {
     const ctx = setup();
     input(ctx, "E1", "=SUBTOTAL(2,B2:B9)");
