@@ -12,10 +12,8 @@ import {
   applyRowColShortcutOp,
   getSheetIndex,
   handlePaste,
-  filterPatch,
   patchToOp,
   Op,
-  inverseRowColOptions,
   ensureSheetIndex,
   CellMatrix,
   insertRowCol,
@@ -23,6 +21,11 @@ import {
   groupValuesRefresh,
   setFormulaCellInfoMap,
   mirrorGroupedSheetEdits,
+  produceWithHistory,
+  popHistoryGroup,
+  applyUndoSteps,
+  applyRedoSteps,
+  beginUndoGroup,
 } from "@lofcz/tinysheet-core";
 import React, {
   useMemo,
@@ -34,12 +37,7 @@ import React, {
   useLayoutEffect,
 } from "react";
 import "./index.css";
-import produce, {
-  applyPatches,
-  enablePatches,
-  Patch,
-  produceWithPatches,
-} from "immer";
+import produce, { enablePatches, Patch } from "immer";
 import _ from "lodash";
 import Sheet from "../Sheet";
 import WorkbookContext, { RefValues, SetContextOptions } from "../../context";
@@ -180,137 +178,24 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       [onOp]
     );
 
-    function reduceUndoList(ctx: Context, ctxBefore: Context) {
-      const sheetsId = ctx.luckysheetfile.map((sheet) => sheet.id);
-      const sheetDeletedByMe = globalCache.current.undoList
-        .filter((undo) => undo.options?.deleteSheetOp)
-        .map((item) => item.options?.deleteSheetOp?.id);
-      globalCache.current.undoList = globalCache.current.undoList.filter(
-        (undo) =>
-          undo.options?.deleteSheetOp ||
-          undo.options?.id === undefined ||
-          _.indexOf(sheetsId, undo.options?.id) !== -1 ||
-          _.indexOf(sheetDeletedByMe, undo.options?.id) !== -1
-      );
-      if (ctxBefore.luckysheetfile.length > ctx.luckysheetfile.length) {
-        const sheetDeleted = ctxBefore.luckysheetfile
-          .filter(
-            (oneSheet) =>
-              _.indexOf(
-                ctx.luckysheetfile.map((item) => item.id),
-                oneSheet.id
-              ) === -1
-          )
-          .map((item) => getSheetIndex(ctxBefore, item.id as string));
-        const deletedIndex = sheetDeleted[0];
-        globalCache.current.undoList = globalCache.current.undoList.map(
-          (oneStep) => {
-            oneStep.patches = oneStep.patches.map((onePatch) => {
-              if (
-                typeof onePatch.path[1] === "number" &&
-                onePatch.path[1] > (deletedIndex as number)
-              ) {
-                onePatch.path[1] -= 1;
-              }
-              return onePatch;
-            });
-            oneStep.inversePatches = oneStep.inversePatches.map((onePatch) => {
-              if (
-                typeof onePatch.path[1] === "number" &&
-                onePatch.path[1] > (deletedIndex as number)
-              ) {
-                onePatch.path[1] -= 1;
-              }
-              return onePatch;
-            });
-            return oneStep;
-          }
-        );
-      }
-    }
-
-    function dataToCelldata(data: CellMatrix) {
-      const cellData: CellWithRowAndCol[] = [];
-      for (let row = 0; row < data?.length; row += 1) {
-        for (let col = 0; col < data[row]?.length; col += 1) {
-          if (data[row][col] !== null) {
-            cellData.push({
-              r: row,
-              c: col,
-              v: data[row][col],
-            });
-          }
-        }
-      }
-      return cellData;
-    }
-
     const setContextWithProduce = useCallback(
       (recipe: (ctx: Context) => void, options: SetContextOptions = {}) => {
+        // the undo group is read now: React may run the updater later
+        const group = globalCache.current.undoGroup?.id;
         setContext((ctx_) => {
-          const [result, patches, inversePatches] = produceWithPatches(
+          const { result, recorded } = produceWithHistory(
             ctx_,
             concatProducer(
               recipe,
               // grouped sheets: repeat the edit on every grouped sheet
               (draft) => mirrorGroupedSheetEdits(ctx_, draft),
               triggerGroupValuesRefresh
-            )
+            ),
+            options,
+            globalCache.current,
+            group
           );
-          if (patches.length > 0 && !options.noHistory) {
-            if (options.logPatch) {
-              // eslint-disable-next-line no-console
-              console.info("patch", patches);
-            }
-            const filteredPatches = filterPatch(patches);
-            let filteredInversePatches = filterPatch(inversePatches);
-            if (filteredInversePatches.length > 0) {
-              options.id = ctx_.currentSheetId;
-              if (options.deleteSheetOp) {
-                const target = ctx_.luckysheetfile.filter(
-                  (sheet) => sheet.id === options.deleteSheetOp?.id
-                );
-                if (target) {
-                  const index = getSheetIndex(
-                    ctx_,
-                    options.deleteSheetOp.id as string
-                  ) as number;
-                  options.deletedSheet = {
-                    id: options.deleteSheetOp.id as string,
-                    index: index as number,
-                    value: _.cloneDeep(ctx_.luckysheetfile[index]),
-                  };
-                  options.deletedSheet!.value!.celldata = dataToCelldata(
-                    options.deletedSheet!.value!.data as CellMatrix
-                  );
-                  delete options.deletedSheet!.value!.data;
-                  options.deletedSheet.value!.status = 0;
-                  filteredInversePatches = [
-                    {
-                      op: "add",
-                      path: ["luckysheetfile", 0],
-                      value: options.deletedSheet.value,
-                    },
-                  ];
-                }
-              } else if (options.addSheetOp) {
-                options.addSheet = {};
-                options.addSheet!.id =
-                  result.luckysheetfile[result.luckysheetfile.length - 1].id;
-              }
-              globalCache.current.undoList.push({
-                patches: filteredPatches,
-                inversePatches: filteredInversePatches,
-                options,
-              });
-              globalCache.current.redoList = [];
-              emitOp(result, filteredPatches, options);
-            }
-          } else {
-            if (patches?.[0]?.value?.length < ctx_?.luckysheetfile?.length) {
-              reduceUndoList(result, ctx_);
-            }
-          }
+          if (recorded) emitOp(result, recorded.patches, recorded.options);
           return result;
         });
       },
@@ -318,91 +203,31 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     );
 
     const handleUndo = useCallback(() => {
-      const history = globalCache.current.undoList.pop();
-      if (history) {
-        setContext((ctx_) => {
-          if (history.options?.deleteSheetOp) {
-            history.inversePatches[0].path[1] = ctx_.luckysheetfile.length;
-            const order = history.options.deletedSheet?.value?.order as number;
-            const sheetsRight = ctx_.luckysheetfile.filter(
-              (sheet) =>
-                (sheet?.order as number) >= (order as number) &&
-                sheet.id !== history?.options?.deleteSheetOp?.id
-            );
-            _.forEach(sheetsRight, (sheet) => {
-              history.inversePatches.push({
-                op: "replace",
-                path: [
-                  "luckysheetfile",
-                  getSheetIndex(ctx_, sheet.id as string) as number,
-                  "order",
-                ],
-                value: (sheet?.order as number) + 1,
-              } as Patch);
-            });
-          }
-          const newContext = applyPatches(ctx_, history.inversePatches);
-          globalCache.current.redoList.push(history);
-          const inversedOptions = inverseRowColOptions(history.options);
-          if (inversedOptions?.insertRowColOp) {
-            inversedOptions.restoreDeletedCells = true;
-          }
-          if (history.options?.addSheetOp) {
-            const index = getSheetIndex(
-              ctx_,
-              history.options.addSheet!.id as string
-            ) as number;
-            inversedOptions!.addSheet = {
-              id: history.options.addSheet!.id as string,
-              index: index as number,
-              value: _.cloneDeep(ctx_.luckysheetfile[index]),
-            };
-            inversedOptions!.addSheet!.value!.celldata = dataToCelldata(
-              inversedOptions!.addSheet!.value?.data as CellMatrix
-            );
-            delete inversedOptions!.addSheet!.value!.data;
-          }
-          emitOp(newContext, history.inversePatches, inversedOptions, true);
-          if (
-            history.options?.deleteRowColOp ||
-            history.options?.insertRowColOp ||
-            history.options?.restoreDeletedCells
-          )
-            newContext.formulaCache.formulaCellInfoMap = null;
-          else
-            newContext.formulaCache.updateFormulaCache(
-              newContext,
-              history,
-              "undo"
-            );
-          return newContext;
+      // the lists are updated here, not in the updater (which React may call
+      // more than once)
+      const steps = popHistoryGroup(globalCache.current.undoList);
+      if (steps.length === 0) return;
+      globalCache.current.redoList.push(...steps);
+      setContext((ctx_) => {
+        const step = applyUndoSteps(ctx_, steps);
+        step.applied.forEach(({ patches, options }) => {
+          emitOp(step.context, patches, options, true);
         });
-      }
+        return step.context;
+      });
     }, [emitOp]);
 
     const handleRedo = useCallback(() => {
-      const history = globalCache.current.redoList.pop();
-      if (history) {
-        setContext((ctx_) => {
-          const newContext = applyPatches(ctx_, history.patches);
-          globalCache.current.undoList.push(history);
-          emitOp(newContext, history.patches, history.options);
-
-          if (
-            history.options?.deleteRowColOp ||
-            history.options?.insertRowColOp ||
-            history.options?.restoreDeletedCells
-          )
-            newContext.formulaCache.formulaCellInfoMap = null;
-          else
-            newContext.formulaCache.updateFormulaCache(
-              newContext,
-              history,
-              "redo"
-            );
-          return newContext;
+      const steps = popHistoryGroup(globalCache.current.redoList);
+      if (steps.length === 0) return;
+      globalCache.current.undoList.push(...steps);
+      setContext((ctx_) => {
+        const step = applyRedoSteps(ctx_, steps);
+        step.applied.forEach(({ patches, options }) => {
+          emitOp(step.context, patches, options);
         });
-      }
+        return step.context;
+      });
     }, [emitOp]);
 
     useEffect(() => {
@@ -620,8 +445,10 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         const { nativeEvent } = e;
         // handling undo and redo ahead because handleUndo and handleRedo
         // themselves are calling setContext, and should not be nested
-        // in setContextWithProduce.
-        if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") {
+        // in setContextWithProduce. While a cell is being edited the editor
+        // undoes its own typing, like Excel.
+        const editing = context.luckysheetCellUpdate.length > 0;
+        if (!editing && (e.ctrlKey || e.metaKey) && e.code === "KeyZ") {
           if (e.shiftKey) {
             handleRedo();
           } else {
@@ -630,7 +457,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           e.stopPropagation();
           return;
         }
-        if ((e.ctrlKey || e.metaKey) && e.code === "KeyY") {
+        if (!editing && (e.ctrlKey || e.metaKey) && e.code === "KeyY") {
           handleRedo();
           e.stopPropagation();
           e.preventDefault();
@@ -699,6 +526,8 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               ) as number
             ].data!.length;
           const range = context.luckysheet_select_save;
+          // growing the sheet and pasting are one undo step
+          const endUndoGroup = beginUndoGroup(globalCache.current);
           if (rowToBeAdded > 0) {
             const insertRowColOp: SetContextOptions["insertRowColOp"] = {
               type: "row",
@@ -730,6 +559,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               console.error(err);
             }
           });
+          endUndoGroup();
         }
       },
       [context, setContextWithProduce]

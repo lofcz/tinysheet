@@ -48,9 +48,9 @@ describe("status bar", () => {
     const { container, ref } = renderBook();
     select(ref, [{ row: [0, 3], column: [0, 0] }]);
     await waitFor(() =>
-      expect(container.querySelector(".fortune-status-bar")?.textContent).toBe(
-        "Average: 2.166666667Count: 4Sum: 6.5"
-      )
+      expect(
+        container.querySelector(".fortune-status-bar-stats")?.textContent
+      ).toBe("Average: 2.166666667Count: 4Sum: 6.5")
     );
   });
 

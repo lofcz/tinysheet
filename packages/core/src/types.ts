@@ -317,6 +317,8 @@ export type History = {
   patches: ImmerPatch[];
   inversePatches: ImmerPatch[];
   options?: PatchOptions;
+  /** steps sharing a group are undone/redone together (withUndoGroup) */
+  group?: number;
 };
 
 export type Freezen = {
@@ -337,6 +339,8 @@ export type GlobalCache = {
   visibleRowsUnique?: number[];
   undoList: History[];
   redoList: History[];
+  /** undo group being recorded (see withUndoGroup) */
+  undoGroup?: { id: number; depth: number };
   editingCommentBoxEle?: HTMLDivElement;
   freezen?: Record<string, Freezen>;
   image?: {

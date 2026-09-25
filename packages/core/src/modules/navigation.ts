@@ -793,10 +793,67 @@ export function moveWithinSelection(
   return true;
 }
 
-/** Enter/Tab outside of edit mode (or after committing an edit). */
+/**
+ * Enter/Tab outside of edit mode (or after committing an edit). Inside a
+ * multi-cell selection the active cell wraps within it. Otherwise, like
+ * Excel, Enter after a run of Tabs goes to the next row of the column where
+ * the run started.
+ */
 export function moveAfterEnter(ctx: Context, direction: NavDirection) {
-  if (!moveWithinSelection(ctx, direction)) {
+  if (moveWithinSelection(ctx, direction)) {
+    ctx.tabReturn = undefined;
+    return;
+  }
+  const active = getActiveCell(ctx);
+  const tr = ctx.tabReturn;
+  const inRun =
+    !!tr && !!active && tr.at[0] === active[0] && tr.at[1] === active[1];
+  ctx.tabReturn = undefined;
+  if (direction === "left" || direction === "right") {
+    const startCol = inRun ? tr!.col : active?.[1];
     moveActiveCell(ctx, direction);
+    const now = getActiveCell(ctx);
+    if (now && startCol != null) ctx.tabReturn = { col: startCol, at: now };
+    return;
+  }
+  if (direction === "down" && inRun && active && tr!.col !== active[1]) {
+    const info = getSheetNavInfo(ctx);
+    if (info) {
+      const block = info.blockAt(active[0], active[1]);
+      const next = nextVisibleIndex(
+        block.row[1],
+        1,
+        info.rows,
+        info.isRowHidden
+      );
+      setActiveCell(ctx, next ?? active[0], tr!.col);
+      return;
+    }
+  }
+  moveActiveCell(ctx, direction);
+}
+
+/**
+ * End, Enter: the last filled cell of the active row (the row's last column
+ * when it is empty right of the active cell), like Excel's End mode.
+ */
+export function moveToRowEnd(ctx: Context, extend = false) {
+  const info = getSheetNavInfo(ctx);
+  const sel = lastSelection(ctx);
+  const active = getActiveCell(ctx);
+  if (!info || !sel || !active) return;
+  let col = active[1];
+  for (let c = info.cols - 1; c > active[1]; c -= 1) {
+    if (!info.isColHidden(c) && info.isFilled(active[0], c)) {
+      col = c;
+      break;
+    }
+  }
+  if (extend) {
+    const { anchor, rf, cf } = getMovingEdge(info, sel, "col", 1);
+    extendSelectionTo(ctx, info, sel, "col", col, anchor, rf, cf);
+  } else {
+    setActiveCell(ctx, active[0], col);
   }
 }
 

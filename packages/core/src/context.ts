@@ -4,6 +4,7 @@ import { FormulaCache } from "./modules";
 import { normalizeSelection } from "./modules/selection";
 import { Hooks } from "./settings";
 import type { ThemeName } from "./theme";
+import type { EditState } from "./modules/editMode";
 import {
   Sheet,
   Selection,
@@ -190,6 +191,12 @@ export type Context = {
   luckysheet_rows_freeze_drag: boolean;
 
   luckysheetCellUpdate: any[];
+  /** Enter/Edit/Point mode of the edit session (see modules/editMode) */
+  editState?: EditState;
+  /** Excel's End mode: the next arrow key jumps like Ctrl+arrow */
+  endMode?: boolean;
+  /** column where a run of Tab presses started (Enter returns to it) */
+  tabReturn?: { col: number; at: [number, number] };
 
   luckysheet_shiftkeydown: boolean;
   luckysheet_shiftpositon: Selection | undefined;
