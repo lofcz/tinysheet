@@ -12,6 +12,12 @@ import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
 import { moveWorkbookNamesBeforeSheetDelete } from "./names";
 import { prepareDuplicatedSheet } from "./modelSync";
 import { updateCell } from "./cell";
+import { peek } from "./dependencyGraph";
+import {
+  cloneWithMatrices,
+  committedMatrix,
+  isChunkedMatrix,
+} from "./rowStore";
 import { delFunctionGroup } from "./formula";
 import { quoteSheetName, tokenizeFormula } from "./formulaFunctions";
 
@@ -192,7 +198,7 @@ export function deleteSheet(ctx: Context, id: string) {
 
   // server.saveParam("shd", null, { deleIndex: index });
   if (id === ctx.currentSheetId) {
-    const shownSheets = _.cloneDeep(ctx.luckysheetfile).filter(
+    const shownSheets = ctx.luckysheetfile.filter(
       (singleSheet) => _.isUndefined(singleSheet.hide) || singleSheet.hide !== 1
     );
     const orderSheets = _.sortBy(shownSheets, (sheet) => sheet.order);
@@ -542,7 +548,7 @@ export function duplicateSheet(
   if (index == null) return null;
   const source = ctx.luckysheetfile[index];
   const name = options.name ?? generateDuplicateSheetName(ctx, source.name);
-  const copy: Sheet = _.cloneDeep(plainValue(source));
+  const copy: Sheet = cloneWithMatrices(plainValue(source), _.cloneDeepWith);
   copy.id = options.newSheetId ?? uuidv4();
   copy.name = name;
   copy.status = 0;
@@ -812,8 +818,12 @@ export function mirrorGroupedSheetEdits(base: Context, draft: Context) {
   const baseSheet = base.luckysheetfile[idx];
   const draftSheet = draft.luckysheetfile[idx];
   if (!baseSheet || baseSheet.id !== draftSheet.id) return;
-  const before = baseSheet.data;
-  const after = draftSheet.data ? plainValue(draftSheet.data) : null;
+  // chunked matrices (rowStore.ts): the committed rows against the latest
+  // ones, without drafting every row
+  const before = committedMatrix(baseSheet.data);
+  let after: CellMatrix | null | undefined = null;
+  if (isChunkedMatrix(draftSheet.data)) after = peek(draftSheet.data);
+  else if (draftSheet.data) after = plainValue(draftSheet.data);
   if (!before || !after) return;
   if (
     before.length !== after.length ||

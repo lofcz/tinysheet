@@ -3,6 +3,7 @@ import { Context } from "../context";
 import { CellMatrix, CellWithRowAndCol, Sheet } from "../types";
 import { getSheetIndex } from "../utils";
 import { SHEET_NOT_FOUND } from "./errors";
+import { materializeMatrix } from "../modules/rowStore";
 
 export type CommonOptions = { index?: number; id?: string };
 
@@ -69,5 +70,9 @@ export function getSheetWithLatestCelldata(
   options: CommonOptions = {}
 ) {
   const sheet = getSheet(ctx, options);
-  return { ...sheet, celldata: dataToCelldata(sheet.data) };
+  return {
+    ...sheet,
+    data: materializeMatrix(sheet.data),
+    celldata: dataToCelldata(sheet.data),
+  };
 }

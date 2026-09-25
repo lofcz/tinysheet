@@ -10,6 +10,7 @@ export * from "./editMode";
 export * from "./freeze";
 export * from "./geometry";
 export * from "./sheetLoad";
+export * from "./rowStore";
 export * from "./history";
 export * from "./inline-string";
 export * from "./location";
