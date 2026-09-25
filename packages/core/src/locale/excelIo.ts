@@ -129,8 +129,9 @@ const cache: Record<string, ExcelIoLocale> = {};
 export function excelIoLocale(
   lang?: string | null | { lang?: string | null }
 ): ExcelIoLocale {
-  const code =
-    (typeof lang === "object" && lang != null ? lang.lang : lang) || "en";
+  const code: string =
+    (typeof lang === "object" && lang != null ? lang.lang : (lang as string)) ||
+    "en";
   const key =
     [code, code.split(/[-_]/)[0]].find((l) =>
       Object.prototype.hasOwnProperty.call(translations, l)
