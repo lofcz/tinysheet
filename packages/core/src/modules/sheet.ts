@@ -1,12 +1,15 @@
 import _ from "lodash";
+import { current, isDraft } from "immer";
 import { v4 as uuidv4 } from "uuid";
 import { initSheetData } from "../api/sheet";
 import { Context } from "../context";
 import { locale } from "../locale";
 import { Settings } from "../settings";
-import { CellMatrix, Sheet } from "../types";
+import { Cell, CellMatrix, Sheet } from "../types";
 import { generateRandomSheetName, getSheetIndex } from "../utils";
-import { setFormulaCellInfo } from "./formulaHelper";
+import { updateCell } from "./cell";
+import { quoteSheetName, tokenizeFormula } from "./formulaFunctions";
+import { recalculate, setFormulaCellInfo } from "./formulaHelper";
 
 function storeSheetParam(ctx: Context) {
   const index = getSheetIndex(ctx, ctx.currentSheetId);
@@ -234,68 +237,6 @@ export function updateSheet(ctx: Context, newData: Sheet[]) {
   });
 }
 
-export function editSheetName(ctx: Context, editable: HTMLSpanElement) {
-  const index = getSheetIndex(ctx, ctx.currentSheetId);
-  if (ctx.allowEdit === false) {
-    if (index == null) return;
-    editable.innerText = ctx.luckysheetfile[index].name;
-    return;
-  }
-  const { sheetconfig } = locale(ctx);
-  const oldtxt = editable.dataset.oldText || "";
-  const txt = editable.innerText;
-
-  if (
-    ctx.hooks.beforeUpdateSheetName?.(ctx.currentSheetId, oldtxt, txt) === false
-  ) {
-    return;
-  }
-
-  if (txt.length === 0) {
-    editable.innerText = oldtxt;
-    throw new Error(sheetconfig.sheetNamecannotIsEmptyError);
-  }
-
-  if (
-    txt.length > 31 ||
-    txt.charAt(0) === "'" ||
-    txt.charAt(txt.length - 1) === "'" ||
-    /[：:\\/？?*[\]]+/.test(txt)
-  ) {
-    editable.innerText = oldtxt;
-    throw new Error(sheetconfig.sheetNameSpecCharError);
-  }
-
-  if (index == null) return;
-
-  for (let i = 0; i < ctx.luckysheetfile.length; i += 1) {
-    if (index !== i && ctx.luckysheetfile[i].name === txt) {
-      // if (isEditMode()) {
-      //   alert(locale_sheetconfig.tipNameRepeat);
-      // } else {
-      //   tooltip.info("", locale_sheetconfig.tipNameRepeat);
-      // }
-      editable.innerText = oldtxt;
-      return;
-    }
-  }
-
-  // sheetmanage.sheetArrowShowAndHide();
-
-  ctx.luckysheetfile[index].name = txt;
-  // server.saveParam("all", ctx.currentSheetId, txt, { k: "name" });
-
-  // $t.attr("contenteditable", "false").removeClass(
-  //   "luckysheet-mousedown-cancel"
-  // );
-
-  if (ctx.hooks.afterUpdateSheetName) {
-    setTimeout(() => {
-      ctx.hooks.afterUpdateSheetName?.(ctx.currentSheetId, oldtxt, txt);
-    });
-  }
-}
-
 export function expandRowsAndColumns(
   data: CellMatrix,
   rowsToAdd: number,
@@ -340,4 +281,589 @@ export function expandRowsAndColumns(
   }
 
   return data;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Sheet operations (Excel parity): names, duplicate, move, colour, hide,   */
+/* grouped sheets                                                            */
+/* ------------------------------------------------------------------------ */
+
+export const SHEET_NAME_MAX_LENGTH = 31;
+
+export type SheetNameError =
+  | "blank"
+  | "tooLong"
+  | "invalidChars"
+  | "apostrophe"
+  | "duplicate"
+  | "reserved";
+
+/**
+ * Excel's sheet-name rules: not blank, at most 31 characters, none of
+ * `\ / ? * [ ] :`, no leading or trailing apostrophe, not "History", and
+ * unique ignoring case. `excludeId` is the sheet being renamed.
+ */
+export function validateSheetName(
+  ctx: Context,
+  name: string,
+  excludeId?: string
+): SheetNameError | null {
+  if (name == null || name.trim().length === 0) return "blank";
+  if (name.length > SHEET_NAME_MAX_LENGTH) return "tooLong";
+  if (/[\\/?*[\]:]/.test(name)) return "invalidChars";
+  if (name.startsWith("'") || name.endsWith("'")) return "apostrophe";
+  if (name.toLowerCase() === "history") return "reserved";
+  const lower = name.toLowerCase();
+  const taken = ctx.luckysheetfile.some(
+    (s) => s.id !== excludeId && (s.name ?? "").toLowerCase() === lower
+  );
+  return taken ? "duplicate" : null;
+}
+
+export function sheetNameErrorMessage(ctx: Context, error: SheetNameError) {
+  const { sheetconfig } = locale(ctx);
+  const map: Record<SheetNameError, string> = {
+    blank: sheetconfig.nameBlank,
+    tooLong: sheetconfig.nameTooLong,
+    invalidChars: sheetconfig.nameInvalidChars,
+    apostrophe: sheetconfig.nameApostrophe,
+    duplicate: sheetconfig.nameDuplicate,
+    reserved: sheetconfig.nameReserved,
+  };
+  return map[error];
+}
+
+const SHEET_PREFIX = /^(?:'((?:[^']|'')+)'|([^'!:]+))!/;
+
+/**
+ * Rewrites sheet-qualified references to `fromName` so they name `toName`
+ * (`Sheet1!A1` -> `'Sheet1 (2)'!A1`). Text in string literals is left alone.
+ *
+ * Minimal local version for sheet rename/duplicate; the reference-adjusting
+ * module of the clipboard/references stream (refAdjust.ts) supersedes it
+ * once merged.
+ */
+export function rewriteSheetReferences(
+  formula: string,
+  fromName: string,
+  toName: string
+): string {
+  if (!formula || fromName === toName) return formula;
+  const hasEq = formula.startsWith("=");
+  const body = hasEq ? formula.slice(1) : formula;
+  const from = fromName.toLowerCase();
+  const quoted = quoteSheetName(toName);
+  let changed = false;
+  const fixPart = (part: string) => {
+    const m = part.match(SHEET_PREFIX);
+    if (!m) return part;
+    const name = m[1] != null ? m[1].replace(/''/g, "'") : m[2];
+    if (name.toLowerCase() !== from) return part;
+    changed = true;
+    return `${quoted}!${part.slice(m[0].length)}`;
+  };
+  const out = tokenizeFormula(body)
+    .map((tok) => {
+      if (tok.t !== "ref" || tok.s.indexOf("!") < 0) return tok.s;
+      // a range may repeat the sheet on its second part (Sheet1!A1:Sheet1!B2)
+      const m = tok.s.match(SHEET_PREFIX);
+      const headLength = m ? m[0].length : 0;
+      const colon = tok.s.indexOf(":", headLength);
+      if (colon < 0) return fixPart(tok.s);
+      return `${fixPart(tok.s.slice(0, colon))}:${fixPart(
+        tok.s.slice(colon + 1)
+      )}`;
+    })
+    .join("");
+  if (!changed) return formula;
+  return hasEq ? `=${out}` : out;
+}
+
+function forEachFormulaCell(
+  sheet: Sheet,
+  fn: (cell: Cell, r: number, c: number) => void
+) {
+  if (sheet.data) {
+    sheet.data.forEach((row, r) => {
+      row?.forEach((cell, c) => {
+        if (cell?.f) fn(cell, r, c);
+      });
+    });
+  } else {
+    sheet.celldata?.forEach((d) => {
+      if (d.v?.f) fn(d.v, d.r, d.c);
+    });
+  }
+}
+
+/** Points sheet-qualified references to `fromName` at `toName`. */
+function renameReferencesInSheet(
+  ctx: Context,
+  sheet: Sheet,
+  fromName: string,
+  toName: string,
+  register = true
+) {
+  forEachFormulaCell(sheet, (cell, r, c) => {
+    const next = rewriteSheetReferences(cell.f!, fromName, toName);
+    if (next !== cell.f) {
+      cell.f = next;
+      if (register && sheet.data && sheet.id) {
+        setFormulaCellInfo(ctx, { r, c, id: sheet.id }, sheet.data);
+      }
+    }
+  });
+}
+
+/** Renames the sheet at `index` and rewrites references to it everywhere. */
+function applySheetRename(ctx: Context, index: number, name: string) {
+  const sheet = ctx.luckysheetfile[index];
+  const oldName = sheet.name;
+  sheet.name = name;
+  if (oldName && oldName !== name) {
+    ctx.luckysheetfile.forEach((s) => {
+      renameReferencesInSheet(ctx, s, oldName, name);
+    });
+  }
+}
+
+/**
+ * Renames a sheet, enforcing Excel's naming rules. Returns the rule that was
+ * broken, or null on success. Sheet-qualified references are rewritten.
+ */
+export function renameSheet(
+  ctx: Context,
+  sheetId: string,
+  name: string
+): SheetNameError | null {
+  const index = getSheetIndex(ctx, sheetId);
+  if (index == null || ctx.allowEdit === false) return null;
+  const oldName = ctx.luckysheetfile[index].name;
+  if (oldName === name) return null;
+  const error = validateSheetName(ctx, name, sheetId);
+  if (error) return error;
+  if (ctx.hooks.beforeUpdateSheetName?.(sheetId, oldName, name) === false) {
+    return null;
+  }
+  applySheetRename(ctx, index, name);
+  if (ctx.hooks.afterUpdateSheetName) {
+    setTimeout(() => {
+      ctx.hooks.afterUpdateSheetName?.(sheetId, oldName, name);
+    });
+  }
+  return null;
+}
+
+/** Excel's name for a copy: "Sheet1 (2)", "Sheet1 (3)", ... (31 chars max). */
+export function generateDuplicateSheetName(ctx: Context, name: string) {
+  const base = name.replace(/ \(\d+\)$/, "");
+  const taken = new Set(
+    ctx.luckysheetfile.map((s) => (s.name ?? "").toLowerCase())
+  );
+  let n = 2;
+  for (;;) {
+    const suffix = ` (${n})`;
+    const candidate =
+      base.slice(0, SHEET_NAME_MAX_LENGTH - suffix.length) + suffix;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+    n += 1;
+  }
+}
+
+function sortedSheets(ctx: Context) {
+  return _.sortBy(ctx.luckysheetfile, (s) => Number(s.order ?? 0));
+}
+
+/**
+ * Moves `sheetId` before `beforeSheetId` (null: to the end) and renumbers
+ * every sheet's `order` from 0.
+ */
+export function moveSheet(
+  ctx: Context,
+  sheetId: string,
+  beforeSheetId: string | null
+) {
+  if (ctx.allowEdit === false || sheetId === beforeSheetId) return;
+  const list = sortedSheets(ctx).filter((s) => s.id !== sheetId);
+  const moving = ctx.luckysheetfile.find((s) => s.id === sheetId);
+  if (!moving) return;
+  let at = list.length;
+  if (beforeSheetId != null) {
+    const i = list.findIndex((s) => s.id === beforeSheetId);
+    if (i >= 0) at = i;
+  }
+  list.splice(at, 0, moving);
+  list.forEach((s, i) => {
+    s.order = i;
+  });
+}
+
+function plainValue<T>(v: T): T {
+  return isDraft(v) ? current(v) : v;
+}
+
+/**
+ * Duplicates a sheet (Excel "Move or Copy" with "Create a copy", or
+ * Duplicate): the copy gets the next free "Name (n)" name and a new id, its
+ * references to the original sheet point at the copy, and it is placed
+ * before `beforeSheetId` (undefined: right after the original; null: at
+ * the end). The new sheet is appended to `luckysheetfile`. Returns its id.
+ */
+export function duplicateSheet(
+  ctx: Context,
+  sheetId: string,
+  options: {
+    beforeSheetId?: string | null;
+    name?: string;
+    newSheetId?: string;
+  } = {}
+): string | null {
+  if (ctx.allowEdit === false) return null;
+  const index = getSheetIndex(ctx, sheetId);
+  if (index == null) return null;
+  const source = ctx.luckysheetfile[index];
+  const name = options.name ?? generateDuplicateSheetName(ctx, source.name);
+  const copy: Sheet = _.cloneDeep(plainValue(source));
+  copy.id = options.newSheetId ?? uuidv4();
+  copy.name = name;
+  copy.status = 0;
+  delete copy.hide;
+  if (copy.images) {
+    copy.images = copy.images.map((img) => ({ ...img, id: uuidv4() }));
+  }
+  renameReferencesInSheet(ctx, copy, source.name, name, false);
+
+  if (ctx.hooks.beforeAddSheet?.(copy) === false) return null;
+  ctx.luckysheetfile.push(copy);
+  const newId = copy.id;
+
+  let before: string | null;
+  if (options.beforeSheetId !== undefined) {
+    before = options.beforeSheetId;
+  } else {
+    const rest = sortedSheets(ctx).filter((s) => s.id !== newId);
+    const i = rest.findIndex((s) => s.id === sheetId);
+    before = rest[i + 1]?.id ?? null;
+  }
+  moveSheet(ctx, newId, before);
+
+  const added = ctx.luckysheetfile[ctx.luckysheetfile.length - 1];
+  if (added.data) {
+    forEachFormulaCell(added, (_cell, r, c) => {
+      setFormulaCellInfo(ctx, { r, c, id: newId }, added.data!);
+    });
+  }
+
+  if (ctx.hooks.afterAddSheet) {
+    setTimeout(() => {
+      ctx.hooks.afterAddSheet?.(copy);
+    });
+  }
+  return newId;
+}
+
+/** Sets (or with undefined clears) the tab colour of the given sheets. */
+export function setSheetTabColor(
+  ctx: Context,
+  sheetIds: string[],
+  color: string | undefined
+) {
+  if (ctx.allowEdit === false) return;
+  sheetIds.forEach((id) => {
+    const i = getSheetIndex(ctx, id);
+    if (i == null) return;
+    if (color) ctx.luckysheetfile[i].color = color;
+    else delete ctx.luckysheetfile[i].color;
+  });
+}
+
+function isVisibleSheet(s: Sheet) {
+  return s.hide !== 1;
+}
+
+function rememberSheetView(ctx: Context) {
+  if (!ctx.sheetScrollRecord) return;
+  ctx.sheetScrollRecord[ctx.currentSheetId] = {
+    scrollLeft: ctx.scrollLeft,
+    scrollTop: ctx.scrollTop,
+    luckysheet_select_status: ctx.luckysheet_select_status,
+    luckysheet_select_save: ctx.luckysheet_select_save,
+    luckysheet_selection_range: ctx.luckysheet_selection_range,
+  };
+}
+
+/**
+ * Hides sheets. At least one sheet must stay visible (returns false and
+ * changes nothing otherwise). When the active sheet is hidden, the next
+ * visible sheet becomes active.
+ */
+export function hideSheets(ctx: Context, sheetIds: string[]): boolean {
+  if (ctx.allowEdit === false) return false;
+  const ids = new Set(sheetIds);
+  const remaining = sortedSheets(ctx).filter(
+    (s) => isVisibleSheet(s) && !ids.has(s.id!)
+  );
+  if (remaining.length === 0) return false;
+  const order = sortedSheets(ctx);
+  const cur = order.findIndex((s) => s.id === ctx.currentSheetId);
+  ctx.luckysheetfile.forEach((s) => {
+    if (ids.has(s.id!)) {
+      s.hide = 1;
+      s.status = 0;
+    }
+  });
+  ctx.groupedSheetIds = undefined;
+  if (ids.has(ctx.currentSheetId)) {
+    const next =
+      order.slice(cur + 1).find(isVisibleSheet) ??
+      order.slice(0, Math.max(cur, 0)).reverse().find(isVisibleSheet);
+    if (next?.id) {
+      rememberSheetView(ctx);
+      ctx.currentSheetId = next.id;
+      ctx.zoomRatio = next.zoomRatio || 1;
+    }
+  }
+  return true;
+}
+
+/** Unhides sheets; the last one unhidden becomes active (as in Excel). */
+export function unhideSheets(ctx: Context, sheetIds: string[]) {
+  if (ctx.allowEdit === false) return;
+  let last: Sheet | undefined;
+  sheetIds.forEach((id) => {
+    const i = getSheetIndex(ctx, id);
+    if (i == null) return;
+    delete ctx.luckysheetfile[i].hide;
+    last = ctx.luckysheetfile[i];
+  });
+  if (last?.id && last.id !== ctx.currentSheetId) {
+    rememberSheetView(ctx);
+    ctx.currentSheetId = last.id;
+    ctx.zoomRatio = last.zoomRatio || 1;
+  }
+}
+
+/* ---- grouped sheets ---------------------------------------------------- */
+
+/**
+ * Sheets in the current group (Ctrl/Shift+click on tabs), in tab order.
+ * Empty when sheets aren't grouped. The active sheet is always a member.
+ */
+export function getGroupedSheetIds(ctx: Context): string[] {
+  const ids = ctx.groupedSheetIds;
+  if (!ids || ids.length < 2) return [];
+  const set = new Set(ids);
+  set.add(ctx.currentSheetId);
+  const out = sortedSheets(ctx)
+    .filter((s) => isVisibleSheet(s) && set.has(s.id!))
+    .map((s) => s.id!);
+  return out.length > 1 ? out : [];
+}
+
+/** Ctrl+click on a tab: adds it to, or removes it from, the group. */
+export function toggleSheetInGroup(ctx: Context, sheetId: string) {
+  if (sheetId === ctx.currentSheetId) return;
+  const ids = new Set(getGroupedSheetIds(ctx));
+  ids.add(ctx.currentSheetId);
+  if (ids.has(sheetId)) ids.delete(sheetId);
+  else ids.add(sheetId);
+  ctx.groupedSheetIds = ids.size > 1 ? Array.from(ids) : undefined;
+}
+
+/** Shift+click on a tab: groups every visible sheet from the active one. */
+export function selectSheetRange(ctx: Context, sheetId: string) {
+  const visible = sortedSheets(ctx).filter(isVisibleSheet);
+  const a = visible.findIndex((s) => s.id === ctx.currentSheetId);
+  const b = visible.findIndex((s) => s.id === sheetId);
+  if (a < 0 || b < 0) return;
+  const ids = visible
+    .slice(Math.min(a, b), Math.max(a, b) + 1)
+    .map((s) => s.id!);
+  ctx.groupedSheetIds = ids.length > 1 ? ids : undefined;
+}
+
+export function selectAllSheets(ctx: Context) {
+  const ids = sortedSheets(ctx)
+    .filter(isVisibleSheet)
+    .map((s) => s.id!);
+  ctx.groupedSheetIds = ids.length > 1 ? ids : undefined;
+}
+
+export function ungroupSheets(ctx: Context) {
+  ctx.groupedSheetIds = undefined;
+}
+
+/**
+ * A plain click on a tab: switching to a sheet of the group keeps the group
+ * unless every sheet is grouped; switching elsewhere ungroups (Excel).
+ */
+export function onSheetTabActivated(ctx: Context, sheetId: string) {
+  const ids = getGroupedSheetIds(ctx);
+  if (ids.length === 0) return;
+  const visible = ctx.luckysheetfile.filter(isVisibleSheet).length;
+  if (!ids.includes(sheetId) || ids.length === visible) {
+    ctx.groupedSheetIds = undefined;
+  }
+}
+
+const MIRRORED_CONFIG_MAPS = [
+  "rowlen",
+  "columnlen",
+  "customHeight",
+  "customWidth",
+  "rowhidden",
+  "colhidden",
+  "merge",
+] as const;
+
+/**
+ * Grouped sheets: repeats on every other grouped sheet the cell edits and
+ * formatting (cells, row heights, column widths, hidden rows/columns, merges
+ * and new borders) that one context update made on the active sheet.
+ * `base` is the context before the update, `draft` the updated one; call it
+ * at the end of the update so everything lands in the same undo step.
+ * Structural changes (sheet added/removed/switched, rows or columns
+ * inserted/deleted) are not mirrored.
+ */
+export function mirrorGroupedSheetEdits(base: Context, draft: Context) {
+  const ids = getGroupedSheetIds(draft);
+  if (ids.length < 2) return;
+  if (base.currentSheetId !== draft.currentSheetId) return;
+  if (base.luckysheetfile.length !== draft.luckysheetfile.length) return;
+  const idx = getSheetIndex(draft, draft.currentSheetId);
+  if (idx == null) return;
+  const baseSheet = base.luckysheetfile[idx];
+  const draftSheet = draft.luckysheetfile[idx];
+  if (!baseSheet || baseSheet.id !== draftSheet.id) return;
+  const before = baseSheet.data;
+  const after = draftSheet.data ? plainValue(draftSheet.data) : null;
+  if (!before || !after) return;
+  if (
+    before.length !== after.length ||
+    (before[0]?.length ?? 0) !== (after[0]?.length ?? 0)
+  ) {
+    return;
+  }
+
+  const changed: [number, number, Cell | null][] = [];
+  if (after !== before) {
+    for (let r = 0; r < after.length; r += 1) {
+      const nr = after[r];
+      const br = before[r];
+      if (nr !== br) {
+        for (let c = 0; c < nr.length; c += 1) {
+          if (nr[c] !== br?.[c] && !_.isEqual(nr[c], br?.[c])) {
+            changed.push([r, c, nr[c]]);
+          }
+        }
+      }
+    }
+  }
+  const baseConfig: any = baseSheet.config ?? {};
+  const nextConfig: any = draftSheet.config
+    ? plainValue(draftSheet.config)
+    : {};
+  const configChanged =
+    baseConfig !== nextConfig && !_.isEqual(baseConfig, nextConfig);
+  if (changed.length === 0 && !configChanged) return;
+
+  ids.forEach((id) => {
+    if (id === draft.currentSheetId) return;
+    const j = getSheetIndex(draft, id);
+    if (j == null) return;
+    const target = draft.luckysheetfile[j];
+    if (_.isEmpty(target.data)) initSheetData(draft, j, target);
+    const { data } = target;
+    if (!data) return;
+    const rows = data.length;
+    const cols = data[0]?.length ?? 0;
+    const formulas: [number, number, string][] = [];
+    const values: { r: number; c: number; id: string }[] = [];
+    changed.forEach(([r, c, cell]) => {
+      if (r >= rows || c >= cols) return;
+      if (cell == null) {
+        data[r][c] = null;
+        values.push({ r, c, id });
+        return;
+      }
+      const copy: any = _.cloneDeep(cell);
+      delete copy.spill;
+      delete copy.spillFrom;
+      if (copy.f) {
+        const { f } = copy;
+        delete copy.f;
+        delete copy.v;
+        delete copy.m;
+        data[r][c] = copy;
+        formulas.push([r, c, f]);
+      } else {
+        data[r][c] = copy;
+        values.push({ r, c, id });
+      }
+    });
+    if (configChanged) {
+      target.config ??= {};
+      const cfg: any = target.config;
+      MIRRORED_CONFIG_MAPS.forEach((key) => {
+        const a = baseConfig[key] ?? {};
+        const b = nextConfig[key] ?? {};
+        if (a === b) return;
+        _.union(Object.keys(a), Object.keys(b)).forEach((k) => {
+          if (_.isEqual(a[k], b[k])) return;
+          cfg[key] ??= {};
+          if (b[k] === undefined) delete cfg[key][k];
+          else cfg[key][k] = _.cloneDeep(b[k]);
+        });
+      });
+      const ba = baseConfig.borderInfo ?? [];
+      const bb = nextConfig.borderInfo ?? [];
+      if (bb.length > ba.length) {
+        cfg.borderInfo = [
+          ...(cfg.borderInfo ?? []),
+          ..._.cloneDeep(bb.slice(ba.length)),
+        ];
+      }
+    }
+    const prev = draft.currentSheetId;
+    draft.currentSheetId = id;
+    try {
+      formulas.forEach(([r, c, f]) => updateCell(draft, r, c, null, f));
+      if (values.length > 0) recalculate(draft, values, null);
+    } finally {
+      draft.currentSheetId = prev;
+    }
+  });
+}
+
+export function editSheetName(ctx: Context, editable: HTMLSpanElement) {
+  const index = getSheetIndex(ctx, ctx.currentSheetId);
+  if (ctx.allowEdit === false) {
+    if (index == null) return;
+    editable.innerText = ctx.luckysheetfile[index].name;
+    return;
+  }
+  const oldtxt = editable.dataset.oldText || "";
+  const txt = editable.innerText;
+
+  if (
+    ctx.hooks.beforeUpdateSheetName?.(ctx.currentSheetId, oldtxt, txt) === false
+  ) {
+    return;
+  }
+
+  if (index == null) return;
+
+  const error = validateSheetName(ctx, txt, ctx.currentSheetId);
+  if (error) {
+    editable.innerText = oldtxt;
+    throw new Error(sheetNameErrorMessage(ctx, error));
+  }
+
+  applySheetRename(ctx, index, txt);
+
+  if (ctx.hooks.afterUpdateSheetName) {
+    setTimeout(() => {
+      ctx.hooks.afterUpdateSheetName?.(ctx.currentSheetId, oldtxt, txt);
+    });
+  }
 }
