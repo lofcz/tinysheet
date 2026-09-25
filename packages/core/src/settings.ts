@@ -241,6 +241,7 @@ export const defaultSettings: Required<Settings> = {
     "freeze",
     "image",
     "chart",
+    "sparkline",
     "link",
     "comment",
     "|",
@@ -278,6 +279,7 @@ export const defaultSettings: Required<Settings> = {
     "image",
     "data", // Data Validation…
     "chart",
+    "sparkline", // Sparklines submenu on cells with sparklines
   ], // 自定义单元格右键菜单
   // row / column header menu
   headerContextMenu: [
