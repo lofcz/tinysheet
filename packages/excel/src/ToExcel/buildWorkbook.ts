@@ -29,6 +29,7 @@ import {
 import { colorToArgb } from "../common/units";
 import { setDefinedNames } from "../common/definedNames";
 import { addChartsToXlsx } from "../chart/exportXlsx";
+import { writeSparklines } from "./ExcelSparkline";
 import {
   finalizeConditionalFormatting,
   setConditionalFormatting,
@@ -114,6 +115,8 @@ export const sheetExportFeatures: SheetExportFeature[] = [
     write: (ctx) => setConditionalFormatting(ctx.sheet, ctx.worksheet),
   },
   { name: "views", write: writeSheetViews },
+  // queued for the zip pass (worksheet extLst)
+  { name: "sparklines", write: writeSparklines },
   // Charts are added to the written zip (addChartsToXlsx).
 ];
 

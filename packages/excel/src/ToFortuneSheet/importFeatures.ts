@@ -16,6 +16,8 @@ import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
+// eslint-disable-next-line import/no-cycle
+import { readSparklines } from "./FortuneSparkline";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -326,6 +328,7 @@ export function readTables(ctx: SheetImportContext) {
 export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "notes", read: readNotes },
   { name: "tables", read: readTables },
+  { name: "sparklines", read: (ctx) => readSparklines(ctx) },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 

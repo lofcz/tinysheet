@@ -10,6 +10,9 @@
  *   `location` attribute and their relationship is removed.
  * - Shown notes: ExcelJS writes every note hidden. Notes TinySheet shows
  *   permanently (`ps.isShow`) get `<x:Visible/>` and a visible shape.
+ * - Worksheet extensions (`worksheetExts`): `<ext>` elements features queue
+ *   while writing (sparkline groups, ...) are added to the worksheet's
+ *   `extLst`, after the ones ExcelJS wrote.
  */
 import JSZip from "jszip";
 
@@ -19,6 +22,8 @@ export type XlsxPostProcessInfo = {
   worksheetIds: number[];
   /** Worksheet id -> cells (0-based) whose note is always shown. */
   visibleNotes?: Record<number, { r: number; c: number }[]>;
+  /** Worksheet id -> `<ext>` elements to add to the worksheet's extLst. */
+  worksheetExts?: Record<number, string[]>;
 };
 
 const METADATA_XML =
@@ -192,6 +197,34 @@ async function showNotes(zip: JSZip, info: XlsxPostProcessInfo) {
   );
 }
 
+/** Add `<ext>` elements to a worksheet XML's `extLst` (created if needed). */
+export function appendWorksheetExts(xml: string, exts: string[]) {
+  if (exts.length === 0) return xml;
+  const body = exts.join("");
+  const close = xml.lastIndexOf("</extLst>");
+  if (close >= 0 && /<extLst\b/.test(xml)) {
+    return xml.slice(0, close) + body + xml.slice(close);
+  }
+  // extLst is the last child of <worksheet>
+  const end = xml.lastIndexOf("</worksheet>");
+  if (end < 0) return xml;
+  return `${xml.slice(0, end)}<extLst>${body}</extLst>${xml.slice(end)}`;
+}
+
+async function addWorksheetExts(zip: JSZip, info: XlsxPostProcessInfo) {
+  const entries = Object.entries(info.worksheetExts ?? {}).filter(
+    ([, exts]) => exts.length > 0
+  );
+  await Promise.all(
+    entries.map(async ([id, exts]) => {
+      const path = `xl/worksheets/sheet${id}.xml`;
+      const file = zip.file(path);
+      if (!file) return;
+      zip.file(path, appendWorksheetExts(await file.async("string"), exts));
+    })
+  );
+}
+
 export async function postProcessXlsx(
   buffer: ArrayBuffer | Uint8Array,
   info: XlsxPostProcessInfo
@@ -200,6 +233,7 @@ export async function postProcessXlsx(
   await markDynamicArrays(zip, info);
   await fixInternalHyperlinks(zip);
   await showNotes(zip, info);
+  await addWorksheetExts(zip, info);
   return zip.generateAsync({
     type: "uint8array",
     compression: "DEFLATE",
