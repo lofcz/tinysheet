@@ -57,10 +57,10 @@ const PEEK_VIEW = Symbol.for("tinysheet.peekView");
 
 function envThreshold() {
   try {
-    const v =
-      typeof process !== "undefined"
-        ? process.env?.TINYSHEET_CHUNK_ROWS
-        : undefined;
+    // Node only (tests, benchmarks): no @types/node in a browser library
+    const v = (
+      globalThis as { process?: { env?: Record<string, string | undefined> } }
+    ).process?.env?.TINYSHEET_CHUNK_ROWS;
     if (v != null && v !== "" && Number.isFinite(Number(v))) return Number(v);
   } catch (e) {
     // no process in the browser

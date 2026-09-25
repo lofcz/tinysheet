@@ -90,8 +90,8 @@
         "lodash": "^4.17.21",
       },
       "peerDependencies": {
-        "react": ">= 18.2",
-        "react-dom": ">= 18.2",
+        "react": ">= 19.3",
+        "react-dom": ">= 19.3",
       },
       "optionalPeers": [
         "react",
@@ -125,8 +125,8 @@
         "regenerator-runtime": "^0.14.1",
       },
       "peerDependencies": {
-        "react": ">= 18.2",
-        "react-dom": ">= 18.2",
+        "react": ">= 19.3",
+        "react-dom": ">= 19.3",
       },
     },
   },

@@ -13,7 +13,7 @@
     "strict": true,
     "strictNullChecks": true,
     "skipLibCheck": true,
-    "lib": ["es5", "dom"],
+    "lib": ["es2022", "dom", "dom.iterable"],
     "baseUrl": "./",
     "paths": {
       "@lofcz/tinysheet-core": ["packages/core/src"],
