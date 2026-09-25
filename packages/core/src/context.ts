@@ -2,6 +2,7 @@ import _ from "lodash";
 import { SheetConfig } from ".";
 import { FormulaCache } from "./modules";
 import { normalizeSelection } from "./modules/selection";
+import { computeAxisPositions } from "./modules/geometry";
 import { Hooks } from "./settings";
 import type { ThemeName } from "./theme";
 import {
@@ -534,90 +535,46 @@ export function getFlowdata(ctx?: Context, id?: string | null) {
 }
 
 function calcRowColSize(ctx: Context, rowCount: number, colCount: number) {
-  ctx.visibledatarow = [];
-  ctx.rh_height = 0;
-
-  for (let r = 0; r < rowCount; r += 1) {
-    let rowlen: number | string = ctx.defaultrowlen;
-
-    if (ctx.config.rowlen?.[r]) {
-      rowlen = ctx.config?.rowlen?.[r];
-    }
-
-    if (ctx.config?.rowhidden?.[r] != null) {
-      ctx.visibledatarow.push(ctx.rh_height);
-      continue;
-    }
-
-    // 自动行高计算
-    // if (rowlen === "auto") {
-    //   rowlen = computeRowlenByContent(ctx.flowdata, r);
-    // }
-    ctx.rh_height += Math.round(((rowlen as number) + 1) * ctx.zoomRatio);
-
-    ctx.visibledatarow.push(ctx.rh_height); // 行的临时长度分布
-  }
+  // Tight loops over plain (non-draft) objects: this runs inside immer
+  // producers, where every proxied read costs as much as the loop body.
+  const rows = computeAxisPositions(
+    rowCount,
+    ctx.defaultrowlen,
+    ctx.config?.rowlen,
+    ctx.config?.rowhidden,
+    ctx.zoomRatio
+  );
+  // Frozen up front so immer's auto-freeze does not walk every entry.
+  ctx.visibledatarow = Object.freeze(rows.positions) as number[];
 
   // 如果增加行和回到顶部按钮隐藏，则减少底部空白区域，但是预留足够空间给单元格下拉按钮
-  // if (
-  //   !luckysheetConfigsetting.enableAddRow &&
-  //   !luckysheetConfigsetting.enableAddBackTop
-  // ) {
-  //   ctx.rh_height += 29;
-  // } else {
-  // }
-  ctx.rh_height += 80; // 最底部增加空白
-
-  ctx.visibledatacolumn = [];
-  ctx.ch_width = 0;
+  ctx.rh_height = rows.total + 80; // 最底部增加空白
 
   const maxColumnlen = 120;
 
-  const flowdata = getFlowdata(ctx);
-  for (let c = 0; c < colCount; c += 1) {
-    let firstcolumnlen: number | string = ctx.defaultcollen;
-
-    if (ctx.config?.columnlen?.[c]) {
-      firstcolumnlen = ctx.config.columnlen[c];
-    } else {
-      if (flowdata?.[0]?.[c]) {
-        if (firstcolumnlen > 300) {
-          firstcolumnlen = 300;
-        } else if (firstcolumnlen < ctx.defaultcollen) {
-          firstcolumnlen = ctx.defaultcollen;
+  // Legacy clamp: columns with content in the first row get an explicit
+  // width when the default width lies outside [defaultcollen, 300].
+  if (ctx.defaultcollen > 300) {
+    const flowdata = getFlowdata(ctx);
+    for (let c = 0; c < colCount; c += 1) {
+      if (!ctx.config?.columnlen?.[c] && flowdata?.[0]?.[c]) {
+        if (!ctx.config?.columnlen) {
+          ctx.config.columnlen = {};
         }
-
-        if (firstcolumnlen !== ctx.defaultcollen) {
-          if (!ctx.config?.columnlen) {
-            ctx.config.columnlen = {};
-          }
-
-          ctx.config.columnlen[c] = firstcolumnlen;
-        }
+        ctx.config.columnlen[c] = 300;
       }
     }
-
-    if (ctx.config?.colhidden?.[c] != null) {
-      ctx.visibledatacolumn.push(ctx.ch_width);
-      continue;
-    }
-
-    // 自动行高计算
-    // if (firstcolumnlen === "auto") {
-    //   firstcolumnlen = computeColWidthByContent(
-    //     ctx.flowdata,
-    //     c,
-    //     rowCount
-    //   );
-    // }
-    ctx.ch_width += Math.round(
-      ((firstcolumnlen as number) + 1) * ctx.zoomRatio
-    );
-
-    ctx.visibledatacolumn.push(ctx.ch_width); // 列的临时长度分布
   }
 
-  ctx.ch_width += maxColumnlen;
+  const cols = computeAxisPositions(
+    colCount,
+    ctx.defaultcollen,
+    ctx.config?.columnlen,
+    ctx.config?.colhidden,
+    ctx.zoomRatio
+  );
+  ctx.visibledatacolumn = Object.freeze(cols.positions) as number[];
+  ctx.ch_width = cols.total + maxColumnlen;
 }
 
 export function ensureSheetIndex(data: Sheet[], generateSheetId: () => string) {
