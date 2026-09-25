@@ -241,6 +241,7 @@ export const defaultSettings: Required<Settings> = {
     "freeze",
     "image",
     "chart",
+    "slicer",
     "link",
     "comment",
     "|",

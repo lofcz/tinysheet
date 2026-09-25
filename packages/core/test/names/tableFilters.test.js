@@ -272,7 +272,7 @@ describe("slicers", () => {
     const ctx = makeContext();
     regionTable(ctx);
     addTableSlicers(ctx, "Table1", ["Region", "Item"]);
-    expect(findSlicer(ctx, "Slicer_Item").slicer.offsetX).toBe(24);
+    expect(findSlicer(ctx, "Slicer_Item").slicer.offsetX).toBe(196);
     selectSlicerItem(ctx, "Slicer_Region", "West", false);
     const item = findSlicer(ctx, "Slicer_Item");
     const list = getSlicerItems(ctx, "id_1", item.ref.table, item.slicer);

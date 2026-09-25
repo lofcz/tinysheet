@@ -498,8 +498,8 @@ export type SlicerPlacement = {
 };
 
 /**
- * Insert › Slicer: one slicer per column name of table `tableName`,
- * cascaded from `at` (default: right of the table). Returns the new slicers.
+ * Insert › Slicer: one slicer per column name of table `tableName`, laid
+ * out from `at` (default: right of the table). Returns the new slicers.
  */
 export function addTableSlicers(
   ctx: Context,
@@ -530,8 +530,11 @@ export function addTableSlicers(
       showCaption: true,
       r: place.r,
       c: place.c,
-      offsetX: (place.offsetX ?? 0) + i * 24,
-      offsetY: (place.offsetY ?? 0) + i * 24,
+      // side by side, three per row
+      offsetX: (place.offsetX ?? 0) + (i % 3) * (SLICER_DEFAULTS.width + 16),
+      offsetY:
+        (place.offsetY ?? 0) +
+        Math.floor(i / 3) * (SLICER_DEFAULTS.height + 16),
       width: SLICER_DEFAULTS.width,
       height: SLICER_DEFAULTS.height,
       columnCount: SLICER_DEFAULTS.columnCount,

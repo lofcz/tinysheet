@@ -49,8 +49,13 @@ const FilterOptions: React.FC = () => {
     ) => {
       if (filterOptions == null) return;
       setContext((draftCtx) => {
-        if (draftCtx.filterContextMenu?.col === filterOptions.startCol + i)
+        if (
+          draftCtx.filterContextMenu?.col === filterOptions.startCol + i &&
+          !draftCtx.filterScope
+        )
           return;
+        // the menu acts on the sheet autofilter (not a table's filter)
+        draftCtx.filterScope = undefined;
         draftCtx.filterContextMenu = {
           x:
             v.left +
