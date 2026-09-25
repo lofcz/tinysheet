@@ -18,7 +18,9 @@ import WorkbookContext from "../../context";
  * - nothing is offered for formulas, numbers or cells with data validation;
  * - with a single match it is preselected and Enter/Tab accept it (like
  *   Excel's inline completion); with several, Up/Down pick one;
- * - Esc closes the list and keeps editing.
+ * - Esc closes the list and keeps editing;
+ * - works while typing in the cell and in the formula bar (the list stays
+ *   under the cell, the accepted value goes to both editors).
  */
 const AutocompleteList: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -42,15 +44,29 @@ const AutocompleteList: React.FC = () => {
     setActiveIndex(-1);
   }, [editing, editRow, editCol, context.currentSheetId]);
 
+  // the editor the user is typing in: the cell editor or the formula bar
+  const sourceRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
-    const input = refs.cellInput.current;
-    if (!input) return undefined;
+    const cellInput = refs.cellInput.current;
+    const fxInput = refs.fxInput.current;
+    if (!cellInput) return undefined;
+    const inputs = [cellInput, fxInput].filter(
+      (el): el is HTMLDivElement => !!el
+    );
+    const accept = (value: string) => {
+      inputs.forEach((el) => {
+        el.textContent = value;
+      });
+    };
 
     const close = () => {
       if (stateRef.current.suggestions.length > 0) setSuggestions([]);
     };
 
-    const onInput = () => {
+    const onInput = (e: Event) => {
+      const input = e.currentTarget as HTMLDivElement;
+      sourceRef.current = input;
       const ctx = contextRef.current;
       const [r, c] = ctx.luckysheetCellUpdate;
       if (r == null || c == null) {
@@ -105,7 +121,7 @@ const AutocompleteList: React.FC = () => {
       ) {
         // put the accepted value in the editor and let the normal
         // Enter/Tab handling commit it
-        if (idx >= 0 && list[idx]) input.textContent = list[idx];
+        if (idx >= 0 && list[idx]) accept(list[idx]);
         setSuggestions([]);
       } else if (e.key === "Escape") {
         setSuggestions([]);
@@ -114,13 +130,17 @@ const AutocompleteList: React.FC = () => {
       }
     };
 
-    input.addEventListener("input", onInput);
-    input.addEventListener("keydown", onKeyDown);
+    inputs.forEach((input) => {
+      input.addEventListener("input", onInput);
+      input.addEventListener("keydown", onKeyDown);
+    });
     return () => {
-      input.removeEventListener("input", onInput);
-      input.removeEventListener("keydown", onKeyDown);
+      inputs.forEach((input) => {
+        input.removeEventListener("input", onInput);
+        input.removeEventListener("keydown", onKeyDown);
+      });
     };
-  }, [refs.cellInput]);
+  }, [refs.cellInput, refs.fxInput]);
 
   // keep the highlighted item visible without scrolling the sheet
   useEffect(() => {
@@ -138,9 +158,11 @@ const AutocompleteList: React.FC = () => {
   if (!editing || suggestions.length === 0) return null;
 
   const selectSuggestion = (value: string) => {
-    const input = refs.cellInput.current;
+    const input = sourceRef.current ?? refs.cellInput.current;
     if (!input) return;
-    input.textContent = value;
+    [refs.cellInput.current, refs.fxInput.current].forEach((el) => {
+      if (el) el.textContent = value;
+    });
     setCaretOffset(input, value.length);
     setSuggestions([]);
     setContext((ctx) => {

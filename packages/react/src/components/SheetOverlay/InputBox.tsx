@@ -15,7 +15,9 @@ import {
   israngeseleciton,
   escapeHTMLTag,
   isAllowEdit,
-  updateCell,
+  getEditorArrowAction,
+  getEditMode,
+  setEditMode,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -45,6 +47,8 @@ const InputBox: React.FC = () => {
   const row_index = firstSelection?.row_focus!;
   const col_index = firstSelection?.column_focus!;
   const preText = useRef("");
+  const contextRef = useRef(context);
+  contextRef.current = context;
 
   const inputBoxStyle = useMemo(() => {
     if (firstSelection && context.luckysheetCellUpdate.length > 0) {
@@ -172,39 +176,29 @@ const InputBox: React.FC = () => {
           e.stopPropagation();
         }
       } else if (e.key === "Tab" && context.luckysheetCellUpdate.length > 0) {
-        // Save current cell and move to the right cell
-        setContext((draftCtx) => {
-          const lastCellUpdate = _.clone(draftCtx.luckysheetCellUpdate);
-          updateCell(
-            draftCtx,
-            draftCtx.luckysheetCellUpdate[0],
-            draftCtx.luckysheetCellUpdate[1],
-            refs.cellInput.current!
-          );
-          draftCtx.luckysheet_select_save = [
-            {
-              row: [lastCellUpdate[0], lastCellUpdate[0]],
-              column: [lastCellUpdate[1], lastCellUpdate[1]],
-              row_focus: lastCellUpdate[0],
-              column_focus: lastCellUpdate[1],
-            },
-          ];
-          moveHighlightCell(
-            draftCtx,
-            "right",
-            e.shiftKey ? -1 : 1,
-            "rangeOfSelect"
-          );
-        });
+        // committed (and moved, wrapping inside the selection) by the
+        // global key handler; keep the focus in the sheet
         e.preventDefault();
-        e.stopPropagation();
       } else if (e.key === "F4" && context.luckysheetCellUpdate.length > 0) {
         e.preventDefault();
       } else if (
-        (e.key === "ArrowUp" || e.key === "ArrowDown") &&
+        (e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowRight") &&
         context.luckysheetCellUpdate.length > 0
       ) {
-        e.preventDefault();
+        // Enter mode commits and Point mode picks a reference (both in the
+        // global key handler): the caret must not move. Up/Down never move
+        // the caret of the one-line editor.
+        if (
+          e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          getEditorArrowAction(contextRef.current, e, inputRef.current) !==
+            "caret"
+        ) {
+          e.preventDefault();
+        }
       }
       // else if (
       //   e.key === "ArrowLeft" &&
@@ -221,6 +215,16 @@ const InputBox: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [context.luckysheetCellUpdate.length, formulaKeys, setContext]
   );
+
+  const onMouseUp = useCallback(() => {
+    // clicking into the text while in Enter mode switches to Edit mode
+    if (getEditMode(contextRef.current) === "enter") {
+      setContext((draftCtx) => {
+        setEditMode(draftCtx, "edit");
+      });
+    }
+    formulaKeys.onMouseUp();
+  }, [formulaKeys, setContext]);
 
   const onChange = useCallback(
     (__: any, isBlur?: boolean) => {
@@ -335,7 +339,7 @@ const InputBox: React.FC = () => {
           onChange={onChange}
           onKeyDown={onKeyDown}
           onKeyUp={formulaKeys.onKeyUp}
-          onMouseUp={formulaKeys.onMouseUp}
+          onMouseUp={onMouseUp}
           onPaste={onPaste}
           allowEdit={edit ? !isHidenRC : edit}
         />

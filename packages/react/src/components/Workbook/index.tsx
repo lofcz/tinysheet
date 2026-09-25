@@ -53,6 +53,7 @@ import { ModalProvider } from "../../context/modal";
 import FilterMenu from "../ContextMenu/FilterMenu";
 import SheetList from "../SheetList";
 import { useResolvedTheme } from "../../hooks/useResolvedTheme";
+import EditModeIndicator from "../EditModeIndicator";
 
 enablePatches();
 
@@ -710,6 +711,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             )}
             {mergedSettings.showStatsBar && (
               <div className="fortune-stat-area">
+                <EditModeIndicator />
                 <div className="luckysheet-sheet-selection-calInfo">
                   {!!calInfo.count && (
                     <div style={{ width: "60px" }}>

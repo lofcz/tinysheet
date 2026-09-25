@@ -3,7 +3,6 @@ import {
   getFlowdata,
   cancelNormalSelected,
   getCellValue,
-  updateCell,
   getInlineStringNoStyle,
   isInlineStringCell,
   escapeScriptTag,
@@ -13,6 +12,7 @@ import {
   isShowHidenCR,
   escapeHTMLTag,
   isAllowEdit,
+  setEditMode,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -54,9 +54,11 @@ const FxEditor: React.FC = () => {
     setIsHidenRC(isShowHidenCR(context));
     if (
       _.isEqual(prevFirstSelection, firstSelection) &&
-      context.currentSheetId === prevSheetId
+      context.currentSheetId === prevSheetId &&
+      context.luckysheetCellUpdate.length > 0
     ) {
-      // data change by a collabrative update should not trigger this effect
+      // a data change (collaboration, undo) must not overwrite the text
+      // being edited; outside editing the bar follows the cell
       return;
     }
     const d = getFlowdata(context);
@@ -107,6 +109,8 @@ const FxEditor: React.FC = () => {
         const col_index = last.column_focus;
 
         draftCtx.luckysheetCellUpdate = [row_index, col_index];
+        // the formula bar edits in Edit mode (arrows move the caret)
+        setEditMode(draftCtx, "edit");
         refs.globalCache.doNotFocus = true;
         // formula.rangeResizeTo = $("#luckysheet-functionbox-cell");
       });
@@ -135,26 +139,18 @@ const FxEditor: React.FC = () => {
       if (formulaKeys.onKeyDown(e)) return;
       if (context.luckysheetCellUpdate.length === 0) return;
       if (key === "Enter") {
-        setContext((draftCtx) => {
-          const lastCellUpdate = _.clone(draftCtx.luckysheetCellUpdate);
-          updateCell(
-            draftCtx,
-            draftCtx.luckysheetCellUpdate[0],
-            draftCtx.luckysheetCellUpdate[1],
-            refs.fxInput.current!
-          );
-          draftCtx.luckysheet_select_save = [
-            {
-              row: [lastCellUpdate[0], lastCellUpdate[0]],
-              column: [lastCellUpdate[1], lastCellUpdate[1]],
-              row_focus: lastCellUpdate[0],
-              column_focus: lastCellUpdate[1],
-            },
-          ];
-          moveHighlightCell(draftCtx, "down", 1, "rangeOfSelect");
-        });
+        if (e.altKey || e.metaKey) {
+          // Alt+Enter: a line break inside the cell
+          document.execCommand("insertHTML", false, "\n ");
+          document.execCommand("delete", false);
+          e.stopPropagation();
+        }
+        // Enter / Shift+Enter / Ctrl+Enter commit in the global key handler
+        // (moving within a multi-cell selection like the cell editor)
         e.preventDefault();
-        e.stopPropagation();
+      } else if (key === "Tab") {
+        // committed by the global key handler; keep the focus in the sheet
+        e.preventDefault();
       } else if (key === "Escape") {
         setContext((draftCtx) => {
           cancelNormalSelected(draftCtx);
