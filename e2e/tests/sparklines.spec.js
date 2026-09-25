@@ -63,7 +63,7 @@ test.describe("sparklines", () => {
     await expect(
       dialog.getByLabel("Location Range", { exact: true })
     ).toHaveValue("D1:D2");
-    await dialog.getByRole("radio", { name: "Column" }).click();
+    await dialog.getByRole("radio", { name: "Column", exact: true }).click();
     await dialog.getByRole("button", { name: "OK" }).click();
     await expect(dialog).toHaveCount(0);
 
@@ -85,7 +85,7 @@ test.describe("sparklines", () => {
     await page.locator('[data-key="sparkline-settings"]').click();
     const settings = page.locator(".fortune-sparkline-settings");
     await expect(settings).toBeVisible();
-    await settings.getByRole("radio", { name: "Line" }).click();
+    await settings.getByRole("radio", { name: "Line", exact: true }).click();
     await settings.getByLabel("Markers", { exact: true }).check();
     await settings.getByLabel("Show Axis").check();
     await settings.getByRole("button", { name: "OK" }).click();
