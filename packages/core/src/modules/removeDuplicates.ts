@@ -6,6 +6,7 @@ import { getSheetIndex } from "../utils";
 import { execfunction } from "./formula";
 import { update } from "./format";
 import { jfrefreshgrid } from "./refresh";
+import { reconcileSpills } from "./spill";
 import { detectHeaderRow, shiftFormula } from "./sort";
 
 /*
@@ -156,5 +157,8 @@ export function removeDuplicates(
   }
 
   jfrefreshgrid(ctx, data, [{ row: [r1, r2], column: [c1, c2] }]);
+  reconcileSpills(ctx, ctx.currentSheetId, {
+    changed: [{ row: [r1, r2], column: [c1, c2] }],
+  });
   return { removed, unique: keep.length };
 }

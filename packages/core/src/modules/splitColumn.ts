@@ -4,6 +4,7 @@ import { Cell } from "../types";
 import { getCellValue, setCellValue } from "./cell";
 import { genarate, update } from "./format";
 import { jfrefreshgrid } from "./refresh";
+import { reconcileSpills } from "./spill";
 
 // 生成二维数组
 export function getNullData(rlen: number, clen: number) {
@@ -399,10 +400,10 @@ export function applyTextToColumns(
       c += 1;
     });
   });
-  jfrefreshgrid(ctx, data, [
-    {
-      row: [dest.r, Math.min(dest.r + rows.length - 1, data.length - 1)],
-      column: [dest.c, maxC],
-    },
-  ]);
+  const written = {
+    row: [dest.r, Math.min(dest.r + rows.length - 1, data.length - 1)],
+    column: [dest.c, maxC],
+  };
+  jfrefreshgrid(ctx, data, [written]);
+  reconcileSpills(ctx, ctx.currentSheetId, { changed: [written] });
 }
