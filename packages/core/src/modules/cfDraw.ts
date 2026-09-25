@@ -1,7 +1,7 @@
 import type { Cell } from "../types";
 import type { CFCellResult, CFDataBarResult, CFIconSetName } from "./cfTypes";
 import { CF_ICON_SETS, CFIconDef } from "./cfRules";
-import { mixCFColors } from "./cfEngine";
+import { mixCFColors, parseCFColor } from "./cfEngine";
 import { formatValue } from "./format";
 
 /*
@@ -10,6 +10,52 @@ import { formatValue } from "./format";
  */
 
 type Ctx2D = CanvasRenderingContext2D;
+
+/**
+ * A horizontal gradient from `solid` (at the `solidSide` end) to `light`
+ * over [x, x + w) x [y, y + h), painted as one solid rectangle per device
+ * pixel column. Canvas gradients are dithered against the device pixel
+ * grid, so a gradient moved by a scroll (the sheet blits scrolled pixels)
+ * would differ from one painted in place; solid columns do not.
+ */
+function fillGradientColumns(
+  rc: Ctx2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  solid: [number, number, number],
+  light: [number, number, number],
+  solidSide: string | undefined
+) {
+  const m = typeof rc.getTransform === "function" ? rc.getTransform() : null;
+  const sx = (m?.a ?? 1) || 1;
+  const tx = m?.e ?? 0;
+  // In device pixels, from the first column the bar touches. The fraction
+  // and width are quantised so that a bar moved by whole pixels gets the
+  // very same colours (float noise would flip a rounding now and then).
+  const start = x * sx + tx;
+  const d0 = Math.floor(start);
+  const frac = Math.round((start - d0) * 64) / 64;
+  const wd = Math.round(w * sx * 64) / 64;
+  const n = Math.ceil(frac + wd);
+  for (let k = 0; k < n; k += 1) {
+    const lo = Math.max(0, k - frac);
+    const hi = Math.min(wd, k + 1 - frac);
+    if (hi > lo) {
+      const left = (d0 + frac + lo - tx) / sx;
+      const right = (d0 + frac + hi - tx) / sx;
+      const center = (lo + hi) / 2;
+      const t = solidSide === "left" ? center / wd : 1 - center / wd;
+      rc.fillStyle = `rgb(${Math.round(
+        solid[0] + (light[0] - solid[0]) * t
+      )},${Math.round(solid[1] + (light[1] - solid[1]) * t)},${Math.round(
+        solid[2] + (light[2] - solid[2]) * t
+      )})`;
+      rc.fillRect(left, y, right - left, h);
+    }
+  }
+}
 
 export function drawCFDataBar(
   rc: Ctx2D,
@@ -24,17 +70,25 @@ export function drawCFDataBar(
   const x2 = x + w * bar.end;
   const bw = x2 - x1;
   if (bw > 0.25) {
-    if (bar.gradient) {
-      const from = bar.solidSide === "left" ? x1 : x2;
-      const to = bar.solidSide === "left" ? x2 : x1;
-      const g = rc.createLinearGradient(from, 0, to, 0);
-      g.addColorStop(0, bar.color);
-      g.addColorStop(1, mixCFColors(bar.color, "#FFFFFF", 0.88));
-      rc.fillStyle = g;
+    const light = bar.gradient
+      ? parseCFColor(mixCFColors(bar.color, "#FFFFFF", 0.88))
+      : null;
+    const solid = bar.gradient ? parseCFColor(bar.color) : null;
+    if (solid && light) {
+      fillGradientColumns(rc, x1, y, bw, h, solid, light, bar.solidSide);
     } else {
-      rc.fillStyle = bar.color;
+      if (bar.gradient) {
+        const from = bar.solidSide === "left" ? x1 : x2;
+        const to = bar.solidSide === "left" ? x2 : x1;
+        const g = rc.createLinearGradient(from, 0, to, 0);
+        g.addColorStop(0, bar.color);
+        g.addColorStop(1, mixCFColors(bar.color, "#FFFFFF", 0.88));
+        rc.fillStyle = g;
+      } else {
+        rc.fillStyle = bar.color;
+      }
+      rc.fillRect(x1, y, bw, h);
     }
-    rc.fillRect(x1, y, bw, h);
     if (bar.borderColor && bw >= 2) {
       rc.lineWidth = 1;
       rc.strokeStyle = bar.borderColor;

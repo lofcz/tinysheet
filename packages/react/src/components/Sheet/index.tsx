@@ -7,7 +7,7 @@ import {
   updateContextWithSheetData,
   handleGlobalWheel,
   initFreeze,
-  getSheetIndex,
+  lowerBound,
   Sheet as SheetType,
 } from "@lofcz/tinysheet-core";
 import "./index.css";
@@ -139,6 +139,9 @@ const STRIP_MARGIN = 4;
 
 // Leading px of a scrolling band that are redrawn instead of copied.
 const BAND_EDGE = 4;
+
+// How far a strip ending at the canvas edge is clipped past it.
+const STRIP_OVERHANG = 64;
 
 /**
  * One step of a sheet redraw, in canvas (CSS px) coordinates. A frozen sheet
@@ -383,62 +386,83 @@ function drawSheet(
 }
 
 /**
- * Whether a merged cell spans the frozen/scrolling boundary on `axis`: the
- * frozen pane then paints part of the scrolling band, which a blit cannot
- * reproduce.
+ * Merged cells that span the freeze line along `axis` (frozen rows for a
+ * vertical scroll, frozen columns for a horizontal one) are painted whole by
+ * every pane that shows part of them. So the frozen pane paints part of
+ * them at a fixed place inside the scrolling band, and the scrolling panes
+ * paint part of them, moving with the scroll, over the frozen panes: pixels
+ * that a blit would get wrong. Returns the range of canvas coordinates
+ * (CSS px, along `axis`) that holds such pixels before or after a scroll by
+ * `delta`, which is then redrawn instead; null when there is none.
  */
-function mergeCrossesFreeze(
+function freezeMergeSpan(
   context: Context,
   freeze: Freeze | undefined,
-  axis: "x" | "y"
-) {
+  axis: "x" | "y",
+  delta: number
+): [number, number] | null {
   const data =
     axis === "y"
       ? freeze?.horizontal?.freezenhorizontaldata
       : freeze?.vertical?.freezenverticaldata;
   const merge = context.config?.merge;
-  if (!data || !merge) return false;
+  if (!data || !merge) return null;
   const frozenCount = data[1] as number;
-  // the frozen panes (frozen rows for a vertical scroll) and the sheet
-  // range they draw across the other axis
-  const panes = sheetPasses(context, freeze).flatMap((p) => {
-    if (p.kind !== "cells") return [];
-    if (axis === "y") {
-      return p.offsetTop === context.columnHeaderHeight
-        ? [[p.scrollWidth, p.scrollWidth + p.drawWidth]]
-        : [];
-    }
-    return p.offsetLeft === context.rowHeaderWidth
-      ? [[p.scrollHeight, p.scrollHeight + p.drawHeight]]
-      : [];
+  const paneScroll = (data[2] as number) ?? 0;
+  const passes = sheetPasses(context, freeze);
+  const main = passes[0] as Extract<DrawPass, { kind: "cells" }>;
+  const mainOffset = axis === "y" ? main.offsetTop : main.offsetLeft;
+  const mainScroll = axis === "y" ? main.scrollHeight : main.scrollWidth;
+  const along =
+    axis === "y" ? context.visibledatarow : context.visibledatacolumn;
+  const header =
+    axis === "y" ? context.columnHeaderHeight : context.rowHeaderWidth;
+  let lo = Infinity;
+  let hi = -Infinity;
+  Object.values(merge).forEach((m) => {
+    const [start, span] = axis === "y" ? [m.r, m.rs] : [m.c, m.cs];
+    if (!(start < frozenCount && start + span > frozenCount)) return;
+    const first = start > 0 ? along[start - 1] ?? 0 : 0;
+    const last = along[Math.min(start + span, along.length) - 1] ?? first;
+    // the frozen pane: from its top (left) edge to its far end, fixed
+    hi = Math.max(hi, last - paneScroll + header);
+    // the scrolling panes: from its top (left) edge, before and after
+    lo = Math.min(lo, first - mainScroll + mainOffset + Math.min(0, delta));
   });
-  const edges =
-    axis === "y" ? context.visibledatacolumn : context.visibledatarow;
-  return Object.values(merge).some((m) => {
-    const [start, span, from, count] =
-      axis === "y" ? [m.r, m.rs, m.c, m.cs] : [m.c, m.cs, m.r, m.rs];
-    if (!(start < frozenCount && start + span > frozenCount)) return false;
-    const lo = from > 0 ? edges[from - 1] ?? 0 : 0;
-    const hi = edges[Math.min(from + count, edges.length) - 1] ?? lo;
-    return panes.some(([s0, s1]) => hi >= s0 && lo <= s1);
-  });
+  if (hi < lo) return null;
+  return [Math.max(0, Math.floor(lo) - 1), Math.ceil(hi) + 1];
 }
 
 /**
- * Whether the sheet has conditional-format data bars or icon sets. They are
- * anti-aliased paths whose edge pixels depend on the clip they are drawn
- * under, so a strip redraw would not match a full redraw exactly.
+ * The edge between two cells of the scrolling panes (canvas px along
+ * `axis`) at or before (`after` false) or at or after `pos`.
  */
-function hasPathDecorations(context: Context) {
-  const i = getSheetIndex(context, context.currentSheetId);
-  const rules =
-    i == null
-      ? undefined
-      : context.luckysheetfile[i]?.luckysheet_conditionformat_save;
-  return (
-    Array.isArray(rules) &&
-    rules.some((r: any) => r?.type === "dataBar" || r?.type === "icons")
-  );
+function cellEdge(
+  context: Context,
+  freeze: Freeze | undefined,
+  axis: "x" | "y",
+  pos: number,
+  after: boolean
+) {
+  const main = sheetPasses(context, freeze)[0] as Extract<
+    DrawPass,
+    { kind: "cells" }
+  >;
+  const edges =
+    axis === "y" ? context.visibledatarow : context.visibledatacolumn;
+  const scroll = axis === "y" ? main.scrollHeight : main.scrollWidth;
+  const offset = axis === "y" ? main.offsetTop : main.offsetLeft;
+  const target = pos + scroll - offset;
+  const i = lowerBound(edges, target);
+  if (after) {
+    return i < edges.length
+      ? Math.max(pos, Math.ceil(edges[i] - scroll + offset))
+      : pos;
+  }
+  let edge = 0;
+  if (i < edges.length && edges[i] === target) edge = edges[i];
+  else if (i > 0) edge = edges[i - 1];
+  return Math.max(0, Math.min(pos, Math.floor(edge - scroll + offset)));
 }
 
 /**
@@ -483,8 +507,11 @@ function blitScroll(
   ) {
     return false;
   }
-  if (mergeCrossesFreeze(next, freeze, axis)) return false;
-  if (hasPathDecorations(next)) return false;
+  // merged cells across the freeze line are redrawn, not moved
+  const merged = freezeMergeSpan(next, freeze, axis, delta);
+  if (merged && merged[1] - merged[0] + Math.abs(delta) * 2 > end) {
+    return false;
+  }
   const ctx2d = canvasElement.getContext("2d");
   if (!ctx2d || typeof ctx2d.setTransform !== "function") return false;
 
@@ -513,25 +540,38 @@ function blitScroll(
   );
   ctx2d.restore();
 
-  // 2. redraw the exposed strip and the band edge with every pass, clipped
+  // 2. redraw the exposed strip and the band edge with every pass, clipped.
+  // A clip edge cutting through an anti-aliased path (a conditional format
+  // icon) rasterises it a little differently, so the strips end on cell
+  // edges inside the band (icons keep clear of those), and reach past the
+  // canvas (or to its start: headers and frozen panes are few pixels)
+  // where they end at the canvas edge.
+  const strip = (from: number, to: number) => {
+    const a = from <= bandStart ? 0 : cellEdge(next, freeze, axis, from, false);
+    const b =
+      to >= end ? end + STRIP_OVERHANG : cellEdge(next, freeze, axis, to, true);
+    drawSheet(canvasElement, next, freeze, { axis, start: a, size: b - a });
+  };
   if (delta > 0) {
-    drawSheet(canvasElement, next, freeze, {
-      axis,
-      start: end - delta,
-      size: delta,
-    });
-    drawSheet(canvasElement, next, freeze, {
-      axis,
-      start: bandStart,
-      size: BAND_EDGE,
-    });
+    strip(end - delta, end);
+    strip(bandStart, bandStart + BAND_EDGE);
   } else {
-    drawSheet(canvasElement, next, freeze, {
-      axis,
-      start: bandStart,
-      size: BAND_EDGE - delta,
-    });
+    strip(bandStart, bandStart + BAND_EDGE - delta);
   }
+  // 3. merged cells across the freeze line (see freezeMergeSpan)
+  if (merged) strip(merged[0], merged[1] + Math.max(0, -delta));
+  // 4. cells cut by the far canvas edges: a path cut by the canvas edge is
+  // rasterised differently too, so these are redrawn, not moved (along the
+  // scroll when it moves them outwards, and across it always)
+  if (delta < 0) strip(cellEdge(next, freeze, axis, end, false), end);
+  const across = axis === "x" ? "y" : "x";
+  const acrossEnd = axis === "x" ? height : width;
+  const from = cellEdge(next, freeze, across, acrossEnd, false);
+  drawSheet(canvasElement, next, freeze, {
+    axis: across,
+    start: from,
+    size: acrossEnd + STRIP_OVERHANG - from,
+  });
   return true;
 }
 
