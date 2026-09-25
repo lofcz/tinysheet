@@ -11,6 +11,8 @@
  * - defined names (names.ts `adjustNamesForChange`),
  * - tables and structured references (tables.ts `adjustTablesForChange`),
  * - charts: series ranges and positions (chart.ts `adjustChartsForChange`),
+ * - sparklines: data references and location cells (sparkline.ts
+ *   `adjustSparklinesForChange`),
  * - note boxes with an explicit position (`adjustNotesForChange` below).
  *
  * The data-validation rule anchors register their own adjuster
@@ -38,6 +40,11 @@ import {
   rewriteFormula,
 } from "./refAdjust";
 import { columnLeftPx, insertedSizePx, rowTopPx } from "./sheetGeometry";
+import {
+  adjustSparklinesForChange,
+  remapDuplicatedSparklines,
+} from "./sparkline";
+import { installSparklineRenderer } from "./sparklineRender";
 import {
   adjustTablesForChange,
   mapStructuredReferences,
@@ -129,12 +136,16 @@ const chartsAdjuster: ReferenceAdjuster = (ctx, change) =>
 const notesAdjuster: ReferenceAdjuster = (ctx, change) =>
   adjustNotesForChange(ctx, change);
 
+const sparklinesAdjuster: ReferenceAdjuster = (ctx, change, api) =>
+  adjustSparklinesForChange(ctx, change, api);
+
 /** Keys the model adjusters are registered under. */
 export const MODEL_ADJUSTER_KEYS = [
   "model.tables",
   "model.names",
   "model.charts",
   "model.notes",
+  "model.sparklines",
 ] as const;
 
 /**
@@ -147,6 +158,8 @@ export function installModelAdjusters() {
   registerReferenceAdjuster("model.names", namesAdjuster);
   registerReferenceAdjuster("model.charts", chartsAdjuster);
   registerReferenceAdjuster("model.notes", notesAdjuster);
+  registerReferenceAdjuster("model.sparklines", sparklinesAdjuster);
+  installSparklineRenderer();
 }
 
 installModelAdjusters();
@@ -163,7 +176,8 @@ installModelAdjusters();
  * - data-validation and conditional-format formulas pointing at the
  *   original sheet point at the copy (cell formulas are handled by
  *   duplicateSheet);
- * - charts get new ids and plot the copied cells.
+ * - charts get new ids and plot the copied cells;
+ * - sparkline groups get new ids and read the copied cells.
  */
 export function prepareDuplicatedSheet(
   ctx: Context,
@@ -227,5 +241,11 @@ export function prepareDuplicatedSheet(
 
   if (copy.charts?.length) {
     copy.charts = remapDuplicatedCharts(copy.charts, source.id, copy.id);
+  }
+  if (copy.sparklineGroups?.length) {
+    copy.sparklineGroups = remapDuplicatedSparklines(
+      copy.sparklineGroups,
+      rewrite
+    );
   }
 }

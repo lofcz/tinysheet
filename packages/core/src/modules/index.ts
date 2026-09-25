@@ -51,6 +51,8 @@ export * from "./names";
 export * from "./tables";
 export * from "./chart";
 export * from "./chartRender";
+export * from "./sparkline";
+export * from "./sparklineRender";
 export * from "./modelSync";
 export * from "./formatCells";
 export { inferFormulaFormat } from "./formatInference";
