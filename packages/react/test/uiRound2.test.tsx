@@ -125,6 +125,7 @@ describe("cell context menu", () => {
       "Define Name…",
       "Link…",
       "Insert Image…",
+      "Place Picture in Cell…",
       "Data Validation…",
       "Insert Chart",
     ]);
