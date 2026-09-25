@@ -166,6 +166,9 @@ export type Context = {
   functionCandidateIndex?: number;
   /** argument of `functionHint` the caret is in */
   functionHintArgIndex?: number;
+  /** the formula bar shows several lines (Ctrl+Shift+U), and its height */
+  formulaBarExpanded?: boolean;
+  formulaBarHeight?: number;
 
   luckysheet_copy_save?: {
     dataSheetId: string;

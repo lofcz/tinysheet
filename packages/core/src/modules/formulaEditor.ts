@@ -1421,3 +1421,50 @@ export function getActiveFunctionCandidate(ctx: Context): string | null {
   const idx = Math.min(Math.max(ctx.functionCandidateIndex ?? 0, 0), len - 1);
   return ctx.functionCandidates[idx]?.n ?? null;
 }
+
+/* -------------------------------------------------------------------------- */
+/*                     Formula bar: expand, resize, lines                     */
+/* -------------------------------------------------------------------------- */
+
+/** Height (px) of the one-line formula bar. */
+export const FORMULA_BAR_COLLAPSED_HEIGHT = 28;
+/** Smallest and default height (px) of the expanded formula bar. */
+export const FORMULA_BAR_MIN_HEIGHT = 48;
+export const FORMULA_BAR_DEFAULT_HEIGHT = 88;
+
+/** The expanded formula bar height, kept between the minimum and `max`. */
+export function clampFormulaBarHeight(height: number, max = 600) {
+  const top = Math.max(FORMULA_BAR_MIN_HEIGHT, max);
+  if (!Number.isFinite(height)) return FORMULA_BAR_DEFAULT_HEIGHT;
+  return Math.round(Math.min(top, Math.max(FORMULA_BAR_MIN_HEIGHT, height)));
+}
+
+/** Ctrl+Shift+U: expands or collapses the formula bar. */
+export function toggleFormulaBar(ctx: Context) {
+  ctx.formulaBarExpanded = !ctx.formulaBarExpanded;
+  if (ctx.formulaBarExpanded && !ctx.formulaBarHeight) {
+    ctx.formulaBarHeight = FORMULA_BAR_DEFAULT_HEIGHT;
+  }
+}
+
+/**
+ * Dragging the formula bar's bottom edge: a height below the expanded
+ * minimum collapses it to one line.
+ */
+export function setFormulaBarHeight(ctx: Context, height: number, max = 600) {
+  if (height < (FORMULA_BAR_COLLAPSED_HEIGHT + FORMULA_BAR_MIN_HEIGHT) / 2) {
+    ctx.formulaBarExpanded = false;
+    return;
+  }
+  ctx.formulaBarExpanded = true;
+  ctx.formulaBarHeight = clampFormulaBarHeight(height, max);
+}
+
+/**
+ * The indentation (leading spaces/tabs) of the line `caret` is on: Alt+Enter
+ * starts the next line of a formula with it.
+ */
+export function lineIndentAt(text: string, caret: number) {
+  const lineStart = text.lastIndexOf("\n", caret - 1) + 1;
+  return /^[ \t]*/.exec(text.slice(lineStart, caret))![0];
+}

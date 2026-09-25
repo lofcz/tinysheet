@@ -11,6 +11,8 @@
   display: flex;
   align-items: center;
   margin: 0 12px;
+  align-self: flex-start;
+  height: 28px;
 }
 
 .fortune-name-box-container {
@@ -20,13 +22,13 @@
   border-right: 1px solid var(--fortune-border);
   font-size: 14px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .fortune-fx-editor .fortune-name-box {
   flex: 1;
   min-width: 0;
-  height: 100%;
+  height: 28px;
   box-sizing: border-box;
   padding: 0 2px 0 6px;
   margin: 0;
@@ -52,7 +54,7 @@
   align-items: center;
   justify-content: center;
   width: 18px;
-  height: 100%;
+  height: 28px;
   cursor: pointer;
   color: var(--fortune-icon);
 }
@@ -116,10 +118,10 @@
 .fortune-fx-input {
   flex: 1;
   height: 100%;
-  overflow-y: scroll;
+  overflow-y: auto;
   padding-left: 2px;
   font-size: 14px;
-  line-height: 14px;
+  line-height: 20px;
   margin: 0;
   outline: none;
   cursor: text;
@@ -129,7 +131,8 @@
   -webkit-nbsp-mode: space;
   -webkit-line-break: after-white-space;
   background-color: var(--fortune-bg);
-  padding-top: 7px;
+  padding-top: 4px;
+  padding-bottom: 4px;
   box-sizing: border-box;
   color: var(--fortune-text);
   text-align: left;
@@ -141,4 +144,65 @@
 /* a spilled cell: the anchor's formula, greyed out */
 .fortune-fx-input-spilled {
   color: var(--fortune-text-subtle);
+}
+
+/* expand / collapse (Ctrl+Shift+U) and resize of the formula bar */
+.fortune-fx-editor-wrap {
+  position: relative;
+}
+
+.fortune-fx-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  flex-shrink: 0;
+  width: 24px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-left: 1px solid var(--fortune-border);
+  background: var(--fortune-bg);
+  color: var(--fortune-icon);
+  cursor: pointer;
+}
+
+.fortune-fx-toggle:hover {
+  background-color: var(--fortune-bg-hover);
+}
+
+.fortune-fx-toggle:focus-visible {
+  outline: 2px solid var(--fortune-accent);
+  outline-offset: -2px;
+}
+
+.fortune-fx-toggle svg {
+  transition: transform 0.15s ease;
+}
+
+.fortune-fx-editor-expanded .fortune-fx-toggle svg {
+  transform: rotate(180deg);
+}
+
+.fortune-fx-resize-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 6px;
+  z-index: 3;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.fortune-fx-resize-handle:hover,
+.fortune-fx-resize-handle:active {
+  background: linear-gradient(
+    to bottom,
+    transparent 2px,
+    var(--fortune-accent) 2px,
+    var(--fortune-accent) 4px,
+    transparent 4px
+  );
 }

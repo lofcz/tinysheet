@@ -14,6 +14,7 @@ import {
   isAllowEdit,
   getSpilledCellFormula,
   setEditMode,
+  FORMULA_BAR_COLLAPSED_HEIGHT,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -32,7 +33,11 @@ import FormulaSearch from "../SheetOverlay/FormulaSearch";
 import FormulaHint from "../SheetOverlay/FormulaHint";
 import NameBox from "./NameBox";
 import usePrevious from "../../hooks/usePrevious";
-import { useFormulaEditorKeys } from "../SheetOverlay/FormulaSearch/useFormulaEditorKeys";
+import {
+  insertEditorLineBreak,
+  useFormulaEditorKeys,
+} from "../SheetOverlay/FormulaSearch/useFormulaEditorKeys";
+import { useFormulaBarSize } from "./useFormulaBarSize";
 
 const FxEditor: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -46,7 +51,8 @@ const FxEditor: React.FC = () => {
   const prevFirstSelection = usePrevious(firstSelection);
   const prevSheetId = usePrevious(context.currentSheetId);
   const recentText = useRef("");
-  const { info } = locale(context);
+  const { info, formulaMore } = locale(context);
+  const bar = useFormulaBarSize();
   const formulaKeys = useFormulaEditorKeys(
     useCallback(() => refs.fxInput.current, [refs.fxInput]),
     useCallback(() => refs.cellInput.current, [refs.cellInput])
@@ -152,8 +158,7 @@ const FxEditor: React.FC = () => {
       if (key === "Enter") {
         if (e.altKey || e.metaKey) {
           // Alt+Enter: a line break inside the cell
-          document.execCommand("insertHTML", false, "\n ");
-          document.execCommand("delete", false);
+          insertEditorLineBreak(refs.fxInput.current);
           e.stopPropagation();
         }
         // Enter / Shift+Enter / Ctrl+Enter commit in the global key handler
@@ -235,8 +240,13 @@ const FxEditor: React.FC = () => {
   ]);
 
   return (
-    <aside>
-      <div className="fortune-fx-editor">
+    <aside className="fortune-fx-editor-wrap">
+      <div
+        className={`fortune-fx-editor${
+          bar.expanded ? " fortune-fx-editor-expanded" : ""
+        }`}
+        style={bar.height != null ? { height: bar.height } : undefined}
+      >
         <NameBox />
         <div className="fortune-fx-icon">
           <SVGIcon name="fx" width={18} height={18} />
@@ -286,3 +296,38 @@ const FxEditor: React.FC = () => {
 };
 
 export default FxEditor;
+        <button
+          type="button"
+          className="fortune-fx-toggle"
+          aria-expanded={bar.expanded}
+          aria-label={
+            bar.expanded
+              ? formulaMore.collapseFormulaBar
+              : formulaMore.expandFormulaBar
+          }
+          title={
+            bar.expanded
+              ? formulaMore.collapseFormulaBar
+              : formulaMore.expandFormulaBar
+          }
+          // keep the caret in the formula being edited
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={bar.toggle}
+        >
+          <SVGIcon name="downArrow" width={12} height={12} />
+        </button>
+      {/* a focusable separator is a window splitter (interactive) */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <div
+        className="fortune-fx-resize-handle"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label={formulaMore.resizeFormulaBar}
+        aria-valuemin={FORMULA_BAR_COLLAPSED_HEIGHT}
+        aria-valuenow={bar.height ?? FORMULA_BAR_COLLAPSED_HEIGHT}
+        title={formulaMore.resizeFormulaBar}
+        tabIndex={0}
+        onPointerDown={bar.onResizeStart}
+        onKeyDown={bar.onResizeKey}
+        onDoubleClick={bar.toggle}
+      />

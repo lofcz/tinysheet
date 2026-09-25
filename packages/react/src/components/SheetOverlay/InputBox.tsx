@@ -34,7 +34,10 @@ import ContentEditable from "./ContentEditable";
 import FormulaSearch from "./FormulaSearch";
 import FormulaHint from "./FormulaHint";
 import usePrevious from "../../hooks/usePrevious";
-import { useFormulaEditorKeys } from "./FormulaSearch/useFormulaEditorKeys";
+import {
+  insertEditorLineBreak,
+  useFormulaEditorKeys,
+} from "./FormulaSearch/useFormulaEditorKeys";
 
 const InputBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -170,9 +173,8 @@ const InputBox: React.FC = () => {
         e.preventDefault();
       } else if (e.key === "Enter" && context.luckysheetCellUpdate.length > 0) {
         if (e.altKey || e.metaKey) {
-          // originally `enterKeyControll`
-          document.execCommand("insertHTML", false, "\n "); // 换行符后面的空白符是为了强制让他换行，在下一步的delete中会删掉
-          document.execCommand("delete", false);
+          // Alt+Enter: a line break (a formula keeps the indentation)
+          insertEditorLineBreak(inputRef.current);
           e.stopPropagation();
         }
       } else if (e.key === "Tab" && context.luckysheetCellUpdate.length > 0) {

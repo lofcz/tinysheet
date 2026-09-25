@@ -665,7 +665,14 @@ export function updateCell(
     inputText?.slice(0, 1) !== "=" && inputHtml?.substring(0, 5) === "<span";
 
   let isCopyVal = false;
-  if (!isCurInline && inputText && inputText.length > 0) {
+  // several lines of text become rich text; a formula keeps its line
+  // breaks (Alt+Enter in a formula only formats it)
+  if (
+    !isCurInline &&
+    inputText &&
+    inputText.length > 0 &&
+    !inputText.startsWith("=")
+  ) {
     const splitArr = inputText
       .replace(/\r\n/g, "_x000D_")
       .replace(/&#13;&#10;/g, "_x000D_")
