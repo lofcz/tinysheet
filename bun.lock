@@ -18,6 +18,7 @@
         "@rsbuild/core": "^2.2.9",
         "@rsbuild/plugin-react": "^2.1.0",
         "@storybook/addon-links": "^10.6.0",
+        "@storybook/react": "^10.6.0",
         "@testing-library/dom": "^10.4.0",
         "@testing-library/react": "^16.3.0",
         "@tsdown/css": "^0.22.14",
