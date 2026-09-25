@@ -18,7 +18,9 @@
   ],
   "sideEffects": [
     "**/*.css",
-    "**/components/CellTools/index.tsx"
+    "./src/index.ts",
+    "./src/components/index.ts",
+    "./src/components/CellTools/index.tsx"
   ],
   "repository": {
     "type": "git",

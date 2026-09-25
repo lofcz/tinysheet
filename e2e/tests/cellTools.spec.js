@@ -8,7 +8,12 @@ async function toolbarButton(page, name) {
   const inBar = page.locator(
     `.fortune-toolbar [role=button][aria-label="${name}"]`
   );
-  if (!(await inBar.first().isVisible().catch(() => false))) {
+  if (
+    !(await inBar
+      .first()
+      .isVisible()
+      .catch(() => false))
+  ) {
     await page
       .locator('.fortune-toolbar [role=button][aria-label="More"]')
       .click();
@@ -99,6 +104,8 @@ test.describe("cell controls and data tools", () => {
     await expect
       .poll(async () => Math.abs((await sheet.value(0, 0)) - 7))
       .toBeLessThan(0.001);
+    // one undo step brings the original value back
+    await sheet.click(4, 4);
     await page.keyboard.press("Control+z");
     await expect.poll(() => sheet.value(0, 0)).toBe(2);
   });

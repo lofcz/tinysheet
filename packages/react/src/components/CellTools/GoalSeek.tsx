@@ -15,8 +15,9 @@ import { RefField, startRefPick } from "./refPick";
 
 type Fields = { setCell: string; toValue: string; changingCell: string };
 
+/** Like Excel's General format in the status dialog: 10 significant digits. */
 const fmt = (n: number) =>
-  Number.isFinite(n) ? `${Math.round(n * 1e10) / 1e10}` : "#VALUE!";
+  Number.isFinite(n) ? `${Number(n.toPrecision(10))}` : "#VALUE!";
 
 /** Goal Seek result: OK keeps the solution, Cancel restores the value. */
 export const GoalSeekStatus: React.FC = () => {
