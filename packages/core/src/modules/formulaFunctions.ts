@@ -45,6 +45,7 @@ import { error as ERRORS, isRealNull, valueIsError } from "./validation";
 import { setCellValue } from "./cell";
 import { getSheetDataCached, peek, peekCell } from "./dependencyGraph";
 import { expandFormulaNames, getNameDependencies } from "./names";
+import { cellImageFromValue, isImageValue, sameImageValue } from "./cellImage";
 
 // ---------------------------------------------------------------------------
 // Types and per-workbook state
@@ -678,7 +679,7 @@ function readCell(
 
 function isEmptyCell(cell: SpillCell | null | undefined) {
   if (!cell) return true;
-  if (cell.f) return false;
+  if (cell.f || cell.img) return false;
   if (cell.ct?.t === "inlineStr" && !_.isEmpty(cell.ct.s)) return false;
   return isRealNull(cell.v);
 }
@@ -1880,7 +1881,9 @@ function spillResult(
       const row = matrix[i];
       const v = normalizeSpillValue(Array.isArray(row) ? row[j] : row);
       const cur = currentGhost(ctx, data, id, rr, cc, r, c);
-      if (cur && cur.v === v) continue;
+      if (cur && (isImageValue(v) ? sameImageValue(cur, v) : cur.v === v)) {
+        continue;
+      }
       queueRefresh(ctx, {
         r: rr,
         c: cc,
@@ -1892,6 +1895,7 @@ function spillResult(
         v,
         spillFrom: { dr: i, dc: j },
         ...(typeof v === "number" ? { ct: { fa: "General", t: "n" } } : {}),
+        ...(isImageValue(v) ? { img: cellImageFromValue(v) } : {}),
       });
       markChanged(state, rr, cc, id);
     }
@@ -1920,6 +1924,7 @@ export function applySpillRefreshItem(
     if (!cell || !isGhostOf(cell, r, c, ar, ac)) return true;
     delete cell.v;
     delete cell.m;
+    delete cell.img;
     delete cell.spillFrom;
     if (cell.ct && (!cell.ct.fa || cell.ct.fa === "General")) delete cell.ct;
     if (_.isEmpty(cell)) data[r][c] = null;

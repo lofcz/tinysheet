@@ -22,6 +22,7 @@ import { update } from "./format";
 import { jfrefreshgrid } from "./refresh";
 // eslint-disable-next-line import/no-cycle
 import { reconcileSpills } from "./spill";
+import { applyCellImage } from "./cellImage";
 import { expandRowsAndColumns } from "./sheet";
 import {
   borderEntriesForCell,
@@ -132,7 +133,7 @@ export const STYLE_KEYS = [
   "rt",
 ] as const;
 
-const CONTENT_KEYS = ["v", "m", "f", "spl", "qp"] as const;
+const CONTENT_KEYS = ["v", "m", "f", "spl", "qp", "img"] as const;
 
 type SourceItem = { cell: Cell | null; r: number; c: number };
 
@@ -145,7 +146,7 @@ type Block = {
 
 function isBlank(cell: Cell | null | undefined) {
   if (!cell) return true;
-  if (cell.f) return false;
+  if (cell.f || cell.img) return false;
   if (cell.ct?.t === "inlineStr" && cell.ct.s?.length) return false;
   return cell.v == null || cell.v === "";
 }
@@ -500,6 +501,9 @@ export function pasteSpecial(
                 formulaCells.push({ r: R, c: C });
               } else if (s?.ct?.t === "inlineStr") {
                 n.ct = _.cloneDeep(s.ct);
+              } else if (s?.img) {
+                // a picture (placed, or an IMAGE() result pasted as a value)
+                applyCellImage(n, s.img);
               } else if (s && s.v != null) {
                 n.v = s.v;
                 if (s.qp != null && parts.content === "formulas") n.qp = s.qp;

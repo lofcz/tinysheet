@@ -49,6 +49,11 @@ export type Context = {
   insertedImgs?: Image[];
   editingInsertedImgs?: Image;
   activeImg?: string;
+  /**
+   * Bumped when pictures in cells finish loading, so the canvas redraws
+   * (see modules/cellImageDraw.ts).
+   */
+  cellImageRevision?: number;
   /** Id of the selected chart object, if any. */
   activeChart?: string;
   /** Whether the chart editor panel is open for `activeChart`. */

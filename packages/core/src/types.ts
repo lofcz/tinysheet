@@ -57,7 +57,25 @@ export type Cell = {
     isShow: boolean;
   };
   hl?: { r: number; c: number; id: string };
+  /**
+   * A picture in the cell (Place in Cell, or an IMAGE() result); `v`/`m`
+   * hold its alt text. See modules/cellImage.ts.
+   */
+  img?: CellImage;
 } & CellStyle;
+
+/**
+ * A picture inside a cell. `sizing`: 0 (default) fit keeping the aspect
+ * ratio, 1 fill the cell, 2 original size, 3 custom `h` x `w` pixels.
+ * `src` is an http(s) or data:image URL.
+ */
+export type CellImage = {
+  src: string;
+  alt?: string;
+  sizing?: 0 | 1 | 2 | 3;
+  h?: number;
+  w?: number;
+};
 
 export type CellWithRowAndCol = {
   r: number;

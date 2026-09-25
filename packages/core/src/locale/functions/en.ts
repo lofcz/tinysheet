@@ -6456,13 +6456,13 @@ const functionlist: FunctionListEntry[] = [
   {
     n: "IMAGE",
     t: 2,
-    d: "Inserts an image from a source location (shown here as its alternative text).",
+    d: "Inserts a picture into the cell from a source location (an https or data:image URL), with alternative text.",
     a: "Image from a URL.",
     m: [1, 5],
     p: [
       {
         name: "source",
-        detail: "The URL path of the image file (https).",
+        detail: "The URL of the picture (https:// or a data:image URL).",
         example: '"https://example.com/logo.png"',
         require: "m",
         repeat: "n",

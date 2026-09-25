@@ -439,7 +439,8 @@ export function classifyFillValue(
   cell: FillSource,
   lang?: string | null
 ): ValueInfo {
-  if (cell == null || cell.f != null) return { kind: "copy" };
+  // formulas and pictures are copied, never extended as a series
+  if (cell == null || cell.f != null || cell.img) return { kind: "copy" };
   if (cell.v == null && cell.m == null) return { kind: "copy" };
   const t = cell.ct?.t;
 
