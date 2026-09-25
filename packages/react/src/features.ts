@@ -5,10 +5,12 @@
  * The registries call `loadBuiltinFeatures` on their first lookup, so every
  * feature is registered before the toolbar, overlays or menus render.
  */
+import { registerFormulaAuditing } from "./components/FormulaAuditing/register";
 
 let loaded = false;
 
 export function loadBuiltinFeatures() {
   if (loaded) return;
   loaded = true;
+  registerFormulaAuditing();
 }

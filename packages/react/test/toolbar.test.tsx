@@ -55,6 +55,7 @@ describe("default toolbar", () => {
       "quick-formula clear-format filter search",
       "freeze image chart link comment",
       "nameManager dataVerification splitColumn locationCondition screenshot",
+      "trace-precedents trace-dependents remove-arrows show-formulas error-checking evaluate-formula watch-window calculation-options",
     ]);
   });
 

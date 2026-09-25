@@ -73,15 +73,26 @@ export type ErrorInfo = {
   fixedFormula?: string;
 };
 
-export function getErrorCheckingOptions(ctx: Context): {
+type ResolvedOptions = {
   enabled: boolean;
   rules: Record<ErrorRuleKey, boolean>;
-} {
+};
+
+let lastOptions: {
+  from: ErrorCheckingOptions | undefined;
+  resolved: ResolvedOptions;
+} | null = null;
+
+/** The options with defaults filled in (memoised: read for every cell). */
+export function getErrorCheckingOptions(ctx: Context): ResolvedOptions {
   const o = ctx.errorCheckingOptions;
-  return {
+  if (lastOptions && lastOptions.from === o) return lastOptions.resolved;
+  const resolved = {
     enabled: o?.enabled ?? true,
     rules: { ...DEFAULT_ERROR_RULES, ...(o?.rules ?? {}) },
   };
+  lastOptions = { from: o, resolved };
+  return resolved;
 }
 
 export function setErrorCheckingOptions(

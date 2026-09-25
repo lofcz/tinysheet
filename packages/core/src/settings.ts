@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import React from "react";
 import { Sheet, Selection, CellMatrix, Cell, CalcSettings } from "./types";
+import type { ErrorCheckingOptions } from "./modules/errorChecking";
 import type { ThemeSetting } from "./theme";
 
 export type Hooks = {
@@ -175,6 +176,8 @@ export type Settings = {
    * (`sheet.calcSettings`, set from Formulas > Calculation Options).
    */
   calculation?: CalcSettings;
+  /** Background error checking rules (green triangles). */
+  errorChecking?: ErrorCheckingOptions;
 };
 
 export const defaultSettings: Required<Settings> = {
@@ -255,6 +258,16 @@ export const defaultSettings: Required<Settings> = {
     "splitColumn",
     "locationCondition",
     "screenshot",
+    "|",
+    // Formula Auditing / Calculation
+    "trace-precedents",
+    "trace-dependents",
+    "remove-arrows",
+    "show-formulas",
+    "error-checking",
+    "evaluate-formula",
+    "watch-window",
+    "calculation-options",
   ], // 自定义工具栏
   // Excel's cell menu. Entries backed by other modules ("paste-special",
   // "cell-format", "define-name", "chart") appear once registered; see
@@ -283,6 +296,8 @@ export const defaultSettings: Required<Settings> = {
     "image",
     "data", // Data Validation…
     "chart",
+    "|",
+    "formula-auditing", // Trace Precedents / Dependents, Evaluate, Watch…
   ], // 自定义单元格右键菜单
   // row / column header menu
   headerContextMenu: [
@@ -328,4 +343,5 @@ export const defaultSettings: Required<Settings> = {
   currency: "¥",
   theme: "light", // "light" | "dark" | "auto"
   calculation: {},
+  errorChecking: {},
 };

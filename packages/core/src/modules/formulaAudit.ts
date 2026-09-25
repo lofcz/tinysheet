@@ -510,8 +510,9 @@ function drawFormulaText(args: {
   zoom: number;
 }) {
   const { ctx, renderCtx, cell, x, y, w, h, zoom } = args;
+  if (!ctx.showFormulas || !isShowFormulas(ctx)) return false;
   const f = formulaOf(cell);
-  if (!f || !isShowFormulas(ctx)) return false;
+  if (!f) return false;
   renderCtx.beginPath();
   renderCtx.rect(x, y, w, h);
   renderCtx.clip();
