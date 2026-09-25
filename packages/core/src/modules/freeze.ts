@@ -18,6 +18,89 @@ function cutVolumn(arr: number[], cutindex: number) {
   return ret;
 }
 
+type Frozen = NonNullable<Sheet["frozen"]>;
+
+function currentSheetFile(ctx: Context): Sheet | null {
+  const i = getSheetIndex(ctx, ctx.currentSheetId);
+  return i == null ? null : ctx.luckysheetfile[i];
+}
+
+/** Pixel start of row/column `index`. */
+function startPx(positions: number[], index: number) {
+  return index > 0 ? positions?.[index - 1] ?? 0 : 0;
+}
+
+/** First row and column shown by frozen panes (the window's top-left). */
+function frozenTopLeft(frozen: Frozen): [number, number] {
+  return [Math.max(0, frozen.top ?? 0), Math.max(0, frozen.left ?? 0)];
+}
+
+/**
+ * Which rows and columns a sheet has frozen, as Excel shows them: the first
+ * frozen row/column and how many there are (0 when none).
+ */
+export function getFrozenCells(
+  sheet: Pick<Sheet, "frozen"> | null | undefined
+) {
+  const frozen = sheet?.frozen;
+  const out = { top: 0, rows: 0, left: 0, columns: 0, split: false };
+  if (!frozen) return out;
+  const rf = frozen.range?.row_focus ?? 0;
+  const cf = frozen.range?.column_focus ?? 0;
+  const [top, left] = frozenTopLeft(frozen);
+  out.split = !!frozen.split;
+  if (frozen.type === "row") {
+    out.rows = 1;
+  } else if (frozen.type === "column") {
+    out.columns = 1;
+  } else if (frozen.type === "both") {
+    out.rows = frozen.range ? rf + 1 : 1;
+    out.columns = frozen.range ? cf + 1 : 1;
+  } else {
+    if (frozen.type !== "rangeColumn") {
+      out.top = top;
+      out.rows = Math.max(0, rf - top + 1);
+    }
+    if (frozen.type !== "rangeRow") {
+      out.left = left;
+      out.columns = Math.max(0, cf - left + 1);
+    }
+  }
+  return out;
+}
+
+/**
+ * The smallest scroll offsets of the current sheet. Frozen panes that start
+ * below/right of the first row/column (frozen from a scrolled position)
+ * keep the scrolling pane from scrolling back over the frozen rows/columns:
+ * at the minimum it starts right after them.
+ */
+export function frozenScrollMin(ctx: Context) {
+  const sheet = currentSheetFile(ctx);
+  const frozen = sheet?.frozen;
+  if (!frozen || frozen.split) return { top: 0, left: 0 };
+  const { top, rows, left, columns } = getFrozenCells(sheet);
+  return {
+    top: rows > 0 ? startPx(ctx.visibledatarow, top) : 0,
+    left: columns > 0 ? startPx(ctx.visibledatacolumn, left) : 0,
+  };
+}
+
+/** Keeps the scroll offsets at or past {@link frozenScrollMin}. */
+export function clampFrozenScroll(ctx: Context) {
+  const min = frozenScrollMin(ctx);
+  let changed = false;
+  if (ctx.scrollTop < min.top) {
+    ctx.scrollTop = min.top;
+    changed = true;
+  }
+  if (ctx.scrollLeft < min.left) {
+    ctx.scrollLeft = min.left;
+    changed = true;
+  }
+  return changed;
+}
+
 function frozenTofreezen(ctx: Context, cache: GlobalCache, sheetId: string) {
   // get frozen type
   const file = ctx.luckysheetfile[getSheetIndex(ctx, sheetId)!];
@@ -254,13 +337,6 @@ export function getFrozenHandleLeft(ctx: Context) {
 
 export type FreezeMode = "panes" | "topRow" | "firstColumn" | "unfreeze";
 
-type Frozen = NonNullable<Sheet["frozen"]>;
-
-function currentSheetFile(ctx: Context): Sheet | null {
-  const i = getSheetIndex(ctx, ctx.currentSheetId);
-  return i == null ? null : ctx.luckysheetfile[i];
-}
-
 /** Active cell, moved to the top-left cell of a merge. */
 function activeCellForFreeze(ctx: Context): [number, number] {
   const last = _.last(ctx.luckysheet_select_save);
@@ -358,11 +434,6 @@ function panesAt(
   return frozen;
 }
 
-/** Pixel start of row/column `index`. */
-function startPx(positions: number[], index: number) {
-  return index > 0 ? positions?.[index - 1] ?? 0 : 0;
-}
-
 /** Whether frozen rows/columns would leave no room for the scrolling pane. */
 function frozenAreaTooLarge(ctx: Context, frozen: Frozen) {
   const rf = frozen.range?.row_focus ?? 0;
@@ -382,11 +453,6 @@ function frozenAreaTooLarge(ctx: Context, frozen: Frozen) {
     if (w > ctx.cellmainWidth - 20) return true;
   }
   return false;
-}
-
-/** First row and column shown by frozen panes (the window's top-left). */
-function frozenTopLeft(frozen: Frozen): [number, number] {
-  return [Math.max(0, frozen.top ?? 0), Math.max(0, frozen.left ?? 0)];
 }
 
 /**
@@ -447,72 +513,6 @@ export function freezePanes(
   if (frozen.type !== "rangeColumn") ctx.scrollTop = min.top;
   if (frozen.type !== "rangeRow") ctx.scrollLeft = min.left;
   return "ok";
-}
-
-/**
- * The smallest scroll offsets of the current sheet. Frozen panes that start
- * below/right of the first row/column (frozen from a scrolled position)
- * keep the scrolling pane from scrolling back over the frozen rows/columns:
- * at the minimum it starts right after them.
- */
-export function frozenScrollMin(ctx: Context) {
-  const sheet = currentSheetFile(ctx);
-  const frozen = sheet?.frozen;
-  if (!frozen || frozen.split) return { top: 0, left: 0 };
-  const { top, rows, left, columns } = getFrozenCells(sheet);
-  return {
-    top: rows > 0 ? startPx(ctx.visibledatarow, top) : 0,
-    left: columns > 0 ? startPx(ctx.visibledatacolumn, left) : 0,
-  };
-}
-
-/** Keeps the scroll offsets at or past {@link frozenScrollMin}. */
-export function clampFrozenScroll(ctx: Context) {
-  const min = frozenScrollMin(ctx);
-  let changed = false;
-  if (ctx.scrollTop < min.top) {
-    ctx.scrollTop = min.top;
-    changed = true;
-  }
-  if (ctx.scrollLeft < min.left) {
-    ctx.scrollLeft = min.left;
-    changed = true;
-  }
-  return changed;
-}
-
-/**
- * Which rows and columns a sheet has frozen, as Excel shows them: the first
- * frozen row/column and how many there are (0 when none).
- */
-export function getFrozenCells(
-  sheet: Pick<Sheet, "frozen"> | null | undefined
-) {
-  const frozen = sheet?.frozen;
-  const out = { top: 0, rows: 0, left: 0, columns: 0, split: false };
-  if (!frozen) return out;
-  const rf = frozen.range?.row_focus ?? 0;
-  const cf = frozen.range?.column_focus ?? 0;
-  const [top, left] = frozenTopLeft(frozen);
-  out.split = !!frozen.split;
-  if (frozen.type === "row") {
-    out.rows = 1;
-  } else if (frozen.type === "column") {
-    out.columns = 1;
-  } else if (frozen.type === "both") {
-    out.rows = frozen.range ? rf + 1 : 1;
-    out.columns = frozen.range ? cf + 1 : 1;
-  } else {
-    if (frozen.type !== "rangeColumn") {
-      out.top = top;
-      out.rows = Math.max(0, rf - top + 1);
-    }
-    if (frozen.type !== "rangeRow") {
-      out.left = left;
-      out.columns = Math.max(0, cf - left + 1);
-    }
-  }
-  return out;
 }
 
 function freezesAxis(frozen: Frozen, type: "row" | "column") {

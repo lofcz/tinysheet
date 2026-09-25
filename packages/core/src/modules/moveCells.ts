@@ -155,6 +155,13 @@ function filterHiddenRows(filter: Record<string, any> | undefined) {
   return rows;
 }
 
+/** ctx keeps a live copy of the current sheet's AutoFilter. */
+function syncLiveFilter(ctx: Context, file: Sheet) {
+  if (file.id !== ctx.currentSheetId) return;
+  ctx.luckysheet_filter_save = file.filter_select;
+  ctx.filter = file.filter ?? {};
+}
+
 /** Removes a sheet's AutoFilter, showing the rows it hid. */
 function dropAutoFilter(file: Sheet, cfg: Record<string, any>) {
   const hidden = filterHiddenRows(file.filter);
@@ -255,13 +262,6 @@ function moveAutoFilter(
   dstFile.filter = filter;
   syncLiveFilter(ctx, srcFile);
   syncLiveFilter(ctx, dstFile);
-}
-
-/** ctx keeps a live copy of the current sheet's AutoFilter. */
-function syncLiveFilter(ctx: Context, file: Sheet) {
-  if (file.id !== ctx.currentSheetId) return;
-  ctx.luckysheet_filter_save = file.filter_select;
-  ctx.filter = file.filter ?? {};
 }
 
 export type MoveSource = { sheetId: string; range: Rect };
