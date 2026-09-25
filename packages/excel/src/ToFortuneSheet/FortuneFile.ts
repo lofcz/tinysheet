@@ -28,6 +28,10 @@ import {
   FortuneSheetCellFormat,
 } from "./FortuneBase";
 import { ImageList } from "./FortuneImage";
+import {
+  importDefinedNames,
+  readDefinedNamesXml,
+} from "../common/definedNames";
 
 export class FortuneFile {
   private files: IuploadfileList;
@@ -470,6 +474,25 @@ export class FortuneFile {
     this.getSheetsFull();
   }
 
+  /** Defined names of xl/workbook.xml -> sheet.definedNames (core names.ts) */
+  private attachDefinedNames(sheets: any[]) {
+    const key = Object.keys(this.files).find(
+      (k) => k.indexOf(workBookFile) > -1
+    );
+    if (!key) return;
+    const names = readDefinedNamesXml(this.files[key]);
+    if (names.length === 0) return;
+    const order = this.readXml
+      .getElementsByTagName("sheets/sheet", workBookFile)
+      .map((el) => el.attributeList.name);
+    importDefinedNames(names, order).forEach((list, sheetName) => {
+      const sheet = sheets.find((s) => s.name === sheetName) ?? sheets[0];
+      if (sheet) {
+        sheet.definedNames = [...(sheet.definedNames ?? []), ...list];
+      }
+    });
+  }
+
   serialize(): FortuneFileBase {
     const FortuneOutPutFile = new FortuneFileBase();
     FortuneOutPutFile.info = this.info;
@@ -639,6 +662,8 @@ export class FortuneFile {
 
       FortuneOutPutFile.sheets.push(sheetout);
     }
+
+    this.attachDefinedNames(FortuneOutPutFile.sheets);
 
     return FortuneOutPutFile;
   }

@@ -7,6 +7,7 @@ import { setBorder } from "./ExcelBorder";
 import { setDataValidations } from "./ExcelValidation";
 import { setHiddenRowCol } from "./ExcelConfig";
 import { IFileType } from "../common/ICommon";
+import { setDefinedNames } from "../common/definedNames";
 
 
 export async function exportSheetExcel(
@@ -27,6 +28,7 @@ export async function exportSheetExcel(
     setHiddenRowCol(table, worksheet);
     return true;
   });
+  setDefinedNames(workbook, luckysheet);
 
   let fileData;
   if (fileType === IFileType.CSV) {
