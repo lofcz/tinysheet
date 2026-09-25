@@ -28,6 +28,7 @@ import {
 } from "./ExcelConfig";
 import { colorToArgb } from "../common/units";
 import { setDefinedNames } from "../common/definedNames";
+import { exportCalcProperties } from "../common/calcProperties";
 import { addChartsToXlsx } from "../chart/exportXlsx";
 import {
   finalizeConditionalFormatting,
@@ -123,6 +124,7 @@ export const workbookExportFeatures: WorkbookExportFeature[] = [
     name: "defined-names",
     write: (ctx) => setDefinedNames(ctx.workbook, ctx.sheets),
   },
+  { name: "calc-properties", write: exportCalcProperties },
 ];
 
 export function registerSheetExportFeature(

@@ -19,6 +19,8 @@ export type XlsxPostProcessInfo = {
   worksheetIds: number[];
   /** Worksheet id -> cells (0-based) whose note is always shown. */
   visibleNotes?: Record<number, { r: number; c: number }[]>;
+  /** Further zip edits registered by export features (run last). */
+  fixups?: ((zip: JSZip) => Promise<void> | void)[];
 };
 
 const METADATA_XML =
@@ -200,6 +202,10 @@ export async function postProcessXlsx(
   await markDynamicArrays(zip, info);
   await fixInternalHyperlinks(zip);
   await showNotes(zip, info);
+  for (const fixup of info.fixups ?? []) {
+    // eslint-disable-next-line no-await-in-loop
+    await fixup(zip);
+  }
   return zip.generateAsync({
     type: "uint8array",
     compression: "DEFLATE",

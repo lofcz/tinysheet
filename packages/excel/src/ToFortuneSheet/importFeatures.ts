@@ -16,6 +16,7 @@ import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
+import { importCalcProperties } from "../common/calcProperties";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -330,7 +331,9 @@ export const sheetImportFeatures: SheetImportFeature[] = [
 ];
 
 /** Workbook-level readers (defined names (P3), ...). */
-export const workbookImportFeatures: WorkbookImportFeature[] = [];
+export const workbookImportFeatures: WorkbookImportFeature[] = [
+  { name: "calc-properties", read: importCalcProperties },
+];
 
 export function registerSheetImportFeature(feature: SheetImportFeature) {
   sheetImportFeatures.push(feature);
