@@ -48,7 +48,7 @@ export async function parseExcel(
   const fortuneFile = new FortuneFile(files, name);
   fortuneFile.Parse();
   const serialized = fortuneFile.serialize();
-  const sheets = serialized.sheets as ExcelImportResult["sheets"];
+  const sheets = serialized.sheets as unknown as ExcelImportResult["sheets"];
 
   const sizing: ExcelImportSizing[] = sheets.map((sheet) => ({
     id: sheet.id as string,
