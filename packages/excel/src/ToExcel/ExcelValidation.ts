@@ -14,10 +14,17 @@
  * rectangles whose formulas are shifted from the anchor to the rectangle's
  * top-left cell (Excel reads a rule's formulas relative to that cell).
  * Error styles (stop / warning / information), error and input titles and
- * messages, and "ignore blank" are kept.
+ * messages, and "ignore blank" are kept. A dropdown without the in-cell
+ * arrow (`showDropdown: false`) gets Excel's inverted `showDropDown="1"`
+ * from the "data-validation" zip post-processor (ExcelJS drops it).
  */
 import type ExcelJS from "@protobi/exceljs";
 import { cellAddress, shiftFormula } from "../common/formulaText";
+import type { XlsxPostProcessInfo } from "./postProcess";
+import type { XlsxPostProcessContext } from "./postProcessors";
+import { setTagAttr, tagAttr } from "./xlsxParts";
+
+const FEATURE = "data-validation";
 
 export const DV_OPERATOR_TO_EXCEL: Record<string, string> = {
   between: "between",
@@ -99,7 +106,11 @@ export function getExcelValidation(
       if (v.startsWith("=") && v.length > 1) formula = moved(v.slice(1));
       else if (RANGE_RE.test(v)) formula = moved(v);
       else formula = quoteText(String(item.value1 ?? ""));
-      return { ...base, type: "list", formulae: [formula] };
+      const dv: any = { ...base, type: "list", formulae: [formula] };
+      // not rendered by ExcelJS: keeps rules with and without the arrow
+      // apart when it merges equal neighbouring rules
+      if (item.showDropdown === false) dv.showDropDown = true;
+      return dv;
     }
     case "checkbox":
       return {
@@ -175,7 +186,11 @@ export function cellRectangles(cells: [number, number][]): Rect[] {
   return rects;
 }
 
-export function setDataValidations(sheet: any, worksheet: ExcelJS.Worksheet) {
+export function setDataValidations(
+  sheet: any,
+  worksheet: ExcelJS.Worksheet,
+  post?: XlsxPostProcessInfo
+) {
   const rules = sheet?.dataVerification;
   if (!rules) return;
   // cells sharing a rule (same settings, same anchor) are written together
@@ -201,6 +216,12 @@ export function setDataValidations(sheet: any, worksheet: ExcelJS.Worksheet) {
           : [0, 0];
       const dv = getExcelValidation(item, rect.r1, rect.c1, shift);
       if (!dv) return;
+      if ((dv as any).showDropDown && post) {
+        const features = (post.features ||= {});
+        const hidden = (features[FEATURE] ||= { hiddenDropdowns: {} })
+          .hiddenDropdowns as Record<number, string[]>;
+        (hidden[worksheet.id] ||= []).push(cellAddress(rect.r1, rect.c1));
+      }
       const single = rect.r1 === rect.r2 && rect.c1 === rect.c2;
       if (single) {
         worksheet.getCell(rect.r1 + 1, rect.c1 + 1).dataValidation = dv;
@@ -213,4 +234,29 @@ export function setDataValidations(sheet: any, worksheet: ExcelJS.Worksheet) {
       }
     });
   });
+}
+
+/**
+ * Zip post-processor: `showDropDown="1"` (Excel's name for "hide the
+ * in-cell dropdown arrow") on the list rules recorded while writing.
+ */
+export async function markHiddenDropdowns(ctx: XlsxPostProcessContext) {
+  const hidden: Record<number, string[]> | undefined =
+    ctx.post.features?.[FEATURE]?.hiddenDropdowns;
+  if (!hidden) return;
+  await Promise.all(
+    Object.entries(hidden).map(async ([id, cells]) => {
+      const path = `xl/worksheets/sheet${id}.xml`;
+      const xml = await ctx.readText(path);
+      if (xml == null || cells.length === 0) return;
+      const wanted = new Set(cells);
+      const out = xml.replace(/<dataValidation\b[^>]*>/g, (tag) => {
+        if (tagAttr(tag, "type") !== "list") return tag;
+        const first = (tagAttr(tag, "sqref") ?? "").split(/\s+/)[0];
+        const topLeft = first.split(":")[0].replace(/\$/g, "");
+        return wanted.has(topLeft) ? setTagAttr(tag, "showDropDown", "1") : tag;
+      });
+      if (out !== xml) ctx.writeText(path, out);
+    })
+  );
 }

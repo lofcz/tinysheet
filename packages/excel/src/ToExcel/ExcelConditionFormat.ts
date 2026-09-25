@@ -438,18 +438,17 @@ export function patchConditionalFormattingXml(xml: string, fixes: XmlFix[]) {
 }
 
 /**
- * Post-process a workbook written by ExcelJS: gradient data bars with the
- * Excel 2010 extension, "show bar only", and ">" icon thresholds.
+ * Patch the worksheet parts of an opened package (the "conditional-formatting"
+ * zip post-processor): gradient data bars with the Excel 2010 extension,
+ * "show bar only", and ">" icon thresholds.
  */
-export async function finalizeConditionalFormatting(
+export async function finalizeConditionalFormattingZip(
   workbook: any,
-  buffer: ArrayBuffer | Uint8Array
-): Promise<ArrayBuffer | Uint8Array> {
+  zip: JSZip
+): Promise<void> {
   const sheets = (workbook?.worksheets ?? []).filter((ws: any) =>
     pendingFixes.has(ws)
   );
-  if (sheets.length === 0) return buffer;
-  const zip = await JSZip.loadAsync(buffer);
   for (let i = 0; i < sheets.length; i += 1) {
     const ws = sheets[i];
     const path = `xl/worksheets/sheet${ws.id}.xml`;
@@ -461,5 +460,21 @@ export async function finalizeConditionalFormatting(
     }
     pendingFixes.delete(ws);
   }
+}
+
+/**
+ * Post-process a workbook written by ExcelJS: gradient data bars with the
+ * Excel 2010 extension, "show bar only", and ">" icon thresholds.
+ */
+export async function finalizeConditionalFormatting(
+  workbook: any,
+  buffer: ArrayBuffer | Uint8Array
+): Promise<ArrayBuffer | Uint8Array> {
+  const pending = (workbook?.worksheets ?? []).some((ws: any) =>
+    pendingFixes.has(ws)
+  );
+  if (!pending) return buffer;
+  const zip = await JSZip.loadAsync(buffer);
+  await finalizeConditionalFormattingZip(workbook, zip);
   return zip.generateAsync({ type: "arraybuffer" });
 }

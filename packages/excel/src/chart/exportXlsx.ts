@@ -480,13 +480,32 @@ export async function addChartsToXlsx(
 ): Promise<ArrayBuffer | Uint8Array> {
   if (!sheets.some((s) => s.charts?.length)) return buffer;
   const zip = await JSZip.loadAsync(buffer);
+  if (!(await addChartsToZip(zip, sheets))) return buffer;
+  return zip.generateAsync({
+    type: buffer instanceof Uint8Array ? "uint8array" : "arraybuffer",
+    compression: "DEFLATE",
+  });
+}
+
+/**
+ * Add the chart parts to an opened package (the "charts" zip
+ * post-processor). `sheetForName` maps a written sheet name to its sheet
+ * (names can differ from `sheet.name` once made valid for Excel); by
+ * default sheets are matched by name. Returns whether anything was added.
+ */
+export async function addChartsToZip(
+  zip: JSZip,
+  sheets: Sheet[],
+  sheetForName?: (name: string) => Sheet | undefined
+): Promise<boolean> {
+  if (!sheets.some((s) => s.charts?.length)) return false;
   const ctx: SheetsCtx = { luckysheetfile: sheets };
   const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
   const workbookRels = await zip
     .file("xl/_rels/workbook.xml.rels")
     ?.async("string");
   let types = await zip.file("[Content_Types].xml")?.async("string");
-  if (!workbookXml || !workbookRels || !types) return buffer;
+  if (!workbookXml || !workbookRels || !types) return false;
   const wbRels = relsOf(workbookRels);
 
   const existing = Object.keys(zip.files);
@@ -505,7 +524,7 @@ export async function addChartsToXlsx(
     const tag = sheetTags[s];
     const name = decodeAttr(attr(tag, "name") ?? "");
     const rid = attr(tag, "r:id");
-    const sheet = sheets.find((x) => x.name === name);
+    const sheet = sheetForName?.(name) ?? sheets.find((x) => x.name === name);
     const rel = wbRels.find((r) => r.id === rid);
     if (!sheet?.charts?.length || !rel) continue;
     const sheetPath = resolvePath("xl/workbook.xml", rel.target);
@@ -570,8 +589,5 @@ export async function addChartsToXlsx(
   }
   /* eslint-enable no-await-in-loop */
   zip.file("[Content_Types].xml", types);
-  return zip.generateAsync({
-    type: buffer instanceof Uint8Array ? "uint8array" : "arraybuffer",
-    compression: "DEFLATE",
-  });
+  return true;
 }

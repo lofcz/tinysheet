@@ -30,6 +30,25 @@ const ERROR_VALUES = new Set([
   "#UNKNOWN!",
 ]);
 
+/** Excel's limit for the text of one cell. */
+export const MAX_CELL_TEXT = 32767;
+
+const clampText = (s: string) =>
+  s.length > MAX_CELL_TEXT ? s.slice(0, MAX_CELL_TEXT) : s;
+
+/** Rich-text runs cut to MAX_CELL_TEXT characters in total. */
+function clampRuns(runs: ExcelJS.RichText[]) {
+  let left = MAX_CELL_TEXT;
+  const out: ExcelJS.RichText[] = [];
+  runs.forEach((run) => {
+    if (left <= 0) return;
+    const text = run.text.length > left ? run.text.slice(0, left) : run.text;
+    left -= text.length;
+    out.push(text === run.text ? run : { ...run, text });
+  });
+  return out;
+}
+
 const isGeneral = (fa: any) =>
   fa == null || fa === "" || String(fa).toLowerCase() === "general";
 
@@ -148,6 +167,7 @@ function formulaValue(
 ): ExcelJS.CellFormulaValue {
   const { formula, dynamic } = toExcelFormula(String(cell.f));
   let result: any = plainCellValue(cell);
+  if (typeof result === "string") result = clampText(result);
   if (result && typeof result === "object" && !("error" in result)) {
     result = undefined;
   }
@@ -191,7 +211,7 @@ function writeCell(ctx: SheetExportContext, cell: any, r: number, c: number) {
   if (target_) {
     const text = plainCellValue(cell);
     target.value = {
-      text: text == null ? String(link.linkAddress) : String(text),
+      text: clampText(text == null ? String(link.linkAddress) : String(text)),
       hyperlink: target_,
       ...(link.linkTooltip ? { tooltip: String(link.linkTooltip) } : {}),
     } as ExcelJS.CellHyperlinkValue;
@@ -201,13 +221,15 @@ function writeCell(ctx: SheetExportContext, cell: any, r: number, c: number) {
   if (isInlineString(cell)) {
     const rich = richText(cell);
     target.value = rich
-      ? ({ richText: rich } as ExcelJS.CellRichTextValue)
-      : inlineText(cell).replace(/\r\n/g, "\n");
+      ? ({ richText: clampRuns(rich) } as ExcelJS.CellRichTextValue)
+      : clampText(inlineText(cell).replace(/\r\n/g, "\n"));
     return;
   }
 
+  // longer text makes Excel "repair" the file
   const value = plainCellValue(cell);
-  if (value != null) target.value = value;
+  if (value != null)
+    target.value = typeof value === "string" ? clampText(value) : value;
 }
 
 /** Values, formulas, styles and hyperlinks of every cell. */

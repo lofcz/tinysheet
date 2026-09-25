@@ -2252,6 +2252,9 @@ export class FortuneSheet extends FortuneSheetBase {
         errorStyle = "stop";
       }
       let allowBlank = getXmlAttibute(attrList, "allowBlank", "0");
+      // Excel's inverted flag: showDropDown="1" hides the in-cell arrow
+      let showDropDown = getXmlAttibute(attrList, "showDropDown", "0");
+      let hideArrow = showDropDown == "1" || showDropDown == "true";
       let _hintShow =
         !!(_hint || _hintTitle) && (showInput == "1" || showInput == "true");
       // an error alert of any style (Stop blocks the input, Warning and
@@ -2347,6 +2350,7 @@ export class FortuneSheet extends FortuneSheetBase {
         if (_errorTitle) item.errorTitle = _errorTitle;
         if (_errorMessage) item.errorMessage = _errorMessage;
         if (_anchor) item.anchor = { ..._anchor };
+        if (hideArrow && _type === "dropdown") item.showDropdown = false;
         dataVerification[ref] = item;
       }
     }

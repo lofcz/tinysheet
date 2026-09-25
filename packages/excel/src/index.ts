@@ -25,6 +25,38 @@ export type {
   WorkbookExportFeature,
 } from "./ToExcel/buildWorkbook";
 export { postProcessXlsx } from "./ToExcel/postProcess";
+export type { XlsxPostProcessInfo } from "./ToExcel/postProcess";
+// Zip post-processors: the extension hook for parts ExcelJS cannot write.
+export {
+  xlsxPostProcessors,
+  registerXlsxPostProcessor,
+  runXlsxPostProcessors,
+  createPostProcessContext,
+} from "./ToExcel/postProcessors";
+export type {
+  XlsxPostProcessor,
+  XlsxPostProcessorFn,
+  XlsxPostProcessContext,
+  XlsxWorksheetPart,
+  RegisterXlsxPostProcessorOptions,
+  RunXlsxPostProcessorsInput,
+} from "./ToExcel/postProcessors";
+export {
+  WORKSHEET_CHILD_ORDER,
+  addContentTypeDefault,
+  addContentTypeOverride,
+  addExtension,
+  addRelationship,
+  ensureNamespace,
+  findElement,
+  insertWorksheetElement,
+  parseRelationships,
+  relativeTarget,
+  relsPathFor,
+  resolveTarget,
+  setTagAttr,
+  tagAttr,
+} from "./ToExcel/xlsxParts";
 export type { SheetExportOptions } from "./ToExcel/ExcelFile";
 
 // xlsx import extension points.

@@ -404,113 +404,133 @@ export function generateRandomIndex(prefix: string): string {
   return prefix + "_" + mid + "_" + time;
 }
 
+/** Named entities escapeCharacter decodes (XML's five and Latin-1). */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&",
+  quot: '"',
+  lt: "<",
+  gt: ">",
+  nbsp: " ",
+  apos: "'",
+  iexcl: "¡",
+  cent: "¢",
+  pound: "£",
+  curren: "¤",
+  yen: "¥",
+  brvbar: "¦",
+  sect: "§",
+  uml: "¨",
+  copy: "©",
+  ordf: "ª",
+  laquo: "«",
+  not: "¬",
+  shy: "­",
+  reg: "®",
+  macr: "¯",
+  deg: "°",
+  plusmn: "±",
+  sup2: "²",
+  sup3: "³",
+  acute: "´",
+  micro: "µ",
+  para: "¶",
+  middot: "·",
+  cedil: "¸",
+  sup1: "¹",
+  ordm: "º",
+  raquo: "»",
+  frac14: "¼",
+  frac12: "½",
+  frac34: "¾",
+  iquest: "¿",
+  times: "×",
+  divide: "÷",
+  Agrave: "À",
+  Aacute: "Á",
+  Acirc: "Â",
+  Atilde: "Ã",
+  Auml: "Ä",
+  Aring: "Å",
+  AElig: "Æ",
+  Ccedil: "Ç",
+  Egrave: "È",
+  Eacute: "É",
+  Ecirc: "Ê",
+  Euml: "Ë",
+  Igrave: "Ì",
+  Iacute: "Í",
+  Icirc: "Î",
+  Iuml: "Ï",
+  ETH: "Ð",
+  Ntilde: "Ñ",
+  Ograve: "Ò",
+  Oacute: "Ó",
+  Ocirc: "Ô",
+  Otilde: "Õ",
+  Ouml: "Ö",
+  Oslash: "Ø",
+  Ugrave: "Ù",
+  Uacute: "Ú",
+  Ucirc: "Û",
+  Uuml: "Ü",
+  Yacute: "Ý",
+  THORN: "Þ",
+  szlig: "ß",
+  agrave: "à",
+  aacute: "á",
+  acirc: "â",
+  atilde: "ã",
+  auml: "ä",
+  aring: "å",
+  aelig: "æ",
+  ccedil: "ç",
+  egrave: "è",
+  eacute: "é",
+  ecirc: "ê",
+  euml: "ë",
+  igrave: "ì",
+  iacute: "í",
+  icirc: "î",
+  iuml: "ï",
+  eth: "ð",
+  ntilde: "ñ",
+  ograve: "ò",
+  oacute: "ó",
+  ocirc: "ô",
+  otilde: "õ",
+  ouml: "ö",
+  oslash: "ø",
+  ugrave: "ù",
+  uacute: "ú",
+  ucirc: "û",
+  uuml: "ü",
+  yacute: "ý",
+  thorn: "þ",
+  yuml: "ÿ",
+};
+
+const ENTITY_RE = /&(#[xX][0-9a-fA-F]+|#\d+|[A-Za-z][A-Za-z0-9]*);/g;
+
+/**
+ * Decode XML entities in one pass (`&amp;lt;` stays `&lt;`): the five XML
+ * entities, numeric references and the Latin-1 HTML names some writers
+ * emit. Unknown names are left as they are.
+ */
 export function escapeCharacter(str: string) {
-  if (str == null || str.length == 0) {
+  if (str == null || str.length == 0 || str.indexOf("&") < 0) {
     return str;
   }
-
-  return str
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&apos;/g, "'")
-    .replace(/&iexcl;/g, "¡")
-    .replace(/&cent;/g, "¢")
-    .replace(/&pound;/g, "£")
-    .replace(/&curren;/g, "¤")
-    .replace(/&yen;/g, "¥")
-    .replace(/&brvbar;/g, "¦")
-    .replace(/&sect;/g, "§")
-    .replace(/&uml;/g, "¨")
-    .replace(/&copy;/g, "©")
-    .replace(/&ordf;/g, "ª")
-    .replace(/&laquo;/g, "«")
-    .replace(/&not;/g, "¬")
-    .replace(/&shy;/g, "­")
-    .replace(/&reg;/g, "®")
-    .replace(/&macr;/g, "¯")
-    .replace(/&deg;/g, "°")
-    .replace(/&plusmn;/g, "±")
-    .replace(/&sup2;/g, "²")
-    .replace(/&sup3;/g, "³")
-    .replace(/&acute;/g, "´")
-    .replace(/&micro;/g, "µ")
-    .replace(/&para;/g, "¶")
-    .replace(/&middot;/g, "·")
-    .replace(/&cedil;/g, "¸")
-    .replace(/&sup1;/g, "¹")
-    .replace(/&ordm;/g, "º")
-    .replace(/&raquo;/g, "»")
-    .replace(/&frac14;/g, "¼")
-    .replace(/&frac12;/g, "½")
-    .replace(/&frac34;/g, "¾")
-    .replace(/&iquest;/g, "¿")
-    .replace(/&times;/g, "×")
-    .replace(/&divide;/g, "÷")
-    .replace(/&Agrave;/g, "À")
-    .replace(/&Aacute;/g, "Á")
-    .replace(/&Acirc;/g, "Â")
-    .replace(/&Atilde;/g, "Ã")
-    .replace(/&Auml;/g, "Ä")
-    .replace(/&Aring;/g, "Å")
-    .replace(/&AElig;/g, "Æ")
-    .replace(/&Ccedil;/g, "Ç")
-    .replace(/&Egrave;/g, "È")
-    .replace(/&Eacute;/g, "É")
-    .replace(/&Ecirc;/g, "Ê")
-    .replace(/&Euml;/g, "Ë")
-    .replace(/&Igrave;/g, "Ì")
-    .replace(/&Iacute;/g, "Í")
-    .replace(/&Icirc;/g, "Î")
-    .replace(/&Iuml;/g, "Ï")
-    .replace(/&ETH;/g, "Ð")
-    .replace(/&Ntilde;/g, "Ñ")
-    .replace(/&Ograve;/g, "Ò")
-    .replace(/&Oacute;/g, "Ó")
-    .replace(/&Ocirc;/g, "Ô")
-    .replace(/&Otilde;/g, "Õ")
-    .replace(/&Ouml;/g, "Ö")
-    .replace(/&Oslash;/g, "Ø")
-    .replace(/&Ugrave;/g, "Ù")
-    .replace(/&Uacute;/g, "Ú")
-    .replace(/&Ucirc;/g, "Û")
-    .replace(/&Uuml;/g, "Ü")
-    .replace(/&Yacute;/g, "Ý")
-    .replace(/&THORN;/g, "Þ")
-    .replace(/&szlig;/g, "ß")
-    .replace(/&agrave;/g, "à")
-    .replace(/&aacute;/g, "á")
-    .replace(/&acirc;/g, "â")
-    .replace(/&atilde;/g, "ã")
-    .replace(/&auml;/g, "ä")
-    .replace(/&aring;/g, "å")
-    .replace(/&aelig;/g, "æ")
-    .replace(/&ccedil;/g, "ç")
-    .replace(/&egrave;/g, "è")
-    .replace(/&eacute;/g, "é")
-    .replace(/&ecirc;/g, "ê")
-    .replace(/&euml;/g, "ë")
-    .replace(/&igrave;/g, "ì")
-    .replace(/&iacute;/g, "í")
-    .replace(/&icirc;/g, "î")
-    .replace(/&iuml;/g, "ï")
-    .replace(/&eth;/g, "ð")
-    .replace(/&ntilde;/g, "ñ")
-    .replace(/&ograve;/g, "ò")
-    .replace(/&oacute;/g, "ó")
-    .replace(/&ocirc;/g, "ô")
-    .replace(/&otilde;/g, "õ")
-    .replace(/&ouml;/g, "ö")
-    .replace(/&oslash;/g, "ø")
-    .replace(/&ugrave;/g, "ù")
-    .replace(/&uacute;/g, "ú")
-    .replace(/&ucirc;/g, "û")
-    .replace(/&uuml;/g, "ü")
-    .replace(/&yacute;/g, "ý")
-    .replace(/&thorn;/g, "þ")
-    .replace(/&yuml;/g, "ÿ");
+  return str.replace(ENTITY_RE, (whole, ref: string) => {
+    if (ref.charCodeAt(0) === 35) {
+      const hex = ref[1] === "x" || ref[1] === "X";
+      const code = parseInt(ref.slice(hex ? 2 : 1), hex ? 16 : 10);
+      if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return whole;
+      return String.fromCodePoint(code);
+    }
+    return Object.prototype.hasOwnProperty.call(NAMED_ENTITIES, ref)
+      ? NAMED_ENTITIES[ref]
+      : whole;
+  });
 }
 
 export class fromulaRef {
