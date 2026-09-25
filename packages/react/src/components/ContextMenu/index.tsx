@@ -5,6 +5,8 @@ import {
   insertRowCol,
   removeActiveImage,
   deleteSelectedCellText,
+  clearGroupedSheetsContents,
+  getInsertDeleteCellsShortcut,
   sortSelection,
   createFilter,
   showImgChooser,
@@ -502,6 +504,8 @@ const ContextMenu: React.FC = () => {
                   showDialog(generalDialog.readOnlyError, "ok");
                 } else if (msg === "dataNullError") {
                   showDialog(generalDialog.dataNullError, "ok");
+                } else if (msg === "success") {
+                  clearGroupedSheetsContents(draftCtx);
                 }
               }
               jfrefreshgrid(draftCtx, null, undefined);
@@ -941,6 +945,27 @@ const ContextMenu: React.FC = () => {
     const wb = refs.workbookContainer.current;
     if (!wb) return undefined;
     const onKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+- / Ctrl+Shift+= on cells (not entire rows / columns): the
+      // Delete… / Insert… dialog, as in Excel
+      const cellsMode = getInsertDeleteCellsShortcut(
+        contextRef.current,
+        e,
+        refs.cellInput.current,
+        refs.fxInput.current
+      );
+      if (cellsMode) {
+        const s = contextRef.current.luckysheet_select_save?.[0];
+        if (!s) return;
+        e.preventDefault();
+        e.stopPropagation();
+        showModal(
+          <InsertDeleteDialog
+            mode={cellsMode}
+            range={{ row: s.row, column: s.column }}
+          />
+        );
+        return;
+      }
       const isMenuKey =
         e.key === "ContextMenu" || (e.shiftKey && e.key === "F10");
       // Alt+Down: Pick From Drop-down List (validation lists keep the key)
@@ -1003,7 +1028,14 @@ const ContextMenu: React.FC = () => {
     };
     wb.addEventListener("keydown", onKeyDown, true);
     return () => wb.removeEventListener("keydown", onKeyDown, true);
-  }, [refs.cellArea, refs.cellInput, refs.workbookContainer, setContext]);
+  }, [
+    refs.cellArea,
+    refs.cellInput,
+    refs.fxInput,
+    refs.workbookContainer,
+    setContext,
+    showModal,
+  ]);
 
   useLayoutEffect(() => {
     // re-position the context menu if it overflows the window

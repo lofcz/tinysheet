@@ -44,6 +44,7 @@ import {
   toggleEditMode,
 } from "../modules/editMode";
 import { closeFormulaParens } from "../modules/formulaEditor";
+import { clearGroupedSheetsContents } from "../modules/sheet";
 
 const MODIFIER_KEYS = new Set([
   "Shift",
@@ -582,8 +583,9 @@ export function handleWithCtrlOrMetaKey(
     e.code === "NumpadSubtract" ||
     e.code === "NumpadAdd"
   ) {
-    // delete/insert rows is handled by getRowColShortcutOp; otherwise leave
-    // the key to the zoom handler
+    // delete/insert rows is handled by getRowColShortcutOp and the cells
+    // dialog by getInsertDeleteCellsShortcut; otherwise leave the key to the
+    // zoom handler
     return;
   }
 
@@ -643,16 +645,15 @@ export type RowColShortcutOp = {
 };
 
 /**
- * Ctrl+- / Ctrl+Shift+= (Ctrl++) with entire rows or columns selected:
- * returns the delete/insert operation to run, or null. The React layer runs
- * it with the op attached so undo and collaboration see a row/column change.
+ * Ctrl+- ("delete") or Ctrl+Shift+= / Ctrl++ ("insert") on the sheet with a
+ * single selected range; null for any other key or state.
  */
-export function getRowColShortcutOp(
+function insertDeleteShortcut(
   ctx: Context,
   e: KeyboardEvent,
   cellInput?: HTMLElement | null,
   fxInput?: HTMLElement | null
-): RowColShortcutOp | null {
+): { mode: "insert" | "delete"; sel: Selection } | null {
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return null;
   if (isKeyFromForeignControl(e, cellInput, fxInput)) return null;
   if (ctx.luckysheetCellUpdate.length > 0 || !ctx.sheetFocused) return null;
@@ -665,10 +666,44 @@ export function getRowColShortcutOp(
     (e.shiftKey && e.code === "Equal") ||
     e.code === "NumpadAdd";
   if (!isMinus && !isPlus) return null;
-
   const sels = ctx.luckysheet_select_save;
   if (!sels || sels.length !== 1) return null;
-  const sel = sels[0];
+  return { mode: isMinus ? "delete" : "insert", sel: sels[0] };
+}
+
+/**
+ * Ctrl+- / Ctrl+Shift+= (Ctrl++) on a range that is not entire rows or
+ * columns: Excel asks how to shift the cells, so the UI opens its Delete /
+ * Insert dialog. Returns which one, or null.
+ */
+export function getInsertDeleteCellsShortcut(
+  ctx: Context,
+  e: KeyboardEvent,
+  cellInput?: HTMLElement | null,
+  fxInput?: HTMLElement | null
+): "insert" | "delete" | null {
+  const hit = insertDeleteShortcut(ctx, e, cellInput, fxInput);
+  if (!hit || !isAllowEdit(ctx)) return null;
+  const { sel } = hit;
+  if (!!sel.row_select !== !!sel.column_select) return null;
+  return hit.mode;
+}
+
+/**
+ * Ctrl+- / Ctrl+Shift+= (Ctrl++) with entire rows or columns selected:
+ * returns the delete/insert operation to run, or null. The React layer runs
+ * it with the op attached so undo and collaboration see a row/column change.
+ */
+export function getRowColShortcutOp(
+  ctx: Context,
+  e: KeyboardEvent,
+  cellInput?: HTMLElement | null,
+  fxInput?: HTMLElement | null
+): RowColShortcutOp | null {
+  const hit = insertDeleteShortcut(ctx, e, cellInput, fxInput);
+  if (!hit) return null;
+  const { sel } = hit;
+  const isMinus = hit.mode === "delete";
   let type: "row" | "column" | null = null;
   if (sel.row_select && !sel.column_select) type = "row";
   else if (sel.column_select && !sel.row_select) type = "column";
@@ -1027,8 +1062,9 @@ export function handleGlobalKeyDown(
       if (!allowEdit) return;
       if (ctx.activeImg != null) {
         removeActiveImage(ctx);
-      } else {
-        deleteSelectedCellText(ctx);
+      } else if (deleteSelectedCellText(ctx) === "success") {
+        // grouped sheets: clear the same cells on each of them
+        clearGroupedSheetsContents(ctx);
       }
 
       jfrefreshgrid(ctx, null, undefined);

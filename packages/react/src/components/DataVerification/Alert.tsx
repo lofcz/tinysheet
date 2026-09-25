@@ -2,6 +2,7 @@ import {
   acceptDataVerificationAlert,
   dataToolsLocale,
   dismissDataVerificationAlert,
+  retryDataVerificationAlert,
 } from "@lofcz/tinysheet-core";
 import React, { useCallback, useContext, useEffect, useRef } from "react";
 import WorkbookContext from "../../context";
@@ -19,7 +20,7 @@ const ICONS: Record<string, string> = {
  * Information), shown after invalid input.
  */
 const DataVerificationAlert: React.FC = () => {
-  const { context, setContext } = useContext(WorkbookContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
   const { hideDialog } = useDialog();
   const t = dataToolsLocale(context).dataValidation;
   const alert = context.dataVerificationAlert;
@@ -42,6 +43,22 @@ const DataVerificationAlert: React.FC = () => {
     });
     hideDialog();
   }, [hideDialog, setContext]);
+
+  // "Retry": edit the cell again, starting from the rejected text
+  const retry = useCallback(() => {
+    const current = context.dataVerificationAlert;
+    const input = refs.cellInput?.current;
+    if (current && input && current.sheetId === context.currentSheetId) {
+      // the editor keeps this text instead of loading the cell's value
+      refs.globalCache.ignoreWriteCell = true;
+      input.innerText = current.value;
+      if (refs.fxInput?.current) refs.fxInput.current.innerText = current.value;
+    }
+    setContext((ctx) => {
+      retryDataVerificationAlert(ctx);
+    });
+    hideDialog();
+  }, [context, hideDialog, refs, setContext]);
 
   if (!alert) return null;
   const { style } = alert;
@@ -97,7 +114,7 @@ const DataVerificationAlert: React.FC = () => {
       >
         {style === "stop" && (
           <>
-            {button(t.retry, dismiss, primaryRef)}
+            {button(t.retry, retry, primaryRef)}
             {button(t.cancel, dismiss)}
           </>
         )}
