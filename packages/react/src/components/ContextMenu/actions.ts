@@ -11,10 +11,8 @@ import type { RefValues, SetContextOptions } from "../../context";
  *   registerContextMenuAction("formatCells", ({ showDialog }) =>
  *     showDialog(<FormatCells />));
  *
- * TODO(P7): register "pasteSpecial" (Paste Special dialog, Ctrl+Alt+V).
- * TODO(P9): register "formatCells" (Format Cells dialog, Ctrl+1).
- * TODO(P12): register "insertChart" (insert a chart from the selection).
- * TODO(P3): register "defineName" (New Name dialog for the selection).
+ * The built-in handlers are registered by ./defaultActions.tsx; registering
+ * a key again replaces its handler until the returned function is called.
  */
 export type ContextMenuActionKey =
   | "pasteSpecial"
@@ -36,19 +34,26 @@ export type ContextMenuActionHelpers = {
 
 export type ContextMenuAction = (helpers: ContextMenuActionHelpers) => void;
 
-const registry: Partial<Record<ContextMenuActionKey, ContextMenuAction>> = {};
+/** Handlers per key, the latest registration last. */
+const registry: Partial<Record<ContextMenuActionKey, ContextMenuAction[]>> = {};
 
-/** Register the handler of a context-menu entry; returns an unregister fn. */
+/**
+ * Register the handler of a context-menu entry. Returns a function that
+ * removes it again (the previously registered handler, if any, comes back).
+ */
 export function registerContextMenuAction(
   key: ContextMenuActionKey,
   action: ContextMenuAction
 ) {
-  registry[key] = action;
+  registry[key] = [...(registry[key] ?? []), action];
   return () => {
-    if (registry[key] === action) delete registry[key];
+    const list = registry[key] ?? [];
+    const i = list.lastIndexOf(action);
+    if (i >= 0) registry[key] = [...list.slice(0, i), ...list.slice(i + 1)];
   };
 }
 
 export function getContextMenuAction(key: ContextMenuActionKey) {
-  return registry[key];
+  const list = registry[key];
+  return list?.[list.length - 1];
 }
