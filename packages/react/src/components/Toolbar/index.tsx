@@ -1,6 +1,7 @@
 import React, {
   useContext,
   useCallback,
+  useMemo,
   useRef,
   useEffect,
   useState,
@@ -34,6 +35,12 @@ import {
   createFilter,
   clearFilter,
   applyLocation,
+  buildFormatCode,
+  formatValue,
+  getFormatCategory,
+  handleFormatPainter,
+  openFormatCells,
+  startFormatPainter,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
@@ -52,7 +59,7 @@ import ConditionalFormat from "../ConditionFormat";
 import CustomButton from "./CustomButton";
 import { CustomColor } from "./CustomColor";
 import CustomBorder from "./CustomBorder";
-import { FormatSearch } from "../FormatSearch";
+import CellStyles from "../CellStyles";
 
 const toolbarTooltipAliases: Record<string, string> = {
   link: "insertLink",
@@ -88,7 +95,6 @@ const Toolbar: React.FC<{
     merge,
     border,
     freezen,
-    defaultFmt,
     formula,
     sort,
     align,
@@ -101,10 +107,39 @@ const Toolbar: React.FC<{
     comment,
     fontarray,
   } = locale(context);
-  const toolbarFormat = locale(context).format;
+  const { numberFormatMenu, formatCells, cellStyles } = locale(context);
   const sheetWidth = context.luckysheetTableContentHW[0];
-  const { currency } = settings;
-  const defaultFormat = defaultFmt(currency);
+  const currency = context.currency || settings.currency || "$";
+  // Excel's Number Format list (Home > Number)
+  const numberFormatItems = useMemo(
+    () =>
+      [
+        { key: "general", value: "General" },
+        { key: "number", value: "0.00" },
+        {
+          key: "currency",
+          value: buildFormatCode("currency", { decimals: 2, symbol: currency }),
+        },
+        {
+          key: "accounting",
+          value: buildFormatCode("accounting", {
+            decimals: 2,
+            symbol: currency,
+          }),
+        },
+        { key: "shortDate", value: "m/d/yyyy" },
+        { key: "longDate", value: "dddd, mmmm d, yyyy" },
+        { key: "time", value: "h:mm:ss AM/PM" },
+        { key: "percentage", value: "0.00%" },
+        { key: "fraction", value: "# ?/?" },
+        { key: "scientific", value: "0.00E+00" },
+        { key: "text", value: "@" },
+      ].map((item) => ({
+        ...item,
+        text: numberFormatMenu[item.key as keyof typeof numberFormatMenu],
+      })),
+    [currency, numberFormatMenu]
+  );
 
   const [customColor, setcustomColor] = useState("#000000");
   const [customStyle, setcustomStyle] = useState("1");
@@ -274,116 +309,102 @@ const Toolbar: React.FC<{
         );
       }
       if (name === "format") {
-        let currentFmt = defaultFormat[0].text;
-        if (cell) {
-          const curr = normalizedCellAttr(cell, "ct");
-          const format = _.find(defaultFormat, (v) => v.value === curr?.fa);
-          if (curr?.fa != null) {
-            if (format != null) {
-              currentFmt = format.text;
-            } else {
-              currentFmt = defaultFormat[defaultFormat.length - 1].text;
-            }
-          }
+        const fa = cell?.ct?.fa;
+        const category = getFormatCategory(fa);
+        let currentFmt: string =
+          numberFormatMenu[category as keyof typeof numberFormatMenu] ??
+          formatCells.categories[category];
+        if (category === "date") {
+          const hit = numberFormatItems.find(
+            (item) => item.value === fa && item.key.endsWith("Date")
+          );
+          if (hit) currentFmt = hit.text;
+        } else if (category === "custom") {
+          currentFmt = numberFormatMenu.custom;
         }
+        const raw = cell?.v;
+        const hasValue = raw != null && raw !== "";
+        const numeric =
+          hasValue && typeof raw !== "boolean" && Number.isFinite(Number(raw));
+        const preview = (code: string, key: string) => {
+          if (!hasValue) {
+            return key === "general" ? numberFormatMenu.noSpecificFormat : "";
+          }
+          if (key === "text" || !numeric) return `${raw}`;
+          return formatValue(code, Number(raw));
+        };
         return (
           <Combo text={currentFmt} key={name} tooltip={tooltip}>
             {(setOpen) => (
               <Select>
-                {defaultFormat.map(({ text, value, example }, ii) => {
-                  if (value === "split") {
-                    return <MenuDivider key={ii} />;
-                  }
-                  if (value === "fmtOtherSelf") {
-                    return (
-                      <Option
-                        key={value}
-                        onMouseEnter={(e) => showSubMenu(e, "more-format")}
-                        onMouseLeave={(e) => hideSubMenu(e, "more-format")}
-                      >
-                        <div className="fortune-toolbar-menu-line">
-                          <div>{text}</div>
-                          <SVGIcon name="rightArrow" width={14} />
-                        </div>
-                        <div
-                          className="more-format toolbar-item-sub-menu fortune-toolbar-select"
-                          style={{
-                            display: "none",
-                            width: 150,
-                            bottom: 10,
-                            top: undefined,
-                          }}
-                        >
-                          {[
-                            {
-                              text: toolbarFormat.moreCurrency,
-                              onclick: () => {
-                                showDialog(
-                                  <FormatSearch
-                                    onCancel={hideDialog}
-                                    type="currency"
-                                  />
-                                );
-                                setOpen(false);
-                              },
-                            },
-                            {
-                              text: toolbarFormat.moreNumber,
-                              onclick: () => {
-                                showDialog(
-                                  <FormatSearch
-                                    onCancel={hideDialog}
-                                    type="number"
-                                  />
-                                );
-                                setOpen(false);
-                              },
-                            },
-                          ].map((v) => (
-                            <div
-                              className="set-background-item fortune-toolbar-select-option"
-                              key={v.text}
-                              onClick={() => {
-                                v.onclick();
-                                setOpen(false);
-                              }}
-                              tabIndex={0}
-                            >
-                              {v.text}
-                            </div>
-                          ))}
-                        </div>
-                      </Option>
-                    );
-                  }
-                  return (
-                    <Option
-                      key={value}
-                      onClick={() => {
-                        setOpen(false);
-                        setContext((ctx) => {
-                          const d = getFlowdata(ctx);
-                          if (d == null) return;
-                          updateFormat(
-                            ctx,
-                            refs.cellInput.current!,
-                            d,
-                            "ct",
-                            value
-                          );
-                        });
-                      }}
+                {numberFormatItems.map(({ key, text, value }) => (
+                  <Option
+                    key={key}
+                    onClick={() => {
+                      setOpen(false);
+                      setContext((ctx) => {
+                        const d = getFlowdata(ctx);
+                        if (d == null) return;
+                        updateFormat(
+                          ctx,
+                          refs.cellInput.current!,
+                          d,
+                          "ct",
+                          value
+                        );
+                      });
+                    }}
+                  >
+                    <div
+                      className="fortune-toolbar-menu-line fortune-number-format-item"
+                      data-format={key}
                     >
-                      <div className="fortune-toolbar-menu-line">
-                        <div>{text}</div>
-                        <div className="fortune-toolbar-subtext">{example}</div>
+                      <div>{text}</div>
+                      <div className="fortune-toolbar-subtext">
+                        {preview(value, key)}
                       </div>
-                    </Option>
-                  );
-                })}
+                    </div>
+                  </Option>
+                ))}
+                <MenuDivider />
+                <Option
+                  onClick={() => {
+                    setOpen(false);
+                    setContext((ctx) => openFormatCells(ctx, "number"), {
+                      noHistory: true,
+                    });
+                  }}
+                >
+                  <div className="fortune-toolbar-menu-line">
+                    <div>{numberFormatMenu.moreFormats}</div>
+                  </div>
+                </Option>
               </Select>
             )}
           </Combo>
+        );
+      }
+      if (name === "cell-styles") {
+        return (
+          <Combo text={cellStyles.title} key={name} tooltip={cellStyles.title}>
+            {(setOpen) => <CellStyles onApplied={() => setOpen(false)} />}
+          </Combo>
+        );
+      }
+      if (name === "format-painter") {
+        return (
+          <Button
+            iconId={name}
+            tooltip={tooltip}
+            key={name}
+            selected={!!context.luckysheetPaintModelOn}
+            onClick={() =>
+              setContext((draftCtx) => handleFormatPainter(draftCtx))
+            }
+            onDoubleClick={() =>
+              setContext((draftCtx) => startFormatPainter(draftCtx, true))
+            }
+          />
         );
       }
       if (name === "font") {
@@ -1442,7 +1463,11 @@ const Toolbar: React.FC<{
       refs.cellInput,
       refs.fxInput,
       refs.globalCache,
-      defaultFormat,
+      numberFormatItems,
+      numberFormatMenu,
+      formatCells,
+      cellStyles,
+      context.luckysheetPaintModelOn,
       align,
       handleUndo,
       handleRedo,
@@ -1470,8 +1495,6 @@ const Toolbar: React.FC<{
       refs.canvas,
       customColor,
       customStyle,
-      toolbarFormat.moreCurrency,
-      toolbarFormat.moreNumber,
     ]
   );
 
