@@ -1,6 +1,7 @@
 import _ from "lodash";
 import { Context } from "../context";
 import { getSheetByIndex } from "../utils";
+import { peekCell } from "./dependencyGraph";
 
 export function checkCellIsLocked(
   ctx: Context,
@@ -12,8 +13,8 @@ export function checkCellIsLocked(
   if (_.isNil(sheetFile)) {
     return false;
   }
-  const { data } = sheetFile;
-  const cell = data?.[r]?.[c];
+  // read without drafting: a draft row read makes immer copy every row
+  const cell = peekCell(sheetFile.data, r, c);
   // cell have lo attribute
   if (!_.isNil(cell?.lo)) {
     return !!cell?.lo;
@@ -48,8 +49,8 @@ export function checkProtectionSelectLockedOrUnLockedCells(
     return true;
   }
 
-  const { data } = sheetFile;
-  const cell = data?.[r]?.[c];
+  // read without drafting: a draft row read makes immer copy every row
+  const cell = peekCell(sheetFile.data, r, c);
 
   if (cell && cell.lo === 0) {
     // lo为0的时候才是可编辑

@@ -33,6 +33,11 @@ import {
   validateDefinedName,
 } from "./names";
 import { getCurrentRegion, getSheetNavInfo } from "./navigation";
+import {
+  ReferenceChange,
+  rewriteWorkbookFormulas,
+  WorkbookFormulaSite,
+} from "./refAdjust";
 
 /**
  * The range "Format as Table" proposes: the selection, or the current
@@ -457,6 +462,237 @@ export function rewriteStructuredReferences(
   return out;
 }
 
+const IDENT_STICKY = /[A-Za-z_\\À-￿][A-Za-z0-9_.\\?À-￿]*/y;
+const NUMBER_STICKY = /(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/y;
+const ERROR_STICKY = /#[A-Za-z0-9/]+[!?]?/y;
+
+function stickyMatch(re: RegExp, s: string, i: number) {
+  re.lastIndex = i;
+  const m = re.exec(s);
+  return m ? m[0] : null;
+}
+
+function quotedRunEnd(s: string, i: number) {
+  const quote = s[i];
+  let j = i + 1;
+  while (j < s.length) {
+    if (s[j] === quote) {
+      if (s[j + 1] === quote) j += 2;
+      else return j + 1;
+    } else j += 1;
+  }
+  return j;
+}
+
+/**
+ * Calls `fn` for every structured reference of a formula (`Table1[...]`
+ * with the table name, `[...]` inside a table with null) and for every bare
+ * identifier that could name a table (`=SUM(Table1)`, content null), and
+ * splices in its result (null/undefined keeps the text). Strings, quoted
+ * sheet names, function names, sheet-qualified names and external workbook
+ * prefixes (`[1]Sheet1!A1`) are skipped.
+ */
+export function mapStructuredReferences(
+  formula: string,
+  fn: (
+    tableName: string | null,
+    content: string | null
+  ) => string | null | undefined
+): string {
+  const s = formula;
+  if (!s) return s;
+  let out = "";
+  let i = 0;
+  let changed = false;
+  const emit = (original: string, replacement: string | null | undefined) => {
+    if (replacement != null && replacement !== original) {
+      out += replacement;
+      changed = true;
+    } else {
+      out += original;
+    }
+  };
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === '"' || ch === "'") {
+      const end = quotedRunEnd(s, i);
+      out += s.slice(i, end);
+      i = end;
+      continue;
+    }
+    if (ch === "#") {
+      const err = stickyMatch(ERROR_STICKY, s, i);
+      if (err) {
+        out += err;
+        i += err.length;
+        continue;
+      }
+    }
+    if ((ch >= "0" && ch <= "9") || ch === ".") {
+      const num = stickyMatch(NUMBER_STICKY, s, i);
+      if (num) {
+        out += num;
+        i += num.length;
+        continue;
+      }
+    }
+    const ident = stickyMatch(IDENT_STICKY, s, i);
+    if (ident) {
+      const end = i + ident.length;
+      const qualified = s[i - 1] === "!";
+      if (s[end] === "[") {
+        const bEnd = bracketEnd(s, end);
+        if (bEnd > 0) {
+          const text = s.slice(i, bEnd);
+          emit(text, qualified ? null : fn(ident, s.slice(end + 1, bEnd - 1)));
+          i = bEnd;
+          continue;
+        }
+      } else if (!qualified && s[end] !== "(" && s[end] !== "!") {
+        emit(ident, fn(ident, null));
+        i = end;
+        continue;
+      }
+      out += ident;
+      i = end;
+      continue;
+    }
+    if (ch === "[") {
+      const bEnd = bracketEnd(s, i);
+      if (bEnd > 0) {
+        const text = s.slice(i, bEnd);
+        const next = s[bEnd];
+        // `[1]Sheet1!A1`: an external workbook, not a structured reference
+        const external = next != null && (next === "'" || /[\w]/.test(next));
+        emit(text, external ? null : fn(null, s.slice(i + 1, bEnd - 1)));
+        i = bEnd;
+        continue;
+      }
+    }
+    out += ch;
+    i += 1;
+  }
+  return changed ? out : formula;
+}
+
+/**
+ * The column names (first, last) a structured reference's bracket content
+ * selects, or null when it selects every column (`#All`, `#Data`, ...).
+ */
+export function structuredReferenceColumns(
+  content: string
+): [string, string] | null {
+  const spec = parseSpec(content);
+  if (spec.error) return null;
+  return spec.columns;
+}
+
+/**
+ * The bracket content of a structured reference with column `oldName`
+ * renamed to `newName`, or null when it does not mention that column.
+ */
+export function renameColumnInReference(
+  content: string,
+  oldName: string,
+  newName: string
+): string | null {
+  const upper = oldName.toUpperCase();
+  const escaped = escapeColumnName(newName);
+  const matches = (item: string) => {
+    const t = item.trim();
+    return !t.startsWith("#") && unescapeColumn(t).toUpperCase() === upper;
+  };
+  if (content.indexOf("[") === -1) {
+    // simple form: Col, @Col, #All
+    const t = content.trim();
+    const at = t.startsWith("@");
+    const body = at ? t.slice(1) : t;
+    if (!matches(body)) return null;
+    // `[@Col]`, but `[@[Unit Price]]` for names that are not plain words
+    if (at && !/^[A-Za-z0-9_.À-￿]+$/.test(newName)) {
+      return `@[${escaped}]`;
+    }
+    return `${at ? "@" : ""}${escaped}`;
+  }
+  let out = "";
+  let i = 0;
+  let changed = false;
+  while (i < content.length) {
+    const ch = content[i];
+    if (ch === "[") {
+      const end = bracketEnd(content, i);
+      if (end < 0) return null;
+      const inner = content.slice(i + 1, end - 1);
+      if (matches(inner)) {
+        out += `[${escaped}]`;
+        changed = true;
+      } else {
+        out += content.slice(i, end);
+      }
+      i = end;
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return changed ? out : null;
+}
+
+/**
+ * Renaming a table rewrites every structured reference to it (and bare
+ * uses of its name) in all formulas of the workbook: cells, names, data
+ * validation and conditional formats (`Table1[Col]` -> `Sales[Col]`).
+ */
+export function renameTableReferences(
+  ctx: Context,
+  oldName: string,
+  newName: string
+) {
+  const upper = oldName.toUpperCase();
+  return rewriteWorkbookFormulas(ctx, (formula) =>
+    mapStructuredReferences(formula, (tableName, content) => {
+      if (tableName == null || tableName.toUpperCase() !== upper) return null;
+      return content == null ? newName : `${newName}[${content}]`;
+    })
+  );
+}
+
+/**
+ * Renaming a table column rewrites the structured references to it: those
+ * naming the table anywhere, and the unqualified ones (`[@Col]`, `[Col]`)
+ * of formulas inside the table.
+ */
+export function renameTableColumnReferences(
+  ctx: Context,
+  tableName: string,
+  oldColumn: string,
+  newColumn: string
+) {
+  const ref = findTable(ctx, tableName);
+  if (!ref) return 0;
+  const upper = tableName.toUpperCase();
+  const { range } = ref.table;
+  const inside = (site: WorkbookFormulaSite) =>
+    site.kind === "cell" &&
+    site.sheetId === ref.sheetId &&
+    site.r != null &&
+    site.c != null &&
+    site.r >= range.row[0] &&
+    site.r <= range.row[1] &&
+    site.c >= range.column[0] &&
+    site.c <= range.column[1];
+  return rewriteWorkbookFormulas(ctx, (formula, site) =>
+    mapStructuredReferences(formula, (name, content) => {
+      if (content == null) return null;
+      if (name != null ? name.toUpperCase() !== upper : !inside(site)) {
+        return null;
+      }
+      const next = renameColumnInReference(content, oldColumn, newColumn);
+      return next == null ? null : `${name ?? ""}[${next}]`;
+    })
+  );
+}
+
 /* ------------------------------------------------------------------------ */
 /* Cell helpers                                                             */
 /* ------------------------------------------------------------------------ */
@@ -846,8 +1082,9 @@ export type TableOptionsPatch = Partial<
 /**
  * Changes table options (Table Design). Turning the total row on uses the
  * row below the table (it must be empty): the first column gets "Total", the
- * last one a SUBTOTAL sum. Renaming does not rewrite formulas that use the
- * old name.
+ * last one a SUBTOTAL sum. Renaming rewrites the structured references to
+ * the table in every formula of the workbook (`Table1[Col]` ->
+ * `Sales[Col]`).
  */
 export function setTableOptions(
   ctx: Context,
@@ -892,6 +1129,9 @@ export function setTableOptions(
     next.range = { row: [r1, r2 - 1], column: table.range.column };
   }
   const updated = updateTableObject(ctx, ref, next);
+  if (patch.name != null && patch.name !== table.name) {
+    renameTableReferences(ctx, table.name, patch.name);
+  }
   // the table must be updated before its total formulas are evaluated
   if (patch.totalRow === true && !table.totalRow) {
     writeTotalRow(ctx, sheetId, updated);
@@ -1000,41 +1240,48 @@ export function resizeTable(
 }
 
 /**
+ * The structured references to table `tableName` of every formula of the
+ * workbook (cells, names, data validation, conditional formats), bare uses
+ * of its name included, rewritten as absolute A1 references. Used when the
+ * table goes away but its cells stay (Convert to Range).
+ */
+export function structuredReferencesToA1(ctx: Context, tableName: string) {
+  const ref = findTable(ctx, tableName);
+  if (!ref) return 0;
+  const upper = ref.table.name.toUpperCase();
+  const { range } = ref.table;
+  return rewriteWorkbookFormulas(ctx, (formula, site) => {
+    const isCell = site.kind === "cell" && site.r != null && site.c != null;
+    const env: StructuredRefEnv = {
+      ctx,
+      sheetId: site.sheetId,
+      r: isCell ? site.r! : null,
+      c: isCell ? site.c! : null,
+    };
+    const inside =
+      isCell &&
+      site.sheetId === ref.sheetId &&
+      site.r! >= range.row[0] &&
+      site.r! <= range.row[1] &&
+      site.c! >= range.column[0] &&
+      site.c! <= range.column[1];
+    return mapStructuredReferences(formula, (name, content) => {
+      if (name != null ? name.toUpperCase() !== upper : !inside) return null;
+      return resolveStructuredReference(env, name, content ?? "");
+    });
+  });
+}
+
+/**
  * "Convert to Range": removes the table object (the formatting stays, as in
- * Excel) and rewrites structured references to it as A1 references.
+ * Excel) and rewrites structured references to it as A1 references in every
+ * formula of the workbook.
  */
 export function convertTableToRange(ctx: Context, tableName: string) {
   const ref = findTable(ctx, tableName);
   if (!ref) return false;
   // rewrite formulas first, while the table still resolves
-  const rewrites: { sheetId: string; r: number; c: number; f: string }[] = [];
-  ctx.luckysheetfile.forEach((sheet) => {
-    const data = peek(sheet.data);
-    if (!data || !sheet.id) return;
-    for (let r = 0; r < data.length; r += 1) {
-      const row = peek(data[r]);
-      if (row) {
-        for (let c = 0; c < row.length; c += 1) {
-          const f = peek(row[c])?.f;
-          if (typeof f === "string" && f.indexOf("[") > -1) {
-            const next = rewriteStructuredReferences(
-              ctx,
-              f,
-              ref.table.name,
-              sheet.id,
-              r,
-              c
-            );
-            if (next !== f) rewrites.push({ sheetId: sheet.id, r, c, f: next });
-          }
-        }
-      }
-    }
-  });
-  rewrites.forEach(({ sheetId, r, c, f }) => {
-    const data = sheetById(ctx, sheetId)?.data;
-    if (data?.[r]?.[c]) data[r][c] = { ...data[r][c]!, f };
-  });
+  structuredReferencesToA1(ctx, ref.table.name);
   replaceSheetTables(ctx, ref.sheetId, (list) =>
     list.filter((t) => t.name !== ref.table.name)
   );
@@ -1081,6 +1328,8 @@ export function onTableCellEdited(
       const columns = table.columns.map((col, j) =>
         j === k ? { ...col, name } : col
       );
+      // formulas follow the renamed column (Excel)
+      renameTableColumnReferences(ctx, table.name, table.columns[k].name, name);
       updateTableObject(ctx, ref, { columns });
       recalculateWorkbook(ctx);
       return true;
@@ -1153,29 +1402,267 @@ export function shiftSpanDelete(
   return nb < na ? null : [na, nb];
 }
 
-export type RowColChange =
+type RowColOp =
   | { kind: "insert"; type: "row" | "column"; index: number; count: number }
   | { kind: "delete"; type: "row" | "column"; start: number; end: number };
 
+function spanWithin(span: [number, number], band: [number, number]) {
+  return span[0] >= band[0] && span[1] <= band[1];
+}
+
 /**
- * Keeps tables in place when rows/columns are inserted (`count` new ones
- * starting at `index`) or deleted (`start`..`end`) on a sheet. Called by
- * insertRowCol / deleteRowCol after the cells moved.
+ * The row/column operation `change` amounts to for a table on its sheet,
+ * or null when the table is not affected. Inserting/deleting cells acts on
+ * a table like inserting/deleting rows (columns) when the table lies
+ * entirely in the shifted column (row) band, as in refAdjust.
  */
-export function adjustTablesForRowCol(
+function rowColOpFor(change: ReferenceChange, range: Span): RowColOp | null {
+  switch (change.type) {
+    case "insert":
+      return {
+        kind: "insert",
+        type: change.axis,
+        index: change.index,
+        count: change.count,
+      };
+    case "delete":
+      return {
+        kind: "delete",
+        type: change.axis,
+        start: change.start,
+        end: change.end,
+      };
+    case "insertCells": {
+      const { range: at } = change;
+      if (change.shift === "down") {
+        if (!spanWithin(range.column, at.column)) return null;
+        return {
+          kind: "insert",
+          type: "row",
+          index: at.row[0],
+          count: at.row[1] - at.row[0] + 1,
+        };
+      }
+      if (!spanWithin(range.row, at.row)) return null;
+      return {
+        kind: "insert",
+        type: "column",
+        index: at.column[0],
+        count: at.column[1] - at.column[0] + 1,
+      };
+    }
+    case "deleteCells": {
+      const { range: at } = change;
+      if (change.shift === "up") {
+        if (!spanWithin(range.column, at.column)) return null;
+        return {
+          kind: "delete",
+          type: "row",
+          start: at.row[0],
+          end: at.row[1],
+        };
+      }
+      if (!spanWithin(range.row, at.row)) return null;
+      return {
+        kind: "delete",
+        type: "column",
+        start: at.column[0],
+        end: at.column[1],
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Whether inserting/deleting the cells of `range` (shifting `shift`) would
+ * tear a table apart: the shifted cells of a table must be whole table
+ * rows/columns (Excel refuses the operation otherwise).
+ */
+export function shiftCellsBreaksTable(
   ctx: Context,
   sheetId: string,
-  op: RowColChange
+  range: Span,
+  shift: "down" | "right" | "up" | "left"
 ) {
-  const sheet = sheetById(ctx, sheetId);
-  if (!sheet?.tables?.length) return;
-  const { data } = sheet;
-  const key = op.type === "row" ? "row" : "column";
+  const vertical = shift === "down" || shift === "up";
+  const band = vertical ? range.column : range.row;
+  const from = vertical ? range.row[0] : range.column[0];
+  return getTables(ctx, sheetId).some(({ table }) => {
+    const tBand = vertical ? table.range.column : table.range.row;
+    const tSpan = vertical ? table.range.row : table.range.column;
+    const touchesBand = tBand[1] >= band[0] && tBand[0] <= band[1];
+    // only cells from the range start onwards move
+    if (!touchesBand || tSpan[1] < from) return false;
+    return !spanWithin(tBand, band);
+  });
+}
+
+type TableSnapshot = { name: string; sheetId: string; range: Span };
+
+function snapshotTables(ctx: Context): TableSnapshot[] {
+  const out: TableSnapshot[] = [];
+  ctx.luckysheetfile.forEach((sheet) => {
+    if (!sheet.id) return;
+    sheet.tables?.forEach((t) => {
+      out.push({
+        name: t.name,
+        sheetId: sheet.id!,
+        range: {
+          row: [t.range.row[0], t.range.row[1]],
+          column: [t.range.column[0], t.range.column[1]],
+        },
+      });
+    });
+  });
+  return out;
+}
+
+/** The table (of `tables`) holding the formula cell of `site`. */
+function hostTableOf(tables: TableSnapshot[], site: WorkbookFormulaSite) {
+  if (site.kind !== "cell" || site.r == null || site.c == null) return null;
+  const { r, c } = site;
+  return (
+    tables.find(
+      (t) =>
+        t.sheetId === site.sheetId &&
+        r >= t.range.row[0] &&
+        r <= t.range.row[1] &&
+        c >= t.range.column[0] &&
+        c <= t.range.column[1]
+    ) ?? null
+  );
+}
+
+/**
+ * Structured references to tables that were deleted (all their cells, or
+ * their sheet) or to deleted table columns become #REF!, like the A1
+ * references they stand for.
+ */
+function breakStructuredReferences(
+  ctx: Context,
+  tables: TableSnapshot[],
+  deadTables: Set<string>,
+  deadColumns: Map<string, Set<string>>
+) {
+  if (deadTables.size === 0 && deadColumns.size === 0) return;
+  const byName = new Map(tables.map((t) => [t.name.toUpperCase(), t]));
+  rewriteWorkbookFormulas(ctx, (formula, site) =>
+    mapStructuredReferences(formula, (tableName, content) => {
+      const table =
+        tableName != null
+          ? byName.get(tableName.toUpperCase())
+          : hostTableOf(tables, site);
+      if (!table) return null;
+      const upper = table.name.toUpperCase();
+      if (deadTables.has(upper)) return REF_ERROR;
+      const dead = deadColumns.get(upper);
+      if (!dead || content == null) return null;
+      const cols = structuredReferenceColumns(content);
+      if (
+        cols &&
+        (dead.has(cols[0].toUpperCase()) || dead.has(cols[1].toUpperCase()))
+      ) {
+        return REF_ERROR;
+      }
+      return null;
+    })
+  );
+}
+
+/**
+ * Keeps tables in sync with a structural change (registered with refAdjust,
+ * see modelSync.ts; called once per change, before the cells move):
+ *
+ * - rows/columns inserted or deleted (and cells inserted or deleted over
+ *   whole table rows/columns): the table grows, shrinks or moves; new
+ *   columns get unique names (written into the header row once the cells
+ *   have moved); a deleted header/total row turns that option off;
+ * - cells moved (cut/paste, drag): a table inside the moved block moves
+ *   with it, to another sheet too;
+ * - a table whose cells are all deleted, or whose sheet is deleted, is
+ *   removed and structured references to it become #REF! (so do references
+ *   to deleted table columns).
+ */
+export function adjustTablesForChange(
+  ctx: Context,
+  change: ReferenceChange
+): (() => void) | undefined {
+  if (change.type === "renameSheet") return undefined;
+  const before = snapshotTables(ctx);
+  if (before.length === 0) return undefined;
+  const deadTables = new Set<string>();
+  const deadColumns = new Map<string, Set<string>>();
+  const headerWrites: {
+    sheetId: string;
+    r: number;
+    c: number;
+    text: string;
+  }[] = [];
+
+  if (change.type === "deleteSheet") {
+    before.forEach((t) => {
+      if (t.sheetId === change.sheetId) deadTables.add(t.name.toUpperCase());
+    });
+    breakStructuredReferences(ctx, before, deadTables, deadColumns);
+    return undefined;
+  }
+
+  if (change.type === "move") {
+    const source = sheetById(ctx, change.sheetId);
+    const target = sheetById(ctx, change.toSheetId);
+    if (!source?.tables?.length || !target) return undefined;
+    const dr = change.toRow - change.range.row[0];
+    const dc = change.toColumn - change.range.column[0];
+    const moved: SheetTable[] = [];
+    const staying: SheetTable[] = [];
+    source.tables.forEach((t) => {
+      const inside =
+        spanWithin(t.range.row, change.range.row) &&
+        spanWithin(t.range.column, change.range.column);
+      if (!inside) {
+        staying.push(t);
+        return;
+      }
+      moved.push({
+        ...t,
+        range: {
+          row: [t.range.row[0] + dr, t.range.row[1] + dr],
+          column: [t.range.column[0] + dc, t.range.column[1] + dc],
+        },
+      });
+    });
+    if (moved.length === 0) return undefined;
+    if (source === target) {
+      source.tables = [...staying, ...moved];
+    } else {
+      if (staying.length > 0) source.tables = staying;
+      else delete source.tables;
+      target.tables = [...(target.tables ?? []), ...moved];
+    }
+    return undefined;
+  }
+
+  const sheet = sheetById(ctx, change.sheetId);
+  if (!sheet?.tables?.length) return undefined;
   const next: SheetTable[] = [];
+  let changed = false;
   sheet.tables.forEach((t) => {
+    const op = rowColOpFor(change, t.range);
+    if (!op) {
+      next.push(t);
+      return;
+    }
+    const key = op.type === "row" ? "row" : "column";
     const span = t.range[key];
     if (op.kind === "insert") {
       const nextSpan = shiftSpanInsert(span, op.index, op.count);
+      if (nextSpan[0] === span[0] && nextSpan[1] === span[1]) {
+        next.push(t);
+        return;
+      }
+      changed = true;
       let { columns } = t;
       if (key === "column" && op.index > span[0] && op.index <= span[1]) {
         const at = op.index - span[0];
@@ -1187,9 +1674,14 @@ export function adjustTablesForRowCol(
         ];
         const names = uniqueColumnNames(merged.map((col) => col.name));
         columns = merged.map((col, i) => ({ ...col, name: names[i] }));
-        if (t.headerRow && data) {
+        if (t.headerRow) {
           for (let i = at; i < at + op.count; i += 1) {
-            writeText(data, t.range.row[0], span[0] + i, columns[i].name);
+            headerWrites.push({
+              sheetId: change.sheetId,
+              r: t.range.row[0],
+              c: span[0] + i,
+              text: columns[i].name,
+            });
           }
         }
       }
@@ -1197,9 +1689,25 @@ export function adjustTablesForRowCol(
       return;
     }
     const nextSpan = shiftSpanDelete(span, op.start, op.end);
-    if (!nextSpan) return; // the whole table was deleted
+    if (nextSpan && nextSpan[0] === span[0] && nextSpan[1] === span[1]) {
+      next.push(t);
+      return;
+    }
+    changed = true;
+    if (!nextSpan) {
+      // the whole table was deleted
+      deadTables.add(t.name.toUpperCase());
+      return;
+    }
     const inDeleted = (x: number) => x >= op.start && x <= op.end;
     if (key === "column") {
+      const gone = t.columns.filter((_col, i) => inDeleted(span[0] + i));
+      if (gone.length > 0) {
+        deadColumns.set(
+          t.name.toUpperCase(),
+          new Set(gone.map((col) => col.name.toUpperCase()))
+        );
+      }
       const columns = t.columns.filter((_col, i) => !inDeleted(span[0] + i));
       next.push({ ...t, columns, range: { ...t.range, column: nextSpan } });
       return;
@@ -1212,6 +1720,61 @@ export function adjustTablesForRowCol(
       range: { ...t.range, row: nextSpan },
     });
   });
-  if (next.length > 0) sheet.tables = next;
-  else delete sheet.tables;
+  // references are rewritten while the old table ranges still resolve
+  // unqualified references ([@Col]) of cells inside the tables
+  breakStructuredReferences(ctx, before, deadTables, deadColumns);
+  if (changed) {
+    if (next.length > 0) sheet.tables = next;
+    else delete sheet.tables;
+  }
+  if (headerWrites.length === 0) return undefined;
+  return () => {
+    headerWrites.forEach(({ sheetId, r, c, text }) => {
+      const data = sheetById(ctx, sheetId)?.data;
+      if (data) writeText(data, r, c, text);
+    });
+  };
+}
+
+/**
+ * Tables of a duplicated sheet get new, unique names (Excel appends a
+ * number); structured references to them in the copy's own formulas follow.
+ * Returns the renames (old name -> new name).
+ */
+export function renameDuplicatedTables(
+  ctx: Context,
+  copy: Sheet
+): Map<string, string> {
+  const renames = new Map<string, string>();
+  if (!copy.tables?.length) return renames;
+  const taken = new Set<string>();
+  getNameIndex(ctx).entries.forEach((e) => taken.add(e.name.toUpperCase()));
+  tableIndexOf(ctx).forEach((_t, upper) => taken.add(upper));
+  copy.tables = copy.tables.map((t) => {
+    let n = 2;
+    let name = `${t.name}${n}`;
+    while (taken.has(name.toUpperCase())) {
+      n += 1;
+      name = `${t.name}${n}`;
+    }
+    taken.add(name.toUpperCase());
+    renames.set(t.name.toUpperCase(), name);
+    return { ...t, name };
+  });
+  const rename = (formula: string) =>
+    mapStructuredReferences(formula, (tableName, content) => {
+      if (tableName == null) return null;
+      const next = renames.get(tableName.toUpperCase());
+      if (!next) return null;
+      return content == null ? next : `${next}[${content}]`;
+    });
+  const visit = (cell: Cell | null | undefined) => {
+    if (typeof cell?.f === "string" && cell.f.length > 1) {
+      const f = rename(cell.f);
+      if (f !== cell.f) cell.f = f;
+    }
+  };
+  if (copy.data) copy.data.forEach((row) => row?.forEach((c) => visit(c)));
+  else copy.celldata?.forEach((d) => visit(d.v as Cell));
+  return renames;
 }

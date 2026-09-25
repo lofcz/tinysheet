@@ -20,6 +20,7 @@ import {
   locale,
   groupValuesRefresh,
   setFormulaCellInfoMap,
+  expandCellData,
   mirrorGroupedSheetEdits,
   produceWithHistory,
   popHistoryGroup,
@@ -37,10 +38,16 @@ import React, {
   useLayoutEffect,
 } from "react";
 import "./index.css";
-import produce, { enablePatches, Patch } from "immer";
+import { enablePatches, Patch } from "immer";
 import _ from "lodash";
 import Sheet from "../Sheet";
-import WorkbookContext, { RefValues, SetContextOptions } from "../../context";
+import { RefValues, SetContextOptions } from "../../context";
+import {
+  TrackedScope,
+  WorkbookApi,
+  WorkbookProvider,
+  WorkbookStore,
+} from "../../context/store";
 import Toolbar from "../Toolbar";
 import FxEditor from "../FxEditor";
 import SheetTab from "../SheetTab";
@@ -59,12 +66,36 @@ import { useResolvedTheme } from "../../hooks/useResolvedTheme";
 
 enablePatches();
 
+// Prop-less children as constant elements: React skips them when the
+// Workbook re-renders, and the TrackedScope around each re-renders them only
+// for the context fields they read.
+const FX_EDITOR = <FxEditor />;
+const SHEET_TAB = <SheetTab />;
+const SHEET_LIST = <SheetList />;
+const CONTEXT_MENU = <ContextMenu />;
+const FILTER_MENU = <FilterMenu />;
+const SHEET_TAB_CONTEXT_MENU = <SheetTabContextMenu />;
+const DATA_TOOLS_LAYER = <DataToolsLayer />;
+const FORMAT_CELLS = <FormatCells />;
+const STATUS_BAR = <StatusBar />;
+
 export type WorkbookInstance = ReturnType<typeof generateAPIs>;
 
 type AdditionalProps = {
   onChange?: (data: SheetType[]) => void;
   onOp?: (op: Op[]) => void;
 };
+
+/** Run `cb` when the browser is idle (after paint); returns a canceller. */
+function scheduleIdle(cb: () => void) {
+  const w: any = typeof window !== "undefined" ? window : undefined;
+  if (w?.requestIdleCallback) {
+    const id = w.requestIdleCallback(cb, { timeout: 500 });
+    return () => w.cancelIdleCallback(id);
+  }
+  const id = setTimeout(cb, 1);
+  return () => clearTimeout(id);
+}
 
 const triggerGroupValuesRefresh = (ctx: Context) => {
   if (ctx.groupValuesRefreshData.length > 0) {
@@ -127,40 +158,23 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     const hooksRef = useRef(mergedSettings.hooks);
     hooksRef.current = mergedSettings.hooks;
 
+    // Expands a sheet's celldata into its data matrix (see expandCellData:
+    // frozen rows keep immer from walking every cell on the next produce).
     const initSheetData = useCallback(
       (
         draftCtx: Context,
         newData: SheetType,
         index: number
       ): CellMatrix | null => {
-        const { celldata, row, column } = newData;
-        const lastRow = _.maxBy<CellWithRowAndCol>(celldata, "r");
-        const lastCol = _.maxBy(celldata, "c");
-        let lastRowNum = (lastRow?.r ?? 0) + 1;
-        let lastColNum = (lastCol?.c ?? 0) + 1;
-        if (row != null && column != null && row > 0 && column > 0) {
-          lastRowNum = Math.max(lastRowNum, row);
-          lastColNum = Math.max(lastColNum, column);
-        } else {
-          lastRowNum = Math.max(lastRowNum, draftCtx.defaultrowNum);
-          lastColNum = Math.max(lastColNum, draftCtx.defaultcolumnNum);
-        }
-        if (lastRowNum && lastColNum) {
-          const expandedData: SheetType["data"] = _.times(lastRowNum, () =>
-            _.times(lastColNum, () => null)
-          );
-          celldata?.forEach((d) => {
-            // TODO setCellValue(draftCtx, d.r, d.c, expandedData, d.v);
-            expandedData[d.r][d.c] = d.v;
-          });
-          draftCtx.luckysheetfile = produce(draftCtx.luckysheetfile, (d) => {
-            d[index!].data = expandedData;
-            delete d[index!].celldata;
-            return d;
-          });
-          return expandedData;
-        }
-        return null;
+        const expandedData = expandCellData(
+          newData,
+          draftCtx.defaultrowNum,
+          draftCtx.defaultcolumnNum
+        );
+        const target = draftCtx.luckysheetfile[index];
+        target.data = expandedData;
+        delete target.celldata;
+        return expandedData;
       },
       []
     );
@@ -251,24 +265,33 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       );
     }, [mergedSettings.hooks, setContextWithProduce]);
 
-    const providerValue = useMemo(
+    const workbookApi: WorkbookApi = useMemo(
       () => ({
-        context,
         setContext: setContextWithProduce,
         settings: mergedSettings,
         handleUndo,
         handleRedo,
         refs,
       }),
-      [
-        context,
-        handleRedo,
-        handleUndo,
-        mergedSettings,
-        refs,
-        setContextWithProduce,
-      ]
+      [handleRedo, handleUndo, mergedSettings, refs, setContextWithProduce]
     );
+    const providerValue = useMemo(
+      () => ({ context, ...workbookApi }),
+      [context, workbookApi]
+    );
+
+    // Components below a TrackedScope subscribe to this store and re-render
+    // only for the context fields they read (the Workbook itself, the Sheet
+    // canvas and unscoped consumers still see every update).
+    const storeRef = useRef<WorkbookStore | null>(null);
+    if (storeRef.current == null) {
+      storeRef.current = new WorkbookStore(context, workbookApi);
+    }
+    const store = storeRef.current;
+    store.update(context, workbookApi);
+    useLayoutEffect(() => {
+      store.emit();
+    });
 
     useEffect(() => {
       if (!_.isEmpty(context.luckysheetfile)) {
@@ -283,20 +306,23 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           draftCtx.defaultrowNum = mergedSettings.row;
           draftCtx.defaultFontSize = mergedSettings.defaultFontSize;
           if (_.isEmpty(draftCtx.luckysheetfile)) {
-            const newData = produce(originalData, (draftData) => {
-              ensureSheetIndex(draftData, mergedSettings.generateSheetId);
+            // Shallow copies: ensureSheetIndex fills in ids and status.
+            // (Running it through produce would deep-freeze every cell of
+            // every sheet, which dominated load time for big workbooks.)
+            const newData = originalData.map((sheet) => ({ ...sheet }));
+            ensureSheetIndex(newData, mergedSettings.generateSheetId);
+            newData.forEach((sheet) => {
+              // pending sheets keep their celldata until expanded; a frozen
+              // copy spares immer from walking it
+              if (sheet.celldata && _.isEmpty(sheet.data)) {
+                sheet.celldata = Object.freeze(
+                  sheet.celldata.slice()
+                ) as CellWithRowAndCol[];
+              }
             });
             draftCtx.luckysheetfile = newData;
-            newData.forEach((newDatum) => {
-              const index = getSheetIndex(draftCtx, newDatum.id!) as number;
-              const sheet = draftCtx.luckysheetfile?.[index];
-              const cellMatrixData = initSheetData(draftCtx, sheet, index);
-              setFormulaCellInfoMap(
-                draftCtx,
-                sheet.calcChain,
-                cellMatrixData || undefined
-              );
-            });
+            // Only the sheet shown first is expanded here, below; the others
+            // are expanded after the first paint (see expandPendingSheets).
           }
           if (mergedSettings.devicePixelRatio > 0) {
             draftCtx.devicePixelRatio = mergedSettings.devicePixelRatio;
@@ -328,6 +354,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             if (!_.isNull(temp)) {
               data = temp;
             }
+            setFormulaCellInfoMap(draftCtx, sheet.calcChain, data);
           }
 
           if (
@@ -427,6 +454,33 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       mergedSettings.addRows,
       mergedSettings.currency,
     ]);
+
+    // Sheets other than the one shown are expanded from celldata after the
+    // first paint, one per idle slot, so opening a big multi-sheet workbook
+    // does not wait for sheets nobody is looking at yet.
+    const pendingSheets = context.luckysheetfile.reduce(
+      (n, s) =>
+        s.id !== context.currentSheetId && _.isEmpty(s.data) ? n + 1 : n,
+      0
+    );
+    useEffect(() => {
+      if (pendingSheets === 0) return undefined;
+      return scheduleIdle(() => {
+        setContextWithProduce(
+          (draftCtx) => {
+            const files = draftCtx.luckysheetfile;
+            const idx = files.findIndex(
+              (s) => s.id !== draftCtx.currentSheetId && _.isEmpty(s.data)
+            );
+            if (idx < 0) return;
+            const sheet = files[idx];
+            const data = initSheetData(draftCtx, sheet, idx);
+            setFormulaCellInfoMap(draftCtx, sheet.calcChain, data ?? undefined);
+          },
+          { noHistory: true }
+        );
+      });
+    }, [pendingSheets, initSheetData, setContextWithProduce]);
 
     // Colour theme: resolved here so the canvas (ctx.theme) and the CSS
     // tokens (data-theme on the root) always agree. Layout effect so the
@@ -601,6 +655,29 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       [mergedSettings.currency]
     );
 
+    // Stable elements, each in its own TrackedScope: a Workbook render (on
+    // every context change) skips them, and each re-renders only when the
+    // context fields it reads change.
+    const moreItemsOpen = moreToolbarItems !== null;
+    const toolbar = useMemo(
+      () => (
+        <Toolbar
+          moreItemsOpen={moreItemsOpen}
+          setMoreItems={setMoreToolbarItems}
+        />
+      ),
+      [moreItemsOpen]
+    );
+    const moreItems = useMemo(
+      () =>
+        moreToolbarItems && (
+          <MoreItemsContaier onClose={onMoreToolbarItemsClose}>
+            {moreToolbarItems}
+          </MoreItemsContaier>
+        ),
+      [moreToolbarItems, onMoreToolbarItemsClose]
+    );
+
     const i = getSheetIndex(context, context.currentSheetId);
     if (i == null) {
       return null;
@@ -611,7 +688,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     }
 
     return (
-      <WorkbookContext.Provider value={providerValue}>
+      <WorkbookProvider store={store} value={providerValue}>
         <ModalProvider>
           <div
             className="fortune-container"
@@ -646,26 +723,25 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             {svgDefines}
             <div className="fortune-workarea">
               {mergedSettings.showToolbar && (
-                <Toolbar
-                  moreItemsOpen={moreToolbarItems !== null}
-                  setMoreItems={setMoreToolbarItems}
-                />
+                <TrackedScope>{toolbar}</TrackedScope>
               )}
-              {mergedSettings.showFormulaBar && <FxEditor />}
+              {mergedSettings.showFormulaBar && (
+                <TrackedScope>{FX_EDITOR}</TrackedScope>
+              )}
             </div>
             <Sheet sheet={sheet} />
-            {mergedSettings.showSheetTabs && <SheetTab />}
-            <ContextMenu />
-            <FilterMenu />
-            <DataToolsLayer />
-            <SheetTabContextMenu />
-            {context.formatCellsDialog && <FormatCells />}
-            {context.showSheetList && <SheetList />}
-            {moreToolbarItems && (
-              <MoreItemsContaier onClose={onMoreToolbarItemsClose}>
-                {moreToolbarItems}
-              </MoreItemsContaier>
+            {mergedSettings.showSheetTabs && (
+              <TrackedScope>{SHEET_TAB}</TrackedScope>
             )}
+            <TrackedScope>{CONTEXT_MENU}</TrackedScope>
+            <TrackedScope>{FILTER_MENU}</TrackedScope>
+            <TrackedScope>{DATA_TOOLS_LAYER}</TrackedScope>
+            <TrackedScope>{SHEET_TAB_CONTEXT_MENU}</TrackedScope>
+            {context.formatCellsDialog && (
+              <TrackedScope>{FORMAT_CELLS}</TrackedScope>
+            )}
+            {context.showSheetList && <TrackedScope>{SHEET_LIST}</TrackedScope>}
+            {moreItems && <TrackedScope>{moreItems}</TrackedScope>}
             {!_.isEmpty(context.contextMenu) && (
               <div
                 onMouseDown={() => {
@@ -684,10 +760,12 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
                 className="fortune-popover-backdrop"
               />
             )}
-            {mergedSettings.showStatsBar && <StatusBar />}
+            {mergedSettings.showStatsBar && (
+              <TrackedScope>{STATUS_BAR}</TrackedScope>
+            )}
           </div>
         </ModalProvider>
-      </WorkbookContext.Provider>
+      </WorkbookProvider>
     );
   }
 );

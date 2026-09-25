@@ -30,6 +30,7 @@ import {
 import { isRealNull, isRealNum, valueIsError } from "./validation";
 import { autoGrowRowAfterEdit } from "./autofit";
 import { setFormulaCellInfo } from "./formulaHelper";
+import { peek } from "./dependencyGraph";
 import { onTableCellEdited } from "./tables";
 import {
   FORMULA_RESULT_FORMATS,
@@ -349,10 +350,12 @@ export function getRealCellValue(
 
 export function mergeBorder(
   ctx: Context,
-  d: CellMatrix,
+  data: CellMatrix,
   row_index: number,
   col_index: number
 ) {
+  // read without drafting: a draft row read makes immer copy every row
+  const d = peek(data);
   if (!d || !d[row_index]) {
     console.warn("Merge info is null", row_index, col_index);
     return null;

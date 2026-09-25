@@ -5,9 +5,9 @@ import { getSheetIndex } from "../utils";
 import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
 // eslint-disable-next-line import/no-cycle
 import { onSpillStructureChange } from "./spill";
-import { adjustNamesForRowCol } from "./names";
-import { adjustTablesForRowCol } from "./tables";
-import { adjustChartsForDelete, adjustChartsForInsert } from "./chart";
+// names, tables, charts and notes follow structural changes through the
+// reference adjusters registered by modelSync (run by adjustReferences)
+import "./modelSync";
 
 const refreshLocalMergeData = (merge_new: Record<string, any>, file: Sheet) => {
   Object.entries(merge_new).forEach(([, v]) => {
@@ -1027,15 +1027,6 @@ export function insertRowCol(
   file.luckysheet_alternateformat_save = newAFarr;
   file.dataVerification = newDataVerification;
   file.hyperlink = newHyperlink;
-  // tables and defined names follow the moved cells (tables.ts / names.ts)
-  const rowColChange = {
-    kind: "insert" as const,
-    type,
-    index: direction === "lefttop" ? index : index + 1,
-    count,
-  };
-  adjustTablesForRowCol(ctx, id, rowColChange);
-  adjustNamesForRowCol(ctx, id, rowColChange);
   if (file.id === ctx.currentSheetId) {
     ctx.config = cfg;
     // jfrefreshgrid_adRC(
@@ -1091,13 +1082,6 @@ export function insertRowCol(
   refreshLocalMergeData(merge_new, file);
   recalcAfterStructuralChange(ctx);
   onSpillStructureChange(ctx, id);
-  adjustChartsForInsert(
-    ctx,
-    id,
-    type,
-    direction === "lefttop" ? index : index + 1,
-    count
-  );
 
   // if (type === "row") {
   //   const scrollLeft = $("#luckysheet-cell-main").scrollLeft();
@@ -1938,14 +1922,9 @@ export function deleteRowCol(
   file.luckysheet_alternateformat_save = newAFarr;
   file.dataVerification = newDataVerification;
   file.hyperlink = newHyperlink;
-  // tables and defined names follow the moved cells (tables.ts / names.ts)
-  const rowColChange = { kind: "delete" as const, type, start, end };
-  adjustTablesForRowCol(ctx, id, rowColChange);
-  adjustNamesForRowCol(ctx, id, rowColChange);
 
   refreshLocalMergeData(merge_new, file);
   recalcAfterStructuralChange(ctx);
-  adjustChartsForDelete(ctx, id, type, start, end);
 
   if (file.id === ctx.currentSheetId) {
     ctx.config = cfg;

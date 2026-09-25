@@ -81,14 +81,18 @@ describe("name validation (Excel rules)", () => {
 });
 
 describe("normalising definitions", () => {
-  test("references are made absolute and qualified", () => {
+  test("references are qualified; relative ones stay relative", () => {
     const ctx = makeContext();
-    expect(normalizeRefersTo(ctx, "=A1:B2", "id_1")).toBe("=Sheet1!$A$1:$B$2");
-    expect(normalizeRefersTo(ctx, "=b3*2", "id_2")).toBe("='My Sheet'!$B$3*2");
+    expect(normalizeRefersTo(ctx, "=$A$1:$B$2", "id_1")).toBe(
+      "=Sheet1!$A$1:$B$2"
+    );
+    // relative references are kept (Excel), stored as seen from A1
+    expect(normalizeRefersTo(ctx, "=A1:B2", "id_1")).toBe("=Sheet1!A1:B2");
+    expect(normalizeRefersTo(ctx, "=b3*2", "id_2")).toBe("='My Sheet'!B3*2");
     expect(normalizeRefersTo(ctx, "='My Sheet'!A1", "id_1")).toBe(
       "='My Sheet'!A1"
     );
-    expect(normalizeRefersTo(ctx, "=SUM(C:C)", "id_1")).toBe(
+    expect(normalizeRefersTo(ctx, "=SUM($C:$C)", "id_1")).toBe(
       "=SUM(Sheet1!$C:$C)"
     );
     expect(normalizeRefersTo(ctx, "12", "id_1")).toBe("=12");

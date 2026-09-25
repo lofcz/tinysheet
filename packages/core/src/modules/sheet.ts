@@ -10,6 +10,7 @@ import { generateRandomSheetName, getSheetIndex } from "../utils";
 import { recalculate, setFormulaCellInfo } from "./formulaHelper";
 import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
 import { moveWorkbookNamesBeforeSheetDelete } from "./names";
+import { prepareDuplicatedSheet } from "./modelSync";
 import { updateCell } from "./cell";
 import { delFunctionGroup } from "./formula";
 import { quoteSheetName, tokenizeFormula } from "./formulaFunctions";
@@ -550,6 +551,8 @@ export function duplicateSheet(
     copy.images = copy.images.map((img) => ({ ...img, id: uuidv4() }));
   }
   renameReferencesInSheet(ctx, copy, source.name, name, false);
+  // tables, sheet-scoped names, DV/CF formulas and charts of the copy
+  prepareDuplicatedSheet(ctx, source, copy);
 
   if (ctx.hooks.beforeAddSheet?.(copy) === false) return null;
   ctx.luckysheetfile.push(copy);
