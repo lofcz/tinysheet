@@ -1,6 +1,4 @@
-import {
-  IfortuneSheetborderInfoCellForImp,
-} from "./IFortune";
+import { IfortuneSheetborderInfoCellForImp } from "./IFortune";
 import {
   ReadXml,
   Element,
@@ -11,11 +9,7 @@ import {
 import { formatValue } from "@lofcz/tinysheet-core";
 import { getcellrange, escapeCharacter } from "../common/method";
 import { fromExcelFormula } from "../common/formulaText";
-import {
-  ST_CellType,
-  borderTypes,
-  fontFamilys,
-} from "../common/constant";
+import { ST_CellType, borderTypes } from "../common/constant";
 import { IattributeList } from "../common/ICommon";
 import {
   FortuneSheetborderInfoCellValueStyle,
@@ -25,6 +19,7 @@ import {
   FortuneSheetCelldataValue,
   FortuneSheetCellFormat,
 } from "./FortuneBase";
+import { childElement, ScannedElement } from "./xmlScan";
 
 export type FortuneCellWorkbookInfo = {
   /** The workbook uses the 1904 date system (serials are shifted on import). */
@@ -37,10 +32,35 @@ const DATE1904_OFFSET = 1462;
 /** Cell font attributes a rich-text run inherits when it does not set them. */
 const INHERITED_RUN_KEYS = ["ff", "fc", "fs", "cl", "un", "bl", "it"];
 
+const dateFormatCache = new Map<string, boolean>();
+
 /** Whether a number format shows a date or time (first section). */
 export function isDateFormat(fa: string | null | undefined) {
   if (!fa || /^general$/i.test(fa)) return false;
-  return formatHasDate(fa) || formatHasTime(fa);
+  let isDate = dateFormatCache.get(fa);
+  if (isDate === undefined) {
+    isDate = formatHasDate(fa) || formatHasTime(fa);
+    if (dateFormatCache.size < 10000) dateFormatCache.set(fa, isDate);
+  }
+  return isDate;
+}
+
+/**
+ * Display text of a number. Integers in General format print as they are
+ * (the common case, and the slow path of the format engine); everything
+ * else goes through core's formatValue.
+ */
+function displayNumber(format: string, num: number) {
+  if (
+    Number.isInteger(num) &&
+    num > -1e10 &&
+    num < 1e10 &&
+    (format === "General" || format === "general") &&
+    !Object.is(num, -0)
+  ) {
+    return String(num);
+  }
+  return formatValue(format, num);
 }
 
 function formatHasDate(fa: string) {
@@ -66,6 +86,452 @@ function stripFormatLiterals(fa: string) {
     .replace(/\[[^\]]*\]/g, "");
 }
 
+/** "AB12" -> { r: 11, c: 27 }, or null. */
+export function decodeCellRef(ref: string | undefined) {
+  if (!ref) return null;
+  let c = 0;
+  let i = 0;
+  const n = ref.length;
+  for (; i < n; i += 1) {
+    let ch = ref.charCodeAt(i);
+    if (ch === 36) continue; // $
+    if (ch >= 97 && ch <= 122) ch -= 32;
+    if (ch < 65 || ch > 90) break;
+    c = c * 26 + (ch - 64);
+  }
+  let r = 0;
+  let digits = 0;
+  for (; i < n; i += 1) {
+    const ch = ref.charCodeAt(i);
+    if (ch === 36 && digits === 0) continue;
+    if (ch < 48 || ch > 57) return null;
+    r = r * 10 + (ch - 48);
+    digits += 1;
+  }
+  if (c === 0 || digits === 0 || r === 0) return null;
+  return { r: r - 1, c: c - 1 };
+}
+
+/** `_xHHHH_` escapes (control characters) and XML line-break references. */
+export function decodeCellText(text: string): string {
+  if (text == null) return text;
+  let out = text;
+  if (out.indexOf("_x") >= 0) {
+    out = out
+      .replace(/_x000D_/g, "")
+      .replace(/_x([0-9A-Fa-f]{4})_/g, (_m, h) =>
+        String.fromCharCode(parseInt(h, 16))
+      );
+  }
+  if (out.indexOf("&#") >= 0) {
+    out = out
+      .replace(/&#13;&#10;/g, "\r\n")
+      .replace(/&#13;/g, "\r")
+      .replace(/&#10;/g, "\n");
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Style records, resolved once per `s` index
+// ---------------------------------------------------------------------------
+
+type ResolvedStyle = {
+  /** Number format code (escaped), when the style sets one. */
+  fa?: string;
+  /** Cell style properties in the order they are set. */
+  props: [string, any][];
+  border: {
+    l?: FortuneSheetborderInfoCellValueStyle;
+    r?: FortuneSheetborderInfoCellValueStyle;
+    t?: FortuneSheetborderInfoCellValueStyle;
+    b?: FortuneSheetborderInfoCellValueStyle;
+  } | null;
+  quotePrefix?: string;
+};
+
+const styleCaches = new WeakMap<
+  IStyleCollections,
+  Map<string, ResolvedStyle>
+>();
+
+function borderInfo(
+  borders: Element[] | null,
+  styles: IStyleCollections
+): FortuneSheetborderInfoCellValueStyle {
+  if (borders == null) return null;
+  const border = borders[0];
+  const style: string = border.attributeList.style;
+  if (style == null || style == "none") return null;
+  const colors = border.getInnerElements("color");
+  let colorRet = "#000000";
+  if (colors != null) {
+    colorRet = getColor(colors[0], styles, "b") ?? "#000000";
+  }
+  const ret = new FortuneSheetborderInfoCellValueStyle();
+  ret.style = borderTypes[style];
+  ret.color = colorRet;
+  return ret;
+}
+
+function backgroundOfFill(
+  fill: Element | undefined,
+  styles: IStyleCollections
+): string | null {
+  if (fill == null) return null;
+  const patternFills = fill.getInnerElements("patternFill");
+  if (patternFills != null) {
+    const patternFill = patternFills[0];
+    const fgColors = patternFill.getInnerElements("fgColor");
+    const bgColors = patternFill.getInnerElements("bgColor");
+    let fg;
+    let bg;
+    if (fgColors != null) fg = getColor(fgColors[0], styles);
+    if (bgColors != null) bg = getColor(bgColors[0], styles);
+    if (fg != null) return fg;
+    if (bg != null) return bg;
+  }
+  // gradient fills are not supported
+  return null;
+}
+
+const HORIZONTAL: Record<string, number> = {
+  center: 0,
+  centerContinuous: 0,
+  left: 1,
+  right: 2,
+  distributed: 0,
+  fill: 1,
+  general: 1,
+  justify: 0,
+};
+
+const VERTICAL: Record<string, number> = {
+  bottom: 2,
+  center: 0,
+  distributed: 0,
+  justify: 0,
+  top: 1,
+};
+
+const isTrue = (v: any) => v == "1" || v == "true";
+
+const lookup = (map: Record<string, number>, key: string, fallback: number) =>
+  Object.prototype.hasOwnProperty.call(map, key) ? map[key] : fallback;
+
+function resolveStyle(s: string, styles: IStyleCollections): ResolvedStyle {
+  const cellXfs = styles["cellXfs"] as Element[];
+  const cellStyleXfs = styles["cellStyleXfs"] as Element[];
+  const fonts = styles["fonts"] as Element[];
+  const fills = styles["fills"] as Element[];
+  const borders = styles["borders"] as Element[];
+  const numfmts = styles["numfmts"] as IattributeList;
+
+  const sNum = parseInt(s);
+  const cellXf = cellXfs[sNum] ?? cellXfs[0] ?? new Element("<xf/>");
+  const xfId = cellXf.attributeList.xfId;
+
+  let numFmtId, fontId, fillId, borderId;
+  let horizontal,
+    vertical,
+    wrapText,
+    textRotation,
+    shrinkToFit,
+    indent,
+    applyProtection,
+    locked,
+    formulaHidden,
+    quotePrefix;
+  // <protection locked=".." hidden=".."/> of a style record
+  const readProtection = (xf: Element) => {
+    const protection = xf.getInnerElements("protection");
+    if (protection == null || protection.length === 0) return;
+    const attrs = protection[0].attributeList;
+    if (attrs.locked != null) locked = attrs.locked;
+    if (attrs.hidden != null) formulaHidden = attrs.hidden;
+  };
+  const readAlignment = (xf: Element) => {
+    const alignment = xf.getInnerElements("alignment");
+    if (alignment == null || alignment.length === 0) return;
+    const a = alignment[0].attributeList;
+    if (a.horizontal != null) horizontal = a.horizontal;
+    if (a.vertical != null) vertical = a.vertical;
+    if (a.wrapText != null) wrapText = a.wrapText;
+    if (a.textRotation != null) textRotation = a.textRotation;
+    if (a.shrinkToFit != null) shrinkToFit = a.shrinkToFit;
+    if (a.indent != null) indent = a.indent;
+  };
+
+  if (xfId != null) {
+    const cellStyleXf = cellStyleXfs[parseInt(xfId)] ?? new Element("<xf/>");
+    const a = cellStyleXf.attributeList;
+    applyProtection = a.applyProtection;
+    quotePrefix = a.quotePrefix;
+    if (applyProtection != null && applyProtection != "0") {
+      readProtection(cellStyleXf);
+    }
+    if (a.applyNumberFormat != "0" && a.numFmtId != null) numFmtId = a.numFmtId;
+    if (a.applyFont != "0" && a.fontId != null) fontId = a.fontId;
+    if (a.applyFill != "0" && a.fillId != null) fillId = a.fillId;
+    if (a.applyBorder != "0" && a.borderId != null) borderId = a.borderId;
+    if (a.applyAlignment != null && a.applyAlignment != "0") {
+      readAlignment(cellStyleXf);
+    }
+  }
+
+  const x = cellXf.attributeList;
+  if (x.applyProtection != null) applyProtection = x.applyProtection;
+  if (applyProtection != "0") readProtection(cellXf);
+  if (x.quotePrefix != null) quotePrefix = x.quotePrefix;
+  if (x.applyNumberFormat != "0" && x.numFmtId != null) numFmtId = x.numFmtId;
+  if (x.applyFont != "0") fontId = x.fontId;
+  if (x.applyFill != "0") fillId = x.fillId;
+  if (x.applyBorder != "0") borderId = x.borderId;
+  if (x.applyAlignment != "0") readAlignment(cellXf);
+
+  const out: ResolvedStyle = { props: [], border: null, quotePrefix };
+  const set = (key: string, value: any) => out.props.push([key, value]);
+
+  if (numFmtId != undefined) {
+    const numf = numfmts[parseInt(numFmtId)];
+    out.fa = numf != null ? escapeCharacter(numf) : "General";
+  }
+
+  if (fillId != undefined) {
+    const bg = backgroundOfFill(fills[parseInt(fillId)], styles);
+    if (bg != null) set("bg", bg);
+  }
+
+  const font = fontId != undefined ? fonts[parseInt(fontId)] : null;
+  if (font != null) {
+    const sz = font.getInnerElements("sz");
+    const colors = font.getInnerElements("color");
+    const family = font.getInnerElements("name");
+    const bolds = font.getInnerElements("b");
+    const italics = font.getInnerElements("i");
+    const strikes = font.getInnerElements("strike");
+    const underlines = font.getInnerElements("u");
+    if (sz != null && sz.length > 0 && sz[0].attributeList.val != null) {
+      set("fs", parseFloat(sz[0].attributeList.val));
+    }
+    if (colors != null && colors.length > 0) {
+      const fc = getColor(colors[0], styles, "t");
+      if (fc != null) set("fc", fc);
+    }
+    if (family != null && family.length > 0) {
+      const val = family[0].attributeList.val;
+      if (val != null) set("ff", val);
+    }
+    if (bolds != null && bolds.length > 0) {
+      set("bl", bolds[0].attributeList.val == "0" ? 0 : 1);
+    }
+    if (italics != null && italics.length > 0) {
+      set("it", italics[0].attributeList.val == "0" ? 0 : 1);
+    }
+    if (strikes != null && strikes.length > 0) {
+      set("cl", strikes[0].attributeList.val == "0" ? 0 : 1);
+    }
+    if (underlines != null && underlines.length > 0) {
+      const u = underlines[0].attributeList.val;
+      if (u == null || u == "single") set("un", 1);
+      else if (u == "double") set("un", 2);
+      else if (u == "singleAccounting") set("un", 3);
+      else if (u == "doubleAccounting") set("un", 4);
+      else set("un", 0);
+    }
+  }
+
+  if (horizontal != undefined) set("ht", lookup(HORIZONTAL, horizontal, 1));
+  // sometimes the bottom style is lost after setting it in Excel: an
+  // unset vertical alignment is bottom
+  set("vt", vertical != undefined ? lookup(VERTICAL, vertical, 1) : 2);
+  set("tb", wrapText != undefined && wrapText == "1" ? "2" : "1");
+  if (textRotation != undefined) {
+    if (textRotation == "255") {
+      set("tr", "3");
+    } else {
+      set("tr", "0");
+      set("rt", parseInt(textRotation));
+    }
+  }
+  if (shrinkToFit != undefined && isTrue(shrinkToFit)) set("sk", 1);
+  if (indent != undefined) {
+    const level = parseInt(indent, 10);
+    if (level > 0) set("ind", Math.min(level, 250));
+  }
+  // Excel cells are locked unless the style says otherwise
+  if (locked != undefined && !isTrue(locked)) set("lo", 0);
+  if (formulaHidden != undefined && isTrue(formulaHidden)) set("hi", 1);
+
+  const border = borderId != undefined ? borders[parseInt(borderId)] : null;
+  if (border != null) {
+    const sides: ResolvedStyle["border"] = {};
+    const pick = (tag: string) =>
+      borderInfo(border.getInnerElements(tag), styles);
+    const start = pick("start");
+    const end = pick("end");
+    const left = pick("left");
+    const right = pick("right");
+    const top = pick("top");
+    const bottom = pick("bottom");
+    if (start?.color != null) sides.l = start;
+    if (end?.color != null) sides.r = end;
+    if (left?.color != null) sides.l = left;
+    if (right?.color != null) sides.r = right;
+    if (top?.color != null) sides.t = top;
+    if (bottom?.color != null) sides.b = bottom;
+    if (Object.keys(sides).length) out.border = sides;
+  }
+  return out;
+}
+
+function cachedStyle(s: string, styles: IStyleCollections): ResolvedStyle {
+  let cache = styleCaches.get(styles);
+  if (!cache) {
+    cache = new Map();
+    styleCaches.set(styles, cache);
+  }
+  let style = cache.get(s);
+  if (!style) {
+    style = resolveStyle(s, styles);
+    cache.set(s, style);
+  }
+  return style;
+}
+
+// ---------------------------------------------------------------------------
+// Shared strings, parsed once per index
+// ---------------------------------------------------------------------------
+
+type ParsedRun = { v?: string; own: Record<string, any> | null };
+type ParsedString =
+  | { rich: false; text: string }
+  | { rich: true; runs: ParsedRun[] };
+
+const stringCaches = new WeakMap<Element[], ParsedString[]>();
+
+function parseStringItem(si: Element, styles: IStyleCollections): ParsedString {
+  // Phonetic runs (<rPh>) are not part of the text.
+  const item =
+    si.elementString.indexOf("<rPh") >= 0
+      ? new Element(si.elementString.replace(/<rPh\b[\s\S]*?<\/rPh>/g, ""))
+      : si;
+  const rFlag = item.getInnerElements("r");
+  if (rFlag == null) {
+    const tFlag = item.getInnerElements("t");
+    let text = "";
+    if (tFlag != null) {
+      tFlag.forEach((tt) => {
+        text += tt.value;
+      });
+    }
+    return { rich: false, text: decodeCellText(escapeCharacter(text)) };
+  }
+  const runs = rFlag.map((r) => {
+    const run: ParsedRun = { own: null };
+    const tFlag = r.getInnerElements("t");
+    if (tFlag != null && tFlag.length > 0) {
+      run.v = decodeCellText(escapeCharacter(tFlag[0].value)).replace(
+        /\r?\n/g,
+        "\r\n"
+      );
+    }
+    const rPr = r.getInnerElements("rPr");
+    if (rPr != null && rPr.length > 0) {
+      const frpr = rPr[0];
+      const own: Record<string, any> = {};
+      const sz = getlineStringAttr(frpr, "sz");
+      const rFont = getlineStringAttr(frpr, "rFont");
+      const b = getlineStringAttr(frpr, "b");
+      const i = getlineStringAttr(frpr, "i");
+      const u = getlineStringAttr(frpr, "u");
+      const strike = getlineStringAttr(frpr, "strike");
+      const vertAlign = getlineStringAttr(frpr, "vertAlign");
+      let color;
+      const cEle = frpr.getInnerElements("color");
+      if (cEle != null && cEle.length > 0) {
+        color = getColor(cEle[0], styles, "t");
+      }
+      if (rFont != null) own.ff = rFont;
+      if (color != null) own.fc = color;
+      if (sz != null) own.fs = parseFloat(sz);
+      if (strike != null) own.cl = parseInt(strike);
+      if (u != null) own.un = parseInt(u);
+      if (b != null) own.bl = parseInt(b);
+      if (i != null) own.it = parseInt(i);
+      if (vertAlign != null) own.va = parseInt(vertAlign);
+      run.own = own;
+    }
+    return run;
+  });
+  return { rich: true, runs };
+}
+
+function sharedString(
+  index: number,
+  sharedStrings: Element[],
+  styles: IStyleCollections
+): ParsedString | null {
+  let cache = stringCaches.get(sharedStrings);
+  if (!cache) {
+    cache = new Array(sharedStrings.length);
+    stringCaches.set(sharedStrings, cache);
+  }
+  let parsed = cache[index];
+  if (parsed === undefined) {
+    const si = sharedStrings[index];
+    parsed = si != null ? parseStringItem(si, styles) : null;
+    cache[index] = parsed;
+  }
+  return parsed;
+}
+
+/** Put a (shared or inline) string item into a cell value. */
+function assignParsedString(cellValue: any, parsed: ParsedString) {
+  const ct = cellValue.ct ?? ({} as FortuneSheetCellFormat);
+  ct.fa = ct.fa ?? "General";
+  cellValue.ct = ct;
+  if (!parsed.rich) {
+    const { text } = parsed as { rich: false; text: string };
+    if (text.indexOf("\n") > -1) {
+      const run: any = { v: text.replace(/\r?\n/g, "\r\n") };
+      for (const key of INHERITED_RUN_KEYS) {
+        if (cellValue[key] != null) run[key] = cellValue[key];
+      }
+      ct.t = "inlineStr";
+      ct.s = [run];
+    } else {
+      cellValue.v = text;
+      cellValue.m = text;
+      ct.t = ct.fa === "@" ? "s" : "g";
+      // Keep numeric-looking text as text when edited.
+      cellValue.qp = 1;
+    }
+    return;
+  }
+  ct.t = "inlineStr";
+  ct.s = (parsed as { runs: ParsedRun[] }).runs.map((run) => {
+    const out: any = {};
+    if (run.v !== undefined) out.v = run.v;
+    if (run.own) {
+      for (const key of INHERITED_RUN_KEYS) {
+        const own = run.own[key];
+        if (own != null) out[key] = own;
+        else if (cellValue[key] != null) out[key] = cellValue[key];
+      }
+      if (run.own.va != null) out.va = run.own.va;
+    } else {
+      for (const key of INHERITED_RUN_KEYS) {
+        if (cellValue[key] != null) out[key] = cellValue[key];
+      }
+    }
+    return out;
+  });
+}
+
+/** A `<c>` element as read by the fast sheet scanner. */
+export type RawCell = ScannedElement;
+
 export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
   _borderObject: IfortuneSheetborderInfoCellForImp;
   _fomulaRef: string;
@@ -76,505 +542,113 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
   /** The array formula carries dynamic-array cell metadata (`cm`). */
   _dynamicArray: boolean;
 
-  private sheetFile: string;
-  private readXml: ReadXml;
-  private cell: Element;
-  private styles: IStyleCollections;
-  private sharedStrings: Element[];
-  private mergeCells: Element[];
-  private workbookInfo: FortuneCellWorkbookInfo;
-
+  /**
+   * @param cell The `<c>` element (a ReadXml Element or a scanned cell).
+   * @param position Used when the cell has no (valid) `r` attribute.
+   */
   constructor(
-    cell: Element,
+    cell: Element | RawCell,
     styles: IStyleCollections,
     sharedStrings: Element[],
-    mergeCells: Element[],
-    sheetFile: string,
-    ReadXml: ReadXml,
-    workbookInfo: FortuneCellWorkbookInfo = {}
+    _mergeCells?: Element[],
+    _sheetFile?: string,
+    _readXml?: ReadXml,
+    workbookInfo: FortuneCellWorkbookInfo = {},
+    position?: { r: number; c: number }
   ) {
-    //Private
     super();
-    this.cell = cell;
-    this.sheetFile = sheetFile;
-    this.styles = styles;
-    this.sharedStrings = sharedStrings;
-    this.readXml = ReadXml;
-    this.mergeCells = mergeCells;
-    this.workbookInfo = workbookInfo;
-
-    let attrList = cell.attributeList;
-    let r = attrList.r,
-      s = attrList.s,
-      t = attrList.t;
-    let range = getcellrange(r);
-
-    this.r = range.row[0];
-    this.c = range.column[0];
-    this.v = this.generateValue(s, t);
+    let attrs: IattributeList;
+    let inner: string | null;
+    if (cell instanceof Element) {
+      attrs = cell.attributeList;
+      inner = cell.elementString.endsWith("/>") ? null : cell.value;
+    } else {
+      attrs = cell.attrs;
+      inner = cell.inner;
+    }
+    const ref = decodeCellRef(attrs.r) ??
+      (attrs.r != null ? toPosition(getcellrange(attrs.r)) : null) ??
+      position ?? { r: 0, c: 0 };
+    this.r = ref.r;
+    this.c = ref.c;
+    this.v = this.generateValue(
+      attrs,
+      inner,
+      styles,
+      sharedStrings,
+      workbookInfo
+    );
   }
 
-  /**
-   * @param s Style index ,start 1
-   * @param t Cell type, Optional value is ST_CellType, it's found at constat.ts
-   */
-  private generateValue(s: string, t: string) {
-    let v = this.cell.getInnerElements("v");
-    let f = this.cell.getInnerElements("f");
-
-    let cellXfs = this.styles["cellXfs"] as Element[];
-    let cellStyleXfs = this.styles["cellStyleXfs"] as Element[];
-    let fonts = this.styles["fonts"] as Element[];
-    let fills = this.styles["fills"] as Element[];
-    let borders = this.styles["borders"] as Element[];
-    let numfmts = this.styles["numfmts"] as IattributeList;
-    let clrScheme = this.styles["clrScheme"] as Element[];
-
-    let cellValue = new FortuneSheetCelldataValue();
+  private generateValue(
+    attrs: IattributeList,
+    inner: string | null,
+    styles: IStyleCollections,
+    sharedStrings: Element[],
+    workbookInfo: FortuneCellWorkbookInfo
+  ) {
+    const s = attrs.s;
+    const t = attrs.t;
+    const cellValue = {} as FortuneSheetCelldataValue;
+    const v = inner ? childElement(inner, "v") : null;
+    const f = inner ? childElement(inner, "f") : null;
 
     if (f != null) {
-      let formula = f[0],
-        attrList = formula.attributeList;
-      let ft = attrList.t,
-        ref = attrList.ref,
-        si = attrList.si;
-      let formulaValue = f[0].value;
+      const ft = f.attrs.t;
       if (ft == "shared") {
-        this._fomulaRef = ref;
+        this._fomulaRef = f.attrs.ref;
         this._formulaType = ft;
-        this._formulaSi = si;
-      } else if (ft == "array" && ref != null) {
+        this._formulaSi = f.attrs.si;
+      } else if (ft == "array" && f.attrs.ref != null) {
         this._formulaType = ft;
-        this._arrayRef = ref;
-        this._dynamicArray = this.cell.attributeList.cm != null;
+        this._arrayRef = f.attrs.ref;
+        this._dynamicArray = attrs.cm != null;
       }
-      if (formulaValue != null && formulaValue.length > 0) {
-        cellValue.f = fromExcelFormula(escapeCharacter(formulaValue));
+      if (f.inner != null && f.inner.length > 0) {
+        cellValue.f = fromExcelFormula(escapeCharacter(f.inner));
       }
     }
 
-
-    let familyFont = null;
     let quotePrefix;
     if (s != null) {
-      let sNum = parseInt(s);
-      let cellXf = cellXfs[sNum] ?? cellXfs[0] ?? new Element("<xf/>");
-      let xfId = cellXf.attributeList.xfId;
-
-      let numFmtId, fontId, fillId, borderId;
-      let horizontal,
-        vertical,
-        wrapText,
-        textRotation,
-        shrinkToFit,
-        indent,
-        applyProtection,
-        locked,
-        formulaHidden;
-      // <protection locked=".." hidden=".."/> of a style record
-      const readProtection = (xf: Element) => {
-        const protection = xf.getInnerElements("protection");
-        if (protection == null || protection.length === 0) return;
-        const attrs = protection[0].attributeList;
-        if (attrs.locked != null) locked = attrs.locked;
-        if (attrs.hidden != null) formulaHidden = attrs.hidden;
-      };
-
-      if (xfId != null) {
-        let cellStyleXf =
-          cellStyleXfs[parseInt(xfId)] ?? new Element("<xf/>");
-        let attrList = cellStyleXf.attributeList;
-
-        let applyNumberFormat = attrList.applyNumberFormat;
-        let applyFont = attrList.applyFont;
-        let applyFill = attrList.applyFill;
-        let applyBorder = attrList.applyBorder;
-        let applyAlignment = attrList.applyAlignment;
-        // let applyProtection = attrList.applyProtection;
-
-        applyProtection = attrList.applyProtection;
-        quotePrefix = attrList.quotePrefix;
-        if (applyProtection != null && applyProtection != "0") {
-          readProtection(cellStyleXf);
-        }
-
-        if (applyNumberFormat != "0" && attrList.numFmtId != null) {
-          // if(attrList.numFmtId!="0"){
-          numFmtId = attrList.numFmtId;
-          // }
-        }
-        if (applyFont != "0" && attrList.fontId != null) {
-          fontId = attrList.fontId;
-        }
-        if (applyFill != "0" && attrList.fillId != null) {
-          fillId = attrList.fillId;
-        }
-        if (applyBorder != "0" && attrList.borderId != null) {
-          borderId = attrList.borderId;
-        }
-        if (applyAlignment != null && applyAlignment != "0") {
-          let alignment = cellStyleXf.getInnerElements("alignment");
-          if (alignment != null) {
-            let attrList = alignment[0].attributeList;
-            if (attrList.horizontal != null) {
-              horizontal = attrList.horizontal;
-            }
-            if (attrList.vertical != null) {
-              vertical = attrList.vertical;
-            }
-            if (attrList.wrapText != null) {
-              wrapText = attrList.wrapText;
-            }
-            if (attrList.textRotation != null) {
-              textRotation = attrList.textRotation;
-            }
-            if (attrList.shrinkToFit != null) {
-              shrinkToFit = attrList.shrinkToFit;
-            }
-            if (attrList.indent != null) {
-              indent = attrList.indent;
-            }
-          }
-        }
-      }
-
-      let applyNumberFormat = cellXf.attributeList.applyNumberFormat;
-      let applyFont = cellXf.attributeList.applyFont;
-      let applyFill = cellXf.attributeList.applyFill;
-      let applyBorder = cellXf.attributeList.applyBorder;
-      let applyAlignment = cellXf.attributeList.applyAlignment;
-
-      if (cellXf.attributeList.applyProtection != null) {
-        applyProtection = cellXf.attributeList.applyProtection;
-      }
-      if (applyProtection != "0") {
-        readProtection(cellXf);
-      }
-
-      if (cellXf.attributeList.quotePrefix != null) {
-        quotePrefix = cellXf.attributeList.quotePrefix;
-      }
-
-      if (applyNumberFormat != "0" && cellXf.attributeList.numFmtId != null) {
-        numFmtId = cellXf.attributeList.numFmtId;
-      }
-      if (applyFont != "0") {
-        fontId = cellXf.attributeList.fontId;
-      }
-      if (applyFill != "0") {
-        fillId = cellXf.attributeList.fillId;
-      }
-      if (applyBorder != "0") {
-        borderId = cellXf.attributeList.borderId;
-      }
-      if (applyAlignment != "0") {
-        let alignment = cellXf.getInnerElements("alignment");
-        if (alignment != null && alignment.length > 0) {
-          let attrList = alignment[0].attributeList;
-          if (attrList.horizontal != null) {
-            horizontal = attrList.horizontal;
-          }
-          if (attrList.vertical != null) {
-            vertical = attrList.vertical;
-          }
-          if (attrList.wrapText != null) {
-            wrapText = attrList.wrapText;
-          }
-          if (attrList.textRotation != null) {
-            textRotation = attrList.textRotation;
-          }
-          if (attrList.shrinkToFit != null) {
-            shrinkToFit = attrList.shrinkToFit;
-          }
-          if (attrList.indent != null) {
-            indent = attrList.indent;
-          }
-        }
-      }
-
-      if (numFmtId != undefined) {
-        let numf = numfmts[parseInt(numFmtId)];
-        let cellFormat = new FortuneSheetCellFormat();
-        cellFormat.fa = numf != null ? escapeCharacter(numf) : "General";
+      const style = cachedStyle(s, styles);
+      if (style.fa !== undefined) {
+        const cellFormat = {} as FortuneSheetCellFormat;
+        cellFormat.fa = style.fa;
         cellValue.ct = cellFormat;
       }
-
-      if (fillId != undefined) {
-        let fillIdNum = parseInt(fillId);
-        let fill = fills[fillIdNum];
-        // console.log(cellValue.v);
-        let bg = this.getBackgroundByFill(fill, clrScheme);
-        if (bg != null) {
-          cellValue.bg = bg;
-        }
+      const target = cellValue as any;
+      for (let i = 0; i < style.props.length; i += 1) {
+        target[style.props[i][0]] = style.props[i][1];
       }
-
-      if (fontId != undefined) {
-        let fontIdNum = parseInt(fontId);
-        let font = fonts[fontIdNum];
-        if (font != null) {
-          let sz = font.getInnerElements("sz"); //font size
-          let colors = font.getInnerElements("color"); //font color
-          let family = font.getInnerElements("name"); //font family
-          let familyOverrides = font.getInnerElements("family"); //font family will be overrided by name
-          let charset = font.getInnerElements("charset"); //font charset
-          let bolds = font.getInnerElements("b"); //font bold
-          let italics = font.getInnerElements("i"); //font italic
-          let strikes = font.getInnerElements("strike"); //font italic
-          let underlines = font.getInnerElements("u"); //font italic
-
-          if (sz != null && sz.length > 0) {
-            let fs = sz[0].attributeList.val;
-            if (fs != null) {
-              cellValue.fs = parseFloat(fs);
-            }
-          }
-
-          if (colors != null && colors.length > 0) {
-            let color = colors[0];
-            let fc = getColor(color, this.styles, "t");
-            if (fc != null) {
-              cellValue.fc = fc;
-            }
-          }
-
-          if (familyOverrides != null && familyOverrides.length > 0) {
-            let val = familyOverrides[0].attributeList.val;
-            if (val != null) {
-              familyFont = fontFamilys[val];
-            }
-          }
-
-          if (family != null && family.length > 0) {
-            let val = family[0].attributeList.val;
-            if (val != null) {
-              cellValue.ff = val;
-            }
-          }
-
-          if (bolds != null && bolds.length > 0) {
-            let bold = bolds[0].attributeList.val;
-            if (bold == "0") {
-              cellValue.bl = 0;
-            } else {
-              cellValue.bl = 1;
-            }
-          }
-
-          if (italics != null && italics.length > 0) {
-            let italic = italics[0].attributeList.val;
-            if (italic == "0") {
-              cellValue.it = 0;
-            } else {
-              cellValue.it = 1;
-            }
-          }
-
-          if (strikes != null && strikes.length > 0) {
-            let strike = strikes[0].attributeList.val;
-            if (strike == "0") {
-              cellValue.cl = 0;
-            } else {
-              cellValue.cl = 1;
-            }
-          }
-
-          if (underlines != null && underlines.length > 0) {
-            let underline = underlines[0].attributeList.val;
-            if (underline == null || underline == "single") {
-              cellValue.un = 1;
-            } else if (underline == "double") {
-              cellValue.un = 2;
-            } else if (underline == "singleAccounting") {
-              cellValue.un = 3;
-            } else if (underline == "doubleAccounting") {
-              cellValue.un = 4;
-            } else {
-              cellValue.un = 0;
-            }
-          }
-        }
-      }
-
-      // vt: number | undefined//Vertical alignment, 0 middle, 1 up, 2 down, alignment
-      // ht: number | undefined//Horizontal alignment,0 center, 1 left, 2 right, alignment
-      // tr: number | undefined //Text rotation,0: 0、1: 45 、2: -45、3 Vertical text、4: 90 、5: -90, alignment
-      // tb: number | undefined //Text wrap,0 truncation, 1 overflow, 2 word wrap, alignment
-
-      if (horizontal != undefined) {
-        //Horizontal alignment
-        if (horizontal == "center") {
-          cellValue.ht = 0;
-        } else if (horizontal == "centerContinuous") {
-          cellValue.ht = 0; //fortunesheet unsupport
-        } else if (horizontal == "left") {
-          cellValue.ht = 1;
-        } else if (horizontal == "right") {
-          cellValue.ht = 2;
-        } else if (horizontal == "distributed") {
-          cellValue.ht = 0; //fortunesheet unsupport
-        } else if (horizontal == "fill") {
-          cellValue.ht = 1; //fortunesheet unsupport
-        } else if (horizontal == "general") {
-          cellValue.ht = 1; //fortunesheet unsupport
-        } else if (horizontal == "justify") {
-          cellValue.ht = 0; //fortunesheet unsupport
-        } else {
-          cellValue.ht = 1;
-        }
-      }
-
-      if (vertical != undefined) {
-        //Vertical alignment
-        if (vertical == "bottom") {
-          cellValue.vt = 2;
-        } else if (vertical == "center") {
-          cellValue.vt = 0;
-        } else if (vertical == "distributed") {
-          cellValue.vt = 0; //fortunesheet unsupport
-        } else if (vertical == "justify") {
-          cellValue.vt = 0; //fortunesheet unsupport
-        } else if (vertical == "top") {
-          cellValue.vt = 1;
-        } else {
-          cellValue.vt = 1;
-        }
-      } else {
-        //sometimes bottom style is lost after setting it in excel
-        //when vertical is undefined set it to 2.
-        cellValue.vt = 2;
-      }
-
-      if (wrapText != undefined) {
-        if (wrapText == "1") {
-          cellValue.tb = "2";
-        } else {
-          cellValue.tb = "1";
-        }
-      } else {
-        cellValue.tb = "1";
-      }
-
-      if (textRotation != undefined) {
-        // tr: number | undefined //Text rotation,0: 0、1: 45 、2: -45、3 Vertical text、4: 90 、5: -90, alignment
-        if (textRotation == "255") {
-          cellValue.tr = "3" as any;
-        }
-        // else if(textRotation=="45"){
-        //     cellValue.tr = 1;
-        // }
-        // else if(textRotation=="90"){
-        //     cellValue.tr = 4;
-        // }
-        // else if(textRotation=="135"){
-        //     cellValue.tr = 2;
-        // }
-        // else if(textRotation=="180"){
-        //     cellValue.tr = 5;
-        // }
-        else {
-          cellValue.tr = "0" as any;
-          cellValue.rt = parseInt(textRotation);
-        }
-      }
-
-      const isTrue = (v: any) => v == "1" || v == "true";
-      if (shrinkToFit != undefined && isTrue(shrinkToFit)) {
-        cellValue.sk = 1;
-      }
-
-      if (indent != undefined) {
-        const level = parseInt(indent, 10);
-        if (level > 0) cellValue.ind = Math.min(level, 250);
-      }
-
-      // Excel cells are locked unless the style says otherwise
-      if (locked != undefined && !isTrue(locked)) {
-        cellValue.lo = 0;
-      }
-      if (formulaHidden != undefined && isTrue(formulaHidden)) {
-        cellValue.hi = 1;
-      }
-
-      if (borderId != undefined) {
-        let borderIdNum = parseInt(borderId);
-        let border = borders[borderIdNum];
-        // this._borderId = borderIdNum;
-
-        let borderObject = new FortuneSheetborderInfoCellForImp();
+      if (style.border) {
+        const borderObject = new FortuneSheetborderInfoCellForImp();
         borderObject.rangeType = "cell";
-        // borderObject.cells = [];
-        let borderCellValue = new FortuneSheetborderInfoCellValue();
-
-        borderCellValue.row_index = this.r;
-        borderCellValue.col_index = this.c;
-
-        let lefts = border.getInnerElements("left");
-        let rights = border.getInnerElements("right");
-        let tops = border.getInnerElements("top");
-        let bottoms = border.getInnerElements("bottom");
-        let diagonals = border.getInnerElements("diagonal");
-
-        let starts = border.getInnerElements("start");
-        let ends = border.getInnerElements("end");
-
-        let left = this.getBorderInfo(lefts);
-        let right = this.getBorderInfo(rights);
-        let top = this.getBorderInfo(tops);
-        let bottom = this.getBorderInfo(bottoms);
-        let diagonal = this.getBorderInfo(diagonals);
-
-        let start = this.getBorderInfo(starts);
-        let end = this.getBorderInfo(ends);
-
-        let isAdd = false;
-
-        if (start != null && start.color != null) {
-          borderCellValue.l = start;
-          isAdd = true;
-        }
-
-        if (end != null && end.color != null) {
-          borderCellValue.r = end;
-          isAdd = true;
-        }
-
-        if (left != null && left.color != null) {
-          borderCellValue.l = left;
-          isAdd = true;
-        }
-
-        if (right != null && right.color != null) {
-          borderCellValue.r = right;
-          isAdd = true;
-        }
-
-        if (top != null && top.color != null) {
-          borderCellValue.t = top;
-          isAdd = true;
-        }
-
-        if (bottom != null && bottom.color != null) {
-          borderCellValue.b = bottom;
-          isAdd = true;
-        }
-
-        if (isAdd) {
-          borderObject.value = borderCellValue;
-          // this.config._borderInfo[borderId] = borderObject;
-          this._borderObject = borderObject;
-        }
+        const value = new FortuneSheetborderInfoCellValue();
+        value.row_index = this.r;
+        value.col_index = this.c;
+        Object.assign(value, style.border);
+        borderObject.value = value;
+        this._borderObject = borderObject;
       }
+      quotePrefix = style.quotePrefix;
     } else {
       cellValue.tb = "1";
     }
 
-    this.assignValue(cellValue, t, v);
+    this.assignValue(
+      cellValue,
+      t,
+      v,
+      inner,
+      styles,
+      sharedStrings,
+      workbookInfo
+    );
 
     if (quotePrefix != null) {
       cellValue.qp = parseInt(quotePrefix);
     }
-
     return cellValue;
   }
 
@@ -582,11 +656,15 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
   private assignValue(
     cellValue: FortuneSheetCelldataValue,
     t: string,
-    v: Element[] | null
+    v: ScannedElement | null,
+    inner: string | null,
+    styles: IStyleCollections,
+    sharedStrings: Element[],
+    workbookInfo: FortuneCellWorkbookInfo
   ) {
     const fa = cellValue.ct?.fa;
     const setType = (type: string, format?: string) => {
-      const ct = cellValue.ct ?? new FortuneSheetCellFormat();
+      const ct = cellValue.ct ?? ({} as FortuneSheetCellFormat);
       ct.fa = format ?? ct.fa ?? "General";
       ct.t = type;
       cellValue.ct = ct;
@@ -594,28 +672,29 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
 
     if (t == ST_CellType["SharedString"]) {
       if (v == null) return;
-      const si = this.sharedStrings[parseInt(v[0].value)];
-      if (si != null) this.assignStringItem(cellValue, si);
+      const parsed = sharedString(parseInt(v.inner), sharedStrings, styles);
+      if (parsed != null) assignParsedString(cellValue, parsed);
       return;
     }
 
     if (t == ST_CellType["InlineString"]) {
-      const is = this.cell.getInnerElements("is");
-      if (is != null) this.assignStringItem(cellValue, is[0]);
+      const is = inner ? childElement(inner, "is") : null;
+      if (is != null) {
+        const item = new Element(`<is>${is.inner ?? ""}</is>`);
+        assignParsedString(cellValue, parseStringItem(item, styles));
+      }
       return;
     }
 
-    if (v == null) {
+    const raw = v == null ? null : escapeCharacter(v.inner ?? "");
+
+    // No value; generators (openpyxl/XlsxWriter) also often emit `<v></v>`
+    // for formulas that were never calculated: leave `v` unset so the
+    // formula is evaluated.
+    if (raw == null || (raw === "" && cellValue.f != null)) {
       if (cellValue.ct != null && cellValue.ct.t == null) cellValue.ct.t = "n";
       return;
     }
-    let raw = v[0].value ?? "";
-    if (/&#\d+;/.test(raw)) raw = this.htmlDecode(raw);
-    raw = escapeCharacter(raw);
-
-    // Generators (openpyxl/XlsxWriter) often emit `<v></v>` for formulas
-    // that were never calculated: leave `v` unset so the formula is evaluated.
-    if (raw === "" && cellValue.f != null) return;
 
     if (t == ST_CellType["Boolean"]) {
       const b = raw === "1" || raw.toUpperCase() === "TRUE";
@@ -631,7 +710,7 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
       return;
     }
     if (t == ST_CellType["String"]) {
-      const text = this.replaceSpecialWrap(raw);
+      const text = decodeCellText(raw);
       cellValue.v = text;
       cellValue.m = text;
       setType(fa === "@" ? "s" : "g");
@@ -651,193 +730,18 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
     }
     const format = fa ?? "General";
     const isDate = isDateFormat(format);
-    if (isDate && this.workbookInfo.date1904) num += DATE1904_OFFSET;
+    if (isDate && workbookInfo.date1904) num += DATE1904_OFFSET;
     cellValue.v = num as any;
-    cellValue.m = formatValue(format, num);
+    cellValue.m = displayNumber(format, num);
     setType(isDate ? "d" : "n", format);
   }
+}
 
-  /** Text or rich text of a shared-string / inline-string item. */
-  private assignStringItem(cellValue: FortuneSheetCelldataValue, si: Element) {
-    // Phonetic runs (<rPh>) are not part of the text.
-    const item = new Element(
-      si.elementString.replace(/<rPh\b[\s\S]*?<\/rPh>/g, "")
-    );
-    let rFlag = item.getInnerElements("r");
-    if (rFlag == null) {
-      let tFlag = item.getInnerElements("t");
-      let text = "";
-      if (tFlag != null) {
-        tFlag.forEach((tt) => {
-          text += tt.value;
-        });
-      }
-      text = this.replaceSpecialWrap(escapeCharacter(text));
-      if (text.indexOf("\r\n") > -1 || text.indexOf("\n") > -1) {
-        let InlineString: any = { v: text.replace(/\r?\n/g, "\r\n") };
-        for (const key of INHERITED_RUN_KEYS) {
-          if ((cellValue as any)[key] != null) {
-            InlineString[key] = (cellValue as any)[key];
-          }
-        }
-        let cellFormat = cellValue.ct ?? new FortuneSheetCellFormat();
-        cellFormat.fa = cellFormat.fa ?? "General";
-        cellFormat.t = "inlineStr";
-        cellFormat.s = [InlineString];
-        cellValue.ct = cellFormat;
-      } else {
-        cellValue.v = text;
-        cellValue.m = text;
-        let cellFormat = cellValue.ct ?? new FortuneSheetCellFormat();
-        cellFormat.fa = cellFormat.fa ?? "General";
-        cellFormat.t = cellFormat.fa === "@" ? "s" : "g";
-        cellValue.ct = cellFormat;
-        // Keep numeric-looking text as text when edited.
-        cellValue.qp = 1;
-      }
-      return;
-    }
-
-    let styles: any = [];
-    rFlag.forEach((r) => {
-      let tFlag = r.getInnerElements("t");
-      let rPr = r.getInnerElements("rPr");
-
-      let InlineString: any = {};
-
-      if (tFlag != null && tFlag.length > 0) {
-        let text = tFlag[0].value;
-        text = this.replaceSpecialWrap(escapeCharacter(text));
-        InlineString.v = text.replace(/\r?\n/g, "\r\n");
-      }
-
-      if (rPr != null && rPr.length > 0) {
-        let frpr = rPr[0];
-        let sz = getlineStringAttr(frpr, "sz"),
-          rFont = getlineStringAttr(frpr, "rFont"),
-          b = getlineStringAttr(frpr, "b"),
-          i = getlineStringAttr(frpr, "i"),
-          u = getlineStringAttr(frpr, "u"),
-          strike = getlineStringAttr(frpr, "strike"),
-          vertAlign = getlineStringAttr(frpr, "vertAlign"),
-          color;
-
-        let cEle = frpr.getInnerElements("color");
-        if (cEle != null && cEle.length > 0) {
-          color = getColor(cEle[0], this.styles, "t");
-        }
-
-        const pick = (key: string, own: any, parse = (x: any) => x) => {
-          if (own != null) InlineString[key] = parse(own);
-          else if ((cellValue as any)[key] != null)
-            InlineString[key] = (cellValue as any)[key];
-        };
-        pick("ff", rFont);
-        pick("fc", color);
-        pick("fs", sz, (x) => parseFloat(x));
-        pick("cl", strike, (x) => parseInt(x));
-        pick("un", u, (x) => parseInt(x));
-        pick("bl", b, (x) => parseInt(x));
-        pick("it", i, (x) => parseInt(x));
-        if (vertAlign != null) InlineString.va = parseInt(vertAlign);
-      } else {
-        for (const key of INHERITED_RUN_KEYS) {
-          if (InlineString[key] == null && (cellValue as any)[key] != null) {
-            InlineString[key] = (cellValue as any)[key];
-          }
-        }
-      }
-
-      styles.push(InlineString);
-    });
-
-    let cellFormat = cellValue.ct ?? new FortuneSheetCellFormat();
-    cellFormat.fa = cellFormat.fa ?? "General";
-    cellFormat.t = "inlineStr";
-    cellFormat.s = styles;
-    cellValue.ct = cellFormat;
-  }
-
-
-  private replaceSpecialWrap(text: string): string {
-    text = text
-      .replace(/_x000D_/g, "")
-      .replace(/&#13;&#10;/g, "\r\n")
-      .replace(/&#13;/g, "\r")
-      .replace(/&#10;/g, "\n");
-    return text;
-  }
-
-  private getBackgroundByFill(
-    fill: Element,
-    clrScheme: Element[]
-  ): string | null {
-    let patternFills = fill.getInnerElements("patternFill");
-    if (patternFills != null) {
-      let patternFill = patternFills[0];
-      let fgColors = patternFill.getInnerElements("fgColor");
-      let bgColors = patternFill.getInnerElements("bgColor");
-      let fg, bg;
-      if (fgColors != null) {
-        let fgColor = fgColors[0];
-        fg = getColor(fgColor, this.styles);
-      }
-
-      if (bgColors != null) {
-        let bgColor = bgColors[0];
-        bg = getColor(bgColor, this.styles);
-      }
-      // console.log(fgColors,bgColors,clrScheme);
-      if (fg != null) {
-        return fg;
-      } else if (bg != null) {
-        return bg;
-      }
-    } else {
-      let gradientfills = fill.getInnerElements("gradientFill");
-      if (gradientfills != null) {
-        //graient color fill handler
-
-        return null;
-      }
-    }
-  }
-
-  private getBorderInfo(
-    borders: Element[]
-  ): FortuneSheetborderInfoCellValueStyle {
-    if (borders == null) {
-      return null;
-    }
-
-    let border = borders[0],
-      attrList = border.attributeList;
-    let clrScheme = this.styles["clrScheme"] as Element[];
-    let style: string = attrList.style;
-    if (style == null || style == "none") {
-      return null;
-    }
-
-    let colors = border.getInnerElements("color");
-    let colorRet = "#000000";
-    if (colors != null) {
-      let color = colors[0];
-      colorRet = getColor(color, this.styles, "b");
-      if (colorRet == null) {
-        colorRet = "#000000";
-      }
-    }
-
-    let ret = new FortuneSheetborderInfoCellValueStyle();
-    ret.style = borderTypes[style];
-    ret.color = colorRet;
-
-    return ret;
-  }
-
-  private htmlDecode(str: string): string {
-    return str.replace(/&#(x)?([^&]{1,5});/g, function ($, $1, $2) {
-      return String.fromCharCode(parseInt($2, $1 ? 16 : 10));
-    });
-  }
+function toPosition(range: any): { r: number; c: number } | null {
+  if (!range) return null;
+  const r = range.row?.[0];
+  const c = range.column?.[0];
+  return Number.isInteger(r) && Number.isInteger(c) && r >= 0 && c >= 0
+    ? { r, c }
+    : null;
 }

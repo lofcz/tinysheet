@@ -2,6 +2,18 @@ import { FortuneFile } from "../ToFortuneSheet/FortuneFile";
 import { HandleZip } from "../ToFortuneSheet/HandleZip";
 import { CsvParseOptions, parseCsv } from "../csv";
 import type { ExcelImportResult, ExcelImportSizing } from "./types";
+import { workBookFile } from "../common/constant";
+
+/** Why a file could not be imported (`code`), with a readable message. */
+export class ExcelImportError extends Error {
+  code: "unsupported-format" | "not-a-zip" | "no-workbook";
+
+  constructor(code: ExcelImportError["code"], message: string) {
+    super(message);
+    this.name = "ExcelImportError";
+    this.code = code;
+  }
+}
 
 export type ParseExcelOptions = {
   /** Options for .csv / .tsv / .txt input (delimiter, encoding, locale). */
@@ -79,7 +91,29 @@ export async function parseExcel(
 
   const buffer =
     file instanceof ArrayBuffer ? file : await (file as Blob).arrayBuffer();
-  const files = await new HandleZip(new File([buffer], name)).unzipFile();
+  const head = new Uint8Array(buffer, 0, Math.min(8, buffer.byteLength));
+  if (head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11) {
+    // OLE2 compound file: a legacy .xls, or an encrypted .xlsx
+    throw new ExcelImportError(
+      "unsupported-format",
+      "This file is a legacy .xls or a password-protected workbook; save it as an unprotected .xlsx first."
+    );
+  }
+  let files;
+  try {
+    files = await new HandleZip(buffer).unzipFile();
+  } catch (e) {
+    throw new ExcelImportError(
+      "not-a-zip",
+      `Not an .xlsx file (${e instanceof Error ? e.message : String(e)})`
+    );
+  }
+  if (!files[workBookFile]) {
+    throw new ExcelImportError(
+      "no-workbook",
+      "Not an .xlsx workbook: the package has no workbook part."
+    );
+  }
   const fortuneFile = new FortuneFile(files, name);
   fortuneFile.Parse();
   const serialized = fortuneFile.serialize();

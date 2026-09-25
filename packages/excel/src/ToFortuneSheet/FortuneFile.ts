@@ -31,6 +31,7 @@ import {
   sheetImportFeatures,
   workbookImportFeatures,
   WorkbookImportInfo,
+  resolvePartPath,
 } from "./importFeatures";
 import {
   importDefinedNames,
@@ -143,19 +144,23 @@ export class FortuneFile {
       return;
     }
 
-    let regex = new RegExp("worksheets/[^/]*?.xml");
+    let regex = new RegExp("worksheets/[^/]*?.xml", "i");
     let sheetNames: IattributeList = {};
+    // part names are case-insensitive: map targets to the zip's spelling
+    let byLowerName = new Map<string, string>();
+    Object.keys(this.files).forEach((name) =>
+      byLowerName.set(name.toLowerCase(), name)
+    );
     for (let i = 0; i < workbookRelList.length; i++) {
       let rel = workbookRelList[i],
         attrList = rel.attributeList;
       let id = attrList["Id"],
-        target = attrList["Target"];
-      if (regex.test(target)) {
-        if (target.indexOf("/xl") === 0) {
-          sheetNames[id] = target.substr(1);
-        } else {
-          sheetNames[id] = "xl/" + target;
-        }
+        target = attrList["Target"],
+        type = attrList["Type"] || "";
+      if (id == null || target == null) continue;
+      if (/\/worksheet$/.test(type) || (!type && regex.test(target))) {
+        let path = resolvePartPath("xl", escapeCharacter(target));
+        sheetNames[id] = byLowerName.get(path.toLowerCase()) ?? path;
       }
     }
 
@@ -231,7 +236,7 @@ export class FortuneFile {
       let hide = state === "hidden" || state === "veryHidden" ? 1 : 0;
 
       let drawing = this.readXml.getElementsByTagName(
-          "worksheet/drawing",
+          "drawing",
           sheetFile
         ),
         drawingFile,
@@ -241,7 +246,8 @@ export class FortuneFile {
         let rid = getXmlAttibute(attrList, "r:id", null);
         if (rid != null) {
           drawingFile = this.getDrawingFile(rid, sheetFile);
-          drawingRelsFile = this.getDrawingRelsFile(drawingFile);
+          drawingRelsFile =
+            drawingFile != null ? this.getDrawingRelsFile(drawingFile) : null;
         }
       }
 
@@ -612,50 +618,58 @@ export class FortuneFile {
       }
 
       // https://github.com/ruilisi/fortune-sheet/issues/299
+      // every cell of every merge -> its merge (anchors get rs/cs)
       const merges = new Map();
       if (sheet.config?.merge) {
         for (const { r, c, rs, cs } of Object.values(sheet.config.merge)) {
+          // huge merges (whole rows/columns) are resolved per cell below
+          if (!(rs * cs <= 100000)) continue;
+          for (let i = r; i < r + rs; i++)
+            for (let j = c; j < c + cs; j++)
+              if (i !== r || j !== c) merges.set(i + "_" + j, { r, c });
           merges.set(r + "_" + c, { r, c, rs, cs });
-          for (let i = r + 1; i < r + rs; i++)
-            for (let j = c + 1; j < c + cs; j++)
-              merges.set(i + "_" + j, { r, c });
         }
       }
+      const bigMerges = Object.values(sheet.config?.merge ?? {}).filter(
+        (m) => !(m.rs * m.cs <= 100000)
+      );
+      const plain = (o: any) => Object.getPrototypeOf(o) === Object.prototype;
 
       if (sheet.celldata != null) {
-        // Plain objects matter here
-        sheetout.celldata = [];
+        // Plain objects matter here (immer can only draft plain objects)
+        sheetout.celldata = new Array(sheet.celldata.length);
+        let n = 0;
         for (let { r, c, v } of sheet.celldata) {
-          if (typeof v === "object") {
-            const { ...xv } = v;
-            v = xv;
-            if (v.ct) {
+          if (v != null && typeof v === "object") {
+            if (!plain(v)) {
+              const { ...xv } = v;
+              v = xv;
+            }
+            if (v.ct && !plain(v.ct)) {
               const { ...ct } = v.ct;
               v.ct = ct;
             }
-            if (merges.has(r + "_" + c)) {
-              v.mc = merges.get(r + "_" + c);
-              if (v.mc.r !== r || v.mc.c !== c) v = { mc: v.mc };
-            } else {
-              for (const key in sheet.config.merge) {
-                if (sheet.config.merge.hasOwnProperty(key)) {
-                  const range = sheet.config.merge[key];
-                  if (
-                    r >= range.r &&
-                    r < range.r + range.rs &&
-                    c >= range.c &&
-                    c < range.c + range.cs
-                  ) {
-                    v.mc = { r: range.r, c: range.c };
-                    if (v.mc.r !== r || v.mc.c !== c) v = { mc: v.mc };
-                    break;
-                  }
-                }
+            let merge = merges.size ? merges.get(r + "_" + c) : undefined;
+            if (merge == null && bigMerges.length) {
+              const range = bigMerges.find(
+                (m) =>
+                  r >= m.r && r < m.r + m.rs && c >= m.c && c < m.c + m.cs
+              );
+              if (range) {
+                merge =
+                  range.r === r && range.c === c
+                    ? { r, c, rs: range.rs, cs: range.cs }
+                    : { r: range.r, c: range.c };
               }
             }
+            if (merge != null) {
+              v.mc = { ...merge };
+              if (merge.r !== r || merge.c !== c) v = { mc: v.mc };
+            }
           }
-          sheetout.celldata.push({ r, c, v });
+          sheetout.celldata[n++] = { r, c, v };
         }
+        sheetout.celldata.length = n;
       }
 
       if (sheet.chart != null) {

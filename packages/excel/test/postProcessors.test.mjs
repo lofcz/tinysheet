@@ -114,8 +114,14 @@ test("registerXlsxPostProcessor: order, replacement, unregister, context", async
 });
 
 test("xlsxParts helpers", () => {
-  assert.equal(resolveTarget("xl/worksheets/sheet1.xml", "../drawings/d1.xml"), "xl/drawings/d1.xml");
-  assert.equal(relativeTarget("xl/worksheets/sheet1.xml", "xl/drawings/d1.xml"), "../drawings/d1.xml");
+  assert.equal(
+    resolveTarget("xl/worksheets/sheet1.xml", "../drawings/d1.xml"),
+    "xl/drawings/d1.xml"
+  );
+  assert.equal(
+    relativeTarget("xl/worksheets/sheet1.xml", "xl/drawings/d1.xml"),
+    "../drawings/d1.xml"
+  );
   const rels = addRelationship(null, "t:x", "a.xml");
   assert.equal(rels.id, "rId1");
   const again = addRelationship(rels.xml, "t:x", "a.xml");
@@ -128,7 +134,10 @@ test("xlsxParts helpers", () => {
   const withBreaks = insertWorksheetElement(sheet, "rowBreaks", "<rowBreaks/>");
   assert.match(withBreaks, /<pageMargins left="1"\/><rowBreaks\/><tableParts/);
   const ext = addExtension(sheet, "{A}", '<ext uri="{A}"><a/></ext>');
-  assert.match(ext, /<tableParts count="0"\/><extLst><ext uri="\{A\}"><a\/><\/ext><\/extLst><\/worksheet>/);
+  assert.match(
+    ext,
+    /<tableParts count="0"\/><extLst><ext uri="\{A\}"><a\/><\/ext><\/extLst><\/worksheet>/
+  );
   const replaced = addExtension(ext, "{A}", '<ext uri="{A}"><b/></ext>');
   assert.match(replaced, /<ext uri="\{A\}"><b\/><\/ext><\/extLst>/);
   assert.doesNotMatch(replaced, /<a\/>/);
@@ -140,10 +149,25 @@ test("dropdown without the in-cell arrow: showDropDown=1 (Excel's inverted flag)
       name: "DV",
       celldata: [],
       dataVerification: {
-        "0_0": { type: "dropdown", value1: "a,b", value2: "", showDropdown: false },
-        "1_0": { type: "dropdown", value1: "a,b", value2: "", showDropdown: false },
+        "0_0": {
+          type: "dropdown",
+          value1: "a,b",
+          value2: "",
+          showDropdown: false,
+        },
+        "1_0": {
+          type: "dropdown",
+          value1: "a,b",
+          value2: "",
+          showDropdown: false,
+        },
         "2_0": { type: "dropdown", value1: "a,b", value2: "" },
-        "0_1": { type: "dropdown", value1: "x,y", value2: "", showDropdown: true },
+        "0_1": {
+          type: "dropdown",
+          value1: "x,y",
+          value2: "",
+          showDropdown: true,
+        },
       },
     },
   ]);

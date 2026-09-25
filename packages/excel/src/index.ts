@@ -1,5 +1,18 @@
-export { parseExcel } from "./parse/parseExcel";
+export { parseExcel, ExcelImportError } from "./parse/parseExcel";
 export type { ParseExcelOptions } from "./parse/parseExcel";
+// Off-main-thread import (Web Worker), see parse/worker.ts.
+export {
+  exposeParseExcelWorker,
+  parseExcelInWorker,
+  handleParseExcelRequest,
+  encodeExcelImportResult,
+  decodeExcelImportResult,
+} from "./parse/worker";
+export type {
+  ParseExcelWorkerRequest,
+  ParseExcelWorkerResponse,
+  ParseExcelInWorkerOptions,
+} from "./parse/worker";
 export type { ExcelImportResult, ExcelImportSizing } from "./parse/types";
 
 export { applyExcelImport } from "./hydrate/applyExcelImport";

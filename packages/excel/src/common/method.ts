@@ -974,21 +974,65 @@ export function isContainMultiType(str: string): boolean {
  *     ['13_4', '13_9','13_14', '13_19', '13_24', '13_3', '13_8',  '13_13', '13_18', '13_23']
  *  3、E46:E47 -> ['45_4',  '46_4']
  *
+ * Linear in the number of cells (duplicates are dropped with a set). When
+ * the ranges cover more than `bounds.maxCells` cells (whole columns, say),
+ * they are clipped to rows <= bounds.lastRow and columns <= bounds.lastCol
+ * (0-based) first.
+ *
  * @param {string} sqref - before sequence
  * @returns {string[]}
  */
-export function getMultiSequenceToNum(sqref: string): string[] {
+export function getMultiSequenceToNum(
+  sqref: string,
+  bounds?: { lastRow: number; lastCol: number; maxCells?: number }
+): string[] {
   if (!sqref || sqref?.length <= 0) return [];
-  sqref = sqref.toUpperCase();
-  let sqrefRawArr = sqref.split(" ");
-  let sqrefArr = sqrefRawArr.filter((e) => e && e.trim());
-  let sqrefLastArr = getSqrefRawArrFormat(sqrefArr);
-
-  let resArr: string[] = [];
-  for (let i = 0; i < sqrefLastArr.length; i++) {
-    let _res = getSingleSequenceToNum(sqrefLastArr[i]);
-    if (_res) resArr.push(_res);
+  const ranges: { r1: number; c1: number; r2: number; c2: number }[] = [];
+  sqref
+    .toUpperCase()
+    .split(/\s+/)
+    .forEach((token) => {
+      if (!token) return;
+      const [a, b] = token.replace(/\$/g, "").split(":");
+      const m1 = /^([A-Z]+)(\d+)$/.exec(a);
+      const m2 = b != null ? /^([A-Z]+)(\d+)$/.exec(b) : m1;
+      if (!m1 || !m2) return;
+      const ra = parseInt(m1[2]) - 1;
+      const rb = parseInt(m2[2]) - 1;
+      const ca = ABCatNum(m1[1]);
+      const cb = ABCatNum(m2[1]);
+      if (![ra, rb, ca, cb].every((n) => Number.isFinite(n) && n >= 0)) return;
+      ranges.push({
+        r1: Math.min(ra, rb),
+        r2: Math.max(ra, rb),
+        c1: Math.min(ca, cb),
+        c2: Math.max(ca, cb),
+      });
+    });
+  const total = ranges.reduce(
+    (n, x) => n + (x.r2 - x.r1 + 1) * (x.c2 - x.c1 + 1),
+    0
+  );
+  if (bounds && total > (bounds.maxCells ?? 10000)) {
+    ranges.forEach((x) => {
+      x.r2 = Math.min(x.r2, Math.max(bounds.lastRow, x.r1));
+      x.c2 = Math.min(x.c2, Math.max(bounds.lastCol, x.c1));
+    });
   }
+  const seen = new Set<string>();
+  const resArr: string[] = [];
+  ranges.forEach(({ r1, c1, r2, c2 }) => {
+    // column-major, as before
+    for (let c = c1; c <= c2; c++) {
+      for (let r = r1; r <= r2; r++) {
+        const key = r + "_" + c;
+        if (!seen.has(key)) {
+          seen.add(key);
+          resArr.push(key);
+        }
+      }
+    }
+  });
   return resArr;
 }
 
