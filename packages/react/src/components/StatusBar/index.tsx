@@ -15,6 +15,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -123,6 +124,15 @@ const StatusBar: React.FC = () => {
   }, [data, selection]);
 
   useOutsideClick(menuRef, () => setMenu(null), [menuRef]);
+
+  // keep the menu inside the window
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!menu || !el) return;
+    const { width } = el.getBoundingClientRect();
+    const max = window.innerWidth - width - 4;
+    if (menu.x > max) el.style.left = `${Math.max(4, max)}px`;
+  }, [menu]);
 
   useEffect(() => {
     if (!menu) return undefined;
