@@ -120,6 +120,7 @@ export function useInsertDeleteRunner() {
       if (!error) return;
       const messages: Record<string, string> = {
         partMC: cellMenu.partMC,
+        tableShift: cellMenu.tableShift,
         maxExceeded: cellMenu.overLimit,
         readOnly:
           choice === "entireColumn"
@@ -157,8 +158,19 @@ export const InsertDeleteDialog: React.FC<{
     rows > cols ? choices[0] : choices[1]
   );
   const firstRef = useRef<HTMLInputElement>(null);
+  const hideRef = useRef(hideModal);
+  hideRef.current = hideModal;
   useEffect(() => {
     firstRef.current?.focus();
+    // Esc closes the dialog even when the focus has gone back to the sheet
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      hideRef.current();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
   }, []);
 
   const submit = () => {
@@ -174,8 +186,6 @@ export const InsertDeleteDialog: React.FC<{
           if (e.key === "Enter") {
             e.preventDefault();
             submit();
-          } else if (e.key === "Escape") {
-            hideModal();
           }
         }}
       >

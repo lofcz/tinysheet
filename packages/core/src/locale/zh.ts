@@ -788,6 +788,7 @@ export default {
     partMC: "此操作会改变合并单元格的一部分。",
     noPickList: "此单元格上方或下方没有可选择的值。",
     overLimit: "工作表无法扩展到该大小。",
+    tableShift: "不允许执行此操作。该操作试图移动工作表上表格中的单元格。",
   },
   screenshot: {
     screenshotTipNoSelection: "请框选需要截图的范围",

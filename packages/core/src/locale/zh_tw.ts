@@ -777,6 +777,7 @@ export default {
     partMC: "此操作會變更合併儲存格的一部分。",
     noPickList: "此儲存格上方或下方沒有可挑選的值。",
     overLimit: "工作表無法擴充到該大小。",
+    tableShift: "不允許此操作。此操作嘗試移動工作表上表格中的儲存格。",
   },
   screenshot: {
     screenshotTipNoSelection: "請框選需要截圖的範圍",

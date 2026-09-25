@@ -746,6 +746,8 @@ export default {
     partMC: "Esta operación cambiaría parte de una celda combinada.",
     noPickList: "No hay valores encima o debajo de esta celda para elegir.",
     overLimit: "La hoja no puede crecer tanto.",
+    tableShift:
+      "No se permite esta operación. La operación intenta desplazar celdas de una tabla de la hoja de cálculo.",
   },
   screenshot: {
     screenshotTipNoSelection: "Selecciona el alcance de la captura de pantalla",

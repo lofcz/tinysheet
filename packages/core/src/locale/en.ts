@@ -746,6 +746,8 @@ export default {
     partMC: "This operation would change part of a merged cell.",
     noPickList: "There are no values above or below this cell to pick from.",
     overLimit: "The sheet cannot grow that much.",
+    tableShift:
+      "This operation is not allowed. The operation is attempting to shift cells in a table on your worksheet.",
   },
   screenshot: {
     screenshotTipNoSelection: "Please select the scope of the screenshot",

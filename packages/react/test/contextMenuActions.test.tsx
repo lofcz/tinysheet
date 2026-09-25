@@ -117,6 +117,51 @@ describe("cell menu entries backed by other features", () => {
     fireEvent.click(getByText("OK"));
     await waitFor(() => expect(ref.current!.getCellValue(0, 0)).toBe(2));
   });
+
+  it("Insert… refuses to tear a table apart, with Excel's message", async () => {
+    const { container, ref, getByLabelText, getByText, findByText } =
+      renderBook({
+        data: [
+          {
+            name: "Sheet1",
+            celldata: [num(0, 0, 1), num(1, 0, 2), num(2, 0, 3)],
+            tables: [
+              {
+                name: "Table1",
+                range: { row: [0, 2], column: [0, 1] },
+                headerRow: true,
+                totalRow: false,
+                bandedRows: true,
+                bandedColumns: false,
+                firstColumn: false,
+                lastColumn: false,
+                style: "TableStyleMedium2",
+                columns: [{ name: "A" }, { name: "B" }],
+              },
+            ],
+          },
+        ],
+      });
+    select(ref, [{ row: [1, 1], column: [1, 1] }]);
+    clickEntry(container, "insert-cells");
+    fireEvent.click(getByLabelText("Shift cells down"));
+    fireEvent.click(getByText("OK"));
+    expect(
+      await findByText(
+        "This operation is not allowed. The operation is attempting to shift cells in a table on your worksheet."
+      )
+    ).toBeTruthy();
+    expect(ref.current!.getCellValue(1, 0)).toBe(2);
+  });
+
+  it("Esc closes the Insert… dialog wherever the focus is", () => {
+    const { container, getByLabelText, queryByLabelText } = renderBook();
+    clickEntry(container, "insert-cells");
+    expect(getByLabelText("Shift cells down")).toBeTruthy();
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(queryByLabelText("Shift cells down")).toBeNull();
+  });
 });
 
 describe("Ctrl+- / Ctrl+Shift+= keyboard", () => {
