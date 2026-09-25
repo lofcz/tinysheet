@@ -1,6 +1,7 @@
 import { Patch as ImmerPatch } from "immer";
 import { PatchOptions } from "./utils";
 import type { Chart } from "./modules/chart";
+import type { Shape } from "./modules/shapes";
 
 export type Op = {
   op:
@@ -130,6 +131,8 @@ export type Sheet = {
   images?: Image[];
   /** Live chart objects (see `modules/chart.ts`). */
   charts?: Chart[];
+  /** Shapes and text boxes (see `modules/shapes.ts`); array order is z-order. */
+  shapes?: Shape[];
   zoomRatio?: number;
   column?: number;
   row?: number;

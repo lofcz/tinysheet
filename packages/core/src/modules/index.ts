@@ -51,6 +51,8 @@ export * from "./names";
 export * from "./tables";
 export * from "./chart";
 export * from "./chartRender";
+export * from "./shapes";
+export * from "./shapeGeometry";
 export * from "./modelSync";
 export * from "./formatCells";
 export { inferFormulaFormat } from "./formatInference";

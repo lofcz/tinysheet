@@ -11,7 +11,9 @@
  * - defined names (names.ts `adjustNamesForChange`),
  * - tables and structured references (tables.ts `adjustTablesForChange`),
  * - charts: series ranges and positions (chart.ts `adjustChartsForChange`),
- * - note boxes with an explicit position (`adjustNotesForChange` below).
+ * - note boxes with an explicit position (`adjustNotesForChange` below),
+ * - shapes and text boxes: their cell anchors (shapes.ts
+ *   `adjustShapesForChange`).
  *
  * The data-validation rule anchors register their own adjuster
  * (dataVerification.ts). Cell-keyed data (merges, data-validation and
@@ -38,6 +40,7 @@ import {
   rewriteFormula,
 } from "./refAdjust";
 import { columnLeftPx, insertedSizePx, rowTopPx } from "./sheetGeometry";
+import { adjustShapesForChange } from "./shapes";
 import {
   adjustTablesForChange,
   mapStructuredReferences,
@@ -129,12 +132,16 @@ const chartsAdjuster: ReferenceAdjuster = (ctx, change) =>
 const notesAdjuster: ReferenceAdjuster = (ctx, change) =>
   adjustNotesForChange(ctx, change);
 
+const shapesAdjuster: ReferenceAdjuster = (ctx, change) =>
+  adjustShapesForChange(ctx, change);
+
 /** Keys the model adjusters are registered under. */
 export const MODEL_ADJUSTER_KEYS = [
   "model.tables",
   "model.names",
   "model.charts",
   "model.notes",
+  "model.shapes",
 ] as const;
 
 /**
@@ -147,6 +154,7 @@ export function installModelAdjusters() {
   registerReferenceAdjuster("model.names", namesAdjuster);
   registerReferenceAdjuster("model.charts", chartsAdjuster);
   registerReferenceAdjuster("model.notes", notesAdjuster);
+  registerReferenceAdjuster("model.shapes", shapesAdjuster);
 }
 
 installModelAdjusters();
