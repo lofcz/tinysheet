@@ -36,3 +36,4 @@ export * from "./zoom";
 export * from "./refresh";
 export * from "./refAdjust";
 export * from "./pasteSpecial";
+export * from "./shiftCells";
