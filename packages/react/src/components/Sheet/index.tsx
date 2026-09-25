@@ -101,6 +101,10 @@ const OVERLAY_ONLY_KEYS = new Set<string>([
   "tabReturn",
   "groupedSheetIds",
   "showGoTo",
+  // formula auditing overlays and status (SVG / DOM only)
+  "traceArrows",
+  "watchWindow",
+  "calculationPending",
 ]);
 
 /** Whether anything the canvas renderer reads differs between two contexts. */

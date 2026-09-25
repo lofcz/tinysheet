@@ -1,6 +1,8 @@
 import type React from "react";
 import type { Context, Settings } from "@lofcz/tinysheet-core";
 import type { RefValues, SetContextOptions } from "../../context";
+// eslint-disable-next-line import/no-cycle
+import { loadBuiltinFeatures } from "../../features";
 
 /**
  * Hooks for context-menu entries whose feature lives in another module
@@ -65,15 +67,16 @@ export function getContextMenuAction(key: ContextMenuActionKey) {
  * `settings.cellContextMenu` / `headerContextMenu` that the menu does not
  * know renders its registered entry. Two forms are accepted:
  *
- * - an item object, one entry (with `menu: "image"` it shows in the menu of
- *   a floating picture instead):
+ * - an item object: one entry; with `menu: "image"` it shows in the menu of
+ *   a floating picture instead.
  *
  *     registerContextMenuItem("picture-alt-text", {
  *       label: (ctx) => locale(ctx).cellImage.altText,
  *       onSelect: ({ showDialog }) => showDialog(<AltText />),
  *     });
  *
- * - a builder function returning any number of entries for the active cell:
+ * - a builder: runs each time the menu opens and returns one entry, several,
+ *   or null to hide it; `children` make an entry a submenu.
  *
  *     registerContextMenuItem("new-comment", ({ r, c, close }) => [
  *       { key: "new-comment", label: "New Comment", onSelect: () => ... },
@@ -91,7 +94,7 @@ export type ContextMenuItem = {
   onSelect: ContextMenuAction;
 };
 
-/** An entry produced by a {@link ContextMenuItemBuilder}. */
+/** An entry returned by a {@link ContextMenuItemBuilder}. */
 export type BuiltContextMenuItem = {
   key: string;
   label: string;
@@ -99,7 +102,9 @@ export type BuiltContextMenuItem = {
   icon?: string;
   shortcut?: string;
   disabled?: boolean;
-  onSelect: () => void;
+  children?: BuiltContextMenuItem[];
+  /** Runs after the menu closed. */
+  onSelect?: (helpers: ContextMenuActionHelpers) => void;
 };
 
 export type ContextMenuItemBuilder = (
@@ -107,12 +112,12 @@ export type ContextMenuItemBuilder = (
     /** the active cell */
     r: number;
     c: number;
-    /** set for the row / column header menu */
+    /** "row" / "column" in the header menu, null in the cell menu */
     headerType: "row" | "column" | null;
     /** close the menu and give the focus back to the sheet */
     close: () => void;
   }
-) => BuiltContextMenuItem[];
+) => BuiltContextMenuItem | BuiltContextMenuItem[] | null | undefined;
 
 export type ContextMenuEntry = ContextMenuItem | ContextMenuItemBuilder;
 
@@ -127,11 +132,13 @@ export function registerContextMenuItem(name: string, entry: ContextMenuEntry) {
 }
 
 export function getContextMenuItem(name: string) {
+  loadBuiltinFeatures();
   return items.get(name);
 }
 
 /** Names of the item objects registered for `menu`, in registration order. */
 export function getContextMenuItemNames(menu: "cell" | "image") {
+  loadBuiltinFeatures();
   return [...items.entries()]
     .filter(
       ([, entry]) =>

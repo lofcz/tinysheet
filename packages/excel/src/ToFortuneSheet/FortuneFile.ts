@@ -733,6 +733,10 @@ export class FortuneFile {
         sheetout.hide = sheet.hide;
       }
 
+      if ((sheet as any).calcSettings != null) {
+        sheetout.calcSettings = (sheet as any).calcSettings;
+      }
+
       FortuneOutPutFile.sheets.push(sheetout);
     }
 

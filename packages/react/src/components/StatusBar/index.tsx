@@ -22,6 +22,7 @@ import React, {
 import WorkbookContext from "../../context";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import EditModeIndicator from "../EditModeIndicator";
+import { getStatusBarItems } from "../../extensions";
 import "./index.css";
 
 /** localStorage key for the aggregates the user chose to show. */
@@ -186,6 +187,10 @@ const StatusBar: React.FC = () => {
       {/* left side: mode indicator (Ready / Enter / Edit / Point) */}
       <div className="fortune-status-bar-left">
         <EditModeIndicator />
+        {/* items registered by features (extensions.tsx) */}
+        {getStatusBarItems().map(({ key, Component }) => (
+          <Component key={key} />
+        ))}
       </div>
       <div
         className="fortune-status-bar-stats"

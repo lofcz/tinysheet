@@ -31,6 +31,11 @@ import {
   isVolatileFormula as isWorkbookVolatileFormula,
 } from "./formulaFunctions";
 import { formulaUsesNames } from "./names";
+import {
+  deferRecalculation,
+  getCalcSettings,
+  shouldDeferRecalculation,
+} from "./calculation";
 
 /** Graph node: FormulaCellInfo plus the formula's literal references. */
 type GraphFormulaInfo = FormulaCellInfo & {
@@ -683,6 +688,103 @@ export function executeAffectedFormulas(
 
 export type ChangedCell = { r: number; c: number; id: string };
 
+/** Numeric view of a computed cell value, for the iteration's change test. */
+function iterationNumber(cell: any) {
+  const v = cell?.v;
+  if (typeof v === "number") return v;
+  if (typeof v === "boolean") return v ? 1 : 0;
+  if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) {
+    return Number(v);
+  }
+  return NaN;
+}
+
+type CyclicOrigin = { r: number; c: number; id: string; f: string };
+
+/**
+ * Iterative calculation (Excel's "Enable iterative calculation"): after the
+ * first pass, evaluate the formulas from the first cyclic one onwards again
+ * (the edited origin formula too when it is on the cycle) until no cyclic
+ * value changes by more than `maxChange`, at most `maxIterations` passes in
+ * total. Each pass reads the previous pass's values from the overlay.
+ */
+function iterateCycles(
+  ctx: Context,
+  graph: DependencyGraph,
+  order: string[],
+  cyclic: Set<string>,
+  data: CellMatrix | null | undefined,
+  origin: CyclicOrigin | null,
+  maxIterations: number,
+  maxChange: number
+) {
+  const fc = ctx.formulaCache;
+  let first = -1;
+  for (let i = 0; i < order.length && first < 0; i += 1) {
+    if (cyclic.has(order[i])) first = i;
+  }
+  const tail = first < 0 ? [] : order.slice(first);
+  const members: { r: number; c: number; id: string }[] = [];
+  cyclic.forEach((key) => {
+    const info = graph.nodes.get(key);
+    if (info) members.push({ r: info.r, c: info.c, id: info.id });
+  });
+  if (origin) members.push(origin);
+  const refreshStart = ctx.groupValuesRefreshData.length;
+  for (let pass = 1; pass < maxIterations; pass += 1) {
+    const before = members.map((m) =>
+      iterationNumber(fc.getGlobalCell(m.r, m.c, m.id))
+    );
+    if (origin) {
+      const v = execfunction(
+        ctx,
+        origin.f,
+        origin.r,
+        origin.c,
+        origin.id,
+        undefined,
+        false,
+        true
+      );
+      ctx.groupValuesRefreshData.push({
+        r: origin.r,
+        c: origin.c,
+        v: v[1],
+        f: v[2],
+        spe: v[3],
+        id: origin.id,
+      });
+      fc.setGlobalCell(origin.r, origin.c, origin.id, { v: v[1], f: v[2] });
+    }
+    executeAffectedFormulas(ctx, graph, tail, data);
+    let delta = 0;
+    members.forEach((m, i) => {
+      const after = iterationNumber(fc.getGlobalCell(m.r, m.c, m.id));
+      const d = Math.abs(after - before[i]);
+      if (Number.isNaN(d)) {
+        if (!(Number.isNaN(after) && Number.isNaN(before[i]))) delta = Infinity;
+      } else if (d > delta) delta = d;
+    });
+    if (delta <= maxChange) break;
+  }
+  // keep only the last result per cell of all passes (applied in order)
+  const list = ctx.groupValuesRefreshData;
+  if (list.length - refreshStart > members.length) {
+    const seen = new Set<string>();
+    const kept: any[] = [];
+    for (let i = list.length - 1; i >= refreshStart; i -= 1) {
+      const item = list[i];
+      const k = `${item.r}_${item.c}_${item.id}`;
+      if (!seen.has(k)) {
+        seen.add(k);
+        kept.push(item);
+      }
+    }
+    kept.reverse();
+    list.splice(refreshStart, list.length - refreshStart, ...kept);
+  }
+}
+
 /**
  * Recalculate every formula that (transitively) depends on `changed`, plus
  * volatile formulas and their dependents, in topological order.
@@ -691,6 +793,10 @@ export type ChangedCell = { r: number; c: number; id: string };
  * already known and it is never re-evaluated. When the edit entered a formula,
  * pass it as `originFormula` so its new references are indexed before
  * propagation (which lets cycles through it be detected).
+ *
+ * `isForce` recalculates every formula (of `sheetIds` only, when given).
+ * In manual calculation mode (calculation.ts) nothing is evaluated: the
+ * changed cells are remembered for the next F9.
  */
 export function recalculate(
   ctx: Context,
@@ -700,16 +806,19 @@ export function recalculate(
     origin?: ChangedCell;
     originFormula?: string;
     isForce?: boolean;
+    sheetIds?: string[];
   } = {}
 ) {
-  const { origin, originFormula, isForce } = options;
+  const { origin, originFormula, isForce, sheetIds } = options;
   const graph = getDependencyGraph(ctx);
 
   const touched = new Set<string>();
   for (let i = 0; i < changed.length; i += 1) touched.add(changed[i].id);
   if (isForce) {
     ctx.luckysheetfile.forEach((f) => {
-      if (f.id != null) touched.add(f.id);
+      if (f.id != null && (!sheetIds || sheetIds.includes(f.id))) {
+        touched.add(f.id);
+      }
     });
   }
   ensureIndexedFor(ctx, graph, touched, data);
@@ -730,9 +839,18 @@ export function recalculate(
     }
   }
 
+  // calculation mode gate (manual: dependents wait for F9)
+  if (!isForce && shouldDeferRecalculation(ctx)) {
+    deferRecalculation(ctx, changed);
+    return;
+  }
+
   let roots: string[];
   if (isForce) {
     roots = Array.from(graph.nodes.keys());
+    if (sheetIds) {
+      roots = roots.filter((k) => sheetIds.includes(graph.nodes.get(k)!.id));
+    }
   } else {
     roots = [];
     const push = (k: string) => {
@@ -769,7 +887,59 @@ export function recalculate(
   fc.recalcDepth += 1;
   try {
     executeAffectedFormulas(ctx, graph, order, data);
+    const calc = cyclic.size > 0 ? getCalcSettings(ctx) : null;
+    if (calc?.iterate && calc.maxIterations > 1) {
+      const originCyclic: CyclicOrigin | null =
+        origin &&
+        originKey &&
+        cyclic.has(originKey) &&
+        isFormulaText(originFormula)
+          ? { ...origin, f: originFormula }
+          : null;
+      iterateCycles(
+        ctx,
+        graph,
+        order,
+        cyclic,
+        data,
+        originCyclic,
+        calc.maxIterations,
+        calc.maxChange
+      );
+    }
   } finally {
     fc.recalcDepth -= 1;
   }
+}
+
+/**
+ * Formula cells (as `{r, c, id}`) that read any cell of the given block,
+ * found through the dependency graph (every sheet is indexed first).
+ */
+export function getDirectDependents(
+  ctx: Context,
+  sheetId: string,
+  rows: [number, number],
+  cols: [number, number]
+) {
+  const graph = getDependencyGraph(ctx);
+  const all = new Set<string>();
+  const files = peek(peek(ctx).luckysheetfile) || [];
+  for (let i = 0; i < files.length; i += 1) {
+    const id = peek(files[i])?.id;
+    if (id != null) all.add(id);
+  }
+  ensureIndexedFor(ctx, graph, all);
+  const keys = new Set<string>();
+  for (let r = rows[0]; r <= rows[1]; r += 1) {
+    for (let c = cols[0]; c <= cols[1]; c += 1) {
+      graph.forEachDependent(sheetId, r, c, (k) => keys.add(k));
+    }
+  }
+  const out: ChangedCell[] = [];
+  keys.forEach((k) => {
+    const info = graph.nodes.get(k);
+    if (info) out.push({ r: info.r, c: info.c, id: info.id });
+  });
+  return out;
 }

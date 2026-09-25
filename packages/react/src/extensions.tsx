@@ -8,10 +8,18 @@
  *   a component inside the cell area (positioned like the selection boxes;
  *   use the workbook context for geometry).
  *
+ * - status bar items: `registerStatusBarItem("calcStatus", CalcStatus)`.
+ *
  * Canvas cell decorators and keyboard shortcuts live in the core package
  * (`registerCellDecorator`, `registerShortcut`).
+ *
+ * Built-in features register themselves in ./features.ts, loaded on the
+ * first registry lookup (the package is side-effect free, so a feature
+ * module is never imported just for its registration).
  */
 import React from "react";
+// eslint-disable-next-line import/no-cycle
+import { loadBuiltinFeatures } from "./features";
 
 // context-menu entries: see components/ContextMenu/actions.ts
 export {
@@ -35,6 +43,7 @@ export function registerToolbarItem(name: string, render: ToolbarItemRenderer) {
 }
 
 export function getToolbarItemRenderer(name: string) {
+  loadBuiltinFeatures();
   return toolbarItems.get(name);
 }
 
@@ -55,5 +64,32 @@ export function registerSheetOverlay(
 }
 
 export function getSheetOverlays(): readonly OverlayEntry[] {
+  loadBuiltinFeatures();
   return overlays;
+}
+
+let statusBarItems: OverlayEntry[] = [];
+
+/**
+ * Mount a component in the status bar, after the mode indicator
+ * ("Calculate", "Circular References: A1", progress, ...).
+ */
+export function registerStatusBarItem(
+  key: string,
+  Component: React.ComponentType
+) {
+  statusBarItems = [
+    ...statusBarItems.filter((o) => o.key !== key),
+    { key, Component },
+  ];
+  return () => {
+    statusBarItems = statusBarItems.filter(
+      (o) => !(o.key === key && o.Component === Component)
+    );
+  };
+}
+
+export function getStatusBarItems(): readonly OverlayEntry[] {
+  loadBuiltinFeatures();
+  return statusBarItems;
 }

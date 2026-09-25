@@ -19,6 +19,7 @@ import type { FortuneSheet } from "./FortuneSheet";
 import { readThreadedComments, threadedCommentCells } from "./threadedComments";
 import { readPageSetup, readPrintNames } from "../common/pageSetup";
 import { readCellImages } from "./FortuneCellImage";
+import { importCalcProperties } from "../common/calcProperties";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
@@ -330,6 +331,7 @@ export const sheetImportFeatures: SheetImportFeature[] = [
 export const workbookImportFeatures: WorkbookImportFeature[] = [
   // _xlnm.Print_Area / _xlnm.Print_Titles -> sheet.pageSetup
   { name: "print-names", read: readPrintNames },
+  { name: "calc-properties", read: importCalcProperties },
 ];
 
 export function registerSheetImportFeature(feature: SheetImportFeature) {

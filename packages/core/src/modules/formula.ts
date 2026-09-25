@@ -68,7 +68,7 @@ import {
 import { settleSpillGrowth } from "./spill";
 
 // public: formula cells detected on a reference cycle (for a UI warning)
-export { getCircularReferences } from "./formulaHelper";
+export { getCircularReferences, getDirectDependents } from "./formulaHelper";
 
 let functionHTMLIndex = 0;
 let rangeIndexes: number[] = [];
@@ -171,6 +171,17 @@ export class FormulaCache {
 
   /** > 0 while recalculate() runs (sheet data is not written meanwhile) */
   recalcDepth = 0;
+
+  /**
+   * Manual calculation: cells whose dependents wait for F9 (see
+   * calculation.ts). `full` means everything must be recalculated; `token`
+   * is the graph token current when the cells were recorded.
+   */
+  pendingRecalc?: {
+    cells: Map<string, { r: number; c: number; id: string }>;
+    full: boolean;
+    token?: FormulaCellInfoMap | null;
+  };
 
   get execFunctionGlobalData(): any {
     return this.globalData;

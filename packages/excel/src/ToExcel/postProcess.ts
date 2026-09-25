@@ -36,6 +36,8 @@ export type XlsxPostProcessInfo = {
   sheetXmlFixups?: Record<number, ((xml: string) => string)[]>;
   /** Worksheet id -> pictures placed in cells (rich values). */
   cellImages?: CellImagePostInfo;
+  /** Further zip edits registered by export features (run last). */
+  fixups?: ((zip: JSZip) => Promise<void> | void)[];
 };
 
 const METADATA_XML =
@@ -236,6 +238,10 @@ export async function postProcessXlsx(
   await showNotes(zip, info);
   await writeThreadedCommentParts(zip, info);
   await applySheetXmlFixups(zip, info);
+  for (const fixup of info.fixups ?? []) {
+    // eslint-disable-next-line no-await-in-loop
+    await fixup(zip);
+  }
   return zip.generateAsync({
     type: "uint8array",
     compression: "DEFLATE",

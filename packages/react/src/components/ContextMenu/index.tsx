@@ -58,6 +58,7 @@ import {
   ContextMenuItem,
   getContextMenuItem,
   getContextMenuItemNames,
+  BuiltContextMenuItem,
 } from "./actions";
 import { registerDefaultContextMenuActions } from "./defaultActions";
 import { registerCellImageFeature } from "../CellImages";
@@ -826,16 +827,36 @@ const ContextMenu: React.FC = () => {
         const custom = getContextMenuItem(name);
         if (!custom) return [];
         if (typeof custom === "function") {
-          return custom({
+          const helpers = {
             ...workbookCtx,
-            showDialog: (content) => showDialog(content),
+            showDialog: (content: React.ReactNode) => showDialog(content),
             hideDialog,
             showModal,
+          };
+          const built = custom({
+            ...helpers,
             r: activeR,
             c: activeC,
             headerType,
             close,
-          }).map((entry) => ({ type: "item" as const, ...entry }));
+          });
+          if (!built) return [];
+          const toEntry = (x: BuiltContextMenuItem): ItemEntry => ({
+            type: "item",
+            key: x.key,
+            label: x.label,
+            icon: x.icon,
+            shortcut: x.shortcut,
+            disabled: x.disabled,
+            children: x.children?.map(toEntry),
+            onSelect: x.onSelect
+              ? () => {
+                  close();
+                  x.onSelect!(helpers);
+                }
+              : undefined,
+          });
+          return (Array.isArray(built) ? built : [built]).map(toEntry);
         }
         if (custom.visible?.(context) === false) return [];
         return item({

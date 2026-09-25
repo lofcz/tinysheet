@@ -57,6 +57,7 @@ describe("default toolbar", () => {
       "freeze image picture-in-cell chart link comment threaded-comment",
       "nameManager dataVerification splitColumn locationCondition screenshot",
       "pageLayout print",
+      "trace-precedents trace-dependents remove-arrows show-formulas error-checking evaluate-formula watch-window calculation-options",
     ]);
   });
 

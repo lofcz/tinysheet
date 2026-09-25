@@ -129,6 +129,7 @@ describe("cell context menu", () => {
       "Place Picture in Cell…",
       "Data Validation…",
       "Insert Chart",
+      "Formula Auditing",
     ]);
     // A1 has values below it to pick from
     expect(
