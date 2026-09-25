@@ -18,6 +18,7 @@ import { locale } from "../locale";
 import { Cell, CellMatrix, GlobalCache, SearchResult, Sheet } from "../types";
 import { chatatABC, getSheetIndex, isAllowEdit, replaceHtml } from "../utils";
 import { updateCell } from "./cell";
+import { recalculate } from "./formulaHelper";
 import { selectRangesOnSheet } from "./goTo";
 import { SimpleRange } from "./navigation";
 import { normalizeSelection, scrollToHighlightCell } from "./selection";
@@ -423,6 +424,22 @@ function replaceInCell(
   if (text == null || !matcher.test(text)) return false;
   const next = matcher.replace(text, replacement);
   if (next === text) return true;
+  if (cell?.ct?.t === "inlineStr") {
+    // rich text: replace inside each run to keep its formatting; a match
+    // spanning runs turns the cell into plain text
+    const runs: any[] = cell.ct.s ?? [];
+    const replaced = runs.map((run) =>
+      run?.v != null && matcher.test(String(run.v))
+        ? { ...run, v: matcher.replace(String(run.v), replacement) }
+        : run
+    );
+    if (replaced.map((run) => run?.v ?? "").join("") === next) {
+      cell.ct.s = replaced;
+      recalculate(ctx, [{ r: match.r, c: match.c, id: match.sheetId }], null);
+      return true;
+    }
+    cell.ct = { fa: "General", t: "g" };
+  }
   withSheet(ctx, match.sheetId, () => {
     updateCell(ctx, match.r, match.c, null, next === "" ? null : next);
   });

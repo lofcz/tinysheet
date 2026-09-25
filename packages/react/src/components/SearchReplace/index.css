@@ -4,7 +4,7 @@
   position: absolute;
   padding: var(--fortune-space-3) var(--fortune-space-5) var(--fortune-space-4);
   z-index: 1002;
-  width: 560px;
+  width: 660px;
   max-width: calc(100% - 16px);
   overflow: visible;
   cursor: move;
@@ -136,7 +136,7 @@
 #fortune-search-replace .btnBox {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--fortune-space-2);
+  gap: var(--fortune-space-1);
   margin-top: var(--fortune-space-2);
 }
 
@@ -145,7 +145,7 @@
 }
 
 #fortune-search-replace .btnBox .button-basic {
-  padding: 0 var(--fortune-space-3);
+  padding: 0 var(--fortune-space-2);
 }
 
 #fortune-search-replace .status {

@@ -297,4 +297,25 @@ describe("Replace / Replace All", () => {
     );
     expect(replaceAll(ctx, "zzz", "x", {})).toBe("There is nothing to replace");
   });
+
+  test("rich text keeps its formatting; a match across runs flattens it", () => {
+    const ctx = workbook();
+    const rich = (runs) => ({
+      ct: { fa: "General", t: "inlineStr", s: runs },
+    });
+    ctx.luckysheetfile[0].data[4][0] = rich([
+      { v: "red apple", fc: "#ff0000" },
+      { v: " and pear", bl: 1 },
+    ]);
+    ctx.luckysheetfile[0].data[5][0] = rich([{ v: "ap" }, { v: "ple" }]);
+    expect(where(findAllMatches(ctx, "apple"))).toContain("Sheet1!A5");
+    replaceAllMatches(ctx, "apple", "fig");
+    expect(ctx.luckysheetfile[0].data[4][0].ct.s).toEqual([
+      { v: "red fig", fc: "#ff0000" },
+      { v: " and pear", bl: 1 },
+    ]);
+    const flat = ctx.luckysheetfile[0].data[5][0];
+    expect(flat.ct.t).not.toBe("inlineStr");
+    expect(flat.v).toBe("fig");
+  });
 });

@@ -36,11 +36,17 @@ const GoTo: React.FC = () => {
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // give the keyboard back to the sheet once the dialog is gone
+  const refocusSheet = useCallback(() => {
+    setTimeout(() => refs.cellInput.current?.focus());
+  }, [refs.cellInput]);
+
   const close = useCallback(() => {
     setContext((ctx) => {
       ctx.showGoTo = false;
     });
-  }, [setContext]);
+    refocusSheet();
+  }, [refocusSheet, setContext]);
 
   const go = useCallback(
     (text: string) => {
@@ -73,8 +79,16 @@ const GoTo: React.FC = () => {
         goToReference(ctx, text);
         ctx.showGoTo = false;
       });
+      refocusSheet();
     },
-    [context, findAndReplace.gotoInvalid, recent, refs.globalCache, setContext]
+    [
+      context,
+      findAndReplace.gotoInvalid,
+      recent,
+      refocusSheet,
+      refs.globalCache,
+      setContext,
+    ]
   );
 
   const openSpecial = useCallback(() => {

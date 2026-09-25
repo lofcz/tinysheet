@@ -100,7 +100,9 @@ const SearchReplace: React.FC<{
       draftCtx.showSearch = false;
       draftCtx.showReplace = false;
     });
-  }, [refs.globalCache, setContext]);
+    // give the keyboard back to the sheet
+    setTimeout(() => refs.cellInput.current?.focus());
+  }, [refs.cellInput, refs.globalCache, setContext]);
 
   const setOption = useCallback(
     <K extends keyof Options>(key: K, value: Options[K]) =>
@@ -248,7 +250,7 @@ const SearchReplace: React.FC<{
   const getInitialPosition = useCallback((container: HTMLDivElement) => {
     const rect = container.getBoundingClientRect();
     return {
-      left: Math.max(0, (rect.width - 560) / 2),
+      left: Math.max(0, (rect.width - 660) / 2),
       top: Math.max(0, (rect.height - 260) / 3),
     };
   }, []);
