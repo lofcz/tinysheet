@@ -18,6 +18,8 @@ import dateFinancial from "./date-financial";
 import lambda from "./lambda";
 import database from "./database";
 import regression from "./regression";
+import groupby from "./groupby";
+import { setFunctionRegistry } from "./eta";
 import LEGACY_FUNCTION_NAMES from "./legacy";
 import formulajs from "../formulajs";
 
@@ -30,7 +32,7 @@ const CUSTOM_FUNCTIONS = Object.assign(
   lambda
 );
 // Functions batch 2 (phase 2, stream P2).
-Object.assign(CUSTOM_FUNCTIONS, database, regression);
+Object.assign(CUSTOM_FUNCTIONS, database, regression, groupby);
 
 function resolveFunction(name) {
   if (CUSTOM_FUNCTIONS[name]) {
@@ -40,6 +42,8 @@ function resolveFunction(name) {
     .split(".")
     .reduce((scope, part) => (scope ? scope[part] : undefined), formulajs);
 }
+
+setFunctionRegistry(CUSTOM_FUNCTIONS, resolveFunction);
 
 // Resolved on call so aliases follow whichever implementation wins.
 Object.keys(LEGACY_FUNCTION_NAMES).forEach((legacyName) => {
