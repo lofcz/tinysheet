@@ -108,7 +108,7 @@ test.describe("formula bar", () => {
     await page.mouse.move(x, y + 90, { steps: 5 });
     await page.mouse.up();
     await expect(bar(page)).toHaveClass(/fortune-fx-editor-expanded/);
-    const height = (await bar(page).boundingBox()).height;
+    const { height } = await bar(page).boundingBox();
     expect(height).toBeGreaterThan(100);
     await page.evaluate(() => window.localStorage.clear());
   });
