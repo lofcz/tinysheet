@@ -6,6 +6,8 @@ import {
   handleFormulaInput,
   moveFunctionCandidate,
   rangeHightlightselected,
+  refreshFormulaEditorState,
+  selectCallArgument,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../../context";
 
@@ -54,6 +56,20 @@ export function useFormulaEditorKeys(
       rerender(el);
     },
     [getEditor, rerender]
+  );
+
+  /** Argument hint: selects argument `index` of the call at the caret. */
+  const selectArgument = useCallback(
+    (index: number) => {
+      const el = getEditor();
+      if (!el) return;
+      el.focus();
+      if (!selectCallArgument(el, index)) return;
+      setContext((ctx) => {
+        refreshFormulaEditorState(ctx, el);
+      });
+    },
+    [getEditor, setContext]
   );
 
   /** Returns true when the key was consumed by the formula editor. */
@@ -131,5 +147,11 @@ export function useFormulaEditorKeys(
     [candidates.length, onCaretMove]
   );
 
-  return { onKeyDown, onKeyUp, onMouseUp: onCaretMove, acceptCandidate };
+  return {
+    onKeyDown,
+    onKeyUp,
+    onMouseUp: onCaretMove,
+    acceptCandidate,
+    selectArgument,
+  };
 }

@@ -356,6 +356,7 @@ const InputBox: React.FC = () => {
             style={{
               top: (firstSelection?.height_move || 0) + 4,
             }}
+            onSelectArgument={formulaKeys.selectArgument}
           />
         </>
       )}

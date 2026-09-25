@@ -19,8 +19,14 @@ type Param = {
  * Argument hint shown while the caret is inside a function call:
  * `NAME(arg1, [arg2], ...)` with the argument under the caret in bold,
  * followed by (collapsible) details about the function and that argument.
+ * Clicking an argument name selects that argument in the formula.
  */
-const FormulaHint: React.FC<React.HTMLAttributes<HTMLDivElement>> = (props) => {
+type Props = React.HTMLAttributes<HTMLDivElement> & {
+  /** called with an argument's index when its name is clicked */
+  onSelectArgument?: (index: number) => void;
+};
+
+const FormulaHint: React.FC<Props> = ({ onSelectArgument, ...props }) => {
   const { context } = useContext(WorkbookContext);
   const { formulaMore } = locale(context);
   const [collapsed, setCollapsed] = useState(false);
@@ -87,8 +93,21 @@ const FormulaHint: React.FC<React.HTMLAttributes<HTMLDivElement>> = (props) => {
                     i === current
                       ? " luckysheet-arguments-help-parameter-current"
                       : ""
+                  }${
+                    onSelectArgument
+                      ? " luckysheet-arguments-help-parameter-link"
+                      : ""
                   }`}
                   dir="auto"
+                  role={onSelectArgument ? "button" : undefined}
+                  title={
+                    onSelectArgument
+                      ? formulaMore.helpSelectArgument
+                      : undefined
+                  }
+                  onClick={
+                    onSelectArgument ? () => onSelectArgument(i) : undefined
+                  }
                 >
                   {paramLabel(param)}
                 </span>

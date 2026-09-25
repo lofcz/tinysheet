@@ -14,6 +14,7 @@ import type { Cell, CellMatrix } from "../types";
 import { locale } from "../locale";
 import { colors } from "./color";
 import { getNameCandidates } from "./names";
+import { escapeColumnName, findTable, tableAt } from "./tables";
 
 /* -------------------------------------------------------------------------- */
 /*                                  Tokenizer                                 */
@@ -430,27 +431,247 @@ export function insertFunctionName(
   };
 }
 
+export function getFunctionListMap(ctx: Context): Record<string, any> {
+  const map = ctx.formulaCache.functionlistMap;
+  if (map && Object.keys(map).length > 0) return map;
+  const { functionlist } = locale(ctx);
+  for (let i = 0; i < functionlist.length; i += 1) {
+    ctx.formulaCache.functionlistMap[functionlist[i].n] = functionlist[i];
+  }
+  return ctx.formulaCache.functionlistMap;
+}
+
 /* -------------------------------------------------------------------------- */
-/*                   Extra candidates (defined names, tables)                 */
+/*        Extra candidates (defined names, tables, sheets, table columns)     */
 /* -------------------------------------------------------------------------- */
 
 /** Text inserted after an accepted candidate, by upper-cased name. */
 const candidateSuffixes = new Map<string, string>();
+/** Text inserted instead of the name (a quoted sheet name), by name. */
+const candidateTexts = new Map<string, string>();
+
+/** A sheet name as written in a reference: quoted when it has to be. */
+export function sheetNameForReference(name: string) {
+  const plain =
+    /^[A-Za-z_À-￿][A-Za-z0-9_.À-￿]*$/.test(name) &&
+    // names that read as a cell (A1) or R1C1 reference, or a boolean
+    !/^[A-Za-z]{1,3}[0-9]+$/.test(name) &&
+    !/^(R[0-9]*C?[0-9]*|C[0-9]*|TRUE|FALSE)$/i.test(name);
+  return plain ? name : `'${name.replace(/'/g, "''")}'`;
+}
+
+function visibleSheetNames(ctx: Context) {
+  return (ctx.luckysheetfile || [])
+    .filter((f) => f && !f.hide && f.name)
+    .map((f) => f.name);
+}
 
 /**
  * Autocomplete candidates besides the function list: defined names (plain
- * insert), LAMBDA names (`Name(`) and tables (`Table1[`).
+ * insert), LAMBDA names (`Name(`), tables (`Table1[`) and sheets
+ * (`Sheet2!`, `'My Sheet'!`).
  */
 export function getExtraFormulaCandidates(
   ctx: Context
 ): { n: string; d: string; t: string }[] {
-  return getNameCandidates(ctx).map((c) => {
-    let suffix = "";
-    if (c.kind === "table") suffix = "[";
-    else if (c.kind === "lambda") suffix = "(";
-    candidateSuffixes.set(c.n.toUpperCase(), suffix);
-    return { n: c.n, d: c.d, t: c.kind };
+  candidateSuffixes.clear();
+  candidateTexts.clear();
+  const out: { n: string; d: string; t: string }[] = getNameCandidates(ctx).map(
+    (c) => {
+      let suffix = "";
+      if (c.kind === "table") suffix = "[";
+      else if (c.kind === "lambda") suffix = "(";
+      candidateSuffixes.set(c.n.toUpperCase(), suffix);
+      return { n: c.n, d: c.d, t: c.kind };
+    }
+  );
+  const functions = getFunctionListMap(ctx);
+  const { formulaMore } = locale(ctx);
+  visibleSheetNames(ctx).forEach((name) => {
+    const upper = name.toUpperCase();
+    // a function or name of the same name wins
+    if (functions[upper] || candidateSuffixes.has(upper)) return;
+    candidateSuffixes.set(upper, "!");
+    candidateTexts.set(upper, sheetNameForReference(name));
+    out.push({ n: name, d: formulaMore.sheetCandidate, t: "sheet" });
   });
+  return out;
+}
+
+export type CompletionQuery =
+  | {
+      /** a column of a table: `Table1[Co|`, `[@Co|` inside a table */
+      kind: "tableColumn";
+      /** table name before the `[` (null: the table being edited in) */
+      table: string | null;
+      /** `[@`: this row's value */
+      thisRow: boolean;
+      query: string;
+      /** span replaced by the accepted column */
+      start: number;
+      end: number;
+    }
+  | {
+      /** a quoted sheet name: `='My Sh|` */
+      kind: "sheet";
+      query: string;
+      start: number;
+      end: number;
+    };
+
+const STRUCTURED_QUERY_RE =
+  /(?:^|[^A-Za-z0-9_.À-￿\]'])([A-Za-z_À-￿][A-Za-z0-9_.À-￿]*)?\[(@?)((?:[^[\]'#@]|'.)*|#[A-Za-z ]*)$/;
+const QUOTED_SHEET_QUERY_RE = /(?:^=|[=(,;:+\-*/^&<>\s])'((?:[^']|'')*)$/;
+
+/**
+ * What is being completed at `caret` besides function and name identifiers:
+ * a table column after `Table1[` (or after `[` / `[@` in a table), or a
+ * sheet name after an opening quote. Null inside strings.
+ */
+export function getCompletionQuery(
+  text: string,
+  caret: number
+): CompletionQuery | null {
+  if (!text.startsWith("=") || caret < 1 || caret > text.length) return null;
+  const before = text.slice(0, caret);
+  // inside a string literal
+  if ((before.match(/"/g)?.length ?? 0) % 2 === 1) return null;
+  const s = STRUCTURED_QUERY_RE.exec(before);
+  if (s) {
+    const query = s[3];
+    return {
+      kind: "tableColumn",
+      table: s[1] ?? null,
+      thisRow: s[2] === "@",
+      query,
+      start: caret - query.length,
+      end: caret,
+    };
+  }
+  const q = QUOTED_SHEET_QUERY_RE.exec(before);
+  if (q) {
+    return {
+      kind: "sheet",
+      query: q[1].replace(/''/g, "'"),
+      start: caret - q[1].length - 1,
+      end: caret,
+    };
+  }
+  return null;
+}
+
+export type CompletionItem = {
+  /** shown name */
+  n: string;
+  /** description */
+  d: string;
+  /** kind: "column", "special", "sheet" */
+  t: string;
+  /** text replacing the query span */
+  insert: string;
+};
+
+/** The table the edited cell is in (for `[@Column]`), if any. */
+function editedCellTable(ctx: Context) {
+  const [r, c] = ctx.luckysheetCellUpdate ?? [];
+  if (r == null || c == null) return null;
+  const sheetId = ctx.editState?.sheetId ?? ctx.currentSheetId;
+  return tableAt(ctx, sheetId, r, c);
+}
+
+/** The candidates for a {@link CompletionQuery}, in list order. */
+export function getCompletionItems(
+  ctx: Context,
+  q: CompletionQuery
+): CompletionItem[] {
+  const { formulaMore } = locale(ctx);
+  if (q.kind === "sheet") {
+    return visibleSheetNames(ctx).map((name) => ({
+      n: name,
+      d: formulaMore.sheetCandidate,
+      t: "sheet",
+      insert: `'${name.replace(/'/g, "''")}'!`,
+    }));
+  }
+  const ref = q.table ? findTable(ctx, q.table) : editedCellTable(ctx);
+  if (!ref) return [];
+  const { table } = ref;
+  const close = "]";
+  const items: CompletionItem[] = table.columns.map((col) => ({
+    n: col.name,
+    d: `${table.name}[${escapeColumnName(col.name)}]`,
+    t: "column",
+    insert: `${escapeColumnName(col.name)}${close}`,
+  }));
+  if (!q.thisRow && q.table) {
+    const specials: [string, string, boolean][] = [
+      ["#All", formulaMore.tableAll, true],
+      ["#Data", formulaMore.tableData, true],
+      ["#Headers", formulaMore.tableHeaders, table.headerRow],
+      ["#Totals", formulaMore.tableTotals, table.totalRow],
+    ];
+    specials.forEach(([n, d, ok]) => {
+      if (ok) items.push({ n, d, t: "special", insert: `${n}${close}` });
+    });
+    items.push({
+      n: "@",
+      d: formulaMore.tableThisRow,
+      t: "special",
+      insert: "@",
+    });
+  }
+  return items;
+}
+
+/** Filters and ranks completion items for the typed query. */
+function rankCompletionItems(items: CompletionItem[], query: string) {
+  if (!query) {
+    return items.map((item) => ({ item, matches: [] as [number, number][] }));
+  }
+  return rankFunctions(items, query, 50).map((r) => ({
+    item: r.item,
+    matches: r.matches,
+  }));
+}
+
+/**
+ * Text ranges of the arguments of the call whose `(` is at `lparen`
+ * (surrounding spaces trimmed; an empty argument is an empty range).
+ */
+export function getCallArgumentRanges(
+  text: string,
+  lparen: number,
+  tokens: FormulaToken[] = tokenizeFormula(text)
+): { start: number; end: number }[] {
+  const ranges: { start: number; end: number }[] = [];
+  let depth = 0;
+  let argStart = -1;
+  const close = (end: number) => {
+    let s = argStart;
+    let e = end;
+    while (s < e && /\s/.test(text[s])) s += 1;
+    while (e > s && /\s/.test(text[e - 1])) e -= 1;
+    ranges.push({ start: s, end: e });
+  };
+  for (let i = 0; i < tokens.length; i += 1) {
+    const t = tokens[i];
+    if (t.start < lparen) continue;
+    if (t.type === "lparen") {
+      depth += 1;
+      if (depth === 1) argStart = t.end;
+    } else if (t.type === "rparen") {
+      depth -= 1;
+      if (depth === 0) {
+        close(t.start);
+        return ranges;
+      }
+    } else if (t.type === "comma" && depth === 1) {
+      close(t.start);
+      argStart = t.end;
+    }
+  }
+  if (depth > 0 && argStart >= 0) close(text.length);
+  return ranges;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -948,6 +1169,51 @@ export function setCaretOffset(el: HTMLElement, offset: number) {
   sel.addRange(range);
 }
 
+/** DOM position of text offset `offset` inside `el`. */
+function textPosition(el: HTMLElement, offset: number): [Node, number] {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let remaining = Math.max(0, offset);
+  let node = walker.nextNode();
+  let last: Node | null = null;
+  while (node) {
+    const len = node.textContent?.length ?? 0;
+    if (remaining <= len) return [node, remaining];
+    remaining -= len;
+    last = node;
+    node = walker.nextNode();
+  }
+  if (last) return [last, last.textContent?.length ?? 0];
+  return [el, el.childNodes.length];
+}
+
+/** Selects the text between offsets `start` and `end` inside `el`. */
+export function selectTextRange(el: HTMLElement, start: number, end: number) {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  range.setStart(...textPosition(el, start));
+  range.setEnd(...textPosition(el, Math.max(start, end)));
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+/**
+ * Argument hint: selects the text of argument `argIndex` of the function
+ * call around the caret in `el` (Excel's clickable argument names). Returns
+ * false when the call has no such argument yet.
+ */
+export function selectCallArgument(el: HTMLElement, argIndex: number) {
+  const text = el.textContent || "";
+  const caret = getCaretOffset(el) ?? text.length;
+  const tokens = tokenizeFormula(text);
+  const call = getCallContext(text, caret, tokens);
+  if (!call) return false;
+  const range = getCallArgumentRanges(text, call.lparen, tokens)[argIndex];
+  if (!range) return false;
+  selectTextRange(el, range.start, range.end);
+  return true;
+}
+
 export const BRACKET_MATCH_CLASS = "fortune-formula-paren-match";
 
 /** Highlights the parenthesis pair around `caret` (see {@link findBracketPair}). */
@@ -984,15 +1250,49 @@ export function highlightBracketPair(
   }
 }
 
+/** The completion shown for the text it was computed on (see accept). */
+let activeCompletion: {
+  text: string;
+  start: number;
+  end: number;
+  inserts: Map<string, string>;
+} | null = null;
+
+/**
+ * Applies a table column / quoted sheet completion; false when `name` is
+ * not one of the completions shown for the editor's current text.
+ */
+function applyActiveCompletion(el: HTMLElement, name: string) {
+  const text = el.textContent || "";
+  const a = activeCompletion;
+  if (!a || a.text !== text || !a.inserts.has(name)) return false;
+  const insert = a.inserts.get(name)!;
+  // a closing `]` / `'!` already typed after the caret is not repeated
+  let skip = 0;
+  if (insert.endsWith("]") && text.startsWith("]", a.end)) skip = 1;
+  else if (insert.endsWith("'!") && text.startsWith("'!", a.end)) skip = 2;
+  el.textContent = text.slice(0, a.start) + insert + text.slice(a.end + skip);
+  setCaretOffset(el, a.start + insert.length);
+  activeCompletion = null;
+  return true;
+}
+
 /**
  * Replaces the identifier being typed with `name(`, caret after the `(`.
  * Only touches the DOM; callers re-render the formula afterwards.
  */
 export function applyFunctionCandidate(el: HTMLElement, name: string) {
+  if (applyActiveCompletion(el, name)) return true;
   const text = el.textContent || "";
   const caret = getCaretOffset(el) ?? text.length;
-  const suffix = candidateSuffixes.get(name.toUpperCase()) ?? "(";
-  const res = insertFunctionName(text, caret, name, suffix);
+  const upper = name.toUpperCase();
+  const suffix = candidateSuffixes.get(upper) ?? "(";
+  const res = insertFunctionName(
+    text,
+    caret,
+    candidateTexts.get(upper) ?? name,
+    suffix
+  );
   el.textContent = res.text;
   setCaretOffset(el, res.caret);
   return true;
@@ -1024,16 +1324,6 @@ export function closeFormulaParens(el: HTMLElement | null | undefined) {
 /*                              Context updates                               */
 /* -------------------------------------------------------------------------- */
 
-export function getFunctionListMap(ctx: Context): Record<string, any> {
-  const map = ctx.formulaCache.functionlistMap;
-  if (map && Object.keys(map).length > 0) return map;
-  const { functionlist } = locale(ctx);
-  for (let i = 0; i < functionlist.length; i += 1) {
-    ctx.formulaCache.functionlistMap[functionlist[i].n] = functionlist[i];
-  }
-  return ctx.formulaCache.functionlistMap;
-}
-
 export function clearFormulaEditorState(ctx: Context) {
   if (ctx.functionCandidates?.length) ctx.functionCandidates = [];
   if (ctx.functionHint != null) ctx.functionHint = null;
@@ -1054,6 +1344,33 @@ export function refreshFormulaEditorState(ctx: Context, el: HTMLElement) {
   const caret = caretOffset ?? text.length;
   const tokens = tokenizeFormula(text);
   const map = getFunctionListMap(ctx);
+
+  // table columns after `Table1[`, sheet names after a quote
+  activeCompletion = null;
+  const completion = getCompletionQuery(text, caret);
+  if (completion) {
+    const ranked = rankCompletionItems(
+      getCompletionItems(ctx, completion),
+      completion.query
+    );
+    if (ranked.length > 0) {
+      activeCompletion = {
+        text,
+        start: completion.start,
+        end: completion.end,
+        inserts: new Map(ranked.map((r) => [r.item.n, r.item.insert])),
+      };
+      ctx.functionCandidates = ranked.map((r) => ({
+        n: r.item.n,
+        d: r.item.d,
+        t: r.item.t,
+        matches: r.matches,
+      }));
+      ctx.functionCandidateIndex = 0;
+      ctx.functionHint = null;
+      return;
+    }
+  }
 
   const query = getFunctionQuery(text, caret, tokens);
   if (query) {

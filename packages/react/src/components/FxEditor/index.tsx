@@ -275,6 +275,7 @@ const FxEditor: React.FC = () => {
                 style={{
                   top: inputContainerRef.current!.clientHeight,
                 }}
+                onSelectArgument={formulaKeys.selectArgument}
               />
             </>
           )}

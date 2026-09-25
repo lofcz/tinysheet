@@ -1494,6 +1494,17 @@ export default {
     allowOptionText: "विकल्प",
 
     selectCategory: "या श्रेणी चुनें",
+
+    sheetCandidate: "शीट",
+    tableAll: "पूरी तालिका",
+    tableData: "तालिका की डेटा पंक्तियाँ",
+    tableHeaders: "तालिका की शीर्ष पंक्ति",
+    tableTotals: "तालिका की कुल पंक्ति",
+    tableThisRow: "यह पंक्ति",
+    helpSelectArgument: "सूत्र में यह तर्क चुनें",
+    expandFormulaBar: "सूत्र पट्टी विस्तृत करें (Ctrl+Shift+U)",
+    collapseFormulaBar: "सूत्र पट्टी संक्षिप्त करें (Ctrl+Shift+U)",
+    resizeFormulaBar: "सूत्र पट्टी का आकार बदलने के लिए खींचें",
   },
   definedNames: {
     nameManager: "नाम प्रबंधक",

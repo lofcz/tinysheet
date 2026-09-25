@@ -1500,6 +1500,17 @@ export default {
     allowOptionText: "可選",
 
     selectCategory: "或選擇類別",
+
+    sheetCandidate: "工作表",
+    tableAll: "整個表格",
+    tableData: "表格的資料列",
+    tableHeaders: "表格的標題列",
+    tableTotals: "表格的合計列",
+    tableThisRow: "此列",
+    helpSelectArgument: "在公式中選取此引數",
+    expandFormulaBar: "展開資料編輯列 (Ctrl+Shift+U)",
+    collapseFormulaBar: "摺疊資料編輯列 (Ctrl+Shift+U)",
+    resizeFormulaBar: "拖曳以調整資料編輯列大小",
   },
   definedNames: {
     nameManager: "名稱管理員",
