@@ -132,7 +132,7 @@ export const STYLE_KEYS = [
   "rt",
 ] as const;
 
-const CONTENT_KEYS = ["v", "m", "f", "spl", "qp"] as const;
+const CONTENT_KEYS = ["v", "m", "f", "qp"] as const;
 
 type SourceItem = { cell: Cell | null; r: number; c: number };
 

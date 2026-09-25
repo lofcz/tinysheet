@@ -451,7 +451,6 @@ export function pasteHandlerOfPaintModel(
             delete value.v;
             delete value.m;
             delete value.f;
-            delete value.spl;
 
             if (value.ct && value.ct.t === "inlineStr") {
               delete value.ct;
@@ -2124,7 +2123,7 @@ export function deleteSelectedCellText(ctx: Context): string {
             const cell = data[r]?.[c];
             if (cell) {
               if (cell.f) delFunctionGroup(ctx, r, c);
-              const kept = _.omit(cell, ["v", "m", "f", "spl", "qp", "hl"]);
+              const kept = _.omit(cell, ["v", "m", "f", "qp", "hl"]);
               if (kept.ct?.t === "inlineStr") {
                 kept.ct = { fa: "General", t: "g" };
               }

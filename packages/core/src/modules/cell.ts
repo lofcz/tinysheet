@@ -237,10 +237,6 @@ export function setCellValue(
         delete cell.f;
       }
 
-      // if (!_.isNil(v.spl)) {
-      //   cell.spl = v.spl;
-      // }
-
       if (!_.isNil(v.ct)) {
         cell.ct = v.ct;
       }
@@ -727,7 +723,7 @@ export function updateCell(
 
   if (!isCurInline) {
     if (isRealNull(value) && !isPrevInline) {
-      if (!curv || (isRealNull(curv.v) && !curv.spl && !curv.f)) {
+      if (!curv || (isRealNull(curv.v) && !curv.f)) {
         cancelNormalSelected(ctx);
         return;
       }
@@ -758,7 +754,6 @@ export function updateCell(
       if (curv.f) {
         // If it turns out to be a formula but the updated data is not a formula, delete the formula.
         delete curv.f;
-        delete curv.spl; // Delete the configuration string of sparklines of the cell
       }
     }
   }
@@ -778,19 +773,7 @@ export function updateCell(
         curv = _.cloneDeep(d?.[r]?.[c] || {});
         [, curv.v, curv.f] = v;
 
-        // 打进单元格的sparklines的配置串， 报错需要单独处理。
-        if (v.length === 4 && v[3].type === "sparklines") {
-          delete curv.m;
-          delete curv.v;
-
-          const curCalv = v[3].data;
-
-          if (_.isArray(curCalv) && !_.isPlainObject(curCalv[0])) {
-            [curv.v] = curCalv;
-          } else {
-            curv.spl = v[3].data;
-          }
-        } else if (v.length === 4 && v[3].type === "dynamicArrayItem") {
+        if (v.length === 4 && v[3].type === "dynamicArrayItem") {
           dynamicArrayItem = v[3].data;
         }
       }
@@ -814,19 +797,7 @@ export function updateCell(
           curv = _.cloneDeep(d?.[r]?.[c] || {});
           [, curv.v, curv.f] = v;
 
-          // 打进单元格的sparklines的配置串， 报错需要单独处理。
-          if (v.length === 4 && v[3].type === "sparklines") {
-            delete curv.m;
-            delete curv.v;
-
-            const curCalv = v[3].data;
-
-            if (_.isArray(curCalv) && !_.isPlainObject(curCalv[0])) {
-              [curv.v] = curCalv;
-            } else {
-              curv.spl = v[3].data;
-            }
-          } else if (v.length === 4 && v[3].type === "dynamicArrayItem") {
+          if (v.length === 4 && v[3].type === "dynamicArrayItem") {
             dynamicArrayItem = v[3].data;
           }
         }
@@ -845,7 +816,6 @@ export function updateCell(
         curv.v = value;
 
         delete curv.f;
-        delete curv.spl;
 
         if (curv.qp === 1 && `${value}`.substring(0, 1) !== "'") {
           // if quotePrefix is 1, cell is force string, cell clear quotePrefix when it is updated
@@ -867,16 +837,7 @@ export function updateCell(
         f: v[2],
       };
 
-      // 打进单元格的sparklines的配置串， 报错需要单独处理。
-      if (v.length === 4 && v[3].type === "sparklines") {
-        const curCalv = v[3].data;
-
-        if (_.isArray(curCalv) && !_.isPlainObject(curCalv[0])) {
-          [value.v] = curCalv;
-        } else {
-          value.spl = v[3].data;
-        }
-      } else if (v.length === 4 && v[3].type === "dynamicArrayItem") {
+      if (v.length === 4 && v[3].type === "dynamicArrayItem") {
         dynamicArrayItem = v[3].data;
       }
     }
@@ -903,16 +864,7 @@ export function updateCell(
         // update attribute v
         [, value.v, value.f] = v;
 
-        // 打进单元格的sparklines的配置串， 报错需要单独处理。
-        if (v.length === 4 && v[3].type === "sparklines") {
-          const curCalv = v[3].data;
-
-          if (_.isArray(curCalv) && !_.isPlainObject(curCalv[0])) {
-            [value.v] = curCalv;
-          } else {
-            value.spl = v[3].data;
-          }
-        } else if (v.length === 4 && v[3].type === "dynamicArrayItem") {
+        if (v.length === 4 && v[3].type === "dynamicArrayItem") {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           dynamicArrayItem = v[3].data;
         }

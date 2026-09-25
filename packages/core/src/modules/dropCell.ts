@@ -214,9 +214,7 @@ function applyFilledFormula(
 
   [, cell.v, cell.f] = v;
 
-  if (cell.spl != null) {
-    cell.spl = v[3].data;
-  } else if (cell.v != null) {
+  if (cell.v != null) {
     if (
       isRealNum(cell.v) &&
       !/^\d{6}(18|19|20)?\d{2}(0[1-9]|1[12])(0[1-9]|[12]\d|3[01])\d{3}(\d|X)$/i.test(

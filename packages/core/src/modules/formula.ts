@@ -1310,10 +1310,6 @@ export function execfunction(
   }
 
   /*
-  if (sparklines) {
-    return [true, result, txt, { type: "sparklines", data: sparklines }];
-  }
-
   if (dynamicArrayItem) {
     return [
       true,
@@ -1391,9 +1387,7 @@ export function groupValuesRefresh(ctx: Context) {
 
       const updateValue: any = {};
       if (!_.isNil(item.spe)) {
-        if (item.spe.type === "sparklines") {
-          updateValue.spl = item.spe.data;
-        } else if (item.spe.type === "dynamicArrayItem") {
+        if (item.spe.type === "dynamicArrayItem") {
           file.dynamicArray = insertUpdateDynamicArray(ctx, item.spe.data);
         }
       }
