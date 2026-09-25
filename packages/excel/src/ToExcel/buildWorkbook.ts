@@ -10,8 +10,8 @@
  * charts, ...) add a writer to `sheetExportFeatures` /
  * `workbookExportFeatures` (or call `registerSheetExportFeature`) instead of
  * editing the cell writer. Writers run in array order; the built-in order is
- * sheet properties -> sizes -> cells -> notes -> merges -> borders ->
- * images -> data validation -> views.
+ * sheet properties -> sizes -> cells -> tables -> notes -> merges ->
+ * borders -> images -> data validation -> views.
  */
 import ExcelJS from "@protobi/exceljs";
 import type { XlsxPostProcessInfo } from "./postProcess";
@@ -20,6 +20,7 @@ import { writeCells, writeNotes } from "./ExcelStyle";
 import { setBorder } from "./ExcelBorder";
 import { setImages } from "./ExcelImage";
 import { setDataValidations } from "./ExcelValidation";
+import { writeTables } from "./ExcelTable";
 import {
   writeColumnsAndRows,
   writeMerges,
@@ -95,6 +96,7 @@ function borders(ctx: SheetExportContext) {
 export const sheetExportFeatures: SheetExportFeature[] = [
   { name: "columns-rows", write: writeColumnsAndRows },
   { name: "cells", write: writeCells },
+  { name: "tables", write: writeTables },
   { name: "notes", write: writeNotes },
   { name: "merges", write: writeMerges },
   { name: "borders", write: borders },
@@ -207,6 +209,7 @@ export function buildExcelWorkbookWithInfo(
   const post: XlsxPostProcessInfo = {
     dynamicArrayCells: {},
     worksheetIds: [],
+    visibleNotes: {},
   };
   const ordered = sortedSheets(sheets || []);
   const used = new Set<string>();

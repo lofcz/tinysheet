@@ -1,19 +1,19 @@
 /**
  * Workbook-aware formula functions and dynamic-array spill.
  *
- * The formula parser evaluates function arguments to plain values, so
- * functions that need a *reference* (ROW, OFFSET, ISFORMULA, SUBTOTAL, ...)
- * cannot be written as ordinary parser functions. This module solves that on
- * the core side, without touching the parser:
- *
- * 1. Reference arguments. Before a formula is parsed, `prepareFormulaEvaluation`
- *    rewrites every reference that sits in a reference-typed argument position
- *    into a string literal "reference marker" (`ROW(B5)` -> `ROW("\u0001…")`).
- *    INDIRECT/OFFSET calls in such positions are renamed to internal variants
- *    that return a marker instead of values (`ROWS(OFFSET(A1,0,0,3))`). The
- *    functions themselves are installed through the parser's `callFunction`
- *    event, so they take precedence over formulajs and receive the marker.
- *    The stored formula text is never changed.
+ * 1. Reference arguments. Functions that need a *reference* (ROW, OFFSET,
+ *    ISFORMULA, CELL, SUBTOTAL, ...) are registered with the parser's
+ *    `setFunction` and declare `referenceParams`: a reference argument there
+ *    reaches them unread, as a `createReference` descriptor (so ISFORMULA(B1)
+ *    does not read B1, and an error in B1 does not abort it). OFFSET and
+ *    INDIRECT (A1 or R1C1 text) return `createReference` values and declare
+ *    `returnsReference`, so the parser uses them as references everywhere:
+ *    range operands (`OFFSET(A1,1,0):C5`), `ROWS(OFFSET(...))`,
+ *    `INDEX(INDIRECT(...),2)`, and reads them where a value is needed.
+ *    The stored formula text is never changed. (The older string "reference
+ *    markers" of `rewriteReferenceArgs` are still understood as references,
+ *    through the parser's `resolveReference` event, but formulas are no longer
+ *    rewritten before evaluation.)
  *
  * 2. Dependencies. INDIRECT/OFFSET/CELL/SUBTOTAL formulas are volatile, and
  *    every reference INDIRECT/OFFSET resolves to (plus the rectangle a spilled
@@ -32,8 +32,11 @@
  *    pass read the new values.
  */
 import _ from "lodash";
-// @ts-ignore
-import { error as parserError } from "@lofcz/tinysheet-formula-parser";
+import {
+  createReference,
+  error as parserError,
+  isReference,
+} from "@lofcz/tinysheet-formula-parser";
 import type { Context } from "../context";
 import { getFlowdata } from "../context";
 import type { Cell, CellMatrix, FormulaDependency } from "../types";
@@ -333,7 +336,12 @@ export function parseReference(
 }
 
 // ---------------------------------------------------------------------------
-// Reference markers
+// Reference markers (legacy)
+//
+// Formulas are no longer rewritten before evaluation (reference arguments
+// travel as parser references, see the module comment). The marker helpers
+// stay for callers of `rewriteReferenceArgs`: a marker string still acts as
+// a reference (the parser's `resolveReference` event).
 // ---------------------------------------------------------------------------
 
 const MARKER = "\u0001TSREF:";
@@ -621,7 +629,8 @@ const REWRITE_HINT =
 
 /**
  * Rewrite reference arguments of reference-taking functions into markers.
- * `expr` is the formula without the leading "=".
+ * `expr` is the formula without the leading "=". Legacy: evaluation no
+ * longer needs it, but rewritten formulas still evaluate the same.
  */
 export function rewriteReferenceArgs(
   ctx: Context,
@@ -667,31 +676,6 @@ function readCell(
   return (getFlowdata(ctx, sheetId)?.[r]?.[c] as SpillCell) ?? null;
 }
 
-function readValue(ctx: Context, sheetId: string, r: number, c: number) {
-  const cell = readCell(ctx, sheetId, r, c);
-  return ctx.formulaCache.tryGetCellAsNumber(cell as Cell);
-}
-
-function rangeValues(ctx: Context, ref: RefRange) {
-  const out: any[][] = [];
-  for (let r = ref.r1; r <= ref.r2; r += 1) {
-    const row: any[] = [];
-    for (let c = ref.c1; c <= ref.c2; c += 1) {
-      row.push(readValue(ctx, ref.sheetId, r, c));
-    }
-    out.push(row);
-  }
-  return out;
-}
-
-/** Value of a reference as a formula result: scalar for 1x1, else 2D array. */
-function refResult(ctx: Context, ref: RefRange) {
-  if (ref.r1 === ref.r2 && ref.c1 === ref.c2) {
-    return readValue(ctx, ref.sheetId, ref.r1, ref.c1) ?? null;
-  }
-  return rangeValues(ctx, ref);
-}
-
 function isEmptyCell(cell: SpillCell | null | undefined) {
   if (!cell) return true;
   if (cell.f) return false;
@@ -733,12 +717,48 @@ type ParserRef = {
 
 type Fn = (args: any[], frame: EvalFrame, refs?: ParserRef[]) => any;
 
-function refArg(v: any): RefRange | Error {
+/**
+ * The range a reference parameter stands for: a parser reference descriptor
+ * (`createReference`, 0-based, -1 = whole row/column span, bounded here to
+ * the sheet's size) or a legacy reference marker. null for other values.
+ */
+function refOf(v: any, frame: EvalFrame): RefRange | Error | null {
+  if (isReference(v)) {
+    const sheetId =
+      v.sheetName == null
+        ? frame.sheetId
+        : findSheetIdByName(frame.ctx, v.sheetName);
+    if (sheetId == null) return errorValue(ERR_REF);
+    const whole = (start: number, end: number, size: number) =>
+      start < 0 || end < 0 ? [0, Math.max(size - 1, 0)] : [start, end];
+    const { rows, cols } = sheetSize(frame.ctx, sheetId);
+    const [r1, r2] = whole(v.startRow, v.endRow, rows);
+    const [c1, c2] = whole(v.startColumn, v.endColumn, cols);
+    return { sheetId, r1, c1, r2, c2 };
+  }
+  return decodeRef(v);
+}
+
+function refArg(v: any, frame: EvalFrame): RefRange | Error {
   if (v instanceof Error) return v;
   if (isErrorLike(v)) return asError(v);
-  const ref = decodeRef(v);
+  const ref = refOf(v, frame);
   if (ref == null) return errorValue(ERR_VALUE);
   return ref;
+}
+
+/** A range as a parser reference (null sheet name = the formula's sheet). */
+function toParserReference(frame: EvalFrame, ref: RefRange) {
+  return createReference({
+    sheetName:
+      ref.sheetId === frame.sheetId
+        ? null
+        : getSheet(frame.ctx, ref.sheetId)?.name ?? null,
+    startRow: ref.r1,
+    startColumn: ref.c1,
+    endRow: ref.r2,
+    endColumn: ref.c2,
+  });
 }
 
 function toNumberArg(v: any, fallback?: number): number | Error {
@@ -777,7 +797,7 @@ function recordDependency(frame: EvalFrame, ref: RefRange) {
 function resolveIndirect(args: any[], frame: EvalFrame): RefRange | Error {
   const [text, a1Arg] = args;
   if (text instanceof Error) return text;
-  if (isRefMarker(text)) return refArg(text);
+  if (isRefMarker(text)) return refArg(text, frame);
   if (!_.isString(text)) return errorValue(ERR_REF);
   const a1 = toBoolArg(a1Arg, true);
   if (a1 instanceof Error) return a1;
@@ -811,7 +831,7 @@ function resolveIndirect(args: any[], frame: EvalFrame): RefRange | Error {
 }
 
 function resolveOffset(args: any[], frame: EvalFrame): RefRange | Error {
-  const base = refArg(args[0]);
+  const base = refArg(args[0], frame);
   if (base instanceof Error) return base;
   const rows = toNumberArg(args[1]);
   if (rows instanceof Error) return rows;
@@ -948,7 +968,7 @@ function errorAware(fn: (err: Error, args: any[]) => any): Fn {
   return (args) => (args[0] instanceof Error ? fn(args[0], args) : undefined);
 }
 
-const workbookFunctions: Record<string, Fn> = {
+const allFunctions: Record<string, Fn> = {
   IFERROR: errorAware((_e, args) => args[1] ?? 0),
   IFNA: errorAware((e, args) =>
     toErrorString(e) === ERR_NA ? args[1] ?? 0 : e
@@ -958,42 +978,42 @@ const workbookFunctions: Record<string, Fn> = {
   ISNA: errorAware((e) => toErrorString(e) === ERR_NA),
   ROW(args, frame) {
     if (args.length === 0 || args[0] == null) return frame.r + 1;
-    const ref = refArg(args[0]);
+    const ref = refArg(args[0], frame);
     if (ref instanceof Error) return ref;
     if (ref.r1 === ref.r2) return ref.r1 + 1;
     return _.range(ref.r1, ref.r2 + 1).map((r) => [r + 1]);
   },
   COLUMN(args, frame) {
     if (args.length === 0 || args[0] == null) return frame.c + 1;
-    const ref = refArg(args[0]);
+    const ref = refArg(args[0], frame);
     if (ref instanceof Error) return ref;
     if (ref.c1 === ref.c2) return ref.c1 + 1;
     return [_.range(ref.c1, ref.c2 + 1).map((c) => c + 1)];
   },
-  ROWS(args) {
+  ROWS(args, frame) {
     const v = args[0];
     if (v instanceof Error) return v;
-    const ref = decodeRef(v);
+    const ref = refOf(v, frame);
     if (ref instanceof Error) return ref;
     if (ref) return ref.r2 - ref.r1 + 1;
     if (Array.isArray(v)) return Array.isArray(v[0]) ? v.length : 1;
     return 1;
   },
-  COLUMNS(args) {
+  COLUMNS(args, frame) {
     const v = args[0];
     if (v instanceof Error) return v;
-    const ref = decodeRef(v);
+    const ref = refOf(v, frame);
     if (ref instanceof Error) return ref;
     if (ref) return ref.c2 - ref.c1 + 1;
     if (Array.isArray(v)) return Array.isArray(v[0]) ? v[0].length : v.length;
     return 1;
   },
-  ISREF(args) {
-    const ref = decodeRef(args[0]);
+  ISREF(args, frame) {
+    const ref = refOf(args[0], frame);
     return !!ref && !(ref instanceof Error);
   },
   ISFORMULA(args, frame) {
-    const ref = refArg(args[0]);
+    const ref = refArg(args[0], frame);
     if (ref instanceof Error) return ref;
     return perCell(
       ref,
@@ -1001,26 +1021,18 @@ const workbookFunctions: Record<string, Fn> = {
     );
   },
   FORMULATEXT(args, frame) {
-    const ref = refArg(args[0]);
+    const ref = refArg(args[0], frame);
     if (ref instanceof Error) return ref;
     const f = formulaOfCell(frame.ctx, ref.sheetId, ref.r1, ref.c1);
     return f ?? errorValue(ERR_NA);
   },
   INDIRECT(args, frame) {
     const ref = resolveIndirect(args, frame);
-    return ref instanceof Error ? ref : refResult(frame.ctx, ref);
-  },
-  "TSREF.INDIRECT": function tsrefIndirect(args, frame) {
-    const ref = resolveIndirect(args, frame);
-    return ref instanceof Error ? ref : encodeRef(ref);
+    return ref instanceof Error ? ref : toParserReference(frame, ref);
   },
   OFFSET(args, frame) {
     const ref = resolveOffset(args, frame);
-    return ref instanceof Error ? ref : refResult(frame.ctx, ref);
-  },
-  "TSREF.OFFSET": function tsrefOffset(args, frame) {
-    const ref = resolveOffset(args, frame);
-    return ref instanceof Error ? ref : encodeRef(ref);
+    return ref instanceof Error ? ref : toParserReference(frame, ref);
   },
   ADDRESS(args) {
     const row = toNumberArg(args[0]);
@@ -1055,7 +1067,7 @@ const workbookFunctions: Record<string, Fn> = {
     if (args.length === 0 || args[0] == null) return indexOf(frame.sheetId);
     const v = args[0];
     if (v instanceof Error) return v;
-    const ref = decodeRef(v);
+    const ref = refOf(v, frame);
     if (ref instanceof Error) return ref;
     if (ref) return indexOf(ref.sheetId);
     if (_.isString(v)) {
@@ -1068,7 +1080,7 @@ const workbookFunctions: Record<string, Fn> = {
     if (args.length === 0 || args[0] == null) {
       return frame.ctx.luckysheetfile.length;
     }
-    const ref = refArg(args[0]);
+    const ref = refArg(args[0], frame);
     if (ref instanceof Error) return ref;
     return 1;
   },
@@ -1092,7 +1104,7 @@ const workbookFunctions: Record<string, Fn> = {
         c2: frame.c,
       };
     } else {
-      const decoded = refArg(args[1]);
+      const decoded = refArg(args[1], frame);
       if (decoded instanceof Error) return decoded;
       ref = decoded;
     }
@@ -1158,7 +1170,7 @@ const workbookFunctions: Record<string, Fn> = {
     const values: any[] = [];
     for (let k = 1; k < args.length; k += 1) {
       const arg = args[k];
-      const ref = decodeRef(arg);
+      const ref = refOf(arg, frame);
       if (ref instanceof Error) return ref;
       if (ref) {
         const { rowhidden, filtered } = hiddenRowSets(frame.ctx, ref.sheetId);
@@ -1250,12 +1262,73 @@ export const WORKBOOK_FUNCTION_NAMES = [
   "AGGREGATE",
 ];
 
+/**
+ * Reference parameters of the functions registered with `setFunction`
+ * (see the module comment); the other functions of `allFunctions` complete
+ * the parser's implementation through its `callFunction` event.
+ */
+const REFERENCE_PARAMS: Record<string, (k: number) => boolean> = {
+  ROW: (k) => k === 0,
+  COLUMN: (k) => k === 0,
+  ROWS: (k) => k === 0,
+  COLUMNS: (k) => k === 0,
+  ISREF: (k) => k === 0,
+  ISFORMULA: (k) => k === 0,
+  FORMULATEXT: (k) => k === 0,
+  SHEET: (k) => k === 0,
+  SHEETS: (k) => k === 0,
+  OFFSET: (k) => k === 0,
+  INDIRECT: () => false,
+  CELL: (k) => k === 1,
+  SUBTOTAL: (k) => k >= 1,
+};
+
+/** Functions whose result is a reference (`createReference`). */
+const RETURNS_REFERENCE = new Set(["OFFSET", "INDIRECT"]);
+
+/** Aliases used by formulas rewritten with `rewriteReferenceArgs`. */
+const LEGACY_ALIASES: Record<string, string> = {
+  "TSREF.OFFSET": "OFFSET",
+  "TSREF.INDIRECT": "INDIRECT",
+};
+
 const installedParsers = new WeakSet<object>();
+
+function evalFrame(parser: any): EvalFrame | null {
+  const ctx = parser.context as Context | undefined;
+  if (!ctx) return null;
+  return (
+    getState(ctx).current ?? {
+      ctx,
+      r: 0,
+      c: 0,
+      sheetId: parser.options?.sheetId ?? ctx.currentSheetId,
+      isCell: false,
+      deps: [],
+      formula: "",
+    }
+  );
+}
 
 /** Install the workbook-aware functions on a parser (idempotent). */
 export function installWorkbookFunctions(parser: any) {
   if (!parser || installedParsers.has(parser)) return;
   installedParsers.add(parser);
+  const register = (name: string, fnName: string) => {
+    const fn = allFunctions[fnName];
+    const hostFn: any = (params: any[], refs?: ParserRef[]) => {
+      const frame = evalFrame(parser);
+      // undefined: not handled here, the parser's own implementation runs.
+      return frame ? fn(params ?? [], frame, refs) : undefined;
+    };
+    hostFn.referenceParams = REFERENCE_PARAMS[fnName];
+    hostFn.returnsReference = RETURNS_REFERENCE.has(fnName);
+    parser.setFunction(name, hostFn);
+  };
+  Object.keys(REFERENCE_PARAMS).forEach((name) => register(name, name));
+  Object.entries(LEGACY_ALIASES).forEach(([alias, name]) =>
+    register(alias, name)
+  );
   parser.on(
     "callFunction",
     (
@@ -1264,23 +1337,27 @@ export function installWorkbookFunctions(parser: any) {
       done: (v: any) => void,
       refs?: ParserRef[]
     ) => {
-      const fn = workbookFunctions[String(name).toUpperCase()];
+      const upper = String(name).toUpperCase();
+      if (REFERENCE_PARAMS[upper] || LEGACY_ALIASES[upper]) return;
+      const fn = allFunctions[upper];
       if (!fn) return;
-      const ctx = parser.context as Context | undefined;
-      if (!ctx) return;
-      const state = getState(ctx);
-      const frame: EvalFrame = state.current ?? {
-        ctx,
-        r: 0,
-        c: 0,
-        sheetId: parser.options?.sheetId ?? ctx.currentSheetId,
-        isCell: false,
-        deps: [],
-        formula: "",
-      };
+      const frame = evalFrame(parser);
+      if (!frame) return;
       const result = fn(params ?? [], frame, refs);
       // undefined: not handled here, the parser's own implementation runs.
       if (result !== undefined) done(result);
+    }
+  );
+  // legacy reference markers (`rewriteReferenceArgs`) are references too
+  parser.on(
+    "resolveReference",
+    (value: any, _options: any, done: (v: any) => void) => {
+      if (!isRefMarker(value)) return;
+      const frame = evalFrame(parser);
+      const ref = frame && decodeRef(value);
+      if (frame && ref && !(ref instanceof Error)) {
+        done(toParserReference(frame, ref));
+      }
     }
   );
 }
@@ -1322,7 +1399,7 @@ export function prepareFormulaEvaluation(
   let expr = expandFormulaNames(ctx, txt.substring(1), id, r, c);
   // eslint-disable-next-line no-use-before-define
   if (SPILL_REF_HINT.test(expr)) expr = rewriteSpillReferences(ctx, expr, id);
-  return rewriteReferenceArgs(ctx, expr, id);
+  return expr;
 }
 
 /**

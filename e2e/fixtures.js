@@ -106,7 +106,7 @@ class Sheet {
     );
   }
 
-  /** Raw formula text of (r, c), or null (getCellValue's "f" returns HTML). */
+  /** Raw formula text of (r, c), or null. */
   formula(r, c) {
     return this.page.evaluate(
       ([row, col]) =>

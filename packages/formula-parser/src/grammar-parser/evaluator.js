@@ -31,6 +31,10 @@
  * arguments, e.g. a host's reference markers, go through `callFunction`).
  * Special forms do not emit the `callFunction` event; a function registered
  * with `Parser#setFunction` under the same name takes precedence over them.
+ * Such a host function can declare `returnsReference` (its `createReference`
+ * results make it reference-capable: `ROWS(MYOFFSET(...))`, `INDEX(...)`)
+ * and `referenceParams` (parameters that receive a reference argument
+ * unread, as a `createReference` descriptor: ISFORMULA, CELL, OFFSET's base).
  *
  * Array lifting: a built-in function receiving an array where it expects a
  * scalar is called once per element (see ./function-traits.js).
@@ -56,7 +60,7 @@ import {
 } from "../helper/value";
 import { broadcast, columnCount, firstElement, to2D } from "../helper/array";
 import { toLabel } from "../helper/cell";
-import { isReference } from "../helper/reference";
+import { createReference, isReference } from "../helper/reference";
 import {
   MISSING,
   MAX_COLUMN_INDEX,
@@ -605,12 +609,18 @@ export default class Evaluator {
 
         return bound === NOT_FOUND || bound instanceof Reference;
       }
-      case "call":
-        return (
-          REFERENCE_CALLS.has(node.key) &&
-          !this.hasCustomFunction(node.name) &&
-          !(scope && lookup(scope, node.key) !== NOT_FOUND)
-        );
+      case "call": {
+        if (scope && lookup(scope, node.key) !== NOT_FOUND) {
+          return false;
+        }
+        const custom = this.customFunction(node.name);
+
+        // A host function declares `returnsReference` when it returns
+        // `createReference` values (e.g. a host OFFSET or INDIRECT).
+        return custom
+          ? !!custom.returnsReference
+          : REFERENCE_CALLS.has(node.key);
+      }
       default:
         return false;
     }
@@ -709,6 +719,33 @@ export default class Evaluator {
     return !!(this.yy.hasFunction && this.yy.hasFunction(name));
   }
 
+  // The function registered with `Parser#setFunction` under `name`, if any.
+  customFunction(name) {
+    return this.hasCustomFunction(name) && this.yy.getFunction
+      ? this.yy.getFunction(name) || null
+      : null;
+  }
+
+  /**
+   * Predicate of the parameters a host function takes as references
+   * (`fn.referenceParams`): a reference argument there is passed unread,
+   * as a `createReference` descriptor, or null when there is none.
+   */
+  referenceParams(node) {
+    const custom = this.customFunction(node.name);
+
+    if (!custom || custom.referenceParams === void 0) {
+      return null;
+    }
+    const spec = normalizeArrayParams(custom.referenceParams);
+
+    if (spec === true) {
+      return () => true;
+    }
+
+    return typeof spec === "function" ? spec : null;
+  }
+
   evaluateCall(node, scope, refMode) {
     const key = node.key;
 
@@ -770,6 +807,7 @@ export default class Evaluator {
     }
     const key = node.key;
     const tolerant = isTolerant(key);
+    const byReference = this.referenceParams(node);
     const params = [];
     const refs = [];
     let hasRefs = false;
@@ -786,14 +824,18 @@ export default class Evaluator {
 
       if (preset && preset.has(i)) {
         value = preset.get(i);
-      } else if (tolerant) {
-        value = this.evaluateAnySafe(arg, scope, false);
       } else {
-        value = this.evaluateAny(arg, scope, false);
+        // Reference parameters of a host function are evaluated in reference
+        // mode, so OFFSET/INDIRECT there are references too.
+        const refMode = !!(byReference && byReference(params.length));
+
+        value = tolerant
+          ? this.evaluateAnySafe(arg, scope, refMode)
+          : this.evaluateAny(arg, scope, refMode);
       }
       if (value instanceof Reference) {
         hasRefs = true;
-        this.pushReference(params, refs, value, key, tolerant);
+        this.pushReference(params, refs, value, key, tolerant, byReference);
       } else {
         if (!tolerant && value instanceof Error) {
           throw value;
@@ -810,7 +852,7 @@ export default class Evaluator {
    * Append a reference argument (value + descriptor). Multi-area references
    * follow the function's union policy.
    */
-  pushReference(params, refs, ref, key, tolerant) {
+  pushReference(params, refs, ref, key, tolerant, byReference) {
     const areas = ref.areas;
 
     if (areas.length > 1) {
@@ -823,7 +865,8 @@ export default class Evaluator {
             refs,
             new Reference([area]),
             key,
-            tolerant
+            tolerant,
+            byReference
           );
         });
 
@@ -849,6 +892,31 @@ export default class Evaluator {
       }
       params.push(value);
       refs.push(null);
+
+      return;
+    }
+    if (byReference && byReference(params.length)) {
+      // Passed unread: the host reads what it needs (ISFORMULA, OFFSET, ...).
+      // Only a reference written as whole rows/columns (A:A) has -1 spans;
+      // A1:A1048576 keeps its bounds.
+      const area = areas[0];
+      const info = referenceInfo(area);
+      const whole = ref.node && ref.node.type === "wholeRange";
+
+      params.push(
+        createReference(
+          whole
+            ? info
+            : {
+                sheetName: area.sheetName,
+                startRow: area.r1,
+                startColumn: area.c1,
+                endRow: area.r2,
+                endColumn: area.c2,
+              }
+        )
+      );
+      refs.push(info);
 
       return;
     }

@@ -4,7 +4,7 @@
      packages/core/src/locale/functions/en.ts. Do not edit by hand;
      run `bun run docs:functions` instead. -->
 
-TinySheet ships 469 worksheet functions. Every one of them
+TinySheet ships 505 worksheet functions. Every one of them
 appears in formula autocomplete, shows an argument hint while you type,
 and is listed in the function search dialog. Arguments in `[brackets]`
 are optional; `...` means the argument can be repeated.
@@ -12,16 +12,16 @@ are optional; `...` means the argument can be repeated.
 | Category | Functions |
 | --- | ---: |
 | [Math and trigonometry](#math-and-trigonometry) | 82 |
-| [Statistical](#statistical) | 107 |
-| [Lookup and reference](#lookup-and-reference) | 34 |
+| [Statistical](#statistical) | 111 |
+| [Lookup and reference](#lookup-and-reference) | 38 |
 | [Database](#database) | 12 |
 | [Date and time](#date-and-time) | 25 |
-| [Financial](#financial) | 48 |
-| [Engineering](#engineering) | 52 |
+| [Financial](#financial) | 56 |
+| [Engineering](#engineering) | 54 |
 | [Logical](#logical) | 19 |
-| [Text](#text) | 36 |
-| [Information](#information) | 20 |
-| [Compatibility](#compatibility) | 34 |
+| [Text](#text) | 49 |
+| [Information](#information) | 21 |
+| [Compatibility](#compatibility) | 38 |
 
 ## Math and trigonometry
 
@@ -149,6 +149,10 @@ are optional; `...` means the argument can be repeated.
 | `FISHER(x)` | Fisher transformation. |
 | `FISHERINV(y)` | Inverse Fisher transformation. |
 | `FORECAST(x, known_y's, known_x's)` | Predicts a value by linear regression. |
+| `FORECAST.ETS(target_date, values, timeline, [seasonality], [data_completion], [aggregation])` | Exponential-smoothing forecast. |
+| `FORECAST.ETS.CONFINT(target_date, values, timeline, [confidence_level], [seasonality], [data_completion], [aggregation])` | Confidence interval of an ETS forecast. |
+| `FORECAST.ETS.SEASONALITY(values, timeline, [data_completion], [aggregation])` | Detected seasonality length. |
+| `FORECAST.ETS.STAT(values, timeline, statistic_type, [seasonality], [data_completion], [aggregation])` | Statistic of an ETS forecast. |
 | `FORECAST.LINEAR(x, known_y's, known_x's)` | Predicts a value by linear regression. |
 | `FREQUENCY(data_array, bins_array)` | Frequency distribution of values. |
 | `GAMMA(x)` | Gamma function value. |
@@ -227,6 +231,7 @@ are optional; `...` means the argument can be repeated.
 | Function | Description |
 | --- | --- |
 | `ADDRESS(row_num, column_num, [abs_num], [a1], [sheet_text])` | Cell address as text. |
+| `AREAS(reference)` | Number of areas in a reference. |
 | `CHOOSE(index_num, value1, [value2, ...])` | Picks a value from a list by index. |
 | `CHOOSECOLS(array, col_num1, [col_num2, ...])` | Selected columns of an array. |
 | `CHOOSEROWS(array, row_num1, [row_num2, ...])` | Selected rows of an array. |
@@ -236,14 +241,17 @@ are optional; `...` means the argument can be repeated.
 | `EXPAND(array, rows, [columns], [pad_with])` | Pads an array to a given size. |
 | `FILTER(array, include, [if_empty])` | Rows or columns that meet criteria. |
 | `FORMULATEXT(reference)` | Formula of a cell as text. |
+| `GROUPBY(row_fields, values, function, [field_headers], [total_depth], [sort_order], [filter_array], [field_relationship])` | Group and aggregate rows. |
 | `HLOOKUP(lookup_value, table_array, row_index_num, [range_lookup])` | Horizontal lookup. |
 | `HSTACK(array1, [array2, ...])` | Stacks arrays side by side. |
 | `HYPERLINK(link_location, [friendly_name])` | Creates a hyperlink. |
+| `IMAGE(source, [alt_text], [sizing], [height], [width])` | Image from a URL. |
 | `INDEX(array, row_num, [column_num])` | Value at a row and column of a range. |
 | `INDIRECT(ref_text, [a1])` | Reference from a text string. |
 | `LOOKUP(lookup_value, lookup_vector, [result_vector])` | Looks up a value in a vector. |
 | `MATCH(lookup_value, lookup_array, [match_type])` | Position of a value in a range. |
 | `OFFSET(reference, rows, cols, [height], [width])` | Reference offset from a starting point. |
+| `PIVOTBY(row_fields, col_fields, values, function, [field_headers], [row_total_depth], [row_sort_order], [col_total_depth], [col_sort_order], [filter_array], [relative_to])` | Cross-tabulate and aggregate. |
 | `ROW([reference])` | Row number of a reference. |
 | `ROWS(array)` | Number of rows in a range. |
 | `SORT(array, [sort_index], [sort_order], [by_col])` | Sorts a range or array. |
@@ -314,6 +322,8 @@ are optional; `...` means the argument can be repeated.
 | --- | --- |
 | `ACCRINT(issue, first_interest, settlement, rate, par, frequency, [basis], [calc_method])` | Accrued interest of a periodic-interest security. |
 | `ACCRINTM(issue, settlement, rate, par, [basis])` | Accrued interest of a security paying at maturity. |
+| `AMORDEGRC(cost, date_purchased, first_period, salvage, period, rate, [basis])` | Degressive depreciation per accounting period. |
+| `AMORLINC(cost, date_purchased, first_period, salvage, period, rate, [basis])` | Linear depreciation per accounting period. |
 | `COUPDAYBS(settlement, maturity, frequency, [basis])` | Days from coupon period start to settlement. |
 | `COUPDAYS(settlement, maturity, frequency, [basis])` | Days in the coupon period of settlement. |
 | `COUPDAYSNC(settlement, maturity, frequency, [basis])` | Days from settlement to next coupon. |
@@ -329,6 +339,7 @@ are optional; `...` means the argument can be repeated.
 | `DOLLARFR(decimal_dollar, fraction)` | Converts a decimal price to fractional. |
 | `DURATION(settlement, maturity, coupon, yld, frequency, [basis])` | Macaulay duration of a security. |
 | `EFFECT(nominal_rate, npery)` | Effective annual interest rate. |
+| `EUROCONVERT(number, source, target, [full_precision], [triangulation_precision])` | Euro currency conversion. |
 | `FV(rate, nper, pmt, [pv], [type])` | Future value of an investment. |
 | `FVSCHEDULE(principal, schedule)` | Future value with variable rates. |
 | `INTRATE(settlement, maturity, investment, redemption, [basis])` | Interest rate of a fully invested security. |
@@ -340,6 +351,10 @@ are optional; `...` means the argument can be repeated.
 | `NOMINAL(effect_rate, npery)` | Nominal annual interest rate. |
 | `NPER(rate, pmt, pv, [fv], [type])` | Number of payment periods. |
 | `NPV(rate, value1, [value2, ...])` | Net present value of cash flows. |
+| `ODDFPRICE(settlement, maturity, issue, first_coupon, rate, yld, redemption, frequency, [basis])` | Price of a bond with an odd first period. |
+| `ODDFYIELD(settlement, maturity, issue, first_coupon, rate, pr, redemption, frequency, [basis])` | Yield of a bond with an odd first period. |
+| `ODDLPRICE(settlement, maturity, last_interest, rate, yld, redemption, frequency, [basis])` | Price of a bond with an odd last period. |
+| `ODDLYIELD(settlement, maturity, last_interest, rate, pr, redemption, frequency, [basis])` | Yield of a bond with an odd last period. |
 | `PDURATION(rate, pv, fv)` | Periods needed to reach a value. |
 | `PMT(rate, nper, pv, [fv], [type])` | Periodic loan payment. |
 | `PPMT(rate, per, nper, pv, [fv], [type])` | Principal portion of a payment. |
@@ -355,6 +370,7 @@ are optional; `...` means the argument can be repeated.
 | `TBILLEQ(settlement, maturity, discount)` | Bond-equivalent yield of a T-bill. |
 | `TBILLPRICE(settlement, maturity, discount)` | Price of a T-bill. |
 | `TBILLYIELD(settlement, maturity, pr)` | Yield of a T-bill. |
+| `VDB(cost, salvage, life, start_period, end_period, [factor], [no_switch])` | Variable declining-balance depreciation. |
 | `XIRR(values, dates, [guess])` | IRR of irregular cash flows. |
 | `XNPV(rate, values, dates)` | NPV of irregular cash flows. |
 | `YIELD(settlement, maturity, rate, pr, redemption, frequency, [basis])` | Yield of a periodic-interest security. |
@@ -384,7 +400,9 @@ are optional; `...` means the argument can be repeated.
 | `DEC2OCT(number, [places])` | Decimal to octal. |
 | `DELTA(number1, [number2])` | Tests whether two numbers are equal. |
 | `ERF(lower_limit, [upper_limit])` | Error function. |
+| `ERF.PRECISE(x)` | Error function. |
 | `ERFC(x)` | Complementary error function. |
+| `ERFC.PRECISE(x)` | Complementary error function. |
 | `GESTEP(number, [step])` | Tests whether a number is at least a threshold. |
 | `HEX2BIN(number, [places])` | Hexadecimal to binary. |
 | `HEX2DEC(number)` | Hexadecimal to decimal. |
@@ -447,28 +465,41 @@ are optional; `...` means the argument can be repeated.
 | Function | Description |
 | --- | --- |
 | `ARRAYTOTEXT(array, [format])` | Converts an array to text. |
+| `ASC(text)` | Convert to half-width characters. |
+| `BAHTTEXT(number)` | Number as Thai baht text. |
 | `CHAR(number)` | Character from a code number. |
 | `CLEAN(text)` | Removes nonprintable characters. |
 | `CODE(text)` | Code of the first character. |
 | `CONCAT(text1, [text2, ...])` | Joins text from ranges and strings. |
 | `CONCATENATE(text1, [text2, ...])` | Joins text strings. |
+| `DBCS(text)` | Convert to full-width characters. |
 | `DOLLAR(number, [decimals])` | Formats a number as currency text. |
+| `ENCODEURL(text)` | URL-encode text. |
 | `EXACT(text1, text2)` | Checks whether two texts are identical. |
 | `FIND(find_text, within_text, [start_num])` | Position of text within text (case-sensitive). |
+| `FINDB(find_text, within_text, [start_num])` | Position of text (bytes). |
 | `FIXED(number, [decimals], [no_commas])` | Formats a number as text with fixed decimals. |
+| `JIS(text)` | Convert to full-width characters. |
 | `LEFT(text, [num_chars])` | Leftmost characters of text. |
+| `LEFTB(text, [num_bytes])` | Leftmost characters (bytes). |
 | `LEN(text)` | Length of text. |
+| `LENB(text)` | Length of text (bytes). |
 | `LOWER(text)` | Converts text to lowercase. |
 | `MID(text, start_num, num_chars)` | Characters from the middle of text. |
+| `MIDB(text, start_num, num_bytes)` | Middle characters (bytes). |
 | `NUMBERVALUE(text, [decimal_separator], [group_separator])` | Converts text to a number with custom separators. |
+| `PHONETIC(reference)` | Phonetic characters of text. |
 | `PROPER(text)` | Capitalizes each word. |
 | `REGEXEXTRACT(text, pattern, [return_mode], [case_sensitivity])` | Text that matches a regular expression. |
 | `REGEXREPLACE(text, pattern, replacement, [occurrence], [case_sensitivity])` | Replaces text matching a regular expression. |
 | `REGEXTEST(text, pattern, [case_sensitivity])` | Checks text against a regular expression. |
 | `REPLACE(old_text, start_num, num_chars, new_text)` | Replaces characters at a position. |
+| `REPLACEB(old_text, start_num, num_bytes, new_text)` | Replace part of text (bytes). |
 | `REPT(text, number_times)` | Repeats text. |
 | `RIGHT(text, [num_chars])` | Rightmost characters of text. |
+| `RIGHTB(text, [num_bytes])` | Rightmost characters (bytes). |
 | `SEARCH(find_text, within_text, [start_num])` | Position of text within text (case-insensitive). |
+| `SEARCHB(find_text, within_text, [start_num])` | Case-insensitive position of text (bytes). |
 | `SUBSTITUTE(text, old_text, new_text, [instance_num])` | Replaces occurrences of text. |
 | `T(value)` | Returns text, or "" for other values. |
 | `TEXT(value, format_text)` | Formats a number as text. |
@@ -489,6 +520,7 @@ are optional; `...` means the argument can be repeated.
 | --- | --- |
 | `CELL(info_type, [reference])` | Information about a cell. |
 | `ERROR.TYPE(error_val)` | Number identifying an error type. |
+| `INFO(type_text)` | Information about the environment. |
 | `ISBLANK(value)` | Checks whether a cell is empty. |
 | `ISERR(value)` | Checks for an error other than #N/A. |
 | `ISERROR(value)` | Checks for any error. |
@@ -518,6 +550,7 @@ are optional; `...` means the argument can be repeated.
 | `CHIDIST(x, deg_freedom)` | Right-tailed chi-squared distribution (legacy). |
 | `CHIINV(probability, deg_freedom)` | Inverse right-tailed chi-squared (legacy). |
 | `CHITEST(actual_range, expected_range)` | Chi-squared test (legacy). |
+| `CONFIDENCE(alpha, standard_dev, size)` | Normal confidence interval (compatibility). |
 | `COVAR(array1, array2)` | Population covariance (legacy). |
 | `CRITBINOM(trials, probability_s, alpha)` | Inverse cumulative binomial (legacy). |
 | `EXPONDIST(x, lambda, cumulative)` | Exponential distribution (legacy). |
@@ -536,6 +569,8 @@ are optional; `...` means the argument can be repeated.
 | `NORMSDIST(z)` | Standard normal distribution (legacy). |
 | `NORMSINV(probability)` | Inverse standard normal (legacy). |
 | `PERCENTILE(array, k)` | k-th percentile (legacy). |
+| `PERCENTRANK(array, x, [significance])` | Percentage rank (compatibility). |
+| `POISSON(x, mean, cumulative)` | Poisson distribution (compatibility). |
 | `QUARTILE(array, quart)` | Quartile of a data set (legacy). |
 | `RANK(number, ref, [order])` | Rank of a number (legacy). |
 | `STDEV(number1, [number2, ...])` | Sample standard deviation (legacy). |
@@ -545,4 +580,5 @@ are optional; `...` means the argument can be repeated.
 | `TTEST(array1, array2, tails, type)` | Probability from a t-test (legacy). |
 | `VAR(number1, [number2, ...])` | Sample variance (legacy). |
 | `VARP(number1, [number2, ...])` | Population variance (legacy). |
+| `WEIBULL(x, alpha, beta, cumulative)` | Weibull distribution (compatibility). |
 | `ZTEST(array, x, [sigma])` | One-tailed z-test P-value (legacy). |

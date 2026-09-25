@@ -18,6 +18,9 @@
  *   overlapped, or whose rectangle has holes), so they spill afresh from
  *   where they are now, and recalculates the dependents of all of this.
  *
+ * It does not scan the whole sheet for that (except after rows or columns
+ * moved): see `scanSpillCells`.
+ *
  * Undo and redo need nothing here: spills live in the cell data, so the
  * history patches restore them exactly, and the anchor's dependency on its
  * spill area is derived from that data (formulaFunctions.ts).
@@ -37,7 +40,12 @@ import {
   takeSpillGrowthRequests,
   withoutSpillGrowth,
 } from "./formulaFunctions";
-import { getSheetDataCached, peek, peekCell } from "./dependencyGraph";
+import {
+  getSheetDataCached,
+  peek,
+  peekCell,
+  peekSheet,
+} from "./dependencyGraph";
 // eslint-disable-next-line import/no-cycle
 import { insertRowCol } from "./rowcol";
 
@@ -175,6 +183,181 @@ function reevaluate(
   execFunctionGroup(ctx, null, null, null, id);
 }
 
+type Ghost = { r: number; c: number; ar: number; ac: number };
+
+/** The spill-related cells `reconcileSpills` works on (see scanSpillCells). */
+export type SpillScan = {
+  anchors: Map<number, Anchor>;
+  ghosts: Ghost[];
+  /** Formulas copied into a pasted region without being evaluated there. */
+  pastedFormulas: { r: number; c: number }[];
+  /** Formula cells wrongly carrying a `spillFrom` tag. */
+  taggedFormulas: { r: number; c: number }[];
+  /** Number of cells looked at. */
+  visited: number;
+};
+
+/**
+ * Collect the anchors, spilled cells and stray formulas `reconcileSpills`
+ * works on.
+ *
+ * With `all` (rows or columns moved) or `full`, every cell of the sheet is
+ * looked at. Otherwise only the cells that can matter are: the regions the
+ * operation wrote or changed, the formula cells the engine knows (`chain`,
+ * the sheet's calcChain, from which the dependency graph is indexed) and the
+ * rectangles of the anchors found there. Spilled cells elsewhere belong to
+ * anchors the operation did not touch, which leave them alone, so both give
+ * the same result as long as the sheet was reconciled before the operation.
+ */
+export function scanSpillCells(
+  view: CellMatrix,
+  options: SpillReconcileOptions,
+  chain: { r: number; c: number }[] | null | undefined,
+  full = false
+): SpillScan {
+  const { pasted, changed, all } = options;
+  const out: SpillScan = {
+    anchors: new Map(),
+    ghosts: [],
+    pastedFormulas: [],
+    taggedFormulas: [],
+    visited: 0,
+  };
+  const pending: Anchor[] = [];
+  const visit = (r: number, c: number, cell: SpillCell | null) => {
+    out.visited += 1;
+    if (!cell) return;
+    if (cell.f) {
+      // a formula never is a spilled cell
+      if (cell.spillFrom) out.taggedFormulas.push({ r, c });
+      if (cell.spill) {
+        const a: Anchor = {
+          r,
+          c,
+          rs: cell.spill.rs,
+          cs: cell.spill.cs,
+          blocked: !!cell.spill.blocked,
+        };
+        out.anchors.set(cellKey(r, c), a);
+        pending.push(a);
+      } else if (Array.isArray(cell.v) && inRanges(pasted, r, c)) {
+        // a formula copied without evaluating it in place (fill)
+        out.pastedFormulas.push({ r, c });
+      }
+    } else if (cell.spillFrom) {
+      out.ghosts.push({
+        r,
+        c,
+        ar: r - cell.spillFrom.dr,
+        ac: c - cell.spillFrom.dc,
+      });
+    }
+  };
+
+  if (all || full) {
+    for (let r = 0; r < view.length; r += 1) {
+      const row = peek(view[r]);
+      if (!row) continue;
+      for (let c = 0; c < row.length; c += 1) {
+        visit(r, c, peek(row[c]) as SpillCell | null);
+      }
+    }
+    return out;
+  }
+
+  const seen = new Set<number>();
+  const visitOnce = (r: number, c: number) => {
+    if (r < 0 || c < 0 || r >= view.length) return;
+    const key = cellKey(r, c);
+    if (seen.has(key)) return;
+    seen.add(key);
+    visit(r, c, peekCell(view, r, c) as SpillCell | null);
+  };
+  const visitRect = (r0: number, c0: number, r1: number, c1: number) => {
+    const rEnd = Math.min(r1, view.length - 1);
+    for (let r = Math.max(r0, 0); r <= rEnd; r += 1) {
+      const row = peek(view[r]);
+      if (!row) continue;
+      const cEnd = Math.min(c1, row.length - 1);
+      for (let c = Math.max(c0, 0); c <= cEnd; c += 1) visitOnce(r, c);
+    }
+  };
+  const regions = [...(pasted ?? []), ...(changed ?? [])].filter(Boolean);
+  regions.forEach((g) => {
+    visitRect(g.row[0], g.column[0], g.row[1], g.column[1]);
+  });
+  // Cells spilled by an anchor that sat in a region before the operation
+  // (cut, moved, sorted or overwritten) can lie outside every region: they
+  // are reached from the regions' bottom and right edges, going down and
+  // right through cells spilled from an anchor inside a region (a spill
+  // rectangle grows down and right from its anchor).
+  const cols = peek(view[0])?.length ?? 0;
+  const flood: number[] = [];
+  regions.forEach((g) => {
+    const below = g.row[1] + 1;
+    const right = g.column[1] + 1;
+    if (below < view.length) {
+      const cEnd = Math.min(right, cols - 1);
+      for (let c = Math.max(g.column[0], 0); c <= cEnd; c += 1) {
+        flood.push(below, c);
+      }
+    }
+    if (right < cols) {
+      const rEnd = Math.min(g.row[1], view.length - 1);
+      for (let r = Math.max(g.row[0], 0); r <= rEnd; r += 1) {
+        flood.push(r, right);
+      }
+    }
+  });
+  while (flood.length > 0) {
+    const c = flood.pop()!;
+    const r = flood.pop()!;
+    if (r >= view.length || seen.has(cellKey(r, c))) continue;
+    const cell = peekCell(view, r, c) as SpillCell | null;
+    const from = cell && !cell.f ? cell.spillFrom : null;
+    if (from && inRanges(regions, r - from.dr, c - from.dc)) {
+      visitOnce(r, c);
+      flood.push(r + 1, c, r, c + 1);
+    }
+  }
+  (chain ?? []).forEach((item) => {
+    const it = peek(item);
+    if (it) visitOnce(it.r, it.c);
+  });
+  // the anchors of the spilled cells found, and the spilled cells of every
+  // anchor found (which may point at further anchors)
+  let ghostsDone = 0;
+  while (pending.length > 0 || ghostsDone < out.ghosts.length) {
+    while (ghostsDone < out.ghosts.length) {
+      const g = out.ghosts[ghostsDone];
+      ghostsDone += 1;
+      visitOnce(g.ar, g.ac);
+    }
+    const a = pending.pop();
+    if (a) visitRect(a.r, a.c, a.r + a.rs - 1, a.c + a.cs - 1);
+  }
+  // reading order, as a full scan finds them
+  const byPosition = (
+    x: { r: number; c: number },
+    y: { r: number; c: number }
+  ) => x.r - y.r || x.c - y.c;
+  out.ghosts.sort(byPosition);
+  out.pastedFormulas.sort(byPosition);
+  out.taggedFormulas.sort(byPosition);
+  return out;
+}
+
+type ScanVerifier = (restricted: SpillScan, full: SpillScan) => void;
+let scanVerifier: ScanVerifier | null = null;
+
+/**
+ * Tests: have every `reconcileSpills` also scan the whole sheet and hand
+ * both scans to `fn` (null turns it off).
+ */
+export function setSpillScanVerifier(fn: ScanVerifier | null) {
+  scanVerifier = fn;
+}
+
 /**
  * Bring the spills of a sheet back in line with its cells after an operation
  * moved or copied cells (see the module comment). Applies all pending value
@@ -196,42 +379,11 @@ export function reconcileSpills(
   const view = getSheetDataCached(ctx, id) as CellMatrix | null;
   if (!view) return;
 
-  const anchors = new Map<number, Anchor>();
-  const ghosts: { r: number; c: number; ar: number; ac: number }[] = [];
-  const pastedFormulas: { r: number; c: number }[] = [];
-  const taggedFormulas: { r: number; c: number }[] = [];
-  for (let r = 0; r < view.length; r += 1) {
-    const row = peek(view[r]);
-    if (!row) continue;
-    for (let c = 0; c < row.length; c += 1) {
-      const cell = peek(row[c]) as SpillCell | null;
-      if (cell) {
-        if (cell.f) {
-          // a formula never is a spilled cell
-          if (cell.spillFrom) taggedFormulas.push({ r, c });
-          if (cell.spill) {
-            anchors.set(cellKey(r, c), {
-              r,
-              c,
-              rs: cell.spill.rs,
-              cs: cell.spill.cs,
-              blocked: !!cell.spill.blocked,
-            });
-          } else if (Array.isArray(cell.v) && inRanges(pasted, r, c)) {
-            // a formula copied without evaluating it in place (fill)
-            pastedFormulas.push({ r, c });
-          }
-        } else if (cell.spillFrom) {
-          ghosts.push({
-            r,
-            c,
-            ar: r - cell.spillFrom.dr,
-            ac: c - cell.spillFrom.dc,
-          });
-        }
-      }
-    }
-  }
+  const chain = peek(peekSheet(ctx, id)?.calcChain);
+  const scan = scanSpillCells(view, options, chain);
+  if (scanVerifier)
+    scanVerifier(scan, scanSpillCells(view, options, chain, true));
+  const { anchors, ghosts, pastedFormulas, taggedFormulas } = scan;
 
   const respill = new Set<number>();
   anchors.forEach((a, key) => {

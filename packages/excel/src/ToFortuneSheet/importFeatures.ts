@@ -10,9 +10,11 @@
  * Sheet readers run after a sheet was parsed, in array order; workbook
  * readers run once after every sheet was parsed.
  */
+import { applyTableFormatting } from "@lofcz/tinysheet-core";
 import { ReadXml, Element, IStyleCollections } from "./ReadXml";
 import { IuploadfileList } from "../common/ICommon";
 import { escapeCharacter, getcellrange } from "../common/method";
+import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { FortuneSheet } from "./FortuneSheet";
 
 export type WorkbookImportInfo = {
@@ -92,7 +94,12 @@ function textOf(element: Element) {
     .replace(/\r\n/g, "\n");
 }
 
-function setNote(sheet: FortuneSheet, ref: string, value: string) {
+function setNote(
+  sheet: FortuneSheet,
+  ref: string,
+  value: string,
+  shown: Set<string>
+) {
   const range = getcellrange(ref);
   if (range == null) return;
   const r = range.row[0];
@@ -109,12 +116,26 @@ function setNote(sheet: FortuneSheet, ref: string, value: string) {
     width: null,
     height: null,
     value,
-    isShow: false,
+    isShow: shown.has(`${r}_${c}`),
   };
 }
 
 const COMMENTS_REL = /\/comments$/;
 const THREADED_REL = /\/threadedComment$/;
+const VML_REL = /\/vmlDrawing$/;
+
+/** Cells ("r_c", 0-based) whose note shape is visible (`<x:Visible/>`). */
+export function visibleVmlNotes(vml: string): Set<string> {
+  const out = new Set<string>();
+  (vml.match(/<v:shape\b[\s\S]*?<\/v:shape>/g) || []).forEach((shape) => {
+    if (!/ObjectType="Note"/.test(shape) || !/<x:Visible\s*\/?>/.test(shape))
+      return;
+    const row = /<x:Row>\s*(\d+)\s*<\/x:Row>/.exec(shape)?.[1];
+    const col = /<x:Column>\s*(\d+)\s*<\/x:Column>/.exec(shape)?.[1];
+    if (row != null && col != null) out.add(`${row}_${col}`);
+  });
+  return out;
+}
 
 /** Notes (legacy comments) and threaded comments -> `cell.ps`. */
 export function readNotes(ctx: SheetImportContext) {
@@ -157,12 +178,154 @@ export function readNotes(ctx: SheetImportContext) {
       threads.forEach((texts, ref) => notes.set(ref, texts.join("\n")));
     });
 
-  notes.forEach((value, ref) => setNote(ctx.sheet, ref, value));
+  // notes shown permanently (Show/Hide Note)
+  const shown = new Set<string>();
+  rels
+    .filter((x) => VML_REL.test(x.type) && ctx.files[x.target])
+    .forEach((rel) => {
+      visibleVmlNotes(ctx.files[rel.target]).forEach((k) => shown.add(k));
+    });
+
+  notes.forEach((value, ref) => setNote(ctx.sheet, ref, value, shown));
+}
+
+const TABLE_REL = /\/table$/;
+
+const TOTAL_FUNCTIONS = new Set([
+  "sum",
+  "average",
+  "count",
+  "countNums",
+  "max",
+  "min",
+  "stdDev",
+  "var",
+  "custom",
+]);
+
+function xmlAttrs(tag: string) {
+  const attrs: Record<string, string> = {};
+  const re = /([\w:]+)="([^"]*)"/g;
+  let m = re.exec(tag);
+  while (m) {
+    attrs[m[1]] = escapeCharacter(m[2]);
+    m = re.exec(tag);
+  }
+  return attrs;
+}
+
+const isOn = (v: string | undefined) => v === "1" || v === "true";
+
+/** One table part (xl/tables/tableN.xml) as a TinySheet table, or null. */
+export function parseTablePart(xml: string) {
+  const open = /<(?:\w+:)?table\b[^>]*>/.exec(xml)?.[0];
+  if (!open) return null;
+  const attrs = xmlAttrs(open);
+  const range = getcellrange(attrs.ref ?? "");
+  const name = attrs.displayName || attrs.name;
+  if (!range || !name) return null;
+  const columns = (xml.match(/<(?:\w+:)?tableColumn\b[^>]*>/g) || []).map(
+    (tag) => {
+      const a = xmlAttrs(tag);
+      const fn = TOTAL_FUNCTIONS.has(a.totalsRowFunction)
+        ? a.totalsRowFunction
+        : "none";
+      const col: Record<string, any> = {
+        name: a.name ?? "",
+        totalFunction: fn,
+      };
+      if (a.totalsRowLabel) col.totalLabel = a.totalsRowLabel;
+      return col;
+    }
+  );
+  const styleTag = /<(?:\w+:)?tableStyleInfo\b[^>]*>/.exec(xml)?.[0];
+  const style = styleTag ? xmlAttrs(styleTag) : {};
+  return {
+    name,
+    range: {
+      row: [range.row[0], range.row[1]] as [number, number],
+      column: [range.column[0], range.column[1]] as [number, number],
+    },
+    headerRow: attrs.headerRowCount !== "0",
+    totalRow: Number(attrs.totalsRowCount ?? 0) > 0,
+    bandedRows: isOn(style.showRowStripes),
+    bandedColumns: isOn(style.showColumnStripes),
+    firstColumn: isOn(style.showFirstColumn),
+    lastColumn: isOn(style.showLastColumn),
+    style: style.name || "TableStyleMedium2",
+    columns,
+  };
+}
+
+/**
+ * Write a table's look (header, total and band fills, bold rows) into its
+ * cells, as TinySheet keeps it (core's applyTableFormatting): Excel draws
+ * it from the table style instead. Fills the file sets itself are kept.
+ */
+function applyTableLook(sheet: FortuneSheet, table: any) {
+  const [r1, r2] = table.range.row;
+  const [c1, c2] = table.range.column;
+  const inside = (r: number, c: number) =>
+    r >= r1 && r <= r2 && c >= c1 && c <= c2;
+  const entries = new Map<string, any>();
+  sheet.celldata.forEach((cell) => {
+    if (inside(cell.r, cell.c)) entries.set(`${cell.r}_${cell.c}`, cell);
+  });
+  const data: any[][] = [];
+  for (let r = r1; r <= r2; r += 1) {
+    data[r] = [];
+    for (let c = c1; c <= c2; c += 1) {
+      const v = entries.get(`${r}_${c}`)?.v;
+      data[r][c] = v && typeof v === "object" ? v : null;
+    }
+  }
+  const id = "__import__";
+  applyTableFormatting({ luckysheetfile: [{ id, data }] } as any, id, table);
+  for (let r = r1; r <= r2; r += 1) {
+    for (let c = c1; c <= c2; c += 1) {
+      const v = data[r][c];
+      if (!v || Object.keys(v).length === 0) continue;
+      const entry = entries.get(`${r}_${c}`);
+      if (entry) entry.v = v;
+      else sheet.celldata.push({ r, c, v });
+    }
+  }
+}
+
+/**
+ * Table parts -> `sheet.tables`, with their look written into the cells.
+ * Formulas inside a table refer to it unqualified, as in Excel's formula
+ * bar (`[@Price]`, `[Sales]`).
+ */
+export function readTables(ctx: SheetImportContext) {
+  const tables = partRelationships(ctx.files, ctx.sheetFile)
+    .filter((x) => TABLE_REL.test(x.type) && ctx.files[x.target])
+    .map((rel) => parseTablePart(ctx.files[rel.target]))
+    .filter((t): t is NonNullable<typeof t> => t != null)
+    .filter(
+      (t) => t.columns.length === t.range.column[1] - t.range.column[0] + 1
+    );
+  if (tables.length === 0) return;
+  (ctx.sheet as any).tables = tables;
+  tables.forEach((table) => applyTableLook(ctx.sheet, table));
+  ctx.sheet.celldata.forEach((cell) => {
+    const v = cell.v as any;
+    if (!v || typeof v.f !== "string" || v.f.indexOf("[") < 0) return;
+    const table = tables.find(
+      (t) =>
+        cell.r >= t.range.row[0] &&
+        cell.r <= t.range.row[1] &&
+        cell.c >= t.range.column[0] &&
+        cell.c <= t.range.column[1]
+    );
+    if (table) v.f = unqualifyStructuredReferences(v.f, table.name);
+  });
 }
 
 /** Per-sheet readers, in order. */
 export const sheetImportFeatures: SheetImportFeature[] = [
   { name: "notes", read: readNotes },
+  { name: "tables", read: readTables },
   // Conditional formatting (P5) and charts (P12) plug in here.
 ];
 

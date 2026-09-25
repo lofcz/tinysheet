@@ -215,7 +215,12 @@ class Parser extends Emitter {
    * @returns {*}
    */
   getFunction(name) {
-    return this.functions[name];
+    const fn = this.functions[name];
+
+    // Function names are case-insensitive: `=text(...)` finds `TEXT`.
+    return fn === void 0 && typeof name === "string"
+      ? this.functions[name.toUpperCase()]
+      : fn;
   }
 
   /**
