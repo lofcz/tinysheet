@@ -94,6 +94,8 @@ Gets the value of a cell.
 
 	In special cases, when the cell format is `yyyy-MM-dd` and `type` is `'v'`, the displayed value of `'m'` will be forced.
 
+	With `type: 'f'` the formula text is returned as stored (`"=SUM(A1:A3)"`); a cell without a formula returns its value. The core API's `getCellFormulaHtml(ctx, row, column)` gives the editor's highlighted HTML of the formula instead.
+
 - **Example**
 
   - Returns the v value of the data in the cell in row 1, column 1 of the current worksheet
