@@ -7,6 +7,7 @@ export * from "./format";
 export * from "./formula";
 export * from "./formulaEditor";
 export * from "./freeze";
+export * from "./history";
 export * from "./inline-string";
 export * from "./location";
 export * from "./protection";
