@@ -24,6 +24,7 @@ import type { Context } from "../context";
 import type { Cell } from "../types";
 import { getSheetIndex } from "../utils";
 import { getCanvasTheme } from "../theme";
+import { drawCornerMark } from "./cellMarks";
 import { formatRef, offsetFormula, ParsedRef, scanFormula } from "./refAdjust";
 import { isRealNum } from "./validation";
 import { isErrorValue } from "./formulaAudit";
@@ -481,17 +482,18 @@ let registered: (() => void) | null = null;
 export function registerErrorCheckingDecorator() {
   if (registered) return registered;
   const off = registerCellDecorator("errorChecking", {
-    drawForeground: ({ ctx, renderCtx, cell, r, c, x, y, zoom }) => {
+    drawForeground: ({ ctx, renderCtx, cell, r, c, x, y, w, zoom }) => {
       if (!cell) return;
       if (!getCellError(ctx, r, c)) return;
-      const size = 6 * zoom;
-      renderCtx.beginPath();
-      renderCtx.moveTo(x + size, y);
-      renderCtx.lineTo(x, y);
-      renderCtx.lineTo(x, y + size);
-      renderCtx.closePath();
-      renderCtx.fillStyle = getCanvasTheme(ctx).numberAsTextMarker;
-      renderCtx.fill();
+      drawCornerMark(
+        renderCtx,
+        "tl",
+        x,
+        y,
+        w,
+        6 * zoom,
+        getCanvasTheme(ctx).numberAsTextMarker
+      );
     },
   });
   registered = () => {

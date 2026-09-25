@@ -249,7 +249,7 @@ describe("drawing", () => {
       1
     );
     expect(calls).toContainEqual(["set:fillStyle", "#1c1c1f"]);
-    expect(calls).toContainEqual(["set:strokeStyle", "#e3e3e3"]);
+    expect(calls).toContainEqual(["set:strokeStyle", "#e4e4e7"]);
   });
 });
 

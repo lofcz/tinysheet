@@ -26,6 +26,7 @@ import { execfunction } from "./formula";
 import { setEditMode } from "./editMode";
 // eslint-disable-next-line import/no-cycle
 import { normalizeSelection } from "./selection";
+import { drawCornerMark } from "./cellMarks";
 import { genarate } from "./format";
 import { shiftFormula } from "./sort";
 import { registerReferenceAdjuster, ReferenceAdjuster } from "./refAdjust";
@@ -647,14 +648,7 @@ export function drawDataVerificationMarks(
   if (validateCellData(ctx, item, value, r, c)) return;
   const zoom = ctx.zoomRatio || 1;
   // the small triangle in the top-left corner
-  const size = 5 * zoom;
-  renderCtx.beginPath();
-  renderCtx.moveTo(rect.x, rect.y);
-  renderCtx.lineTo(rect.x + size, rect.y);
-  renderCtx.lineTo(rect.x, rect.y + size);
-  renderCtx.fillStyle = color;
-  renderCtx.fill();
-  renderCtx.closePath();
+  drawCornerMark(renderCtx, "tl", rect.x, rect.y, rect.w, 6 * zoom, color);
   if (!isShowingInvalidDataCircles(ctx)) return;
   renderCtx.save();
   renderCtx.beginPath();

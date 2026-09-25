@@ -12,6 +12,7 @@
 import type { Context } from "../context";
 import type { Cell, CellMatrix } from "../types";
 import { locale } from "../locale";
+import { referenceColors as colors } from "./color";
 import { getNameCandidates } from "./names";
 import { escapeColumnName, findTable, tableAt } from "./tables";
 
@@ -980,20 +981,10 @@ export function referenceKey(ref: string) {
 
 /**
  * Colours of the references of a formula being edited (the text in the
- * editors and the boxes on the grid), in Excel's order: blue, red, purple,
- * green, magenta, orange, teal, brown. Mid tones that read on the light and
- * the dark editor background alike.
+ * editors and the boxes on the grid), in Excel's order: `referenceColors`
+ * (./color.ts), shared with the grid's reference boxes.
  */
-export const REFERENCE_COLORS = [
-  "#2f6fdf",
-  "#d63a3a",
-  "#8b50d4",
-  "#1f9950",
-  "#c43a93",
-  "#c9741c",
-  "#1a91a8",
-  "#8f6b2f",
-];
+export const REFERENCE_COLORS = colors;
 
 export function referenceColor(colorIndex: number) {
   return REFERENCE_COLORS[colorIndex % REFERENCE_COLORS.length];

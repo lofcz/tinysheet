@@ -38,6 +38,9 @@ import {
   handleFormatPainter,
   openFormatCells,
   startFormatPainter,
+  cellFontName,
+  defaultFontFamily,
+  fontDisplayName,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import { getToolbarItemRenderer } from "../../extensions";
@@ -114,6 +117,9 @@ export function useToolbarItemRenderer() {
   } = locale(context);
   const { numberFormatMenu, formatCells, cellStyles } = locale(context);
   const currency = context.currency || settings.currency || "$";
+  // the Font box: the workbook's default font for cells without one
+  const { lang, defaultFontFamily: fontFamily } = context;
+  const defaultFontName = fontDisplayName(defaultFontFamily(context));
   // Excel's Number Format list (Home > Number)
   const numberFormatItems = useMemo(
     () =>
@@ -330,18 +336,18 @@ export function useToolbarItemRenderer() {
         );
       }
       if (name === "font") {
-        let current = fontarray[0];
-        if (cell?.ff != null && cell.ff !== "") {
-          // an index into the font list (as the canvas reads it) or a name
-          current = /^\d+$/.test(String(cell.ff))
-            ? (fontarray[Number(cell.ff)] ?? fontarray[0])
-            : String(cell.ff);
-        }
+        // an index into the font list (as the canvas reads it), a name, or
+        // the workbook's default font when the cell has none
+        const current =
+          cell?.ff == null || cell.ff === ""
+            ? defaultFontName
+            : cellFontName({ lang, defaultFontFamily: fontFamily }, cell);
+        const fonts = Array.from(new Set([defaultFontName, ...fontarray]));
         return (
           <Combo text={current} key={name} tooltip={tooltip}>
             {(setOpen) => (
               <Select>
-                {fontarray.map((o) => (
+                {fonts.map((o) => (
                   <Option
                     key={o}
                     checked={o.toLowerCase() === current.toLowerCase()}
@@ -1304,6 +1310,9 @@ export function useToolbarItemRenderer() {
       findAndReplace,
       context.luckysheet_select_save,
       context.defaultFontSize,
+      defaultFontName,
+      lang,
+      fontFamily,
       context.allowEdit,
       comment,
       fontarray,

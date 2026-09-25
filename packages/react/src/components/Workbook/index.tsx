@@ -32,6 +32,7 @@ import {
   hasPendingRecalc,
   runRecalcSlice,
   setRecalcScheduler,
+  defaultCurrencySymbol,
 } from "@lofcz/tinysheet-core";
 import type { History, ThemeSetting } from "@lofcz/tinysheet-core";
 import { flushSync } from "react-dom";
@@ -457,6 +458,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           draftCtx.defaultcolumnNum = mergedSettings.column;
           draftCtx.defaultrowNum = mergedSettings.row;
           draftCtx.defaultFontSize = mergedSettings.defaultFontSize;
+          draftCtx.defaultFontFamily = mergedSettings.defaultFontFamily;
           if (_.isEmpty(draftCtx.luckysheetfile)) {
             // Shallow copies: ensureSheetIndex fills in ids and status.
             // (Running it through produce would deep-freeze every cell of
@@ -539,7 +541,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
 
           draftCtx.config = _.isNil(sheet.config) ? {} : sheet.config;
           draftCtx.insertedImgs = sheet.images;
-          draftCtx.currency = mergedSettings.currency || "¥";
+          draftCtx.currency = mergedSettings.currency || "";
 
           draftCtx.zoomRatio = _.isNil(sheet.zoomRatio) ? 1 : sheet.zoomRatio;
           draftCtx.rowHeaderWidth =
@@ -583,6 +585,10 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               navigator.userLanguage; // 兼容IE浏览器
             draftCtx.lang = lang;
           }
+          // no currency set: the language's (Excel follows the locale)
+          if (!mergedSettings.currency) {
+            draftCtx.currency = defaultCurrencySymbol(draftCtx.lang);
+          }
         },
         { noHistory: true }
       );
@@ -595,6 +601,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       mergedSettings.column,
       mergedSettings.row,
       mergedSettings.defaultFontSize,
+      mergedSettings.defaultFontFamily,
       mergedSettings.devicePixelRatio,
       mergedSettings.lang,
       mergedSettings.allowEdit,
@@ -816,8 +823,8 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     // ~1300 lines of static SVG symbols: keep the element identity stable so
     // React skips it on every context change.
     const svgDefines = useMemo(
-      () => <SVGDefines currency={mergedSettings.currency} />,
-      [mergedSettings.currency]
+      () => <SVGDefines currency={context.currency ?? ""} />,
+      [context.currency]
     );
 
     // Stable elements, each in its own TrackedScope: a Workbook render (on

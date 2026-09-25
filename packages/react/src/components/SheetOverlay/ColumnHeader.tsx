@@ -242,7 +242,7 @@ const ColumnHeader: React.FC = () => {
       ref={containerRef}
       className="fortune-col-header"
       style={{
-        height: context.columnHeaderHeight - 1.5,
+        height: context.columnHeaderHeight - 1,
       }}
       onMouseMove={onMouseMove}
       onMouseDown={onMouseDown}
@@ -320,7 +320,6 @@ const ColumnHeader: React.FC = () => {
               left: col_pre,
               width: col - col_pre - 1,
               display: "block",
-              backgroundColor: "rgba(76, 76, 76, 0.1)",
             },
             fixColumnStyleOverflowInFreeze(
               context,

@@ -12,6 +12,7 @@ import {
 } from "./types";
 import type { ErrorCheckingOptions } from "./modules/errorChecking";
 import type { ThemeSetting } from "./theme";
+import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from "./modules/fonts";
 
 export type Hooks = {
   beforeUpdateCell?: (r: number, c: number, value: any) => boolean;
@@ -190,7 +191,15 @@ export type Settings = {
   columnHeaderHeight?: number;
   defaultColWidth?: number;
   defaultRowHeight?: number;
+  /** Font size (pt) of cells without a size of their own. @default 11 */
   defaultFontSize?: number;
+  /**
+   * CSS font-family of cells without a font of their own (Excel's "Body"
+   * font). A stored numeric `ff` keeps meaning an index into the locale's
+   * font list; this only replaces what an unset font shows as.
+   * @default 'Calibri, Carlito, "Segoe UI", Arial, sans-serif'
+   */
+  defaultFontFamily?: string;
   toolbarItems?: string[];
   cellContextMenu?: string[];
   headerContextMenu?: string[];
@@ -206,6 +215,10 @@ export type Settings = {
     icon?: React.ReactNode;
     onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   }[];
+  /**
+   * Currency symbol of the Currency / Accounting formats. Unset: the
+   * language's symbol (`$` for English, `¥` for Chinese, ...).
+   */
   currency?: string;
   /**
    * Colour theme of the workbook UI and canvas. `auto` follows the
@@ -320,7 +333,8 @@ export const defaultSettings: Required<Settings> = {
   columnHeaderHeight: 20,
   defaultColWidth: 73,
   defaultRowHeight: 19,
-  defaultFontSize: 10,
+  defaultFontSize: DEFAULT_FONT_SIZE,
+  defaultFontFamily: DEFAULT_FONT_FAMILY,
   // Excel's Home tab order, grouped like its ribbon groups; items that do
   // not fit move to the "More" menu from the end.
   toolbarItems: [
@@ -492,7 +506,9 @@ export const defaultSettings: Required<Settings> = {
   generateSheetId: () => uuidv4(),
   hooks: {},
   customToolbarItems: [],
-  currency: "¥",
+  // empty: the locale's currency symbol ($ for English, see
+  // defaultCurrencySymbol)
+  currency: "",
   // "light" | "dark" | "auto". A `theme` prop controls it; without one the
   // workbook starts from `defaultTheme` and the toolbar switch changes it.
   theme: "light",

@@ -50,6 +50,10 @@
   /* grid (canvas colours mirror these, see core/src/theme.ts) */
   --ts-cell: #ffffff;
   --ts-gridline: #e4e4e7;
+  --ts-cell-text: #000000; /* Automatic text */
+  --ts-header: #f4f4f5; /* row / column headers */
+  --ts-header-line: #d9d9de;
+  --ts-header-hover: rgba(24, 24, 27, 0.05);
 
   /* shape & motion */
   --ts-radius: 8px; /* controls */
@@ -124,7 +128,7 @@
   --fortune-selection-focus-fill: rgba(37, 99, 235, 0.14);
   --fortune-focus-ring: 0 0 0 2px var(--ts-ring);
 
-  --fortune-header-bg: var(--ts-surface);
+  --fortune-header-bg: var(--ts-header);
   --fortune-header-text: var(--ts-muted);
   --fortune-header-hover: var(--ts-hover);
   --fortune-header-selected: var(--ts-active);
@@ -176,7 +180,11 @@
   --ts-pane-shadow: none;
   --ts-disabled: #52525b;
   --ts-cell: #1c1c1f;
-  --ts-gridline: #2a2a2e;
+  --ts-gridline: #2e2e33;
+  --ts-cell-text: #e4e4e7;
+  --ts-header: #141417;
+  --ts-header-line: #34343a;
+  --ts-header-hover: rgba(250, 250, 250, 0.06);
 
   --fortune-selection-fill: rgba(96, 165, 250, 0.12);
   --fortune-selection-focus-fill: rgba(96, 165, 250, 0.2);

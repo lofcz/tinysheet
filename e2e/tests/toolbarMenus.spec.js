@@ -154,8 +154,9 @@ test.describe("toolbar drop-downs", () => {
     await sheet.click(1, 1);
     await page.getByRole("combobox", { name: "Font Size" }).focus();
     await page.keyboard.press("Alt+ArrowDown");
-    // the current size has the focus (and is checked); arrows move on
-    const current = dropdown(page).getByRole("menuitemradio", { name: "10" });
+    // the current size (the default 11pt) has the focus (and is checked);
+    // arrows move on
+    const current = dropdown(page).getByRole("menuitemradio", { name: "11" });
     await expect(current).toBeFocused();
     await expect(current).toHaveAttribute("aria-checked", "true");
     await page.keyboard.press("End");
@@ -166,6 +167,7 @@ test.describe("toolbar drop-downs", () => {
     await expect(
       dropdown(page).getByRole("menuitemradio", { name: "8", exact: true })
     ).toBeFocused();
+    await page.keyboard.press("ArrowDown");
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("ArrowDown");
@@ -190,7 +192,7 @@ test.describe("toolbar drop-downs", () => {
   }) => {
     await sheet.click(3, 1);
     const box = page.getByRole("combobox", { name: "Font Size" });
-    await expect(box).toHaveValue("10");
+    await expect(box).toHaveValue("11");
     await box.click();
     await box.fill("15");
     await page.keyboard.press("Enter");

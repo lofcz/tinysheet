@@ -629,6 +629,91 @@ const SheetOverlay: React.FC = () => {
 
   const computedCellValue = cellValue();
 
+  // Selection look (Excel): several ranges show as fills only, the active
+  // cell stays clear of the fill, Select All lights up when all is selected.
+  const selections = context.luckysheet_select_save ?? [];
+  const multiSelection = selections.length > 1;
+  const freezeCache = refs.globalCache.freezen?.[context.currentSheetId];
+  const lastSel = _.last(selections);
+  const focusStyle: React.CSSProperties = lastSel
+    ? _.assign(
+        {
+          left: lastSel.left,
+          top: lastSel.top,
+          width: lastSel.width || 0,
+          height: lastSel.height || 0,
+          display: "block",
+        },
+        fixRowStyleOverflowInFreeze(
+          context,
+          lastSel.row_focus || 0,
+          lastSel.row_focus || 0,
+          freezeCache
+        ),
+        fixColumnStyleOverflowInFreeze(
+          context,
+          lastSel.column_focus || 0,
+          lastSel.column_focus || 0,
+          freezeCache
+        )
+      )
+    : {};
+  const selectionBoxStyle = (selection: (typeof selections)[number]) =>
+    _.assign(
+      {
+        left: selection.left_move,
+        top: selection.top_move,
+        width: selection?.width_move || 0,
+        height: selection?.height_move || 0,
+        display: "block",
+      },
+      fixRowStyleOverflowInFreeze(
+        context,
+        selection.row[0],
+        selection.row[1],
+        freezeCache
+      ),
+      fixColumnStyleOverflowInFreeze(
+        context,
+        selection.column[0],
+        selection.column[1],
+        freezeCache
+      )
+    ) as React.CSSProperties & {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    };
+  // The fill of the range holding the active cell has a hole there.
+  const selectionFillStyle = (
+    selection: (typeof selections)[number],
+    holdsFocus: boolean
+  ): React.CSSProperties | undefined => {
+    if (!holdsFocus || focusStyle.display === "none") return undefined;
+    const box = selectionBoxStyle(selection);
+    const x = Number(focusStyle.left) - box.left;
+    const y = Number(focusStyle.top) - box.top;
+    const w = Number(focusStyle.width);
+    const h = Number(focusStyle.height);
+    if (![x, y, w, h].every(Number.isFinite)) return undefined;
+    // the active cell is the whole range: nothing to fill
+    if (x <= 0 && y <= 0 && x + w >= box.width && y + h >= box.height) {
+      return { display: "none" };
+    }
+    return {
+      clipPath: `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${x}px ${y}px, ${
+        x + w
+      }px ${y}px, ${x + w}px ${y + h}px, ${x}px ${y + h}px, ${x}px ${y}px)`,
+    };
+  };
+  const allSelected =
+    selections.length === 1 &&
+    selections[0].row[0] <= 0 &&
+    selections[0].column[0] <= 0 &&
+    selections[0].row[1] >= context.visibledatarow.length - 1 &&
+    selections[0].column[1] >= context.visibledatacolumn.length - 1;
+
   useEffect(() => {
     if (context.sheetFocused) {
       setLastRangeText(String(rangeText));
@@ -654,9 +739,10 @@ const SheetOverlay: React.FC = () => {
           className="fortune-left-top"
           onClick={onLeftTopClick}
           tabIndex={0}
+          data-all-selected={allSelected || undefined}
           style={{
-            width: context.rowHeaderWidth - 1.5,
-            height: context.columnHeaderHeight - 1.5,
+            width: context.rowHeaderWidth - 2,
+            height: context.columnHeaderHeight - 2,
           }}
         />
         <TrackedScope>{COLUMN_HEADER}</TrackedScope>
@@ -761,34 +847,8 @@ const SheetOverlay: React.FC = () => {
           />
           <div
             className="luckysheet-cell-selected-focus"
-            style={
-              (context.luckysheet_select_save?.length ?? 0) > 0
-                ? (() => {
-                    const selection = _.last(context.luckysheet_select_save)!;
-                    return _.assign(
-                      {
-                        left: selection.left,
-                        top: selection.top,
-                        width: selection?.width || 0,
-                        height: selection?.height || 0,
-                        display: "block",
-                      },
-                      fixRowStyleOverflowInFreeze(
-                        context,
-                        selection.row_focus || 0,
-                        selection.row_focus || 0,
-                        refs.globalCache.freezen?.[context.currentSheetId]
-                      ),
-                      fixColumnStyleOverflowInFreeze(
-                        context,
-                        selection.column_focus || 0,
-                        selection.column_focus || 0,
-                        refs.globalCache.freezen?.[context.currentSheetId]
-                      )
-                    );
-                  })()
-                : {}
-            }
+            data-multi={multiSelection || undefined}
+            style={focusStyle}
             onMouseDown={(e) => e.preventDefault()}
           />
           <TrackedScope>{SPILL_RANGE}</TrackedScope>
@@ -847,27 +907,11 @@ const SheetOverlay: React.FC = () => {
                   key={index}
                   id="luckysheet-cell-selected"
                   className="luckysheet-cell-selected"
-                  style={_.assign(
-                    {
-                      left: selection.left_move,
-                      top: selection.top_move,
-                      width: selection?.width_move || 0,
-                      height: selection?.height_move || 0,
-                      display: "block",
-                    },
-                    fixRowStyleOverflowInFreeze(
-                      context,
-                      selection.row[0],
-                      selection.row[1],
-                      refs.globalCache.freezen?.[context.currentSheetId]
-                    ),
-                    fixColumnStyleOverflowInFreeze(
-                      context,
-                      selection.column[0],
-                      selection.column[1],
-                      refs.globalCache.freezen?.[context.currentSheetId]
-                    )
-                  )}
+                  data-multi={multiSelection || undefined}
+                  data-editing={
+                    context.luckysheetCellUpdate.length > 0 || undefined
+                  }
+                  style={selectionBoxStyle(selection)}
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     const { nativeEvent } = e;
@@ -883,6 +927,13 @@ const SheetOverlay: React.FC = () => {
                     });
                   }}
                 >
+                  <div
+                    className="luckysheet-cs-fill"
+                    style={selectionFillStyle(
+                      selection,
+                      index === selections.length - 1
+                    )}
+                  />
                   <div className="luckysheet-cs-inner-border" />
                   <div
                     className="luckysheet-cs-fillhandle"

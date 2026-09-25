@@ -8,6 +8,11 @@ import {
   getMeasureText,
 } from "./modules/text";
 import { isInlineStringCell } from "./modules/inline-string";
+import {
+  defaultFontFamily,
+  HEADER_FONT_FAMILY,
+  HEADER_FONT_SIZE,
+} from "./modules/fonts";
 import { getSheetIndex, indexToColumnChar } from "./utils";
 import { getBorderInfoComputeRange } from "./modules/border";
 import {
@@ -17,6 +22,7 @@ import {
   getComputeMap,
 } from "./modules";
 import { cfTextCell, drawCFDecorations } from "./modules/cfDraw";
+import { drawCornerMark } from "./modules/cellMarks";
 import {
   CellDecoratorArgs,
   drawCellBackgroundDecorators,
@@ -24,7 +30,12 @@ import {
   drawCellForegroundDecorators,
   hasCellDecorators,
 } from "./modules/extensions";
-import { getCanvasTheme, resolveCellTextColor } from "./theme";
+import {
+  getCanvasTheme,
+  resolveBorderColor,
+  resolveCellFill,
+  resolveCellTextColor,
+} from "./theme";
 import {
   fitCellToWidth,
   getCellFormatColor,
@@ -210,6 +221,49 @@ export class Canvas {
     this.cellOverflowMapCache = {};
   }
 
+  /**
+   * Selection state of each row (`axis` "row") or column header: 0 none,
+   * 1 part of the selection (Excel: tinted header, accent edge), 2 whole
+   * row / column selected (stronger tint).
+   */
+  headerSelection(axis: "row" | "column"): (index: number) => 0 | 1 | 2 {
+    const ranges = this.sheetCtx.luckysheet_select_save;
+    if (!ranges || ranges.length === 0) return () => 0;
+    const acrossCount =
+      axis === "row"
+        ? this.sheetCtx.visibledatacolumn.length
+        : this.sheetCtx.visibledatarow.length;
+    const spans: [number, number, boolean][] = [];
+    ranges.forEach((range) => {
+      const along = axis === "row" ? range.row : range.column;
+      const across = axis === "row" ? range.column : range.row;
+      if (!along || !across || along[0] == null) return;
+      const full =
+        acrossCount > 0 &&
+        Math.min(across[0], across[1] ?? across[0]) <= 0 &&
+        Math.max(across[0], across[1] ?? across[0]) >= acrossCount - 1;
+      const a = Math.min(along[0], along[1] ?? along[0]);
+      const b = Math.max(along[0], along[1] ?? along[0]);
+      spans.push([a, b, full]);
+    });
+    return (index: number) => {
+      let state: 0 | 1 | 2 = 0;
+      for (let i = 0; i < spans.length; i += 1) {
+        const [a, b, full] = spans[i];
+        if (index >= a && index <= b) {
+          if (full) return 2;
+          state = 1;
+        }
+      }
+      return state;
+    };
+  }
+
+  /** Header label font at the current zoom (drawn in a zoom-scaled space). */
+  headerFont() {
+    return `normal normal normal ${HEADER_FONT_SIZE}px ${HEADER_FONT_FAMILY}`;
+  }
+
   drawRowHeader(scrollHeight: number, drawHeight?: number, offsetTop?: number) {
     if (_.isNil(drawHeight)) {
       [, drawHeight] = this.sheetCtx.luckysheetTableContentHW;
@@ -222,20 +276,20 @@ export class Canvas {
     const renderCtx = this.canvasElement.getContext("2d");
     if (!renderCtx) return;
 
+    const theme = getCanvasTheme(this.sheetCtx);
+    const selected = this.headerSelection("row");
+    const { rowHeaderWidth, zoomRatio } = this.sheetCtx;
+    const rowhidden = this.sheetCtx.config?.rowhidden;
+
     renderCtx.save();
     renderCtx.scale(
       this.sheetCtx.devicePixelRatio,
       this.sheetCtx.devicePixelRatio
     );
 
-    renderCtx.clearRect(
-      0,
-      offsetTop,
-      this.sheetCtx.rowHeaderWidth - 1,
-      drawHeight
-    );
+    renderCtx.clearRect(0, offsetTop, rowHeaderWidth - 1, drawHeight);
 
-    const headerFont = defaultFont(this.sheetCtx.defaultFontSize);
+    const headerFont = this.headerFont();
     renderCtx.font = headerFont;
     // @ts-ignore
     renderCtx.textBaseline = defaultStyle.textBaseline; // 基准线 垂直居中
@@ -258,18 +312,16 @@ export class Canvas {
 
     renderCtx.save();
     renderCtx.beginPath();
-    renderCtx.rect(
-      0,
-      offsetTop - 1,
-      this.sheetCtx.rowHeaderWidth - 1,
-      drawHeight - 2
-    );
+    // down to (not over) the frozen-pane line below a frozen part
+    renderCtx.rect(0, offsetTop - 1, rowHeaderWidth - 1, drawHeight - 1);
     renderCtx.clip();
 
     let end_r;
     let start_r;
     const bodrder05 = 0.5; // Default 0.5
     let preEndR;
+    // accent edges of selected rows, drawn over the separators
+    const edges: [number, number][] = [];
     for (let r = dataset_row_st; r <= dataset_row_ed; r += 1) {
       if (r === 0) {
         start_r = -scrollHeight - 1;
@@ -286,7 +338,7 @@ export class Canvas {
           `${r + 1}`,
           r,
           start_r + offsetTop + firstOffset,
-          this.sheetCtx.rowHeaderWidth - 1,
+          rowHeaderWidth - 1,
           end_r - start_r + 1 + lastOffset - firstOffset,
           renderCtx
         ) === false
@@ -294,94 +346,78 @@ export class Canvas {
         continue;
       }
 
-      if (this.sheetCtx.config?.rowhidden?.[r] == null) {
-        renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).headerBackground;
+      if (rowhidden?.[r] == null) {
+        const state = selected(r);
+        renderCtx.fillStyle =
+          state === 2
+            ? theme.headerFullBackground
+            : state === 1
+              ? theme.headerSelectedBackground
+              : theme.headerBackground;
         renderCtx.fillRect(
           0,
           start_r + offsetTop + firstOffset,
-          this.sheetCtx.rowHeaderWidth - 1,
+          rowHeaderWidth - 1,
           end_r - start_r + 1 + lastOffset - firstOffset
         );
-        renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).headerText;
+        if (state) edges.push([start_r + offsetTop - 1, end_r - start_r]);
+        renderCtx.fillStyle =
+          state === 2
+            ? theme.headerFullText
+            : state === 1
+              ? theme.headerSelectedText
+              : theme.headerText;
 
-        // 行标题栏序列号
+        // 行标题栏序列号 (the label, centred on whole device pixels)
         renderCtx.save(); // save scale before draw text
-        renderCtx.scale(this.sheetCtx.zoomRatio, this.sheetCtx.zoomRatio);
+        renderCtx.scale(zoomRatio, zoomRatio);
         const textMetrics = getMeasureText(
           r + 1,
           renderCtx,
           this.sheetCtx,
           headerFont
         );
-
-        const horizonAlignPos =
-          (this.sheetCtx.rowHeaderWidth - textMetrics.width) / 2;
-        const verticalAlignPos = start_r + (end_r - start_r) / 2 + offsetTop;
+        const horizonAlignPos = Math.round(
+          (rowHeaderWidth - 2 - textMetrics.width * zoomRatio) / 2
+        );
+        const verticalAlignPos = Math.round(
+          start_r + (end_r - start_r) / 2 + offsetTop
+        );
 
         renderCtx.fillText(
           `${r + 1}`,
-          horizonAlignPos / this.sheetCtx.zoomRatio,
-          verticalAlignPos / this.sheetCtx.zoomRatio
+          horizonAlignPos / zoomRatio,
+          verticalAlignPos / zoomRatio
         );
         renderCtx.restore(); // restore scale after draw text
       }
 
-      // vertical
-      renderCtx.beginPath();
-      renderCtx.moveTo(
-        this.sheetCtx.rowHeaderWidth - 2 + bodrder05,
-        start_r + offsetTop - 2
-      );
-      renderCtx.lineTo(
-        this.sheetCtx.rowHeaderWidth - 2 + bodrder05,
-        end_r + offsetTop - 2
-      );
       renderCtx.lineWidth = 1;
+      renderCtx.strokeStyle = theme.headerLine;
 
-      renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
+      // vertical: the header's edge towards the cells
+      renderCtx.beginPath();
+      renderCtx.moveTo(rowHeaderWidth - 2 + bodrder05, start_r + offsetTop - 2);
+      renderCtx.lineTo(rowHeaderWidth - 2 + bodrder05, end_r + offsetTop - 2);
       renderCtx.stroke();
-      renderCtx.closePath();
 
-      // 行标题栏横线,horizen
-      if (
-        this.sheetCtx.config.rowhidden &&
-        this.sheetCtx.config.rowhidden[r] == null &&
-        this.sheetCtx.config.rowhidden[r + 1] != null
-      ) {
+      // 行标题栏横线,horizen (a hidden row below shows as a double line)
+      if (rowhidden && rowhidden[r] == null && rowhidden[r + 1] != null) {
         renderCtx.beginPath();
         renderCtx.moveTo(-1, end_r + offsetTop - 4 + bodrder05);
-        renderCtx.lineTo(
-          this.sheetCtx.rowHeaderWidth - 1,
-          end_r + offsetTop - 4 + bodrder05
-        );
-        renderCtx.closePath();
+        renderCtx.lineTo(rowHeaderWidth - 1, end_r + offsetTop - 4 + bodrder05);
         renderCtx.stroke();
-      } else if (
-        this.sheetCtx.config.rowhidden == null ||
-        this.sheetCtx.config.rowhidden[r] == null
-      ) {
+      } else if (rowhidden == null || rowhidden[r] == null) {
         renderCtx.beginPath();
         renderCtx.moveTo(-1, end_r + offsetTop - 2 + bodrder05);
-        renderCtx.lineTo(
-          this.sheetCtx.rowHeaderWidth - 1,
-          end_r + offsetTop - 2 + bodrder05
-        );
-
-        renderCtx.closePath();
+        renderCtx.lineTo(rowHeaderWidth - 1, end_r + offsetTop - 2 + bodrder05);
         renderCtx.stroke();
       }
 
-      if (
-        this.sheetCtx.config?.rowhidden?.[r - 1] != null &&
-        preEndR !== undefined
-      ) {
+      if (rowhidden?.[r - 1] != null && preEndR !== undefined) {
         renderCtx.beginPath();
         renderCtx.moveTo(-1, preEndR + offsetTop + bodrder05);
-        renderCtx.lineTo(
-          this.sheetCtx.rowHeaderWidth - 1,
-          preEndR + offsetTop + bodrder05
-        );
-        renderCtx.closePath();
+        renderCtx.lineTo(rowHeaderWidth - 1, preEndR + offsetTop + bodrder05);
         renderCtx.stroke();
       }
 
@@ -391,10 +427,18 @@ export class Canvas {
         `${r + 1}`,
         r,
         start_r + offsetTop + firstOffset,
-        this.sheetCtx.rowHeaderWidth - 1,
+        rowHeaderWidth - 1,
         end_r - start_r + 1 + lastOffset - firstOffset,
         renderCtx
       );
+    }
+
+    // 2px accent edge on the side facing the cells, over the separators
+    if (edges.length > 0) {
+      renderCtx.fillStyle = theme.accent;
+      edges.forEach(([y, h]) => {
+        renderCtx.fillRect(rowHeaderWidth - 3, y, 2, h);
+      });
     }
 
     // Must be restored twice, otherwise it will be enlarged under window.devicePixelRatio = 1.5
@@ -418,19 +462,19 @@ export class Canvas {
     const renderCtx = this.canvasElement.getContext("2d");
     if (!renderCtx) return;
 
+    const theme = getCanvasTheme(this.sheetCtx);
+    const selected = this.headerSelection("column");
+    const { columnHeaderHeight, zoomRatio } = this.sheetCtx;
+    const colhidden = this.sheetCtx.config?.colhidden;
+
     renderCtx.save();
     renderCtx.scale(
       this.sheetCtx.devicePixelRatio,
       this.sheetCtx.devicePixelRatio
     );
-    renderCtx.clearRect(
-      offsetLeft,
-      0,
-      drawWidth,
-      this.sheetCtx.columnHeaderHeight - 1
-    );
+    renderCtx.clearRect(offsetLeft, 0, drawWidth, columnHeaderHeight - 1);
 
-    const headerFont = defaultFont(this.sheetCtx.defaultFontSize);
+    const headerFont = this.headerFont();
     renderCtx.font = headerFont;
     // @ts-ignore
     renderCtx.textBaseline = defaultStyle.textBaseline; // 基准线 垂直居中
@@ -456,18 +500,15 @@ export class Canvas {
 
     renderCtx.save();
     renderCtx.beginPath();
-    renderCtx.rect(
-      offsetLeft - 1,
-      0,
-      drawWidth,
-      this.sheetCtx.columnHeaderHeight - 1
-    );
+    renderCtx.rect(offsetLeft - 1, 0, drawWidth, columnHeaderHeight - 1);
     renderCtx.clip();
 
     let end_c;
     let start_c;
     const bodrder05 = 0.5; // Default 0.5
     let preEndC;
+    // accent edges of selected columns, drawn over the separators
+    const edges: [number, number][] = [];
     for (let c = dataset_col_st; c <= dataset_col_ed; c += 1) {
       if (c === 0) {
         start_c = -scrollWidth;
@@ -484,26 +525,38 @@ export class Canvas {
           c,
           start_c + offsetLeft - 1,
           end_c - start_c,
-          this.sheetCtx.columnHeaderHeight - 1,
+          columnHeaderHeight - 1,
           renderCtx
         ) === false
       ) {
         continue;
       }
 
-      if (this.sheetCtx.config?.colhidden?.[c] == null) {
-        renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).headerBackground;
+      if (colhidden?.[c] == null) {
+        const state = selected(c);
+        renderCtx.fillStyle =
+          state === 2
+            ? theme.headerFullBackground
+            : state === 1
+              ? theme.headerSelectedBackground
+              : theme.headerBackground;
         renderCtx.fillRect(
           start_c + offsetLeft - 1,
           0,
           end_c - start_c,
-          this.sheetCtx.columnHeaderHeight - 1
+          columnHeaderHeight - 1
         );
-        renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).headerText;
+        if (state) edges.push([start_c + offsetLeft - 2, end_c - start_c + 1]);
+        renderCtx.fillStyle =
+          state === 2
+            ? theme.headerFullText
+            : state === 1
+              ? theme.headerSelectedText
+              : theme.headerText;
 
-        // 列标题栏序列号
+        // 列标题栏序列号 (the label, centred on whole device pixels)
         renderCtx.save(); // save scale before draw text
-        renderCtx.scale(this.sheetCtx.zoomRatio, this.sheetCtx.zoomRatio);
+        renderCtx.scale(zoomRatio, zoomRatio);
 
         const textMetrics = getMeasureText(
           abc,
@@ -513,79 +566,65 @@ export class Canvas {
         );
 
         const horizonAlignPos = Math.round(
-          start_c + (end_c - start_c) / 2 + offsetLeft - textMetrics.width / 2
+          start_c +
+            (end_c - start_c) / 2 +
+            offsetLeft -
+            1 -
+            (textMetrics.width * zoomRatio) / 2
         );
-        const verticalAlignPos = Math.round(
-          this.sheetCtx.columnHeaderHeight / 2
-        );
+        const verticalAlignPos = Math.round((columnHeaderHeight - 1) / 2);
 
         renderCtx.fillText(
           abc,
-          horizonAlignPos / this.sheetCtx.zoomRatio,
-          verticalAlignPos / this.sheetCtx.zoomRatio
+          horizonAlignPos / zoomRatio,
+          verticalAlignPos / zoomRatio
         );
         renderCtx.restore(); // restore scale after draw text
       }
 
-      // 列标题栏竖线 vertical
-      if (
-        this.sheetCtx.config.colhidden &&
-        this.sheetCtx.config.colhidden[c] != null &&
-        this.sheetCtx.config.colhidden[c + 1] != null
-      ) {
+      renderCtx.lineWidth = 1;
+      renderCtx.strokeStyle = theme.headerLine;
+
+      // 列标题栏竖线 vertical (a hidden column shows as a double line)
+      if (colhidden && colhidden[c] != null && colhidden[c + 1] != null) {
         renderCtx.beginPath();
         renderCtx.moveTo(end_c + offsetLeft - 4 + bodrder05, 0);
         renderCtx.lineTo(
           end_c + offsetLeft - 4 + bodrder05,
-          this.sheetCtx.columnHeaderHeight - 2
+          columnHeaderHeight - 2
         );
-        renderCtx.lineWidth = 1;
-        renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
-        renderCtx.closePath();
         renderCtx.stroke();
-      } else if (
-        this.sheetCtx.config.colhidden == null ||
-        this.sheetCtx.config.colhidden[c] == null
-      ) {
+      } else if (colhidden == null || colhidden[c] == null) {
         renderCtx.beginPath();
         renderCtx.moveTo(end_c + offsetLeft - 2 + bodrder05, 0);
         renderCtx.lineTo(
           end_c + offsetLeft - 2 + bodrder05,
-          this.sheetCtx.columnHeaderHeight - 2
+          columnHeaderHeight - 2
         );
-
-        renderCtx.lineWidth = 1;
-        renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).gridLine;
-        renderCtx.closePath();
         renderCtx.stroke();
       }
 
-      if (
-        this.sheetCtx.config?.colhidden?.[c - 1] != null &&
-        preEndC !== undefined
-      ) {
+      if (colhidden?.[c - 1] != null && preEndC !== undefined) {
         renderCtx.beginPath();
         renderCtx.moveTo(preEndC + offsetLeft + bodrder05, 0);
         renderCtx.lineTo(
           preEndC + offsetLeft + bodrder05,
-          this.sheetCtx.columnHeaderHeight - 2
+          columnHeaderHeight - 2
         );
-        renderCtx.closePath();
         renderCtx.stroke();
       }
 
-      // horizen
+      // horizen: the header's edge towards the cells
       renderCtx.beginPath();
       renderCtx.moveTo(
         start_c + offsetLeft - 1,
-        this.sheetCtx.columnHeaderHeight - 2 + bodrder05
+        columnHeaderHeight - 2 + bodrder05
       );
       renderCtx.lineTo(
         end_c + offsetLeft - 1,
-        this.sheetCtx.columnHeaderHeight - 2 + bodrder05
+        columnHeaderHeight - 2 + bodrder05
       );
       renderCtx.stroke();
-      renderCtx.closePath();
 
       preEndC = end_c;
 
@@ -594,9 +633,17 @@ export class Canvas {
         c,
         start_c + offsetLeft - 1,
         end_c - start_c,
-        this.sheetCtx.columnHeaderHeight - 1,
+        columnHeaderHeight - 1,
         renderCtx
       );
+    }
+
+    // 2px accent edge on the side facing the cells, over the separators
+    if (edges.length > 0) {
+      renderCtx.fillStyle = theme.accent;
+      edges.forEach(([x, w]) => {
+        renderCtx.fillRect(x, columnHeaderHeight - 3, w, 2);
+      });
     }
 
     // Must be restored twice, otherwise it will be enlarged under window.devicePixelRatio = 1.5
@@ -750,7 +797,10 @@ export class Canvas {
       colEndX - scrollWidth,
       rowEndY - scrollHeight
     );
-    renderCtx.font = defaultFont(this.sheetCtx.defaultFontSize);
+    renderCtx.font = defaultFont(
+      this.sheetCtx.defaultFontSize,
+      defaultFontFamily(this.sheetCtx)
+    );
     renderCtx.fillStyle = defaultStyle.fillStyle;
 
     // 表格渲染区域 非空单元格行列 起止坐标
@@ -1293,7 +1343,7 @@ export class Canvas {
         canvas.save();
         setLineDash(canvas, linetype, "v", moveX, moveY, toX, toY);
 
-        canvas.strokeStyle = color;
+        canvas.strokeStyle = resolveBorderColor(this.sheetCtx, color);
 
         canvas.stroke();
         canvas.closePath();
@@ -1320,7 +1370,7 @@ export class Canvas {
         canvas.save();
         setLineDash(canvas, linetype, "v", moveX, moveY, toX, toY);
 
-        canvas.strokeStyle = color;
+        canvas.strokeStyle = resolveBorderColor(this.sheetCtx, color);
 
         canvas.stroke();
         canvas.closePath();
@@ -1347,7 +1397,7 @@ export class Canvas {
         canvas.save();
         setLineDash(canvas, linetype, "v", moveX, moveY, toX, toY);
 
-        canvas.strokeStyle = color;
+        canvas.strokeStyle = resolveBorderColor(this.sheetCtx, color);
 
         canvas.stroke();
         canvas.closePath();
@@ -1374,7 +1424,7 @@ export class Canvas {
         canvas.save();
         setLineDash(canvas, linetype, "h", moveX, moveY, toX, toY);
 
-        canvas.strokeStyle = color;
+        canvas.strokeStyle = resolveBorderColor(this.sheetCtx, color);
 
         canvas.stroke();
         canvas.closePath();
@@ -1401,7 +1451,7 @@ export class Canvas {
         canvas.save();
         setLineDash(canvas, linetype, "h", moveX, moveY, toX, toY);
 
-        canvas.strokeStyle = color;
+        canvas.strokeStyle = resolveBorderColor(this.sheetCtx, color);
 
         canvas.stroke();
         canvas.closePath();
@@ -1828,11 +1878,9 @@ export class Canvas {
     //   fillStyle = flowdata[r][c].tc;
     // }
 
-    if (!fillStyle) {
-      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).cellBackground;
-    } else {
-      renderCtx.fillStyle = fillStyle;
-    }
+    renderCtx.fillStyle =
+      resolveCellFill(this.sheetCtx, fillStyle) ??
+      getCanvasTheme(this.sheetCtx).cellBackground;
 
     const cellsize = [
       startX + offsetLeft + borderfix[0],
@@ -1893,7 +1941,10 @@ export class Canvas {
 
       renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).cellText;
       // 文本宽度和高度
-      const fontset = defaultFont(this.sheetCtx.defaultFontSize);
+      const fontset = defaultFont(
+        this.sheetCtx.defaultFontSize,
+        defaultFontFamily(this.sheetCtx)
+      );
       renderCtx.font = fontset;
 
       // 水平对齐 (默认为1，左对齐)
@@ -1945,15 +1996,15 @@ export class Canvas {
 
     // 若单元格有批注
     if (flowdata?.[r]?.[c]?.ps) {
-      const ps_w = 8 * this.sheetCtx.zoomRatio;
-      const ps_h = 8 * this.sheetCtx.zoomRatio;
-      renderCtx.beginPath();
-      renderCtx.moveTo(endX + offsetLeft - 1 - ps_w, startY + offsetTop);
-      renderCtx.lineTo(endX + offsetLeft - 1, startY + offsetTop);
-      renderCtx.lineTo(endX + offsetLeft - 1, startY + offsetTop + ps_h);
-      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).commentMarker;
-      renderCtx.fill();
-      renderCtx.closePath();
+      drawCornerMark(
+        renderCtx,
+        "tr",
+        startX + offsetLeft,
+        startY + offsetTop,
+        endX - startX,
+        6 * this.sheetCtx.zoomRatio,
+        getCanvasTheme(this.sheetCtx).commentMarker
+      );
     }
 
     // 此单元格 与  溢出单元格关系
@@ -2091,11 +2142,9 @@ export class Canvas {
       // 若单元格有条件格式 背景颜色
       fillStyle = checksCF.cellColor;
     }
-    if (!fillStyle) {
-      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).cellBackground;
-    } else {
-      renderCtx.fillStyle = fillStyle;
-    }
+    renderCtx.fillStyle =
+      resolveCellFill(this.sheetCtx, fillStyle) ??
+      getCanvasTheme(this.sheetCtx).cellBackground;
 
     const borderfix = getBorderFix();
 
@@ -2153,30 +2202,28 @@ export class Canvas {
 
     // 若单元格有批注（单元格右上角红色小三角标示）
     if (cell?.ps) {
-      const ps_w = 8 * this.sheetCtx.zoomRatio;
-      const ps_h = 8 * this.sheetCtx.zoomRatio; // 红色小三角宽高
-
-      renderCtx.beginPath();
-      renderCtx.moveTo(endX + offsetLeft - ps_w, startY + offsetTop);
-      renderCtx.lineTo(endX + offsetLeft, startY + offsetTop);
-      renderCtx.lineTo(endX + offsetLeft, startY + offsetTop + ps_h);
-      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).commentMarker;
-      renderCtx.fill();
-      renderCtx.closePath();
+      drawCornerMark(
+        renderCtx,
+        "tr",
+        startX + offsetLeft,
+        startY + offsetTop,
+        endX - startX,
+        6 * this.sheetCtx.zoomRatio,
+        getCanvasTheme(this.sheetCtx).commentMarker
+      );
     }
 
     // 若单元格强制为字符串，则显示绿色小三角
     if (cell?.qp === 1 && isRealNum(cell?.v)) {
-      const ps_w = 6 * this.sheetCtx.zoomRatio;
-      const ps_h = 6 * this.sheetCtx.zoomRatio; // 红色小三角宽高
-
-      renderCtx.beginPath();
-      renderCtx.moveTo(startX + offsetLeft + ps_w - 1, startY + offsetTop);
-      renderCtx.lineTo(startX + offsetLeft - 1, startY + offsetTop);
-      renderCtx.lineTo(startX + offsetLeft - 1, startY + offsetTop + ps_h);
-      renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).numberAsTextMarker;
-      renderCtx.fill();
-      renderCtx.closePath();
+      drawCornerMark(
+        renderCtx,
+        "tl",
+        startX + offsetLeft,
+        startY + offsetTop,
+        endX - startX,
+        6 * this.sheetCtx.zoomRatio,
+        getCanvasTheme(this.sheetCtx).numberAsTextMarker
+      );
     }
 
     // 溢出单元格
@@ -2230,7 +2277,10 @@ export class Canvas {
       renderCtx.clip();
       renderCtx.scale(this.sheetCtx.zoomRatio, this.sheetCtx.zoomRatio);
       // the label uses the default font (cells drawn before may leave theirs)
-      renderCtx.font = defaultFont(this.sheetCtx.defaultFontSize);
+      renderCtx.font = defaultFont(
+        this.sheetCtx.defaultFontSize,
+        defaultFontFamily(this.sheetCtx)
+      );
       renderCtx.textAlign = "start";
 
       const measureText = getMeasureText(value, renderCtx, this.sheetCtx);
@@ -2389,16 +2439,26 @@ export class Canvas {
       }
       // 若单元格有条件格式 文本颜色
       if (checksCF?.textColor) {
-        renderCtx.fillStyle = checksCF.textColor;
+        renderCtx.fillStyle = resolveCellTextColor(
+          this.sheetCtx,
+          checksCF.textColor,
+          fillStyle
+        );
       }
 
       // Number-format colour ([Red], [Color10], conditional sections)
       const fc = getCellFormatColor(cell);
-      if (fc) renderCtx.fillStyle = fc;
+      if (fc)
+        renderCtx.fillStyle = resolveCellTextColor(
+          this.sheetCtx,
+          fc,
+          fillStyle
+        );
 
       this.cellTextRender(textInfo, renderCtx, {
         pos_x,
         pos_y,
+        bg: fillStyle,
       });
 
       if (!noClip) {
@@ -2554,12 +2614,17 @@ export class Canvas {
     }
     // 若单元格有条件格式 文本颜色
     if (checksCF?.textColor) {
-      renderCtx.fillStyle = checksCF.textColor;
+      renderCtx.fillStyle = resolveCellTextColor(
+        this.sheetCtx,
+        checksCF.textColor,
+        checksCF.cellColor ?? cell?.bg
+      );
     }
 
     this.cellTextRender(textInfo, renderCtx, {
       pos_x,
       pos_y,
+      bg: cell?.bg,
     });
 
     renderCtx.restore();
@@ -2761,7 +2826,11 @@ export class Canvas {
       const word = values[i];
       if (word.inline === true && word.style) {
         ctx.font = word.style.fontset;
-        ctx.fillStyle = resolveCellTextColor(this.sheetCtx, word.style.fc);
+        ctx.fillStyle = resolveCellTextColor(
+          this.sheetCtx,
+          word.style.fc,
+          option.bg
+        );
       } else {
         ctx.font = word.style;
       }
@@ -2831,21 +2900,23 @@ export class Canvas {
       this.sheetCtx.devicePixelRatio,
       this.sheetCtx.devicePixelRatio
     );
+    // A 1px line in a darker grey on the frozen rows' (columns') last grid
+    // line, like Excel; pixel-aligned so it stays sharp at any DPR.
     renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).freezeLine;
-    renderCtx.lineWidth = 2;
+    renderCtx.lineWidth = 1;
 
     if (horizontalTop) {
       renderCtx.beginPath();
-      renderCtx.moveTo(0, horizontalTop);
-      renderCtx.lineTo(this.canvasElement.width, horizontalTop);
+      renderCtx.moveTo(0, horizontalTop + 0.5);
+      renderCtx.lineTo(this.canvasElement.width, horizontalTop + 0.5);
       renderCtx.stroke();
       renderCtx.closePath();
     }
 
     if (verticalLeft) {
       renderCtx.beginPath();
-      renderCtx.moveTo(verticalLeft, 0);
-      renderCtx.lineTo(verticalLeft, this.canvasElement.height);
+      renderCtx.moveTo(verticalLeft + 0.5, 0);
+      renderCtx.lineTo(verticalLeft + 0.5, this.canvasElement.height);
       renderCtx.stroke();
       renderCtx.closePath();
     }

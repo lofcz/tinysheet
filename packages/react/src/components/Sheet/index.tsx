@@ -338,6 +338,38 @@ function sheetPasses(context: Context, freeze: Freeze | undefined): DrawPass[] {
   return passes;
 }
 
+/** Whether the selected state of the row / column headers may differ. */
+function headerInputsChanged(prev: Context, next: Context) {
+  return prev.luckysheet_select_save !== next.luckysheet_select_save;
+}
+
+/**
+ * Repaint only the row and column headers (their selected state), clipped
+ * to the header bands so the cells are left as they are.
+ */
+function drawHeaders(
+  canvasElement: HTMLCanvasElement,
+  context: Context,
+  freeze: Freeze | undefined
+) {
+  const ctx2d = canvasElement.getContext("2d");
+  if (!ctx2d) return;
+  const tableCanvas = new Canvas(canvasElement, context);
+  const dpr = context.devicePixelRatio;
+  const [width, height] = context.luckysheetTableContentHW;
+  const { rowHeaderWidth: rhw, columnHeaderHeight: chh } = context;
+  ctx2d.save();
+  ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+  ctx2d.beginPath();
+  ctx2d.rect(0, 0, width * dpr, chh * dpr);
+  ctx2d.rect(0, chh * dpr, rhw * dpr, (height - chh) * dpr);
+  ctx2d.clip();
+  sheetPasses(context, freeze).forEach((pass) => {
+    if (pass.kind !== "cells") runPass(tableCanvas, pass);
+  });
+  ctx2d.restore();
+}
+
 /**
  * Narrow one axis of a pass to [lo, hi) (canvas px, margin included):
  * shifting the scroll offset and the draw offset by the same k keeps every
@@ -843,6 +875,8 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
   } | null>(null);
   // Draws are coalesced into one per animation frame; this holds the latest.
   const pendingDraw = useRef<(() => void) | null>(null);
+  // whether the scheduled draw is a full one (not only the headers)
+  const pendingFull = useRef(false);
   const frameId = useRef<number | null>(null);
 
   useEffect(
@@ -866,20 +900,31 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
 
     const freeze = refs.globalCache.freezen?.[sheet.id!];
     const last = lastDrawn.current;
-    if (
-      last &&
+    // Only the selection changed (or nothing the canvas reads): the cells
+    // stay, the headers are repainted for their selected state.
+    const headersOnly =
+      last != null &&
       last.freeze === freeze &&
       last.sheetId === sheet.id &&
-      !canvasInputsChanged(last.context, context)
-    ) {
+      !canvasInputsChanged(last.context, context);
+    if (headersOnly && !headerInputsChanged(last!.context, context)) {
       return;
     }
     lastDrawn.current = { context, freeze, sheetId: sheet.id };
 
     const canvasElement = refs.canvas.current;
     if (!canvasElement) return;
+    // a full redraw already scheduled for this frame stays one (it draws
+    // the headers with this context too)
+    const full = !headersOnly || pendingFull.current;
+    pendingFull.current = full;
     pendingDraw.current = () => {
       const painted = lastPainted.current;
+      if (!full) {
+        drawHeaders(canvasElement, context, freeze);
+        if (painted) painted.context = context;
+        return;
+      }
       const canBlit =
         painted != null &&
         painted.canvas === canvasElement &&
@@ -893,6 +938,9 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
         !blitScroll(canvasElement, painted!.context, context, freeze)
       ) {
         drawSheet(canvasElement, context, freeze);
+      } else if (headerInputsChanged(painted!.context, context)) {
+        // the blit moved headers painted for the previous selection
+        drawHeaders(canvasElement, context, freeze);
       }
       lastPainted.current = {
         context,
@@ -908,6 +956,7 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
         frameId.current = null;
         const draw = pendingDraw.current;
         pendingDraw.current = null;
+        pendingFull.current = false;
         draw?.();
       });
     }

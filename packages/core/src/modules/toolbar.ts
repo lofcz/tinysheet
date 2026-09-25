@@ -6,7 +6,7 @@ import { Context, getFlowdata } from "../context";
 import { Cell, CellMatrix, GlobalCache } from "../types";
 import { getSheetIndex, isAllowEdit } from "../utils";
 import { getRangetxt, isAllSelectedCellsInStatus, setCellValue } from "./cell";
-import { colors } from "./color";
+import { referenceColors as colors } from "./color";
 import { adjustDecimals, buildFormatCode, is_date, update } from "./format";
 import {
   execfunction,
@@ -944,9 +944,23 @@ export function cancelPaintModel(ctx: Context) {
   // $("#luckysheetpopover").fadeOut(200,function(){
   //     $("#luckysheetpopover").remove();
 }
-/** Currency symbol of the workbook (settings.currency). */
-function currencySymbol(ctx: Context) {
-  return ctx.currency || "¥";
+/**
+ * Currency symbol of a language, used when `settings.currency` is unset
+ * (like Excel following the system locale): `$` for English and any
+ * language without its own.
+ */
+export function defaultCurrencySymbol(lang?: string | null) {
+  const l = (lang || "").toLowerCase();
+  if (l.startsWith("zh")) return "¥";
+  if (l.startsWith("ru")) return "₽";
+  if (l.startsWith("hi")) return "₹";
+  if (l.startsWith("es")) return "€";
+  return "$";
+}
+
+/** Currency symbol of the workbook (settings.currency, else the locale's). */
+export function currencySymbol(ctx: Pick<Context, "currency" | "lang">) {
+  return ctx.currency || defaultCurrencySymbol(ctx.lang);
 }
 
 /**

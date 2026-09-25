@@ -18,6 +18,10 @@ import {
   returnToEditSheet,
   fixRowStyleOverflowInFreeze,
   fixColumnStyleOverflowInFreeze,
+  cellFontName,
+  defaultFontFamily,
+  resolveCellFill,
+  resolveCellTextColor,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -59,12 +63,29 @@ const InputBox: React.FC = () => {
     if (firstSelection && context.luckysheetCellUpdate.length > 0) {
       const flowdata = getFlowdata(context);
       if (!flowdata) return {};
-      return getStyleByCell(
+      const style = getStyleByCell(
         context,
         flowdata,
         firstSelection.row_focus!,
         firstSelection.column_focus!
       );
+      // the editor shows the cell's font, fill and (theme-adapted) colour
+      const cell = flowdata[firstSelection.row_focus!]?.[
+        firstSelection.column_focus!
+      ] as { ff?: string | number; fs?: number | string; bg?: string } | null;
+      const family = defaultFontFamily(context);
+      const fill = style.background ?? cell?.bg;
+      return {
+        fontFamily: cell?.ff
+          ? `"${cellFontName(context, cell)}", ${family}`
+          : family,
+        fontSize: `${Number(cell?.fs) || context.defaultFontSize}pt`,
+        ...style,
+        ...(fill ? { background: resolveCellFill(context, fill) } : null),
+        ...(style.color || fill
+          ? { color: resolveCellTextColor(context, style.color, fill) }
+          : null),
+      };
     }
     return {};
     // eslint-disable-next-line react-hooks/exhaustive-deps

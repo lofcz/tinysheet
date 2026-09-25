@@ -34,11 +34,31 @@ no emoji, no colored icons except color swatches/indicators.
 Radii: controls 8px, panes/popovers 12px, dialogs 16px. Pane gap 8px.
 Motion: 150ms ease for hover/color, `cubic-bezier(0.16,1,0.3,1)` 420ms for pills.
 UI font: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`, 13px UI, 12px secondary, 11px group labels.
-Grid (canvas): Excel-like — white/`#1c1c1f` cells, gridlines `#e4e4e7`/`#2a2a2e`,
-headers on `--ts-surface` with `--ts-muted` text, selected header `--ts-active`
-with `--ts-text-strong` text and a 2px accent edge, selection border 2px
-`--ts-accent`, fill `rgba(accent, .08)`. Default cell font sans (Calibri/Carlito/
-Arial fallback) 11pt, not Times New Roman.
+Grid (canvas): Excel-like — white/`#1c1c1f` cells, gridlines `#e4e4e7`/`#2e2e33`,
+headers on `--ts-surface` (dark `#141417`) with `--ts-muted` 12px UI-font labels
+and `--ts-header-line` separators. Headers of the selection: accent-soft tint
+(accent 10%, dark 16%), `--ts-text-strong` label and a 2px accent edge on the
+side facing the cells; a fully selected row/column is stronger (accent 20%,
+accent label); Select All shows a triangle, accent when all is selected.
+Selection: 2px `--ts-accent` border on the range's grid lines, fill
+`rgba(accent, .08)` with the active cell left clear, fill handle a 6px accent
+square with a 1px `--ts-cell` ring; several ranges (Ctrl) show fills only and
+an outlined active cell. Copy marquee: marching ants (2px accent dashes).
+Formula references: Excel's order and colours (blue `#5b97ff`, red `#ff616b`,
+purple, green, pink, brown, orange, teal), a 2px line, a 10% fill and corner
+squares; the same colour in the formula text. Frozen panes: a 1px darker line
+(`#a1a1aa`/`#71717a`). Corner marks (note, error, validation) fill the cell's
+corner up to the grid lines on whole pixels. Default cell font
+`settings.defaultFontFamily` (`Calibri, Carlito, "Segoe UI", Arial,
+sans-serif`) at `settings.defaultFontSize` 11pt; numeric `ff` still indexes the
+locale font list. Default currency follows the language (`$` for English).
+
+Dark sheet (like Excel's dark cells / Word's dark mode): Automatic and
+near-black text and borders turn light; very light fills (HSL lightness ≥ .85:
+white, light greys, pastels) become dark tints of the same hue, lighter ones
+staying lighter; strong fills (yellow, gold, accents, mid greys) are kept with
+their text; dark saturated text colours are lightened on dark fills
+(`resolveCellFill` / `resolveCellTextColor` / `resolveBorderColor`).
 
 ## Layout (Fika pane layout)
 
@@ -195,7 +215,8 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
   `registerInsertFunction(({ context, setContext, refs, showModal, hideModal,
   editor }) => …)` (return false to fall back to the function list);
   `editor` is the element being edited (insert at its caret) or null.
-  Reference colours: `REFERENCE_COLORS` in core `formulaEditor.ts`.
+  Reference colours: `referenceColors` in core `color.ts` (also
+  `REFERENCE_COLORS`).
 - **Bottom bar**: `.fortune-bottom-pane > .fortune-bottom-bar` (layout in
   `StatusBar/index.css`): `SheetTab` (≡ list, ‹ › scroll — Ctrl+click to the
   end, right-click lists sheets — the tab track, +), `StatusBar` (mode,
@@ -203,3 +224,15 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
   `StatusBar/ViewControls` (Normal / Page Layout / Page Break Preview and
   `ZoomControl`: slider with Excel's scale in `ZoomControl/slider.ts`). One
   row; below 1200px of pane width two rows (tabs above the status bar).
+- **Grid look**: canvas palette and cell-colour adaptation in
+  `packages/core/src/theme.ts`; headers (selected states) in
+  `Canvas.drawRowHeader` / `drawColumnHeader`, repainted alone when only the
+  selection changes (`drawHeaders` in `react/src/components/Sheet`); corner
+  marks `core/src/modules/cellMarks.ts`; overlays (selection, fill handle,
+  marquee, reference boxes, editor, filter buttons, Select All) in
+  `react/src/components/SheetOverlay/index.css`. The overlay's origin sits on
+  the canvas pixel grid (cell area at `rowHeaderWidth - 1`,
+  `columnHeaderHeight - 1`), so DOM borders line up with grid lines at any
+  DPR. Reference colours: `referenceColors` (`core/src/modules/color.ts`).
+  Fonts: `core/src/modules/fonts.ts` (`defaultFontFamily(ctx)`,
+  `cellFontName(ctx, cell)` for font boxes). Tests: e2e `gridVisuals.spec.js`.

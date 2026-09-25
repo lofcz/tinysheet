@@ -22,6 +22,8 @@ export * from "./rowcol";
 export * from "./selection";
 export * from "./sheet";
 export * from "./text";
+export * from "./fonts";
+export * from "./cellMarks";
 export * from "./toolbar";
 export * from "./validation";
 export * from "./comment";
