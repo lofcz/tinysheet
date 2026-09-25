@@ -376,6 +376,35 @@ export function formatGeneral(number) {
   return text.indexOf(".") === -1 ? text : text.replace(/\.?0+$/, "");
 }
 
+function significantDigits(text) {
+  const mantissa = text.split(/e/i)[0].replace(/[-+.]/g, "");
+
+  return mantissa.replace(/^0+/, "").replace(/0+$/, "").length;
+}
+
+/**
+ * Excel's numeric model for results: -0 is 0, Infinity/NaN are #NUM!, and
+ * binary floating-point noise beyond 15 significant digits is removed
+ * (0.1+0.2 → 0.3) while genuinely 16/17-digit values (1/3) are kept.
+ *
+ * @param {Number} number
+ * @returns {Number|Error} The number, or the #NUM! error value.
+ */
+export function normalizeNumber(number) {
+  if (number === 0) {
+    return 0;
+  }
+  if (!isFinite(number)) {
+    return toErrorValue("NUM");
+  }
+  if (significantDigits(String(number)) <= 15) {
+    return number;
+  }
+  const rounded = Number(number.toPrecision(15));
+
+  return significantDigits(String(rounded)) <= 12 ? rounded : number;
+}
+
 /**
  * Coerce a scalar to text like Excel's `&` operator does.
  *

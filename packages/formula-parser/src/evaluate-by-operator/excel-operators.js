@@ -8,6 +8,8 @@
  * - Errors win: the left operand's error is returned before the right one's.
  * - Arrays are lifted element-wise with Excel broadcasting; errors inside
  *   arrays stay per element.
+ * - Numbers: overflow (Infinity/NaN) is #NUM!, division by zero (or blank)
+ *   is #DIV/0!, and a sum or difference that cancels to rounding noise is 0.
  *
  * The legacy operator modules in ./operator stay registered for
  * `evaluateByOperator` (and the callFunction fallback) unchanged.
@@ -23,12 +25,29 @@ function checkNumber(result) {
   return result;
 }
 
+// A sum that cancels down to the rounding noise of its operands is zero
+// (0.1+0.2-0.3 → 0, not 5.55E-17): within 4 ulps of the larger operand.
+const CANCELLATION = 2 ** -50;
+
+function snap(result, x, y) {
+  return result !== 0 &&
+    Math.abs(result) < Math.max(Math.abs(x), Math.abs(y)) * CANCELLATION
+    ? 0
+    : result;
+}
+
 function add(a, b) {
-  return checkNumber(toNumber(a) + toNumber(b));
+  const x = toNumber(a);
+  const y = toNumber(b);
+
+  return checkNumber(snap(x + y, x, y));
 }
 
 function subtract(a, b) {
-  return checkNumber(toNumber(a) - toNumber(b));
+  const x = toNumber(a);
+  const y = toNumber(b);
+
+  return checkNumber(snap(x - y, x, y));
 }
 
 function multiply(a, b) {
