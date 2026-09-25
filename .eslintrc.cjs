@@ -139,5 +139,19 @@ module.exports = {
         excelLegacyWarnRules.map((rule) => [rule, "warn"])
       ),
     },
+    {
+      // Playwright tests drive the UI step by step: awaiting inside loops is
+      // intentional, and they are Node scripts, not Jest tests.
+      files: ["e2e/**"],
+      env: { node: true },
+      rules: {
+        "no-await-in-loop": 0,
+        "no-restricted-syntax": 0,
+        "jest/no-standalone-expect": 0,
+        "jest/valid-expect": 0,
+        "jest/expect-expect": 0,
+        "jest/no-done-callback": 0,
+      },
+    },
   ],
 };

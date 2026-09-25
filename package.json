@@ -15,13 +15,15 @@
     "build-storybook": "storybook build",
     "tsc": "tsc -p tsconfig.json && tsc -p tsconfig.excel.json",
     "typecheck": "bun run tsc",
-    "lint": "eslint --cache --ext .js,.jsx,.ts,.tsx,.json ./packages",
+    "lint": "eslint --cache --ext .js,.jsx,.ts,.tsx,.json ./packages ./e2e ./stories/E2E.stories.tsx",
     "lint:formula-parser": "bun run --cwd packages/formula-parser lint",
     "postinstall": "bun run build",
     "test": "bun run test:formula-parser && bun run test:jest",
     "test:formula-parser": "bun run --cwd packages/formula-parser test",
     "test:jest": "jest",
     "test:excel": "bun run --cwd packages/excel test",
+    "test:e2e": "node e2e/run.mjs",
+    "docs:functions": "bun docs/scripts/generate-functions.ts",
     "coverage": "bun run --cwd packages/formula-parser coverage"
   },
   "devDependencies": {
