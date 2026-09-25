@@ -29,6 +29,7 @@ import {
 import { colorToArgb } from "../common/units";
 import { setDefinedNames } from "../common/definedNames";
 import { addChartsToXlsx } from "../chart/exportXlsx";
+import { writePageSetup, writePrintNames } from "../common/pageSetup";
 import {
   finalizeConditionalFormatting,
   setConditionalFormatting,
@@ -114,6 +115,7 @@ export const sheetExportFeatures: SheetExportFeature[] = [
     write: (ctx) => setConditionalFormatting(ctx.sheet, ctx.worksheet),
   },
   { name: "views", write: writeSheetViews },
+  { name: "page-setup", write: writePageSetup },
   // Charts are added to the written zip (addChartsToXlsx).
 ];
 
@@ -123,6 +125,7 @@ export const workbookExportFeatures: WorkbookExportFeature[] = [
     name: "defined-names",
     write: (ctx) => setDefinedNames(ctx.workbook, ctx.sheets),
   },
+  { name: "print-names", write: writePrintNames },
 ];
 
 export function registerSheetExportFeature(
