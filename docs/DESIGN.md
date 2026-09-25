@@ -1,0 +1,121 @@
+# TinySheet UI design spec
+
+TinySheet is the spreadsheet of an office suite with **Fika** (slides,
+github.com/lofcz/fika, local clone at /home/user/lofcz/fika) and a Plate fork
+(documents). The three must look like one product: Fika's ink/nordic chrome,
+Excel's structure and behaviour.
+
+Source of truth for style: Fika `src/assets/styles/variable.scss`,
+`src/views/Editor/index.module.scss` (pane layout), `src/views/Editor/CanvasTool`
+(tool clusters), `src/components/{Tabs,Popover,Modal,Select,Contextmenu,...}`.
+Icons: **lucide-react** (Fika uses it), 16px, stroke 1.75. No other icon sets,
+no emoji, no colored icons except color swatches/indicators.
+
+## Tokens (CSS variables on the workbook root, `--ts-*`)
+
+| Token | Light | Dark |
+| --- | --- | --- |
+| `--ts-ink` (primary, active pill bg) | `#18181b` | `#fafafa` |
+| `--ts-on-ink` (text on ink) | `#ffffff` | `#18181b` |
+| `--ts-text` | `#3f3f46` | `#e4e4e7` |
+| `--ts-text-strong` | `#18181b` | `#fafafa` |
+| `--ts-muted` | `#71717a` | `#a1a1aa` |
+| `--ts-surface` (app bg, cluster bg) | `#f4f4f5` | `#09090b` |
+| `--ts-pane` (panes, menus, dialogs) | `#ffffff` | `#18181b` |
+| `--ts-hover` | `#ececee` | `#27272a` |
+| `--ts-active` | `#e4e4e7` | `#3f3f46` |
+| `--ts-border` | `#e4e4e7` | `#27272a` |
+| `--ts-ring` (focus) | `#c4c4cc` | `#52525b` |
+| `--ts-accent` (selection, links) | `#2563eb` | `#60a5fa` |
+| `--ts-danger` | `#dc2626` | `#f87171` |
+| `--ts-shadow` | `0 8px 24px rgba(24,24,27,.08), 0 2px 6px rgba(24,24,27,.04)` | `0 8px 24px rgba(0,0,0,.5)` |
+| `--ts-pane-shadow` | `0 1px 2px rgba(24,24,27,.04)` | `none` |
+
+Radii: controls 8px, panes/popovers 12px, dialogs 16px. Pane gap 8px.
+Motion: 150ms ease for hover/color, `cubic-bezier(0.16,1,0.3,1)` 420ms for pills.
+UI font: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`, 13px UI, 12px secondary, 11px group labels.
+Grid (canvas): Excel-like — white/`#1c1c1f` cells, gridlines `#e4e4e7`/`#2a2a2e`,
+headers on `--ts-surface` with `--ts-muted` text, selected header `--ts-active`
+with `--ts-text-strong` text and a 2px accent edge, selection border 2px
+`--ts-accent`, fill `rgba(accent, .08)`. Default cell font sans (Calibri/Carlito/
+Arial fallback) 11pt, not Times New Roman.
+
+## Layout (Fika pane layout)
+
+```
+┌ surface bg, 8px padding & gaps ──────────────────────────────────────────┐
+│ [ribbon pane: tabs row (pill segmented) + command row]                    │
+│ [grid pane: name box | fx | formula bar ─────────────────────────────── ] │
+│ [           column headers / grid / scrollbars                ] [side pane]│
+│ [bottom pane: + ≡ | sheet tabs … | status stats | − zoom + ]              │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+Panes: `--ts-pane` bg, 1px `--ts-border`, 12px radius, `--ts-pane-shadow`.
+Side panes (Comments, Format Shape, PivotTable Fields, Watch Window) dock on the
+right as a Fika right pane (resizable separator, 260–360px), never floating.
+An embed without chrome space can opt out (`chrome="compact"`: no outer padding).
+
+## Ribbon (Excel structure, Fika look)
+
+Tabs: **File** (menu: New, Open .xlsx, Save as .xlsx/.csv, Print), **Home**,
+**Insert**, **Page Layout**, **Formulas**, **Data**, **Review**, **View**.
+Tab row = Fika segmented tabs (ink pill slides to the active tab). Command row =
+groups laid out like Excel, each group a Fika tool cluster (surface bg, 10px
+radius, 3px padding, 2px gap) with an 11px muted label under it. Buttons:
+large (icon 20px over label, split arrow below) for primary commands (Paste,
+Conditional Formatting, PivotTable, AutoSum…), small 32px icon buttons with
+tooltips (name + shortcut) otherwise. Active/toggled = ink bg + on-ink icon.
+Responsive: groups collapse right-to-left into a single group dropdown button
+(Excel "scaling"), never a random "More" dump. Ribbon can be collapsed to tabs
+only (Ctrl+F1, double-click a tab).
+
+- Home: Clipboard (Paste▾, Cut, Copy, Format Painter) · Font (family, size,
+  grow/shrink, B I U S, borders▾, fill▾, font color▾) · Alignment (top/middle/
+  bottom, left/center/right, wrap, merge▾, rotate▾, indent −/+) · Number (format
+  combo, currency, %, comma, .0→ .00) · Styles (Conditional Formatting▾, Format
+  as Table▾, Cell Styles▾) · Cells (Insert▾, Delete▾, Format▾) · Editing (AutoSum▾,
+  Fill▾, Clear▾, Sort & Filter▾, Find & Select▾)
+- Insert: Tables (PivotTable, Table) · Illustrations (Pictures▾ incl. Place in
+  Cell, Shapes▾) · Charts (Recommended, column/line/pie/bar/area/scatter/other▾)
+  · Sparklines (Line, Column, Win/Loss) · Filters (Slicer) · Links (Link) ·
+  Comments (Comment, Note) · Text (Text Box, Header & Footer) · Controls (Checkbox)
+- Page Layout: Page Setup (Margins▾, Orientation▾, Size▾, Print Area▾, Breaks▾,
+  Print Titles) · Scale to Fit · Sheet Options (Gridlines/Headings view & print)
+- Formulas: Function Library (Insert Function, AutoSum▾, category menus) ·
+  Defined Names (Name Manager, Define Name, Use in Formula▾) · Formula Auditing
+  (Trace Precedents/Dependents, Remove Arrows, Show Formulas, Error Checking,
+  Evaluate, Watch Window) · Calculation (Options▾, Calculate Now)
+- Data: Sort & Filter (A→Z, Z→A, Sort, Filter, Clear, Advanced) · Data Tools
+  (Text to Columns, Flash Fill, Remove Duplicates, Data Validation▾) · Forecast
+  (What-If▾) · Outline (Group▾, Ungroup▾, Subtotal)
+- Review: Comments (New, Delete, Previous, Next, Show Comments) · Notes▾ ·
+  Protect (Protect Sheet, Protect Workbook, Allow Edit Ranges)
+- View: Workbook Views (Normal, Page Break Preview, Page Layout) · Show
+  (Gridlines, Formula Bar, Headings) · Zoom (Zoom, 100%, Zoom to Selection) ·
+  Window (Freeze Panes▾, Split) · Appearance (Theme: Light / Dark / System)
+
+Existing feature toolbar items (`registerToolbarItem`) plug into a named group;
+`settings.toolbarItems` keeps working by mapping legacy names to ribbon commands.
+
+## Menus, popovers, dialogs
+
+- Menus/context menus: `--ts-pane`, 1px border, 8px radius, `--ts-shadow`,
+  4px padding, 30px rows with 8px radius hover (`--ts-hover`), 16px lucide icon
+  column, shortcut right-aligned muted, separators 1px `--ts-border`, submenus
+  on hover with 150ms intent delay. Stay inside the viewport. Esc / outside
+  click / scroll close. Full keyboard navigation.
+- Popovers (color, border, chart gallery…): 12px radius, 10px padding.
+  Color picker: Fika swatch grid (ColorSwatches) + custom.
+- Dialogs: 16px radius, 20px padding, title 15px semibold, footer right-aligned
+  (secondary = surface button, primary = ink button). Focus trap, Esc, Enter.
+  Backdrop `rgba(9,9,11,.4)`.
+- Buttons: primary ink bg/on-ink text; secondary surface bg; ghost transparent
+  with hover. Inputs/selects: surface bg, 8px radius, no border until focus ring.
+
+## Interaction rules
+
+Every drag (fill handle, selection move, range-reference handles, row/column
+resize, image/shape/chart/slicer move & resize & rotate, sheet tab reorder,
+pane separators, formula bar resize, dialog drag) uses pointer events with
+pointer capture, has an e2e test, keeps editor focus where Excel does, and
+shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
