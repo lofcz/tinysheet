@@ -12,6 +12,25 @@ import { getCellDisplayColors, sortDataRange } from "./sort";
 import { execFunctionGroup, groupValuesRefresh } from "./formula";
 import { dateToSerial, serialToDateParts } from "./autofill";
 import { checkCF, getComputeMap } from "./ConditionFormat";
+import { filterOwnedRows } from "./tables";
+import {
+  activeCellTable,
+  clearTableFilters,
+  reapplyTableFilters,
+  saveTableFilter,
+  setTableFilterButton,
+  tableFilterEntries,
+  tableFilterRange,
+  tableFilterScope,
+} from "./tableFilter";
+
+/** Rows the table filters of the current sheet hide (kept by the autofilter). */
+function tableOwnedRows(ctx: Context) {
+  const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
+  const sheet = sheetIndex == null ? null : ctx.luckysheetfile[sheetIndex];
+  if (!sheet?.tables?.length) return {};
+  return filterOwnedRows({ ...sheet, filter: undefined });
+}
 
 /** Recalculate SUBTOTAL and other volatile formulas after rows (un)hide. */
 export function refreshFilterFormulas(ctx: Context) {
@@ -204,7 +223,8 @@ export function createFilterOptions(
   ctx.filterOptions = options;
 }
 
-export function clearFilter(ctx: Context) {
+/** Removes the sheet autofilter (its buttons and the rows it hides). */
+export function clearSheetAutoFilter(ctx: Context) {
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) return;
   const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
@@ -213,7 +233,10 @@ export function clearFilter(ctx: Context) {
     (pre, curr) => _.assign(pre, curr?.rowhidden || {}),
     {}
   );
-  ctx.config.rowhidden = _.omit(ctx.config.rowhidden, _.keys(hiddenRows));
+  ctx.config.rowhidden = _.assign(
+    _.omit(ctx.config.rowhidden, _.keys(hiddenRows)),
+    tableOwnedRows(ctx)
+  );
   ctx.luckysheet_filter_save = undefined;
   ctx.filterOptions = undefined;
   ctx.filterContextMenu = undefined;
@@ -224,6 +247,22 @@ export function clearFilter(ctx: Context) {
     ctx.luckysheetfile[sheetIndex].config = _.assign({}, ctx.config);
   }
   refreshFilterFormulas(ctx);
+}
+
+/**
+ * The filter menu's "Clear filter": removes the sheet autofilter, or with a
+ * table scope (see tableFilter.ts) clears that table's filters.
+ */
+export function clearFilter(ctx: Context) {
+  const allowEdit = isAllowEdit(ctx);
+  if (!allowEdit) return;
+  const scope = tableFilterScope(ctx);
+  if (scope) {
+    clearTableFilters(ctx, scope.table.name);
+    ctx.filterContextMenu = undefined;
+    return;
+  }
+  clearSheetAutoFilter(ctx);
 }
 
 export function createFilter(ctx: Context) {
@@ -242,8 +281,18 @@ export function createFilter(ctx: Context) {
 
     return;
   }
+  // inside a table, the table's filter buttons are toggled (Excel)
+  const inTable = activeCellTable(ctx);
+  if (inTable) {
+    setTableFilterButton(
+      ctx,
+      inTable.table.name,
+      inTable.table.filterButton === false
+    );
+    return;
+  }
   if (_.size(ctx.luckysheet_filter_save) > 0) {
-    clearFilter(ctx);
+    clearSheetAutoFilter(ctx);
     return;
   }
 
@@ -334,14 +383,21 @@ export type FilterValue = {
   rows: number[];
 };
 
+/** The filter state the menu acts on: the autofilter's or a table's. */
+function scopedFilters(ctx: Context): Context["filter"] {
+  const scope = tableFilterScope(ctx);
+  return scope ? tableFilterEntries(scope.table) : ctx.filter;
+}
+
 function getFilterHiddenRows(ctx: Context, col: number, startCol: number) {
+  const filters = scopedFilters(ctx);
   const otherHiddenRows = _.reduce(
-    ctx.filter,
+    filters,
     (pre, curr) =>
       _.assign(pre, (curr?.cindex !== col && curr?.rowhidden) || {}),
     {}
   );
-  const hiddenRows = ctx.filter?.[col - startCol]?.rowhidden || {};
+  const hiddenRows = filters?.[col - startCol]?.rowhidden || {};
   return { otherHiddenRows, hiddenRows };
 }
 
@@ -635,16 +691,23 @@ export function saveFilter(
   st_c: number,
   ed_c: number
 ) {
+  const scope = tableFilterScope(ctx);
+  if (scope) {
+    saveTableFilter(ctx, scope, optionState, hiddenRows, caljs, cindex);
+    return;
+  }
   const { otherHiddenRows, hiddenRows: prevHiddenRows } = getFilterHiddenRows(
     ctx,
     cindex,
     st_c
   );
   // keep rows hidden by hand; replace what this column's filter hid before
+  // (rows a table filter hides stay hidden)
   const rowHiddenAll = _.assign(
     _.omit(ctx.config?.rowhidden || {}, _.keys(prevHiddenRows)),
     otherHiddenRows,
-    hiddenRows
+    hiddenRows,
+    tableOwnedRows(ctx)
   );
 
   labelFilterOptionState(
@@ -1053,6 +1116,13 @@ function currentFilterRange(ctx: Context) {
   };
 }
 
+/** The range the filter menu acts on: a table's (scope) or the autofilter's. */
+function scopedFilterRange(ctx: Context) {
+  const scope = tableFilterScope(ctx);
+  if (scope) return tableFilterRange(scope.table);
+  return currentFilterRange(ctx);
+}
+
 /**
  * Filter column `col` of the active AutoFilter range by a condition. Other
  * columns' filters still apply (a row must pass every column).
@@ -1063,7 +1133,7 @@ export function applyFilterCondition(
   condition: FilterCondition,
   now?: Date
 ) {
-  const range = currentFilterRange(ctx);
+  const range = scopedFilterRange(ctx);
   if (range == null) return;
   const { str, edr, stc, edc } = range;
   if (col < stc || col > edc) return;
@@ -1073,21 +1143,32 @@ export function applyFilterCondition(
 
 /** "Clear Filter From <column>": drop one column's condition. */
 export function clearColumnFilter(ctx: Context, col: number) {
-  const range = currentFilterRange(ctx);
+  const range = scopedFilterRange(ctx);
   if (range == null) return;
   const { str, edr, stc, edc } = range;
   saveFilter(ctx, false, {}, null, str, edr, col, stc, edc);
 }
 
-/** Excel's Data › Clear: show every row but keep the filter buttons. */
+/**
+ * Excel's Data › Clear: show every row but keep the filter buttons (inside
+ * a table: the table's filters).
+ */
 export function clearAllFilterConditions(ctx: Context) {
+  const inTable = activeCellTable(ctx);
+  if (inTable) {
+    clearTableFilters(ctx, inTable.table.name);
+    return;
+  }
   const hiddenRows = _.reduce(
     ctx.filter,
     (pre, curr) => _.assign(pre, curr?.rowhidden || {}),
     {} as Record<string, number>
   );
   const cfg = _.assign({}, ctx.config);
-  cfg.rowhidden = _.omit(cfg.rowhidden || {}, _.keys(hiddenRows));
+  cfg.rowhidden = _.assign(
+    _.omit(cfg.rowhidden || {}, _.keys(hiddenRows)),
+    tableOwnedRows(ctx)
+  );
   ctx.config = cfg;
   ctx.filter = {};
   const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
@@ -1098,8 +1179,16 @@ export function clearAllFilterConditions(ctx: Context) {
   refreshFilterFormulas(ctx);
 }
 
-/** Re-run the stored conditions (value lists excepted) on current data. */
+/**
+ * Re-run the stored conditions (value lists excepted) on current data
+ * (inside a table: the table's filters).
+ */
 export function reapplyFilter(ctx: Context, now?: Date) {
+  const inTable = activeCellTable(ctx);
+  if (inTable) {
+    reapplyTableFilters(ctx, inTable.table.name);
+    return;
+  }
   const range = currentFilterRange(ctx);
   if (range == null) return;
   _.forEach(_.values(ctx.filter), (f) => {
@@ -1160,8 +1249,8 @@ export function getColumnFilterCondition(
   ctx: Context,
   col: number
 ): FilterCondition | null {
-  const range = currentFilterRange(ctx);
+  const range = scopedFilterRange(ctx);
   if (range == null) return null;
-  const f = ctx.filter?.[col - range.stc];
+  const f = scopedFilters(ctx)?.[col - range.stc];
   return (f?.caljs as FilterCondition) ?? null;
 }

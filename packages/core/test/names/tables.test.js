@@ -236,11 +236,11 @@ describe("table options", () => {
     const { table } = findTable(ctx, "Table1");
     expect(table.range.row).toEqual([0, 4]);
     expect(value(ctx, "A5")).toBe("Total");
-    expect(cell(ctx, "C5").f).toBe("=SUBTOTAL(109,[Price])");
+    expect(cell(ctx, "C5").f).toBe("=SUBTOTAL(109,Table1[Price])");
     expect(value(ctx, "C5")).toBe(16.5);
     expect(cell(ctx, "C5").bl).toBe(1);
     setTableTotalFunction(ctx, "Table1", 1, "average");
-    expect(cell(ctx, "B5").f).toBe("=SUBTOTAL(101,[Qty])");
+    expect(cell(ctx, "B5").f).toBe("=SUBTOTAL(101,Table1[Qty])");
     expect(value(ctx, "B5")).toBeCloseTo(7 / 3);
     input(ctx, "E1", "=Table1[[#Totals],[Price]]");
     expect(value(ctx, "E1")).toBe(16.5);

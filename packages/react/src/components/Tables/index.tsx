@@ -56,6 +56,7 @@ const ERROR_KEYS: Record<TableError, string> = {
   invalidName: "errorInvalidName",
   duplicateName: "errorDuplicateName",
   noRoom: "errorNoRoom",
+  noRoomAbove: "errorNoRoomAbove",
 };
 
 const TOTAL_FUNCTIONS: [TableTotalFunction, string][] = [

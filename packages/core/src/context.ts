@@ -122,6 +122,26 @@ export type Context = {
     hiddenRows: number[];
     listBoxMaxHeight: number;
   };
+  /**
+   * The table whose header filter button opened the filter menu: filter
+   * functions act on that table's filters instead of the sheet autofilter
+   * (see modules/tableFilter.ts). Cleared by the autofilter's buttons.
+   */
+  filterScope?: { sheetId: string; table: string };
+  /** The slicer selected by a click (Delete removes it). */
+  activeSlicer?: { sheetId: string; table: string; name: string };
+  /**
+   * AutoCorrect options of the last table edit: a calculated column was
+   * created (`created`) or a formula could fill the column (`overwrite`).
+   */
+  tableAutoCorrect?: {
+    sheetId: string;
+    table: string;
+    column: number;
+    r: number;
+    c: number;
+    kind: "created" | "overwrite";
+  };
 
   currentSheetId: string;
   calculateSheetId: string;
