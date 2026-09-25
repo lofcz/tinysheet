@@ -100,8 +100,8 @@ function escapeRegExp(s: string) {
 }
 
 /** The `<xf>` elements of `<cellXfs>` (outer XML each). */
-function splitXfs(inner: string) {
-  return inner.match(/<xf\b[^>]*\/>|<xf\b[^>]*>[\s\S]*?<\/xf>/g) ?? [];
+function splitXfs(inner: string): string[] {
+  return [...(inner.match(/<xf\b[^>]*\/>|<xf\b[^>]*>[\s\S]*?<\/xf>/g) ?? [])];
 }
 
 function withComplement(xf: string) {
