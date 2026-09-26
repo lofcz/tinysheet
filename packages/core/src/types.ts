@@ -181,6 +181,11 @@ export type Sheet = {
   images?: Image[];
   /** Live chart objects (see `modules/chart.ts`). */
   charts?: Chart[];
+  /**
+   * A chart sheet (Move Chart › New sheet): holds only its chart, no cells
+   * (modules/chartSheet.ts); xlsx `chartsheet` part.
+   */
+  chartSheet?: boolean;
   /** In-cell sparklines (see `modules/sparkline.ts`). */
   sparklineGroups?: SparklineGroup[];
   /** Shapes and text boxes (see `modules/shapes.ts`); array order is z-order. */

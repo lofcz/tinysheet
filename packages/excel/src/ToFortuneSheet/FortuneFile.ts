@@ -42,6 +42,8 @@ import { generateChartId } from "@lofcz/tinysheet-core";
 export class FortuneFile {
   private files: IuploadfileList;
   private sheetNameList: IattributeList;
+  /** Chart sheets: workbook relationship id -> chartsheet part. */
+  private chartSheetList: IattributeList = {};
   private readXml: ReadXml;
   private fileName: string;
   private styles: IStyleCollections;
@@ -161,6 +163,9 @@ export class FortuneFile {
       if (/\/worksheet$/.test(type) || (!type && regex.test(target))) {
         let path = resolvePartPath("xl", escapeCharacter(target));
         sheetNames[id] = byLowerName.get(path.toLowerCase()) ?? path;
+      } else if (/\/chartsheet$/.test(type)) {
+        let path = resolvePartPath("xl", escapeCharacter(target));
+        this.chartSheetList[id] = byLowerName.get(path.toLowerCase()) ?? path;
       }
     }
 
@@ -235,6 +240,48 @@ export class FortuneFile {
       let sheetFile = this.getSheetFileBysheetId(rid);
       let state = sheet.attributeList.state;
       let hide = state === "hidden" || state === "veryHidden" ? 1 : 0;
+
+      // a chart sheet: a sheet holding its chart (Move Chart › New sheet)
+      let chartSheetFile = this.chartSheetList[rid];
+      if (sheetFile == null && chartSheetFile != null) {
+        let chartSheet = new FortuneSheet(
+          sheetName,
+          sheetId,
+          order,
+          isInitialCell,
+          {
+            sheetFile: chartSheetFile,
+            readXml: this.readXml,
+            sheetList: sheetList,
+            styles: this.styles,
+            sharedStrings: this.sharedStrings,
+            calcChain: this.calcChain,
+            imageList: this.imageList,
+            drawingFile: null,
+            drawingRelsFile: null,
+            hide: hide,
+            workbookInfo: this.workbookInfo,
+          }
+        );
+        let found = chartSheet.importChartSheet(chartSheetFile);
+        if (found != null) {
+          (chartSheet as any).chartSheet = true;
+          chartSheet.chartObjects = [
+            {
+              chart: { ...found.chart, placement: "absolute" },
+              default: {
+                left: 0,
+                top: 0,
+                width: found.width,
+                height: found.height,
+              },
+            },
+          ];
+          this.sheets.push(chartSheet);
+          order++;
+        }
+        continue;
+      }
 
       let drawing = this.readXml.getElementsByTagName("drawing", sheetFile),
         drawingFile,
@@ -711,6 +758,15 @@ export class FortuneFile {
         );
       }
 
+      if ((sheet as any).chartSheet) {
+        sheetout.chartSheet = true;
+        sheetout.showGridLines = 0;
+        sheetout.showRowColHeaders = false;
+        sheetout.pageSetup = {
+          ...sheetout.pageSetup,
+          orientation: "landscape",
+        };
+      }
       let chartObjects = (sheet as any).chartObjects as any[] | undefined;
       if (chartObjects != null && chartObjects.length > 0) {
         sheetout.charts = chartObjects.map((item) => ({

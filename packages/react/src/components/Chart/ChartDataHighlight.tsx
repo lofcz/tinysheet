@@ -22,11 +22,13 @@ import {
   Context,
   findChart,
   getChartDataBlock,
+  getGridPoint,
   reshapeChartDataBlock,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { trackPointerDrag } from "../../hooks/pointerDrag";
 import { assignChartData } from "./dialogs/SelectDataDialog";
+import { paneClipPath, placeInPanes } from "./panes";
 
 /** Excel's outline colours (the suite's reference palette). */
 export const CHART_RANGE_COLORS = {
@@ -161,19 +163,19 @@ export const ChartDataHighlight: React.FC = () => {
   const sheetId = context.currentSheetId;
   const element = context.chartElement ?? "chartArea";
 
+  const freeze = refs.globalCache.freezen?.[context.currentSheetId];
+  // the cell under the pointer, in the frozen panes too
   const cellAt = useCallback(
     (ctx: Context, e: MouseEvent) => {
       const area = refs.cellArea.current;
       if (!area) return null;
-      const rect = area.getBoundingClientRect();
-      const x = e.clientX - rect.left + area.scrollLeft;
-      const y = e.clientY - rect.top + area.scrollTop;
+      const { x, y } = getGridPoint(ctx, freeze, e, area, { clamp: true });
       return {
         r: lineAt(ctx.visibledatarow, y),
         c: lineAt(ctx.visibledatacolumn, x),
       };
     },
-    [refs.cellArea]
+    [refs.cellArea, freeze]
   );
 
   if (!found || found.sheet.id !== sheetId) return null;
@@ -260,19 +262,28 @@ export const ChartDataHighlight: React.FC = () => {
 
   return (
     <div className="fortune-chart-ranges" data-chart={chart.id}>
-      {outlines.map((o) => {
+      {outlines.flatMap((o) => {
         const color = CHART_RANGE_COLORS[o.part];
-        const box = boxOf(o.area);
-        return (
+        const cells = boxOf(o.area);
+        const box = {
+          left: cells.left - 1,
+          top: cells.top - 1,
+          width: cells.width + 1,
+          height: cells.height + 1,
+        };
+        // one copy per frozen pane the range shows in (Excel)
+        return placeInPanes(context, freeze, box).map((pane) => (
           <div
-            key={o.key}
+            key={`${o.key}-${pane.clip.join()}`}
             className="fortune-chart-range"
             data-part={o.part}
+            data-pane={pane.primary ? undefined : "frozen"}
             style={{
-              left: box.left - 1,
-              top: box.top - 1,
-              width: box.width + 1,
-              height: box.height + 1,
+              left: pane.left,
+              top: pane.top,
+              width: box.width,
+              height: box.height,
+              clipPath: paneClipPath(pane, 6),
               borderColor: color,
               background: `${color}14`,
             }}
@@ -295,7 +306,7 @@ export const ChartDataHighlight: React.FC = () => {
               />
             ))}
           </div>
-        );
+        ));
       })}
     </div>
   );

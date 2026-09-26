@@ -15,6 +15,8 @@ import {
   getOutlineGutterSize,
   hasCellDecorators,
   Sheet as SheetType,
+  onChartSheet,
+  objectSelected,
 } from "@lofcz/tinysheet-core";
 import "./index.css";
 import WorkbookContext from "../../context";
@@ -340,7 +342,10 @@ function sheetPasses(context: Context, freeze: Freeze | undefined): DrawPass[] {
 
 /** Whether the selected state of the row / column headers may differ. */
 function headerInputsChanged(prev: Context, next: Context) {
-  return prev.luckysheet_select_save !== next.luckysheet_select_save;
+  return (
+    prev.luckysheet_select_save !== next.luckysheet_select_save ||
+    objectSelected(prev) !== objectSelected(next)
+  );
 }
 
 /**
@@ -977,6 +982,8 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
       }
       // the sheet scrolls (or zooms), never the page
       e.preventDefault();
+      // a chart sheet does not scroll: its chart fills the window
+      if (onChartSheet(contextRef.current) && !e.ctrlKey) return;
       if (e.ctrlKey) {
         // Ctrl+wheel, and a trackpad pinch
         setContext(

@@ -183,7 +183,7 @@ function txBodyXml(shape: Shape) {
   );
 }
 
-function shapeXml(shape: Shape, box: ShapeBox, id: number) {
+export function shapeXml(shape: Shape, box: ShapeBox, id: number) {
   const name = esc(shape.name || `Shape ${id}`);
   const descr = shape.alt ? ` descr="${esc(shape.alt)}"` : "";
   if (isLineShape(shape)) {

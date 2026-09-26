@@ -793,6 +793,7 @@ export function clearGroupedSheetsContents(ctx: Context) {
     const j = getSheetIndex(ctx, id);
     if (j == null) return;
     const sheet = ctx.luckysheetfile[j];
+    if (sheet.chartSheet) return;
     if (_.isEmpty(sheet.data)) initSheetData(ctx, j, sheet);
     const { data } = sheet;
     if (!data) return;
@@ -899,6 +900,8 @@ export function mirrorGroupedSheetEdits(base: Context, draft: Context) {
     const j = getSheetIndex(draft, id);
     if (j == null) return;
     const target = draft.luckysheetfile[j];
+    // a chart sheet in the group has no cells to edit (Excel)
+    if (target.chartSheet) return;
     if (_.isEmpty(target.data)) initSheetData(draft, j, target);
     const { data } = target;
     if (!data) return;

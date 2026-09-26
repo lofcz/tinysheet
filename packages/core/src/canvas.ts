@@ -192,6 +192,26 @@ function setLineDash(
   }
 }
 
+/**
+ * Whether a floating object (chart, shape, picture, slicer) is selected:
+ * the cell selection is not shown then.
+ */
+export function objectSelected(ctx: {
+  activeChart?: string;
+  selectedCharts?: string[];
+  activeShapes?: string[];
+  activeImg?: string;
+  activeSlicer?: unknown;
+}) {
+  return !!(
+    ctx.activeChart ||
+    ctx.selectedCharts?.length ||
+    ctx.activeShapes?.length ||
+    ctx.activeImg ||
+    ctx.activeSlicer
+  );
+}
+
 export class Canvas {
   canvasElement: HTMLCanvasElement;
 
@@ -229,6 +249,8 @@ export class Canvas {
   headerSelection(axis: "row" | "column"): (index: number) => 0 | 1 | 2 {
     const ranges = this.sheetCtx.luckysheet_select_save;
     if (!ranges || ranges.length === 0) return () => 0;
+    // a selected chart / shape / picture: no cell selection shows (Excel)
+    if (objectSelected(this.sheetCtx)) return () => 0;
     const acrossCount =
       axis === "row"
         ? this.sheetCtx.visibledatacolumn.length

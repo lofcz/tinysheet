@@ -17,11 +17,15 @@ import {
   ChartRenderModel,
   ChartSeries,
   ChartTrendline,
+  chartAxisFormats,
+  ChartElementFormat,
+  legacyShadowEffects,
   readChartRange,
   resolveChartModel,
   Sheet,
 } from "@lofcz/tinysheet-core";
 import { escapeXmlText as esc } from "./xml";
+import { effectsXml, textRunProps } from "./effectsXml";
 
 export const NS_C = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 export const NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -29,6 +33,17 @@ export const NS_R =
   "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
 export type SheetsCtx = { luckysheetfile: Sheet[] };
+
+/**
+ * `c:userShapes` of a chart with shapes drawn in it (its r:id is the one
+ * the package writer gives the chart drawing part: "rIdUserShapes").
+ */
+export const USER_SHAPES_RID = "rIdUserShapes";
+function userShapesRef(chart: Chart) {
+  return chart.shapes?.length
+    ? `<c:userShapes r:id="${USER_SHAPES_RID}"/>`
+    : "";
+}
 
 export function hex(color: string | undefined, fallback: string) {
   const c = color && /^#?[0-9a-f]{6}$/i.test(color) ? color : fallback;
@@ -42,26 +57,42 @@ export function solidFill(color: string) {
 export function richTitle(
   text: string,
   size = 1400,
-  o: { overlay?: boolean; color?: string; spPr?: string } = {}
+  o: {
+    overlay?: boolean;
+    color?: string;
+    format?: ChartElementFormat;
+    spPr?: string;
+  } = {}
 ) {
-  const fill = o.color ? solidFill(hex(o.color, "000000")) : "";
+  // text fill, outline and effects (WordArt Styles) of the run
+  const props = textRunProps({
+    ...o.format,
+    text: o.format?.text ?? o.color,
+  });
   return (
     `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="${size}" b="0"/></a:pPr>` +
     `<a:r><a:rPr lang="en-US" sz="${size}" b="0"${
-      fill ? `>${fill}</a:rPr>` : "/>"
+      props ? `>${props}</a:rPr>` : "/>"
     }<a:t>${esc(text)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="${
       o.overlay ? 1 : 0
     }"/>${o.spPr ?? ""}</c:title>`
   );
 }
 
-function numCache(values: (number | null)[]) {
+function numCache(values: (number | null)[], format = "General") {
   let pts = "";
   values.forEach((v, i) => {
     if (v != null && Number.isFinite(v))
       pts += `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`;
   });
-  return `<c:formatCode>General</c:formatCode><c:ptCount val="${values.length}"/>${pts}`;
+  return `<c:formatCode>${esc(format)}</c:formatCode><c:ptCount val="${
+    values.length
+  }"/>${pts}`;
+}
+
+/** The number format of a reference's first number (Excel's cache code). */
+function sourceFormat(ctx: SheetsCtx, range: ChartRange) {
+  return readChartRange(ctx, range).find((c) => c.numeric != null)?.format;
 }
 
 function strCache(values: string[]) {
@@ -138,12 +169,13 @@ function numSource(
   hidden?: Set<number>
 ) {
   if (range) {
+    const format = sourceFormat(ctx, range);
     const visible = visiblePart(range, hidden);
     if (visible) {
       const shown = values.filter((_, i) => !hidden!.has(i));
-      return refXml(ctx, "num", visible, numCache(shown), range);
+      return refXml(ctx, "num", visible, numCache(shown, format), range);
     }
-    return refXml(ctx, "num", range, numCache(values));
+    return refXml(ctx, "num", range, numCache(values, format));
   }
   return `<c:numLit>${numCache(values)}</c:numLit>`;
 }
@@ -317,23 +349,61 @@ function allowedPositions(kind: GroupKind, stacked: boolean): string[] {
   }
 }
 
-function dLblsXml(chart: Chart, kind: GroupKind, stacked: boolean) {
-  const on = !!chart.dataLabels;
-  const o = chart.dataLabelOptions ?? {};
-  let x = "<c:dLbls>";
-  if (on && o.numberFormat)
-    x += `<c:numFmt formatCode="${esc(o.numberFormat)}" sourceLinked="0"/>`;
-  const pos = on && o.position ? POS_XML[o.position] : "";
-  if (pos && allowedPositions(kind, stacked).includes(pos))
-    x += `<c:dLblPos val="${pos}"/>`;
+/** The show flags of data labels (c:dLbls / c:dLbl). */
+function labelFlags(
+  o: NonNullable<Chart["dataLabelOptions"]>,
+  kind: GroupKind,
+  on: boolean
+) {
   const flag = (b: boolean | undefined) => (on && b ? 1 : 0);
-  x += `<c:showLegendKey val="0"/><c:showVal val="${flag(
+  return `<c:showLegendKey val="0"/><c:showVal val="${flag(
     o.showValue !== false
   )}"/><c:showCatName val="${flag(o.showCategory)}"/><c:showSerName val="${flag(
     o.showSeriesName
   )}"/><c:showPercent val="${flag(
     (kind === "pie" || kind === "doughnut") && o.showPercent
   )}"/><c:showBubbleSize val="0"/>`;
+}
+
+/**
+ * Labels on the last point only (Quick Layout 6): the series' c:dLbls with
+ * one c:dLbl for that point, the others off (Excel's form).
+ */
+function lastPointLabelsXml(
+  chart: Chart,
+  kind: GroupKind,
+  values: (number | null)[]
+) {
+  const o = chart.dataLabelOptions ?? {};
+  if (!chart.dataLabels || !o.lastPointOnly) return "";
+  let last = -1;
+  values.forEach((v, i) => {
+    if (v != null && Number.isFinite(v)) last = i;
+  });
+  if (last < 0) return "";
+  const pos = o.position ? POS_XML[o.position] : "";
+  const posXml =
+    pos && allowedPositions(kind, false).includes(pos)
+      ? `<c:dLblPos val="${pos}"/>`
+      : "";
+  return `<c:dLbls><c:dLbl><c:idx val="${last}"/>${posXml}${labelFlags(
+    o,
+    kind,
+    true
+  )}</c:dLbl>${labelFlags(o, kind, false)}</c:dLbls>`;
+}
+
+function dLblsXml(chart: Chart, kind: GroupKind, stacked: boolean) {
+  const o = chart.dataLabelOptions ?? {};
+  // last-point labels live on the series
+  const on = !!chart.dataLabels && !o.lastPointOnly;
+  let x = "<c:dLbls>";
+  if (on && o.numberFormat)
+    x += `<c:numFmt formatCode="${esc(o.numberFormat)}" sourceLinked="0"/>`;
+  const pos = on && o.position ? POS_XML[o.position] : "";
+  if (pos && allowedPositions(kind, stacked).includes(pos))
+    x += `<c:dLblPos val="${pos}"/>`;
+  x += labelFlags(o, kind, on);
   if (on && o.separator != null)
     x += `<c:separator>${esc(o.separator)}</c:separator>`;
   return `${x}</c:dLbls>`;
@@ -379,12 +449,16 @@ function seriesXml(
   } else {
     let ln =
       kind === "pie" || kind === "doughnut"
-        ? '<a:ln w="12700"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:ln>'
+        ? // Excel's default slice separator: the background colour (lt1),
+          // read back as "no explicit outline"
+          '<a:ln w="12700"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln>'
         : "";
     if (s.outline === null) ln = "<a:ln><a:noFill/></a:ln>";
     else if (s.outline)
       ln = `<a:ln w="9525">${solidFill(hex(s.outline, "000000"))}</a:ln>`;
-    x += `<c:spPr>${solidFill(color)}${ln}</c:spPr>`;
+    x += `<c:spPr>${solidFill(color)}${ln}${effectsXml(
+      s.effects ?? (s.shadow ? legacyShadowEffects() : undefined)
+    )}</c:spPr>`;
   }
   if (kind === "bar" || kind === "bubble") x += '<c:invertIfNegative val="0"/>';
   if (kind === "line" || kind === "scatter" || kind === "radar") {
@@ -407,15 +481,34 @@ function seriesXml(
         )}</c:spPr></c:marker>`
       : '<c:marker><c:symbol val="none"/></c:marker>';
   }
-  if (o.vary && m.pointColors) {
-    m.pointColors.forEach((pc, p) => {
+  // formatted points: varied colours, explicit colours, own outlines
+  const outlines = m.pointOutlines ?? {};
+  const pointIdx = new Set<number>();
+  if (o.vary && m.pointColors)
+    m.pointColors.forEach((_c, p) => pointIdx.add(p));
+  s.pointColors?.forEach((c, p) => c && pointIdx.add(p));
+  Object.keys(outlines).forEach((k) => pointIdx.add(Number(k)));
+  Array.from(pointIdx)
+    .sort((a, b) => a - b)
+    .forEach((p) => {
+      const pc =
+        (o.vary ? m.pointColors?.[p] : s.pointColors?.[p]) ||
+        (o.vary ? chartColor(chart, p) : color);
+      let ln = "";
+      if (p in outlines) {
+        const line = outlines[p];
+        ln =
+          line === null
+            ? "<a:ln><a:noFill/></a:ln>"
+            : `<a:ln w="9525">${solidFill(hex(line, "000000"))}</a:ln>`;
+      }
       x += `<c:dPt><c:idx val="${p}"/>${
         kind === "pie" || kind === "doughnut"
           ? '<c:bubble3D val="0"/>'
           : '<c:invertIfNegative val="0"/><c:bubble3D val="0"/>'
-      }<c:spPr>${solidFill(hex(pc, chartColor(chart, p)))}</c:spPr></c:dPt>`;
+      }<c:spPr>${solidFill(hex(pc, chartColor(chart, p)))}${ln}</c:spPr></c:dPt>`;
     });
-  }
+  x += lastPointLabelsXml(chart, kind, m.values);
   const analysis =
     kind === "bar" ||
     kind === "line" ||
@@ -671,9 +764,7 @@ export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
     t: string | undefined,
     key: "categoryAxisTitle" | "valueAxisTitle"
   ) =>
-    t && t.trim()
-      ? richTitle(t.trim(), 1000, { color: formats[key]?.text })
-      : "";
+    t && t.trim() ? richTitle(t.trim(), 1000, { format: formats[key] }) : "";
   const scaling = (bounds?: Chart["valueAxis"]) => {
     let out = '<c:scaling><c:orientation val="minMax"/>';
     if (bounds?.max != null) out += `<c:max val="${bounds.max}"/>`;
@@ -684,13 +775,29 @@ export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
   const common = (key: "categoryAxis" | "valueAxis") =>
     `<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>${shapeProps(
       { line: formats[key]?.line }
-    )}${textProps(formats[key]?.text)}`;
+    )}${textProps(formats[key])}`;
   const majorUnit = (bounds?: Chart["valueAxis"]) =>
     bounds?.majorUnit != null ? `<c:majorUnit val="${bounds.majorUnit}"/>` : "";
   const catPos = type === "bar" ? "l" : "b";
   const valPos = type === "bar" ? "b" : "l";
-  const valueFormat =
-    stacked && grouping === "percentStacked" ? "0%" : "General";
+  // Format Axis › Number: "Linked to source" writes the source cells'
+  // format with sourceLinked="1", an own format with sourceLinked="0"
+  const linked = chartAxisFormats(ctx, chart) ?? {};
+  const numFmt = (
+    options: { numberFormat?: string; sourceLinked?: boolean } | undefined,
+    source: string | undefined,
+    fallback = "General"
+  ) =>
+    options?.sourceLinked === false
+      ? `<c:numFmt formatCode="${esc(
+          options.numberFormat || "General"
+        )}" sourceLinked="0"/>`
+      : `<c:numFmt formatCode="${esc(source || fallback)}" sourceLinked="1"/>`;
+  const percentAxis = stacked && grouping === "percentStacked";
+  const valueNumFmt = (options: Chart["valueAxis"], source?: string) =>
+    percentAxis && options?.sourceLinked !== false
+      ? '<c:numFmt formatCode="0%" sourceLinked="1"/>'
+      : numFmt(options, source);
   const deleted = (axis: "category" | "value") =>
     chart.axes?.[axis] === false ? 1 : 0;
   const catAx = (id: number, cross: number, secondary: boolean, title = "") =>
@@ -698,9 +805,10 @@ export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
       secondary ? 1 : deleted("category")
     }"/><c:axPos val="${catPos}"/>${
       secondary ? "" : categoryGrid
-    }${title}<c:numFmt formatCode="General" sourceLinked="1"/>${common(
-      "categoryAxis"
-    )}<c:crossAx val="${cross}"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>`;
+    }${title}${numFmt(
+      secondary ? undefined : chart.categoryAxisFormat,
+      undefined
+    )}${common("categoryAxis")}<c:crossAx val="${cross}"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>`;
   const between = type === "area" ? "midCat" : "between";
 
   let axes = "";
@@ -711,7 +819,7 @@ export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
       )}"/><c:axPos val="b"/>${categoryGrid}${axisTitle(
         chart.categoryAxisTitle,
         "categoryAxisTitle"
-      )}<c:numFmt formatCode="General" sourceLinked="1"/>${common(
+      )}${numFmt(chart.categoryAxisFormat, linked.category)}${common(
         "categoryAxis"
       )}<c:crossAx val="${
         AX.val
@@ -723,7 +831,7 @@ export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
       )}"/><c:axPos val="l"/>${valueGrid}${axisTitle(
         chart.valueAxisTitle,
         "valueAxisTitle"
-      )}<c:numFmt formatCode="General" sourceLinked="1"/>${common(
+      )}${valueNumFmt(chart.valueAxis, linked.value)}${common(
         "valueAxis"
       )}<c:crossAx val="${
         AX.cat
@@ -745,11 +853,9 @@ export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
       )}"/><c:axPos val="${valPos}"/>${valueGrid}${axisTitle(
         chart.valueAxisTitle,
         "valueAxisTitle"
-      )}<c:numFmt formatCode="${valueFormat}" sourceLinked="${
-        valueFormat === "General" ? 1 : 0
-      }"/>${common("valueAxis")}<c:crossAx val="${
-        AX.cat
-      }"/><c:crosses val="autoZero"/><c:crossBetween val="${between}"/>${majorUnit(
+      )}${valueNumFmt(chart.valueAxis, linked.value)}${common(
+        "valueAxis"
+      )}<c:crossAx val="${AX.cat}"/><c:crosses val="autoZero"/><c:crossBetween val="${between}"/>${majorUnit(
         chart.valueAxis
       )}</c:valAx>`;
     if (hasSecondary) {
@@ -760,11 +866,9 @@ export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
         )}<c:delete val="0"/><c:axPos val="r"/>${axisTitle(
           chart.secondaryValueAxisTitle,
           "valueAxisTitle"
-        )}<c:numFmt formatCode="${valueFormat}" sourceLinked="${
-          valueFormat === "General" ? 1 : 0
-        }"/>${common("valueAxis")}<c:crossAx val="${
-          AX.cat2
-        }"/><c:crosses val="max"/><c:crossBetween val="${between}"/>${majorUnit(
+        )}${valueNumFmt(chart.secondaryValueAxis, linked.secondary)}${common(
+          "valueAxis"
+        )}<c:crossAx val="${AX.cat2}"/><c:crosses val="max"/><c:crossBetween val="${between}"/>${majorUnit(
           chart.secondaryValueAxis
         )}</c:valAx>`;
     }
@@ -783,7 +887,7 @@ export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
       : `<c:legend><c:legendPos val="${
           legendPos[chart.legend ?? "right"]
         }"/><c:overlay val="0"/>${shapeProps(formats.legend ?? {})}${textProps(
-          formats.legend?.text
+          formats.legend
         )}</c:legend>`;
   const title = chart.title?.trim();
   const blanks = { gap: "gap", zero: "zero", span: "span" }[
@@ -801,7 +905,7 @@ export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
       title
         ? richTitle(title, 1400, {
             overlay: !!chart.titleOverlay,
-            color: formats.title?.text,
+            format: formats.title,
             spPr: shapeProps(formats.title ?? {}),
           })
         : ""
@@ -820,25 +924,31 @@ export function chartToXml(ctx: SheetsCtx, chart: Chart): string {
       area.line === null
         ? "<a:ln><a:noFill/></a:ln>"
         : `<a:ln w="9525">${solidFill(hex(area.line ?? undefined, "D9D9D9"))}</a:ln>`
-    }</c:spPr></c:chartSpace>`
+    }${effectsXml(formatEffects(area))}</c:spPr>${userShapesRef(
+      chart
+    )}</c:chartSpace>`
   );
 }
 
 /** `<c:spPr>` of an element's fill / outline ("" when neither is set). */
-function shapeProps(f: { fill?: string | null; line?: string | null }) {
+/** Shape Effects of a format (the old shadow flag as Offset: Bottom Right). */
+function formatEffects(f: ChartElementFormat) {
+  return f.effects ?? (f.shadow ? legacyShadowEffects() : undefined);
+}
+
+function shapeProps(f: ChartElementFormat) {
   let inner = "";
   if (f.fill === null) inner += "<a:noFill/>";
   else if (f.fill) inner += solidFill(hex(f.fill, "FFFFFF"));
   if (f.line === null) inner += "<a:ln><a:noFill/></a:ln>";
   else if (f.line)
     inner += `<a:ln w="9525">${solidFill(hex(f.line, "000000"))}</a:ln>`;
+  inner += effectsXml(formatEffects(f));
   return inner ? `<c:spPr>${inner}</c:spPr>` : "";
 }
-
-/** `<c:txPr>` giving a text colour ("" when none). */
-function textProps(color: string | undefined) {
-  if (!color) return "";
-  return `<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr>${solidFill(
-    hex(color, "000000")
-  )}</a:defRPr></a:pPr><a:endParaRPr lang="en-US"/></a:p></c:txPr>`;
+/** Text properties of an element: fill, outline and Text Effects. */
+function textProps(f: ChartElementFormat | undefined) {
+  const props = textRunProps(f);
+  if (!props) return "";
+  return `<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr>${props}</a:defRPr></a:pPr><a:endParaRPr lang="en-US"/></a:p></c:txPr>`;
 }

@@ -7,13 +7,15 @@
 import React, { useCallback, useContext, useState } from "react";
 import _ from "lodash";
 import {
-  addSheet,
   applyChartElement,
   Chart,
   chartToolsLocale,
   findChart,
   getChartDataRange,
-  moveChartToSheet,
+  isChartSheet,
+  moveChartToNewSheet,
+  moveChartToObject,
+  renameSheet,
   resolveChartModel,
   setChartType,
 } from "@lofcz/tinysheet-core";
@@ -103,15 +105,27 @@ const MoveChartDialog: React.FC<{ chartId: string }> = ({ chartId }) => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const t = chartToolsLocale(context);
   const found = findChart(context, chartId);
-  const names = context.luckysheetfile.map((s) => s.name);
-  const [mode, setMode] = useState<"new" | "object">("object");
+  // a chart on a chart sheet: New sheet is chosen with its name (Excel)
+  const onSheet = !!found && isChartSheet(found.sheet);
+  const names = context.luckysheetfile
+    .filter((s) => !(onSheet && s.id === found?.sheet.id))
+    .map((s) => s.name);
+  const [mode, setMode] = useState<"new" | "object">(
+    onSheet ? "new" : "object"
+  );
   const [name, setName] = useState(() => {
+    if (onSheet && found) return found.sheet.name;
     for (let n = 1; ; n += 1) {
       const candidate = t.moveChart.defaultName.replace("{n}", String(n));
       if (!names.includes(candidate)) return candidate;
     }
   });
-  const [target, setTarget] = useState(found?.sheet.id ?? "");
+  const worksheets = context.luckysheetfile.filter(
+    (s) => s.hide !== 1 && !s.chartSheet
+  );
+  const [target, setTarget] = useState(
+    onSheet ? (worksheets[0]?.id ?? "") : (found?.sheet.id ?? "")
+  );
   if (!found) return null;
   const taken = mode === "new" && names.includes(name.trim());
   const ok = () => {
@@ -119,27 +133,20 @@ const MoveChartDialog: React.FC<{ chartId: string }> = ({ chartId }) => {
       const sheetName = name.trim();
       if (!sheetName || taken) return;
       setContext((ctx) => {
-        const before = new Set(ctx.luckysheetfile.map((s) => s.id));
-        addSheet(ctx, settings, undefined, false, sheetName);
-        const sheet = ctx.luckysheetfile.find((s) => !before.has(s.id));
-        if (!sheet?.id) return;
-        // a chart sheet: the chart fills the window, no gridlines
-        sheet.showGridLines = 0;
-        const zoom = ctx.zoomRatio || 1;
-        const width = Math.max(320, (ctx.cellmainWidth || 900) / zoom - 24);
-        const height = Math.max(240, (ctx.cellmainHeight || 520) / zoom - 24);
-        moveChartToSheet(ctx, chartId, sheet.id, {
-          left: 8,
-          top: 8,
-          width,
-          height,
-        });
-        activateSheetTab(ctx, sheet.id, refs.globalCache);
+        const current = findChart(ctx, chartId);
+        if (current && isChartSheet(current.sheet)) {
+          // already on a chart sheet: only its name changes
+          renameSheet(ctx, current.sheet.id!, sheetName);
+          return;
+        }
+        const id = moveChartToNewSheet(ctx, settings, chartId, sheetName);
+        if (!id) return;
+        activateSheetTab(ctx, id, refs.globalCache);
         ctx.activeChart = chartId;
       });
     } else if (target && target !== found.sheet.id) {
       setContext((ctx) => {
-        moveChartToSheet(ctx, chartId, target);
+        moveChartToObject(ctx, chartId, target);
         activateSheetTab(ctx, target, refs.globalCache);
         ctx.activeChart = chartId;
       });
@@ -195,9 +202,7 @@ const MoveChartDialog: React.FC<{ chartId: string }> = ({ chartId }) => {
           <Select
             aria-label={t.moveChart.objectIn}
             value={target}
-            options={context.luckysheetfile
-              .filter((s) => s.hide !== 1)
-              .map((s) => ({ value: s.id!, label: s.name }))}
+            options={worksheets.map((s) => ({ value: s.id!, label: s.name }))}
             onChange={(v) => {
               setMode("object");
               setTarget(v);
@@ -296,8 +301,9 @@ export const ChartDialogs: React.FC = () => {
     case "selectData":
       return (
         <SelectDataDialog
-          key={request.chartId}
+          key={`${request.chartId}:${request.editSeries ?? ""}`}
           chartId={request.chartId}
+          editSeries={request.editSeries}
           onDone={closeChartDialog}
         />
       );

@@ -9,14 +9,24 @@ import React, {
 } from "react";
 import {
   Chart,
-  Context,
+  chartAreaCssFilter,
+  clearObjectSelection,
   deleteChart,
+  deleteChartShape,
+  groupMembers as groupMembersOf,
+  insertChartShape,
+  moveObjects,
+  ObjectRef,
+  selectedObjects as selectedObjectsOf,
+  selectObjects,
+  toggleObject,
   ensureChartAnchor,
-  Freezen,
   getChartBox,
   getChartCellPosition,
   getChartReferencedSheetIds,
   getSheetIndex,
+  isChartSheet,
+  legacyShadowEffects,
   locale,
   MIN_CHART_HEIGHT,
   MIN_CHART_WIDTH,
@@ -30,18 +40,37 @@ import WorkbookContext from "../../context";
 import { getChartClipboard, setChartClipboard } from "./chartClipboard";
 import { useChartPreview } from "./chartPreview";
 import ChartButtons from "./ChartButtons";
+import ChartShapes from "./ChartShapes";
+import {
+  pendingChartShape,
+  setPendingChartShape,
+  usePendingChartShape,
+} from "./chartShapeDraw";
 import { isChartRefEditActive } from "./dialogs/store";
 import ChartContextMenu, { ChartMenuState } from "./ChartContextMenu";
 import { trackPointerDrag } from "../../hooks/pointerDrag";
+import { paneClipPath, placeInPanes } from "./panes";
 import "./index.css";
 
 type Box = { left: number; top: number; width: number; height: number };
 type Side = "lt" | "mt" | "rt" | "lm" | "rm" | "lb" | "mb" | "rb";
 const SIDES: Side[] = ["lt", "mt", "rt", "lm", "rm", "lb", "mb", "rb"];
 
+/** Room around the chart of a chart sheet (px). */
+const CHART_SHEET_MARGIN = 12;
+
 type Drag = {
   id: string;
   mode: "move" | Side;
+  /** Ctrl / Shift at the press: a click toggles the chart in the selection. */
+  toggle?: boolean;
+  /** Other selected objects moved along (a multi-selection or group). */
+  others?: ObjectRef[];
+  /** A click on a selected group member selects that chart alone. */
+  inside?: boolean;
+  /** Edges of the other objects (Snap to Shape), sheet px. */
+  snapX?: number[];
+  snapY?: number[];
   startX: number;
   startY: number;
   zoom: number;
@@ -112,77 +141,12 @@ function resizeBox(orig: Box, side: Side, dx: number, dy: number): Box {
   return { left, top, width, height };
 }
 
-type Pane = {
-  left: number;
-  top: number;
-  /** clip-path inset: top, right, bottom, left. */
-  clip: [number, number, number, number];
-  /** The scrolling pane's copy carries the selection handles. */
-  primary: boolean;
-};
-
-type Span = { offset: number; clipStart: number; clipEnd: number };
-
-/** Room kept outside a clipped box for its handles and chart buttons. */
-const OUTSIDE = 48;
-
-/**
- * One axis of the frozen-pane split, like Excel: the part of an object that
- * lies in the frozen rows (columns) stays put, the rest scrolls and is hidden
- * under the frozen band. `edge` is the frozen boundary in sheet pixels,
- * `off` the scroll offset since freezing.
- */
-function splitAxis(
-  start: number,
-  size: number,
-  data: any[] | undefined,
-  scroll: number
-): { frozen?: Span; scrolled: Span } {
-  if (!data) return { scrolled: { offset: 0, clipStart: 0, clipEnd: 0 } };
-  const edge = data[0] as number;
-  const off = scroll - (data[2] as number);
-  const scrolled = {
-    offset: 0,
-    clipStart: Math.max(0, edge + off - start),
-    clipEnd: 0,
-  };
-  const frozen =
-    start < edge
-      ? { offset: off, clipStart: 0, clipEnd: Math.max(0, start + size - edge) }
-      : undefined;
-  return { frozen, scrolled };
-}
-
-/** Screen copies of a chart for the current frozen panes (1, 2 or 4). */
-function placeInPanes(ctx: Context, freeze: Freezen | undefined, box: Box) {
-  const rows = splitAxis(
-    box.top,
-    box.height,
-    freeze?.horizontal?.freezenhorizontaldata,
-    ctx.scrollTop
+/** CSS filter of the chart area's Shape Effects (shadow, glow). */
+function chartAreaFilter(chart: Chart) {
+  const f = chart.formats?.chartArea;
+  return chartAreaCssFilter(
+    f?.effects ?? (f?.shadow ? legacyShadowEffects() : undefined)
   );
-  const cols = splitAxis(
-    box.left,
-    box.width,
-    freeze?.vertical?.freezenverticaldata,
-    ctx.scrollLeft
-  );
-  const panes: Pane[] = [];
-  [rows.scrolled, rows.frozen].forEach((r, ri) => {
-    if (!r) return;
-    [cols.scrolled, cols.frozen].forEach((c, ci) => {
-      if (!c) return;
-      if (r.clipStart + r.clipEnd >= box.height) return;
-      if (c.clipStart + c.clipEnd >= box.width) return;
-      panes.push({
-        left: box.left + c.offset,
-        top: box.top + r.offset,
-        clip: [r.clipStart, c.clipEnd, r.clipEnd, c.clipStart],
-        primary: ri === 0 && ci === 0,
-      });
-    });
-  });
-  return panes;
 }
 
 /** The chart element under a pointer event ("chartArea" by default). */
@@ -300,8 +264,22 @@ const ChartLayer: React.FC = () => {
   );
 
   /** Where a chart is shown now (it follows its anchor cells). */
+  // a chart sheet: its chart fills the window (Excel's zoom to fit)
+  const chartSheet = isChartSheet(sheet);
   const boxOf = useCallback(
     (chart: Chart): Box => {
+      if (chartSheet) {
+        const z = context.zoomRatio || 1;
+        const m = CHART_SHEET_MARGIN;
+        // room on the right for the chart buttons (Chart Elements…)
+        const right = m + 40;
+        return {
+          left: (context.scrollLeft || 0) / z + m / z,
+          top: (context.scrollTop || 0) / z + m / z,
+          width: Math.max(80, (context.cellmainWidth - m - right) / z),
+          height: Math.max(60, (context.cellmainHeight - 2 * m) / z),
+        };
+      }
       if (!sheetId)
         return {
           left: chart.left,
@@ -313,8 +291,21 @@ const ChartLayer: React.FC = () => {
     },
     // geometry fields are listed so the boxes follow resizes and hides
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [context, sheetId, config, visibledatarow, visibledatacolumn]
+    [context, sheetId, config, visibledatarow, visibledatacolumn, chartSheet]
   );
+
+  // on a chart sheet its chart is always the selected object (Excel)
+  const sheetChartId = chartSheet ? charts?.[0]?.id : undefined;
+  useEffect(() => {
+    if (!sheetChartId || context.activeChart === sheetChartId) return;
+    setContext(
+      (ctx) => {
+        ctx.activeChart = sheetChartId;
+        ctx.chartElement = ctx.chartElement ?? "chartArea";
+      },
+      { noHistory: true }
+    );
+  }, [sheetChartId, context.activeChart, setContext]);
 
   // Charts from older files have no cell anchor yet: anchor them to the
   // cells under them (not an undo step).
@@ -352,6 +343,7 @@ const ChartLayer: React.FC = () => {
   }, [activeChart]);
 
   // Forget the selection when it no longer exists on this sheet.
+  const { selectedCharts } = context;
   useEffect(() => {
     if (activeChart && !charts?.some((c) => c.id === activeChart)) {
       setContext((ctx) => {
@@ -359,11 +351,41 @@ const ChartLayer: React.FC = () => {
         ctx.chartEditorOpen = false;
       });
     }
-  }, [activeChart, charts, setContext]);
+    if (
+      selectedCharts?.length &&
+      !selectedCharts.every((id) => charts?.some((c) => c.id === id))
+    ) {
+      setContext((ctx) => {
+        const keep = (ctx.selectedCharts ?? []).filter((id) =>
+          charts?.some((c) => c.id === id)
+        );
+        ctx.selectedCharts = keep.length ? keep : undefined;
+      });
+    }
+  }, [activeChart, charts, selectedCharts, setContext]);
 
   // Clicking elsewhere in the workbook deselects (unless the editor is open).
+  const multi = !!selectedCharts?.length;
   useEffect(() => {
-    if (!activeChart || chartEditorOpen) return undefined;
+    if (!multi) return undefined;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      const container = refs.workbookContainer.current;
+      if (!target || !container?.contains(target)) return;
+      if (
+        target.closest?.(
+          ".fortune-chart-box, .fortune-shape, .fortune-shape-frame, .fortune-ribbon, .fortune-side-slot, .ts-popover, .ts-dialog"
+        )
+      )
+        return;
+      setContext((ctx) => clearObjectSelection(ctx));
+    };
+    document.addEventListener("mousedown", onDown, true);
+    return () => document.removeEventListener("mousedown", onDown, true);
+  }, [multi, refs.workbookContainer, setContext]);
+
+  useEffect(() => {
+    if (!activeChart || chartEditorOpen || chartSheet) return undefined;
     const onDown = (e: MouseEvent) => {
       const target = e.target as Element | null;
       const container = refs.workbookContainer.current;
@@ -377,6 +399,12 @@ const ChartLayer: React.FC = () => {
         )
       )
         return;
+      // Ctrl / Shift + click on a shape adds it to the selection
+      if (
+        target.closest?.(".fortune-shape") &&
+        (e.ctrlKey || e.metaKey || e.shiftKey)
+      )
+        return;
       setContext((ctx) => {
         ctx.activeChart = undefined;
         ctx.chartElement = undefined;
@@ -384,7 +412,13 @@ const ChartLayer: React.FC = () => {
     };
     document.addEventListener("mousedown", onDown, true);
     return () => document.removeEventListener("mousedown", onDown, true);
-  }, [activeChart, chartEditorOpen, refs.workbookContainer, setContext]);
+  }, [
+    activeChart,
+    chartEditorOpen,
+    chartSheet,
+    refs.workbookContainer,
+    setContext,
+  ]);
 
   // Paste a copied chart (capture phase, before the cell paste handler).
   useEffect(() => {
@@ -433,6 +467,8 @@ const ChartLayer: React.FC = () => {
   );
   const snapRef = useRef(snapToGrid);
   snapRef.current = snapToGrid;
+  const snapGridRef = useRef(!!context.snapToGrid);
+  snapGridRef.current = !!context.snapToGrid;
 
   const onMouseMove = useCallback((e: MouseEvent) => {
     const d = drag.current;
@@ -447,9 +483,27 @@ const ChartLayer: React.FC = () => {
         if (Math.abs(dx) >= Math.abs(dy)) dy = 0;
         else dx = 0;
       }
-      if (e.altKey) {
+      if (e.altKey || snapGridRef.current) {
         dx = snapRef.current(d.orig.left + dx, "x") - d.orig.left;
         dy = snapRef.current(d.orig.top + dy, "y") - d.orig.top;
+      } else if (d.snapX?.length || d.snapY?.length) {
+        // Snap to Shape: an edge within 6 px of another object's edge
+        const snap = (start: number, size: number, edges: number[]) => {
+          let best = 0;
+          let bestDist = 7;
+          [start, start + size].forEach((edge) =>
+            edges.forEach((target) => {
+              const delta = target - edge;
+              if (Math.abs(delta) < bestDist) {
+                best = delta;
+                bestDist = Math.abs(delta);
+              }
+            })
+          );
+          return best;
+        };
+        dx += snap(d.orig.left + dx, d.orig.width, d.snapX ?? []);
+        dy += snap(d.orig.top + dy, d.orig.height, d.snapY ?? []);
       }
     }
     d.current =
@@ -468,6 +522,28 @@ const ChartLayer: React.FC = () => {
       const d = drag.current;
       drag.current = null;
       stopTracking.current = null;
+      if (d && !d.moved && d.toggle) {
+        // Ctrl / Shift + click: add or remove the chart (Excel)
+        setContext((ctx) => toggleObject(ctx, { kind: "chart", id: d.id }), {
+          noHistory: true,
+        });
+      } else if (d && !d.moved && d.inside) {
+        // a second click on a group member selects it alone
+        setContext(
+          (ctx) => selectObjects(ctx, [{ kind: "chart", id: d.id }], true),
+          { noHistory: true }
+        );
+      }
+      if (d?.moved && d.mode === "move" && d.others?.length) {
+        // the whole selection (a group) moves by the same distance
+        const dx = Math.round(d.current.left - d.orig.left);
+        const dy = Math.round(d.current.top - d.orig.top);
+        setContext((ctx) =>
+          moveObjects(ctx, [{ kind: "chart", id: d.id }, ...d.others!], dx, dy)
+        );
+        setPreview(null);
+        return;
+      }
       if (d?.moved) {
         const box = {
           left: Math.round(d.current.left),
@@ -503,29 +579,154 @@ const ChartLayer: React.FC = () => {
 
   useEffect(() => () => stopTracking.current?.(), []);
 
+  // Format › Insert Shapes: a picked shape waits for a drag in the chart;
+  // it is dropped when the chart is deselected
+  const pendingShape = usePendingChartShape();
+  useEffect(() => {
+    if (!activeChart) setPendingChartShape(null);
+  }, [activeChart]);
+
+  // Format › Insert Shapes: drawing a shape in a chart
+  const [drawing, setDrawing] = useState<{
+    id: string;
+    box: Box;
+  } | null>(null);
+  const startShapeDraw = useCallback(
+    (e: React.MouseEvent, chart: Chart) => {
+      const key = pendingChartShape();
+      const el = boxRefs.current.get(chart.id);
+      if (!key || !el) return;
+      const rect = el.getBoundingClientRect();
+      const at = (ev: { clientX: number; clientY: number }) => ({
+        x: Math.min(chart.width, Math.max(0, (ev.clientX - rect.left) / zoom)),
+        y: Math.min(chart.height, Math.max(0, (ev.clientY - rect.top) / zoom)),
+      });
+      const start = at(e);
+      let box: Box | null = null;
+      stopTracking.current?.();
+      stopTracking.current = trackPointerDrag(e, {
+        onMove: (ev) => {
+          const p = at(ev);
+          box = {
+            left: Math.min(start.x, p.x),
+            top: Math.min(start.y, p.y),
+            width: Math.abs(p.x - start.x),
+            height: Math.abs(p.y - start.y),
+          };
+          setDrawing({ id: chart.id, box });
+        },
+        onEnd: () => {
+          stopTracking.current = null;
+          setDrawing(null);
+          setPendingChartShape(null);
+          const drawn: Box | null =
+            box && box.width >= 4 && box.height >= 4 ? box : null;
+          setContext((ctx) => {
+            const f = ctx.luckysheetfile
+              .find((sh) => sh.id === ctx.currentSheetId)
+              ?.charts?.find((c) => c.id === chart.id);
+            if (!f) return;
+            // a click without a drag: the shape's default size there
+            const shape = insertChartShape(
+              f,
+              key,
+              drawn ?? {
+                left: Math.min(start.x, f.width - 96),
+                top: Math.min(start.y, f.height - 64),
+                width: 96,
+                height: 64,
+              }
+            );
+            ctx.activeChart = chart.id;
+            if (shape) ctx.chartElement = `shape:${shape.id}`;
+          });
+        },
+        onCancel: () => {
+          stopTracking.current = null;
+          setDrawing(null);
+          setPendingChartShape(null);
+        },
+      });
+    },
+    [setContext, zoom]
+  );
+
   const startDrag = useCallback(
     (e: React.MouseEvent, chart: Chart, mode: Drag["mode"]) => {
       if (e.button !== 0) return;
       e.stopPropagation();
       e.preventDefault();
       boxRefs.current.get(chart.id)?.focus({ preventScroll: true });
-      // a click picks the element under the pointer (Excel)
-      const element =
-        mode === "move" ? elementAt(e.target) : context.chartElement;
-      if (
-        context.activeChart !== chart.id ||
-        (mode === "move" && context.chartElement !== element)
-      ) {
-        setContext(
-          (ctx) => {
-            ctx.activeChart = chart.id;
-            ctx.chartElement = element ?? "chartArea";
-          },
-          { noHistory: true }
-        );
+      // Format › Insert Shapes: a drag in the chart draws the shape
+      if (mode === "move" && pendingChartShape() && !readonly) {
+        startShapeDraw(e, chart);
+        return;
       }
-      if (readonly) return;
+      const mod = e.ctrlKey || e.metaKey || e.shiftKey;
+      const inMulti =
+        !!context.selectedCharts?.includes(chart.id) &&
+        (context.selectedCharts.length > 1 || !!context.activeShapes?.length);
+      let others: ObjectRef[] = [];
+      let toggle = false;
+      let inside = false;
+      if (mode === "move" && (mod || inMulti || chart.group)) {
+        if (mod) {
+          // Ctrl / Shift: a click toggles, a drag moves the selection
+          toggle = true;
+          if (inMulti || context.activeChart === chart.id) {
+            others = selectedObjectsOf(context).filter(
+              (r) => !(r.kind === "chart" && r.id === chart.id)
+            );
+          }
+        } else if (inMulti) {
+          others = selectedObjectsOf(context).filter(
+            (r) => !(r.kind === "chart" && r.id === chart.id)
+          );
+          inside = !!chart.group;
+        } else if (chart.group) {
+          // a click on a grouped chart selects its whole group (Excel)
+          setContext(
+            (ctx) => selectObjects(ctx, [{ kind: "chart", id: chart.id }]),
+            { noHistory: true }
+          );
+          others = groupMembersOf(context, chart.group).filter(
+            (r) => !(r.kind === "chart" && r.id === chart.id)
+          );
+        }
+      }
+      if (!toggle && !others.length && !inside) {
+        // a click picks the element under the pointer (Excel)
+        const element =
+          mode === "move" ? elementAt(e.target) : context.chartElement;
+        if (
+          context.activeChart !== chart.id ||
+          (mode === "move" && context.chartElement !== element)
+        ) {
+          setContext(
+            (ctx) => {
+              ctx.activeChart = chart.id;
+              ctx.chartElement = element ?? "chartArea";
+              ctx.selectedCharts = undefined;
+              ctx.activeShapes = undefined;
+            },
+            { noHistory: true }
+          );
+        }
+      }
+      // a chart sheet's chart fills it: no moving or sizing (Excel)
+      if (readonly || chartSheet) return;
       const orig = boxOf(chart);
+      // Snap to Shape: the edges of the other charts
+      const snapX: number[] = [];
+      const snapY: number[] = [];
+      if (context.snapToShape) {
+        charts?.forEach((c) => {
+          if (c.id === chart.id) return;
+          const b = boxOf(c);
+          snapX.push(b.left, b.left + b.width);
+          snapY.push(b.top, b.top + b.height);
+        });
+      }
       drag.current = {
         id: chart.id,
         mode,
@@ -535,6 +736,11 @@ const ChartLayer: React.FC = () => {
         orig,
         current: orig,
         moved: false,
+        toggle,
+        inside,
+        others,
+        snapX,
+        snapY,
       };
       stopTracking.current?.();
       stopTracking.current = trackPointerDrag(e, {
@@ -545,13 +751,15 @@ const ChartLayer: React.FC = () => {
     },
     [
       boxOf,
-      context.activeChart,
-      context.chartElement,
+      charts,
+      chartSheet,
+      context,
       onDragCancel,
       onMouseMove,
       onMouseUp,
       readonly,
       setContext,
+      startShapeDraw,
       zoom,
     ]
   );
@@ -580,6 +788,20 @@ const ChartLayer: React.FC = () => {
       if (readonly) return;
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
+        // a shape drawn in the chart goes, the chart stays (Excel)
+        const shape = /^shape:(.+)$/.exec(context.chartElement ?? "");
+        if (shape) {
+          setContext((ctx) => {
+            const f = ctx.luckysheetfile
+              .find((sh) => sh.id === ctx.currentSheetId)
+              ?.charts?.find((c) => c.id === chart.id);
+            if (f) deleteChartShape(f, shape[1]);
+            ctx.chartElement = "chartArea";
+          });
+          return;
+        }
+        // the chart of a chart sheet cannot be deleted (delete the sheet)
+        if (chartSheet) return;
         setContext((ctx) => deleteChart(ctx, chart.id));
         refs.cellInput.current?.focus();
         return;
@@ -591,6 +813,7 @@ const ChartLayer: React.FC = () => {
         });
         return;
       }
+      if (chartSheet) return;
       const step = e.shiftKey ? 10 : 1;
       const nudge: Record<string, [number, number]> = {
         ArrowLeft: [-step, 0],
@@ -610,7 +833,14 @@ const ChartLayer: React.FC = () => {
         );
       }
     },
-    [boxOf, readonly, refs.cellInput, setContext]
+    [
+      boxOf,
+      chartSheet,
+      context.chartElement,
+      readonly,
+      refs.cellInput,
+      setContext,
+    ]
   );
 
   const onCopy = useCallback(
@@ -683,8 +913,9 @@ const ChartLayer: React.FC = () => {
           Math.round(box.height)
         );
         return panes.map((pane) => {
-          const clipped = pane.clip.some((v) => v > 0);
-          const showHandles = active && pane.primary;
+          const showHandles = active && pane.primary && !chartSheet;
+          const showButtons = active && pane.primary;
+          const inSelection = !!selectedCharts?.includes(chart.id);
           return (
             <div
               key={`${chart.id}-${pane.primary ? "main" : pane.clip.join()}`}
@@ -697,12 +928,11 @@ const ChartLayer: React.FC = () => {
                   : undefined
               }
               className={`fortune-chart-box${
-                active ? " fortune-chart-box-active" : ""
-              }${
-                shown.formats?.chartArea?.shadow
-                  ? " fortune-chart-box--shadow"
-                  : ""
+                active || inSelection ? " fortune-chart-box-active" : ""
               }`}
+              data-selected={inSelection || undefined}
+              data-group={chart.group}
+              data-drawing={(active && pendingShape) || undefined}
               data-chart-id={chart.id}
               data-focus-series={
                 active && focusSeries != null ? focusSeries : undefined
@@ -718,22 +948,22 @@ const ChartLayer: React.FC = () => {
                 height: zoomed.height,
                 // the frozen band hides a part of the box; the sides that are
                 // not cut keep the handles and the chart buttons outside it
-                clipPath: clipped
-                  ? `inset(${pane.clip
-                      .map((v) => (v > 0 ? `${v}px` : `-${OUTSIDE}px`))
-                      .join(" ")})`
-                  : undefined,
+                clipPath: paneClipPath(pane),
                 ["--ts-chart-clip-top" as string]: `${pane.clip[0]}px`,
               }}
               onMouseDown={(e) => startDrag(e, chart, "move")}
               onDoubleClick={(e) => {
                 e.stopPropagation();
-                // Format <Element> for the element double-clicked
+                // Format <Element> for the element double-clicked: the
+                // press picked it (the release lands on the box, which
+                // captures the pointer)
                 const element = elementAt(e.target);
                 setContext(
                   (ctx) => {
                     ctx.activeChart = chart.id;
-                    ctx.chartElement = element;
+                    if (element !== "chartArea" || !ctx.chartElement) {
+                      ctx.chartElement = element;
+                    }
                     ctx.chartEditorOpen = true;
                   },
                   { noHistory: true }
@@ -755,10 +985,31 @@ const ChartLayer: React.FC = () => {
             >
               <div
                 className="fortune-chart-svg"
+                // the chart area's outer shadow and glow fall outside it
+                style={{ filter: chartAreaFilter(shown) }}
                 // SVG produced by the chart renderer; every text is XML-escaped.
                 // eslint-disable-next-line react/no-danger
                 dangerouslySetInnerHTML={{ __html: svg }}
               />
+              <ChartShapes
+                chart={shown}
+                zoom={zoom}
+                interactive={pane.primary}
+              />
+              {inSelection && pane.primary && (
+                <div className="fortune-chart-outline" />
+              )}
+              {drawing?.id === chart.id && (
+                <div
+                  className="fortune-chart-shape-draw"
+                  style={{
+                    left: drawing.box.left * zoom,
+                    top: drawing.box.top * zoom,
+                    width: drawing.box.width * zoom,
+                    height: drawing.box.height * zoom,
+                  }}
+                />
+              )}
               {showHandles && (
                 <>
                   <div className="fortune-chart-outline" />
@@ -780,18 +1031,18 @@ const ChartLayer: React.FC = () => {
                         svg={svg}
                       />
                     )}
-                  {!readonly && (
-                    <div
-                      className="fortune-chart-actions"
-                      onMouseDown={(e) => e.stopPropagation()}
-                    >
-                      <ChartButtons
-                        chartId={chart.id}
-                        onFocusSeries={setFocusSeries}
-                      />
-                    </div>
-                  )}
                 </>
+              )}
+              {showButtons && !readonly && (
+                <div
+                  className="fortune-chart-actions"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <ChartButtons
+                    chartId={chart.id}
+                    onFocusSeries={setFocusSeries}
+                  />
+                </div>
               )}
             </div>
           );

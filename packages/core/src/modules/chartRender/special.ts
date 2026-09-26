@@ -63,7 +63,13 @@ export function renderRadar(
     min = 0;
     max = 1;
   }
-  const axis = makeValueAxis(min, max, model.valueAxis);
+  const axis = makeValueAxis(
+    min,
+    max,
+    model.valueAxis,
+    false,
+    model.axisFormats?.value
+  );
   const { scale } = axis;
   const family = theme.fontFamily;
   const labels: string[] = [];
@@ -231,7 +237,13 @@ export function renderWaterfall(
   const frame = layoutCategoryFrame(area, theme, {
     count,
     labels,
-    primary: makeValueAxis(min, max, model.valueAxis),
+    primary: makeValueAxis(
+      min,
+      max,
+      model.valueAxis,
+      false,
+      model.axisFormats?.value
+    ),
     categoryTitle: model.categoryAxisTitle,
     valueTitle: model.valueAxisTitle,
     gridlines: model.gridlines,
@@ -346,7 +358,13 @@ export function renderHistogram(
   const frame = layoutCategoryFrame(area, theme, {
     count,
     labels: bars.map((b) => b.label),
-    primary: makeValueAxis(min, max, model.valueAxis),
+    primary: makeValueAxis(
+      min,
+      max,
+      model.valueAxis,
+      false,
+      model.axisFormats?.value
+    ),
     secondary: pareto ? makeValueAxis(0, 1, undefined, true) : undefined,
     categoryTitle: model.categoryAxisTitle,
     valueTitle: model.valueAxisTitle,
@@ -532,7 +550,13 @@ export function renderStock(
   const frame = layoutCategoryFrame(area, theme, {
     count,
     labels,
-    primary: makeValueAxis(min, max, model.valueAxis),
+    primary: makeValueAxis(
+      min,
+      max,
+      model.valueAxis,
+      false,
+      model.axisFormats?.value
+    ),
     categoryTitle: model.categoryAxisTitle,
     valueTitle: model.valueAxisTitle,
     gridlines: model.gridlines,

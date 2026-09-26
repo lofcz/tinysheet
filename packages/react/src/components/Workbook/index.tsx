@@ -850,6 +850,18 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               data-chrome={
                 mergedSettings.chrome === "compact" ? "compact" : "suite"
               }
+              // a selected chart, shape, picture or slicer hides the cell
+              // selection until it is deselected (Excel)
+              data-object-selected={
+                context.activeChart ||
+                context.selectedCharts?.length ||
+                context.activeShapes?.length ||
+                context.activeImg ||
+                context.activeSlicer
+                  ? true
+                  : undefined
+              }
+              data-chart-sheet={sheet.chartSheet ? true : undefined}
               ref={workbookContainer}
               onKeyDown={onKeyDown}
             >

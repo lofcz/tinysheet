@@ -71,6 +71,14 @@ export type Context = {
   chartElement?: string;
   /** Ids of the selected shapes on the current sheet (modules/shapes.ts). */
   activeShapes?: string[];
+  /**
+   * Charts selected together with other objects (Ctrl / Shift + click, a
+   * group): the Arrange commands act on them (modules/objects.ts).
+   */
+  selectedCharts?: string[];
+  /** Arrange › Align › Snap to Grid / Snap to Shape (objects' drags). */
+  snapToGrid?: boolean;
+  snapToShape?: boolean;
   /** Shape whose text is being edited. */
   editingShape?: string;
   /** Insert › Shapes: gallery key the next drag on the grid draws. */

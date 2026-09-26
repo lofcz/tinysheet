@@ -316,7 +316,7 @@ function readText(
   };
 }
 
-function readShapeNode(
+export function readShapeNode(
   node: XmlNode,
   box: ShapeBox,
   geo: AxisGeometry,

@@ -14,13 +14,11 @@
 import React, { useMemo, useState } from "react";
 import _ from "lodash";
 import {
-  AlignStartVertical,
   ArrowRightLeft,
   Baseline,
   BringToFront,
   ChartColumnBig,
   createLucideIcon,
-  Group,
   Highlighter,
   LayoutPanelTop,
   Move,
@@ -30,7 +28,6 @@ import {
   PaintBucket,
   PenLine,
   RotateCcw,
-  RotateCw,
   SendToBack,
   Sparkles,
   SquareMousePointer,
@@ -39,22 +36,21 @@ import {
 import {
   applyChartQuickLayout,
   canSwitchChartRowColumn,
-  CHART_QUICK_LAYOUTS,
   CHART_STYLES,
   chartQuickLayoutElements,
+  chartQuickLayouts,
   chartSelectableElements,
   chartToolsLocale,
   Context,
   reorderChart,
   resetChartElementFormat,
+  selectedObjects,
   switchChartDataRowColumn,
   updateChart,
 } from "@lofcz/tinysheet-core";
-import type { ChartFormatKey } from "@lofcz/tinysheet-core";
 import {
   ColorPicker,
   Gallery,
-  MenuItem,
   NumberInput,
   Select,
   Tooltip,
@@ -63,7 +59,22 @@ import { registerRibbonCommand } from "../../registry";
 import type { RibbonCommandProps } from "../../registry";
 import { registerContextualTabs } from "../../contextual";
 import { RibbonButton } from "../kit";
-import { chartDesignTab, chartFormatTab } from "../../tabs/chart";
+import {
+  chartDesignTab,
+  chartFormatTab,
+  shapeFormatTab,
+} from "../../tabs/chart";
+import {
+  AlignCommand,
+  EditShapeCommand,
+  GroupCommand,
+  InsertShapesCommand,
+  RotateCommand,
+  ShapeEffectsCommand,
+  TextBoxCommand,
+  TextEffectsCommand,
+  WordArtStylesCommand,
+} from "./format";
 import {
   applyChartElementOption,
   chartElementLabel,
@@ -155,19 +166,21 @@ const AddChartElementCommand: React.FC<RibbonCommandProps> = ({ size }) => {
 
 const QuickLayoutCommand: React.FC<RibbonCommandProps> = ({ size }) => {
   const { chart, t, readonly, update, labels } = useChartTools();
+  // Excel's screen tip: "Chart Title, Legend (Right), Horizontal Axis, …"
   const layoutTip = (n: number) =>
-    chartQuickLayoutElements(n)
-      .map((el) => {
-        const [name, opt] = el.split(":");
-        const e = t.elements as Record<string, string>;
-        const nm = t.names as Record<string, string>;
-        const base =
-          e[name] ??
-          nm[name.replace(/^categoryAxis$/, "horizontalCategoryAxis")] ??
-          name;
-        return opt ? `${base} (${e[opt] ?? opt})` : base;
-      })
-      .join(", ");
+    chart
+      ? chartQuickLayoutElements(n, chart)
+          .map((el) => {
+            const [name, opt] = el.split(":");
+            const e = t.elements as Record<string, string>;
+            const base =
+              (chart.type === "bar" ? t.design.barLayoutParts[name] : null) ??
+              t.design.layoutParts[name] ??
+              name;
+            return opt ? `${base} (${e[opt] ?? opt})` : base;
+          })
+          .join(", ")
+      : "";
   return (
     <RibbonButton
       size={size}
@@ -182,7 +195,7 @@ const QuickLayoutCommand: React.FC<RibbonCommandProps> = ({ size }) => {
             columns={3}
             itemWidth={78}
             itemHeight={58}
-            items={CHART_QUICK_LAYOUTS.map((_l, i) => ({
+            items={chartQuickLayouts(chart).map((_l, i) => ({
               id: String(i + 1),
               label: fill(t.design.layout, i + 1),
               description: layoutTip(i + 1),
@@ -617,37 +630,6 @@ const ShapeOutlineCommand: React.FC<RibbonCommandProps> = ({ size }) => {
   );
 };
 
-const ShapeEffectsCommand: React.FC<RibbonCommandProps> = ({ size }) => {
-  const { chart, t, readonly, update, element } = useChartTools();
-  const seriesIndex = /^series:(\d+)$/.exec(element)?.[1];
-  const on =
-    seriesIndex != null
-      ? !!chart?.series[Number(seriesIndex)]?.shadow
-      : !!chart?.formats?.[element as ChartFormatKey]?.shadow;
-  const menu: MenuItem[] = [
-    {
-      id: "shadow",
-      label: t.format.shadow,
-      checked: on,
-      onSelect: () =>
-        update((c) =>
-          setElementFormat(c, element, { shadow: on ? undefined : true })
-        ),
-    },
-  ];
-  return (
-    <RibbonButton
-      size={size}
-      small="labeled"
-      icon={Sparkles}
-      label={t.format.shapeEffects}
-      description={t.format.shapeEffectsTip}
-      disabled={!chart || readonly || !elementCaps(element).effects}
-      menu={menu}
-    />
-  );
-};
-
 const TextFillCommand: React.FC<RibbonCommandProps> = ({ size }) => {
   const { chart, t, readonly, update, element } = useChartTools();
   return (
@@ -686,7 +668,10 @@ const TextOutlineCommand: React.FC<RibbonCommandProps> = ({ size }) => {
       label={t.format.textOutline}
       description={t.format.textOutlineTip}
       disabled={
-        !chart || readonly || (element !== "title" && element !== "chartArea")
+        !chart ||
+        readonly ||
+        !elementCaps(element).text ||
+        element.startsWith("shape:")
       }
       popover={(close) => (
         <ColorPicker
@@ -695,7 +680,7 @@ const TextOutlineCommand: React.FC<RibbonCommandProps> = ({ size }) => {
           moreColors
           onChange={(color) => {
             update((c) =>
-              setElementFormat(c, "title", {
+              setElementFormat(c, element, {
                 textOutline: color ?? undefined,
               })
             );
@@ -762,27 +747,6 @@ const SendBackwardCommand: React.FC<RibbonCommandProps> = ({ size }) => {
       ]}
     />
   );
-};
-
-const disabledCommand = (
-  icon: typeof Group,
-  label: keyof ReturnType<typeof chartToolsLocale>["format"],
-  tip: keyof ReturnType<typeof chartToolsLocale>["format"]
-) => {
-  const C: React.FC<RibbonCommandProps> = ({ size }) => {
-    const { t } = useChartTools();
-    return (
-      <RibbonButton
-        size={size}
-        small="labeled"
-        icon={icon}
-        label={t.format[label]}
-        description={t.format[tip]}
-        disabled
-      />
-    );
-  };
-  return C;
 };
 
 /** Height / width in inches (Excel's Size group). */
@@ -855,22 +819,18 @@ export function registerChartCommands() {
   registerRibbonCommand("chart-shape-fill", ShapeFillCommand);
   registerRibbonCommand("chart-shape-outline", ShapeOutlineCommand);
   registerRibbonCommand("chart-shape-effects", ShapeEffectsCommand);
+  registerRibbonCommand("chart-insert-shapes", InsertShapesCommand);
+  registerRibbonCommand("chart-edit-shape", EditShapeCommand);
+  registerRibbonCommand("chart-text-box", TextBoxCommand);
+  registerRibbonCommand("chart-wordart-styles", WordArtStylesCommand);
+  registerRibbonCommand("chart-text-effects", TextEffectsCommand);
   registerRibbonCommand("chart-text-fill", TextFillCommand);
   registerRibbonCommand("chart-text-outline", TextOutlineCommand);
   registerRibbonCommand("chart-bring-forward", BringForwardCommand);
   registerRibbonCommand("chart-send-backward", SendBackwardCommand);
-  registerRibbonCommand(
-    "chart-align",
-    disabledCommand(AlignStartVertical, "align", "alignTip")
-  );
-  registerRibbonCommand(
-    "chart-group",
-    disabledCommand(Group, "group", "groupTip")
-  );
-  registerRibbonCommand(
-    "chart-rotate",
-    disabledCommand(RotateCw, "rotate", "rotateTip")
-  );
+  registerRibbonCommand("chart-align", AlignCommand);
+  registerRibbonCommand("chart-group", GroupCommand);
+  registerRibbonCommand("chart-rotate", RotateCommand);
   registerRibbonCommand("chart-height", HeightCommand);
   registerRibbonCommand("chart-width", WidthCommand);
   registerContextualTabs({
@@ -885,5 +845,15 @@ export function registerChartCommands() {
       const t = chartToolsLocale(ctx);
       return [chartDesignTab(t), chartFormatTab(t)];
     },
+  });
+  // several charts and shapes selected together: Shape Format (Excel)
+  registerContextualTabs({
+    id: "drawingTools",
+    label: (ctx) => chartToolsLocale(ctx).contextual.drawingTools,
+    isActive: (ctx) =>
+      !ctx.activeChart &&
+      selectedObjects(ctx).length > 1 &&
+      !!ctx.selectedCharts?.length,
+    tabs: (ctx) => [shapeFormatTab(chartToolsLocale(ctx))],
   });
 }

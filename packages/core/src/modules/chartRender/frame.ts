@@ -5,9 +5,11 @@
  * value → pixel mappings.
  */
 import { computeAxisScale, formatAxisTick, AxisScale } from "./axis";
+import { effectsAttr, legacyShadowEffects } from "./effects";
 import {
   AXIS_TITLE_SIZE,
   estimateTextWidth,
+  formatWithCode,
   LABEL_SIZE,
   line,
   rect,
@@ -27,14 +29,27 @@ export type ValueAxis = {
   format: (v: number) => string;
 };
 
-/** Value axis from data extents; `percent` gives Excel's 0–100% axis. */
+/** Whether a format code formats numbers beyond General. */
+function realFormat(code: string | undefined): code is string {
+  return !!code && !/^general$/i.test(code.trim());
+}
+
+/**
+ * Value axis from data extents; `percent` gives Excel's 0–100% axis;
+ * `code` is the tick labels' number format (the source cells' by default).
+ */
 export function makeValueAxis(
   min: number,
   max: number,
   options?: ChartValueAxisOptions,
-  percent = false
+  percent = false,
+  code?: string
 ): ValueAxis {
   if (percent) {
+    const explicit =
+      options?.sourceLinked === false && realFormat(options.numberFormat)
+        ? options.numberFormat
+        : undefined;
     const lo = min < -1e-9 ? -1 : 0;
     const hi = max > 1e-9 || lo === 0 ? 1 : 0;
     const ticks: number[] = [];
@@ -43,7 +58,9 @@ export function makeValueAxis(
     }
     return {
       scale: { min: lo, max: hi, step: 0.1, ticks },
-      format: (v) => `${Math.round(v * 100)}%`,
+      format: explicit
+        ? (v) => formatWithCode(explicit, v)
+        : (v) => `${Math.round(v * 100)}%`,
     };
   }
   const scale = computeAxisScale(
@@ -51,7 +68,16 @@ export function makeValueAxis(
     Number.isFinite(max) ? max : 1,
     options
   );
+  if (realFormat(code)) {
+    return { scale, format: (v) => formatWithCode(code, snapTick(v, scale)) };
+  }
   return { scale, format: (v) => formatAxisTick(v, scale.step) };
+}
+
+/** A tick value without floating-point noise (0.30000000000000004). */
+function snapTick(v: number, scale: AxisScale) {
+  const digits = Math.max(0, -Math.floor(Math.log10(scale.step || 1)) + 2);
+  return Number(v.toFixed(Math.min(15, digits)));
 }
 
 export function pushAxisTitles(
@@ -178,11 +204,6 @@ export function tagged(el: string, parts: string[], extra = "") {
   return body ? `<g data-chart-el="${el}"${extra}>${body}</g>` : "";
 }
 
-/** The outer shadow of Shape Effects (defined once per chart SVG). */
-export const SHADOW_ATTR = ' filter="url(#ts-chart-shadow)"';
-export const SHADOW_DEFS =
-  '<defs><filter id="ts-chart-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="1.5" dy="2" stdDeviation="1.6" flood-opacity="0.35"/></filter></defs>';
-
 /** The transparent hit area of the plot, with its fill / outline. */
 export function plotAreaRect(
   plot: Rect,
@@ -198,7 +219,9 @@ export function plotAreaRect(
   return rect(
     plot,
     fill,
-    `${stroke}${f?.shadow ? SHADOW_ATTR : ""} data-chart-el="plotArea"`
+    `${stroke}${effectsAttr(
+      f?.effects ?? (f?.shadow ? legacyShadowEffects() : null)
+    )} data-chart-el="plotArea"`
   );
 }
 

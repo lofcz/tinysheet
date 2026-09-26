@@ -73,6 +73,15 @@ export const chartFormatTab = (t: ChartToolsLocale): RibbonTabConfig => ({
       ],
     },
     {
+      id: "chartInsertShapes",
+      label: t.groups.insertShapes,
+      icon: "chart",
+      items: [
+        { id: "chart-insert-shapes", size: "large" },
+        { rows: [["chart-edit-shape"], ["chart-text-box"]] },
+      ],
+    },
+    {
       id: "chartShapeStyles",
       label: t.groups.shapeStyles,
       icon: "chart",
@@ -90,7 +99,16 @@ export const chartFormatTab = (t: ChartToolsLocale): RibbonTabConfig => ({
       id: "chartWordArt",
       label: t.groups.wordArtStyles,
       icon: "chart",
-      items: [{ rows: [["chart-text-fill"], ["chart-text-outline"]] }],
+      items: [
+        { id: "chart-wordart-styles", size: "large" },
+        {
+          rows: [
+            ["chart-text-fill"],
+            ["chart-text-outline"],
+            ["chart-text-effects"],
+          ],
+        },
+      ],
     },
     {
       id: "chartArrange",
@@ -110,6 +128,27 @@ export const chartFormatTab = (t: ChartToolsLocale): RibbonTabConfig => ({
       label: t.groups.size,
       icon: "chart",
       items: [{ rows: [["chart-height"], ["chart-width"]] }],
+    },
+  ],
+});
+
+/**
+ * Shape Format: charts and shapes selected together (Excel shows it for a
+ * multi-selection): Arrange (Align, Group, Rotate).
+ */
+export const shapeFormatTab = (t: ChartToolsLocale): RibbonTabConfig => ({
+  id: "shapeFormat",
+  label: t.contextual.shapeFormat,
+  groups: [
+    {
+      id: "shapeArrange",
+      label: t.groups.arrange,
+      icon: "chart",
+      items: [
+        { id: "chart-align", size: "large" },
+        { id: "chart-group", size: "large" },
+        { id: "chart-rotate", size: "large" },
+      ],
     },
   ],
 });

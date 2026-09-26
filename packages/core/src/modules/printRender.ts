@@ -73,6 +73,15 @@ export type PrintJobPage =
       notes: PrintNote[];
       number: number;
       sheetPage: number;
+    }
+  | {
+      /** A chart sheet: its chart on one page, scaled to the margins. */
+      kind: "chart";
+      sheetId: string;
+      sheetName: string;
+      layout: SheetPageLayout;
+      number: number;
+      sheetPage: number;
     };
 
 export type PrintJob = {
@@ -145,7 +154,23 @@ export function buildPrintJob(
       ranges: scope === "selection" ? selectionRanges(ctx) : undefined,
       ignorePrintArea: options.ignorePrintArea,
     });
-    if (!layout || layout.pages.length === 0) return;
+    if (!layout) return;
+    // a chart sheet prints its chart, alone on a page (Excel)
+    if (sheet.chartSheet) {
+      if (!sheet.charts?.length) return;
+      const number = layout.setup.firstPageNumber ?? next;
+      pages.push({
+        kind: "chart",
+        sheetId: sheet.id,
+        sheetName: sheet.name,
+        layout,
+        number,
+        sheetPage: 0,
+      });
+      next = number + 1;
+      return;
+    }
+    if (layout.pages.length === 0) return;
     let number = layout.setup.firstPageNumber ?? next;
     let sheetPage = 0;
     layout.pages.forEach((info) => {
@@ -705,6 +730,34 @@ export function renderPrintPage(
       list.appendChild(item);
     });
     el.appendChild(list);
+    return el;
+  }
+
+  if (page.kind === "chart") {
+    const chart = sheet?.charts?.[0];
+    if (chart) {
+      let svg = "";
+      try {
+        svg = renderChartToSvg({ ...ctx, theme: "light" }, chart, "light", {
+          width: layout.printable.width,
+          height: layout.printable.height,
+        });
+      } catch {
+        svg = "";
+      }
+      const img = doc.createElement("img");
+      img.className = "fortune-print-chart";
+      img.src = svgDataUrl(svg);
+      img.alt = chart.title ?? "";
+      Object.assign(img.style, {
+        position: "absolute",
+        left: `${m.left * PX_PER_INCH}px`,
+        top: `${m.top * PX_PER_INCH}px`,
+        width: `${layout.printable.width}px`,
+        height: `${layout.printable.height}px`,
+      });
+      el.appendChild(img);
+    }
     return el;
   }
 
