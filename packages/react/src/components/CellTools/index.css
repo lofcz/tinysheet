@@ -1,15 +1,6 @@
-/* Cell tools (checkboxes, Flash Fill, Advanced Filter, What-If). Colours
-   come from the --fortune-* tokens. */
-
-.fortune-cell-tools-menu-hint {
-  color: var(--fortune-text-muted);
-  font-size: var(--fortune-font-size-sm);
-  margin-left: var(--fortune-space-4);
-}
-
 .fortune-cell-tools-message {
-  margin-bottom: var(--fortune-space-3);
-  line-height: 1.4;
+  margin-bottom: 12px;
+  line-height: 1.45;
 }
 
 .fortune-cell-tools-summary {
@@ -17,21 +8,26 @@
 }
 
 .fortune-cell-tools-summary th {
-  text-align: left;
+  padding: 3px 16px 3px 0;
+  color: var(--ts-muted);
   font-weight: normal;
-  color: var(--fortune-text-muted);
-  padding: 2px var(--fortune-space-4) 2px 0;
+  text-align: left;
 }
 
 .fortune-cell-tools-summary td {
+  padding: 3px 0;
+  color: var(--ts-text-strong);
   font-variant-numeric: tabular-nums;
-  padding: 2px 0;
 }
 
 .fortune-goal-seek,
 .fortune-data-table,
 .fortune-goal-seek-status {
-  min-width: 340px;
+  width: 380px;
+}
+
+.fortune-advanced-filter {
+  width: 420px;
 }
 
 /* result next to the cells (inside the cell area) */
@@ -70,50 +66,37 @@
   text-decoration: underline;
 }
 
-/* reference picking bar (dialog collapsed while selecting on the sheet) */
+/* reference picking bar (Excel's collapsed dialog while selecting) */
 .fortune-cell-tools-pick {
   position: absolute;
   top: 8px;
   left: 50%;
-  transform: translateX(-50%);
   z-index: 1003;
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-3);
-  padding: 6px 8px 6px 12px;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius);
-  background: var(--fortune-bg-elevated, var(--fortune-bg));
-  color: var(--fortune-text);
-  box-shadow: var(--fortune-shadow-lg, var(--fortune-shadow));
-  font-family: var(--fortune-font-family);
-  font-size: var(--fortune-font-size);
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius-pane);
+  background: var(--ts-pane);
+  color: var(--ts-text);
+  box-shadow: var(--ts-shadow);
+  font-family: var(--ts-font);
+  font-size: var(--ts-font-size);
+  transform: translateX(-50%);
 }
 
 .fortune-cell-tools-pick-label {
-  color: var(--fortune-text-muted);
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-cell-tools-pick-ref {
-  min-width: 120px;
-  padding: 3px 8px;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg-input, var(--fortune-bg));
+  min-width: 140px;
+  padding: 5px 10px;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  color: var(--ts-text-strong);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-
-.fortune-cell-tools-pick-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--fortune-radius-sm);
-  color: var(--fortune-icon);
-  cursor: pointer;
-}
-
-.fortune-cell-tools-pick-close:hover {
-  background: var(--fortune-bg-hover);
+  font-size: var(--ts-font-size-sm);
 }

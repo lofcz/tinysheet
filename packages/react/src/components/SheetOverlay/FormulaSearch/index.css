@@ -46,6 +46,8 @@
 .luckysheet-formula-search-c {
   max-height: 320px;
   overflow-y: auto;
+  /* the end of the list does not scroll the page on */
+  overscroll-behavior: contain;
 }
 
 .luckysheet-formula-search-c .luckysheet-formula-search-item {

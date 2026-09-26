@@ -1,11 +1,11 @@
 import {
+  dialogsLocale,
   locale,
   findAllMatches,
   findNextMatch,
   FindMatch,
   FindOptions,
   isAllowEdit,
-  onSearchDialogMoveStart,
   replaceAllMatches,
   replaceHtml,
   replaceNextMatch,
@@ -21,9 +21,12 @@ import React, {
 } from "react";
 import _ from "lodash";
 import WorkbookContext from "../../context";
-import SVGIcon from "../SVGIcon";
+import { X } from "lucide-react";
+import { Button, ICON_STROKE, Tabs } from "../ui";
+import "../ui/form.css";
 import { useAlert } from "../../hooks/useAlert";
 import { activateOnKey } from "../Toolbar/Button";
+import { useDialogBehavior } from "../../hooks/useDialogBehavior";
 import "./index.css";
 
 type Options = Required<
@@ -72,6 +75,12 @@ const SearchReplace: React.FC<{
   const [status, setStatus] = useState("");
   const { showAlert } = useAlert();
   const findInput = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // modeless, as in Excel: the sheet stays usable, Tab cycles in the dialog
+  useDialogBehavior(dialogRef, {
+    modal: false,
+    getDragTarget: () => dialogRef.current,
+  });
 
   useEffect(() => {
     setShowReplace(!!context.showReplace);
@@ -263,27 +272,23 @@ const SearchReplace: React.FC<{
     onClick: () => void,
     primary = false
   ) => (
-    <div
+    <Button
       id={id}
-      className={`button-basic ${
-        primary ? "button-primary" : "button-default"
-      }`}
+      variant={primary ? "primary" : "secondary"}
       onClick={onClick}
-      onKeyDown={activateOnKey}
-      role="button"
-      tabIndex={0}
     >
       {label}
-    </div>
+    </Button>
   );
 
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div
+      ref={dialogRef}
       id="fortune-search-replace"
-      className="fortune-search-replace fortune-dialog"
+      className="ts-dialog fortune-search-replace"
       role="dialog"
-      aria-label={showReplace ? findAndReplace.replace : findAndReplace.find}
+      aria-labelledby="fortune-search-replace-title"
       style={initialPosition}
       onMouseEnter={() => {
         _.set(refs.globalCache, "searchDialog.mouseEnter", true);
@@ -291,51 +296,38 @@ const SearchReplace: React.FC<{
       onMouseLeave={() => {
         _.set(refs.globalCache, "searchDialog.mouseEnter", false);
       }}
-      onMouseDown={(e) => {
-        const { nativeEvent } = e;
-        onSearchDialogMoveStart(refs.globalCache, nativeEvent, getContainer());
-        e.stopPropagation();
-      }}
+      onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === "Escape") closeDialog();
       }}
     >
-      <div className="container" onMouseDown={(e) => e.stopPropagation()}>
-        <div
-          className="icon-close fortune-modal-dialog-icon-close"
-          onClick={closeDialog}
-          onKeyDown={activateOnKey}
-          role="button"
+      {/* the title bar moves the (modeless) dialog (useDialogBehavior) */}
+      <div className="ts-dialog-header" data-dialog-drag-handle>
+        <h2 className="ts-dialog-title" id="fortune-search-replace-title">
+          {dialogsLocale(context).titles.findReplace}
+        </h2>
+        <button
+          type="button"
+          className="ts-dialog-close"
           aria-label={button.close}
-          tabIndex={0}
+          title={button.close}
+          onClick={closeDialog}
         >
-          <SVGIcon name="close" />
-        </div>
-        <div className="tabBox" role="tablist">
-          <span
-            id="searchTab"
-            role="tab"
-            aria-selected={!showReplace}
-            className={showReplace ? "" : "on"}
-            onClick={() => setShowReplace(false)}
-            onKeyDown={activateOnKey}
-            tabIndex={0}
-          >
-            {findAndReplace.find}
-          </span>
-          <span
-            id="replaceTab"
-            role="tab"
-            aria-selected={showReplace}
-            className={showReplace ? "on" : ""}
-            onClick={() => setShowReplace(true)}
-            onKeyDown={activateOnKey}
-            tabIndex={0}
-          >
-            {findAndReplace.replace}
-          </span>
-        </div>
+          <X size={16} strokeWidth={ICON_STROKE} aria-hidden />
+        </button>
+      </div>
+      <div className="ts-dialog-body fortune-search-replace-body">
+        <Tabs
+          className="fortune-search-replace-tabs"
+          aria-label={dialogsLocale(context).titles.findReplace}
+          tabs={[
+            { id: "find", label: findAndReplace.find },
+            { id: "replace", label: findAndReplace.replace },
+          ]}
+          value={showReplace ? "replace" : "find"}
+          onChange={(id) => setShowReplace(id === "replace")}
+        />
         <div className="ctBox">
           <label className="field" htmlFor="fortune-find-what">
             <span>{findAndReplace.findTextbox}</span>
@@ -343,6 +335,7 @@ const SearchReplace: React.FC<{
               id="fortune-find-what"
               ref={findInput}
               className="formulaInputFocus"
+              type="text"
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
               spellCheck="false"
@@ -361,6 +354,7 @@ const SearchReplace: React.FC<{
               <input
                 id="fortune-replace-with"
                 className="formulaInputFocus"
+                type="text"
                 spellCheck="false"
                 onKeyDown={onInputKeyDown}
                 value={replaceText}
@@ -446,42 +440,6 @@ const SearchReplace: React.FC<{
             </div>
           )}
         </div>
-        <div className="btnBox">
-          <div
-            className="button-basic button-default options-toggle"
-            onClick={() => setShowOptions((v) => !v)}
-            onKeyDown={activateOnKey}
-            role="button"
-            aria-expanded={showOptions}
-            tabIndex={0}
-          >
-            {findAndReplace.optionsBtn} {showOptions ? "«" : "»"}
-          </div>
-          <div className="spacer" />
-          {showReplace && (
-            <>
-              {actionButton("replaceAllBtn", findAndReplace.allReplaceBtn, () =>
-                onReplaceAll()
-              )}
-              {actionButton("replaceBtn", findAndReplace.replaceBtn, () =>
-                onReplace()
-              )}
-            </>
-          )}
-          {actionButton("searchAllBtn", findAndReplace.allFindBtn, () =>
-            onFindAll()
-          )}
-          {actionButton("searchPrevBtn", findAndReplace.findPrevBtn, () =>
-            onFindNext(true)
-          )}
-          {actionButton(
-            "searchNextBtn",
-            findAndReplace.findBtn,
-            () => onFindNext(false),
-            true
-          )}
-          {actionButton("searchCloseBtn", button.close, closeDialog)}
-        </div>
         <div className="status" role="status" aria-live="polite">
           {status}
         </div>
@@ -527,6 +485,41 @@ const SearchReplace: React.FC<{
             </div>
           </div>
         )}
+      </div>
+      <div className="ts-dialog-footer btnBox">
+        <div className="ts-dialog-footer-start">
+          <Button
+            variant="ghost"
+            className="options-toggle"
+            aria-expanded={showOptions}
+            onClick={() => setShowOptions((v) => !v)}
+          >
+            {findAndReplace.optionsBtn} {showOptions ? "«" : "»"}
+          </Button>
+        </div>
+        {showReplace && (
+          <>
+            {actionButton("replaceAllBtn", findAndReplace.allReplaceBtn, () =>
+              onReplaceAll()
+            )}
+            {actionButton("replaceBtn", findAndReplace.replaceBtn, () =>
+              onReplace()
+            )}
+          </>
+        )}
+        {actionButton("searchAllBtn", findAndReplace.allFindBtn, () =>
+          onFindAll()
+        )}
+        {actionButton("searchPrevBtn", findAndReplace.findPrevBtn, () =>
+          onFindNext(true)
+        )}
+        {actionButton(
+          "searchNextBtn",
+          findAndReplace.findBtn,
+          () => onFindNext(false),
+          true
+        )}
+        {actionButton("searchCloseBtn", button.close, closeDialog)}
       </div>
     </div>
   );

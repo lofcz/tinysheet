@@ -13,6 +13,7 @@
 .luckysheet-formula-help-c .luckysheet-formula-help-content {
   max-height: 300px;
   overflow-y: scroll;
+  overscroll-behavior: contain;
 }
 
 .luckysheet-formula-help-content-example {

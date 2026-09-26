@@ -46,13 +46,13 @@ module.exports = {
   // Legacy preview test targets a removed dist/main.js bundle.
   testPathIgnorePatterns: [
     "/node_modules/",
-    "/worktrees/",
+    "<rootDir>/.+/worktrees/",
     // Playwright specs (run by `bun run test:e2e`, not Jest).
     "<rootDir>/e2e/",
     "packages/excel/test/transformExcelToFortune.xls_preview.test.js",
   ],
   // Local git worktrees duplicate every package.
-  modulePathIgnorePatterns: ["/worktrees/"],
+  modulePathIgnorePatterns: ["<rootDir>/.+/worktrees/"],
   unmockedModulePathPatterns: ["node_modules/react/", "node_modules/enzyme/"],
   verbose: true,
   setupFiles: ["./tests/setup.js"],

@@ -592,6 +592,26 @@ export function getCommentBoxPosition(commentId: string) {
   return { left, top, width, height };
 }
 
+/** Esc while a note box is moved or resized: it goes back (Excel). */
+export function cancelCommentBoxDrag(globalCache: GlobalCache) {
+  const commentBox = globalCache.commentBox;
+  const id = commentBox?.movingId ?? commentBox?.resizingId;
+  if (!commentBox || !id) return false;
+  const box = document.getElementById(id);
+  const start = commentBox.boxInitialPosition;
+  if (box && start) {
+    box.style.left = `${start.left}px`;
+    box.style.top = `${start.top}px`;
+    if (commentBox.resizingId) {
+      box.style.width = `${start.width}px`;
+      box.style.height = `${start.height}px`;
+    }
+  }
+  commentBox.movingId = undefined;
+  commentBox.resizingId = undefined;
+  return true;
+}
+
 export function onCommentBoxResizeStart(
   ctx: Context,
   globalCache: GlobalCache,

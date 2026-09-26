@@ -123,6 +123,14 @@ const NotationBoxes: React.FC = () => {
               }}
               onMouseDown={(e) => {
                 const { nativeEvent } = e;
+                // a move from the border: no text selection, no native
+                // drag of a selection (which would swallow the moves and
+                // Esc); a press in the text places the caret as usual
+                if (
+                  !(e.target as HTMLElement).closest?.(".fortune-note-editor")
+                ) {
+                  e.preventDefault();
+                }
                 // @ts-ignore
                 setContext((draftContext) => {
                   if (flowdata) {
@@ -157,6 +165,7 @@ const NotationBoxes: React.FC = () => {
                       data-type={v}
                       onMouseDown={(e) => {
                         const { nativeEvent } = e;
+                        e.preventDefault();
                         onCommentBoxResizeStart(
                           context,
                           refs.globalCache,

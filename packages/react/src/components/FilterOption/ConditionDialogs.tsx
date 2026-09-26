@@ -11,6 +11,7 @@ import React, { useContext, useMemo, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import "../DataVerification/dataTools.css";
+import { Button, DialogShell } from "../ui";
 
 const TEXT_OPERATORS: FilterOperator[] = [
   "equals",
@@ -51,24 +52,14 @@ const DialogButtons: React.FC<{
   onOk: () => void;
   onCancel: () => void;
 }> = ({ okText, cancelText, onOk, onCancel }) => (
-  <div className="fortune-dt-buttons" style={{ justifyContent: "flex-end" }}>
-    <div
-      className="button-basic button-primary"
-      role="button"
-      tabIndex={0}
-      onClick={onOk}
-    >
-      {okText}
-    </div>
-    <div
-      className="button-basic button-default"
-      role="button"
-      tabIndex={0}
-      onClick={onCancel}
-    >
+  <>
+    <Button variant="secondary" onClick={onCancel}>
       {cancelText}
-    </div>
-  </div>
+    </Button>
+    <Button variant="primary" onClick={onOk}>
+      {okText}
+    </Button>
+  </>
 );
 
 /** Excel's Custom AutoFilter: two criteria joined by And / Or. */
@@ -145,7 +136,6 @@ export const CustomFilterDialog: React.FC<Props> = ({
         aria-label={labels[op] ?? t.showRowsWhere}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => e.stopPropagation()}
       />
     </div>
   );
@@ -165,8 +155,19 @@ export const CustomFilterDialog: React.FC<Props> = ({
   };
 
   return (
-    <div className="fortune-dt-dialog fortune-custom-filter">
-      <div className="fortune-dt-title">{t.customTitle}</div>
+    <DialogShell
+      title={t.customTitle}
+      className="fortune-dt-dialog fortune-custom-filter"
+      onClose={hideDialog}
+      footer={
+        <DialogButtons
+          okText={t.ok}
+          cancelText={t.cancel}
+          onOk={onOk}
+          onCancel={hideDialog}
+        />
+      }
+    >
       <div className="fortune-dt-subtitle">{t.showRowsWhere}</div>
       <datalist id={listId}>
         {suggestions.map((s) => (
@@ -199,13 +200,7 @@ export const CustomFilterDialog: React.FC<Props> = ({
       {kind !== "number" && kind !== "date" && (
         <div className="fortune-dt-hint">{t.wildcardHint}</div>
       )}
-      <DialogButtons
-        okText={t.ok}
-        cancelText={t.cancel}
-        onOk={onOk}
-        onCancel={hideDialog}
-      />
-    </div>
+    </DialogShell>
   );
 };
 
@@ -237,8 +232,19 @@ export const Top10Dialog: React.FC<{ col: number }> = ({ col }) => {
   };
 
   return (
-    <div className="fortune-dt-dialog" style={{ minWidth: 380 }}>
-      <div className="fortune-dt-title">{t.top10Title}</div>
+    <DialogShell
+      title={t.top10Title}
+      className="fortune-dt-dialog fortune-top10-filter"
+      onClose={hideDialog}
+      footer={
+        <DialogButtons
+          okText={t.ok}
+          cancelText={t.cancel}
+          onOk={onOk}
+          onCancel={hideDialog}
+        />
+      }
+    >
       <div className="fortune-dt-subtitle">{t.show}</div>
       <div className="fortune-dt-row">
         <select
@@ -257,7 +263,6 @@ export const Top10Dialog: React.FC<{ col: number }> = ({ col }) => {
           aria-label={t.items}
           value={count}
           onChange={(e) => setCount(e.target.value)}
-          onKeyDown={(e) => e.stopPropagation()}
         />
         <select
           className="fortune-dt-select"
@@ -269,12 +274,6 @@ export const Top10Dialog: React.FC<{ col: number }> = ({ col }) => {
           <option value="percent">{t.percent}</option>
         </select>
       </div>
-      <DialogButtons
-        okText={t.ok}
-        cancelText={t.cancel}
-        onOk={onOk}
-        onCancel={hideDialog}
-      />
-    </div>
+    </DialogShell>
   );
 };

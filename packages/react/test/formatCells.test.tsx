@@ -162,7 +162,7 @@ describe("Cell Styles gallery", () => {
       </Harness>
     );
     act(() => {
-      fireEvent.click(screen.getByRole("menuitem", { name: "Bad" }));
+      fireEvent.click(screen.getByRole("button", { name: "Bad" }));
     });
     const d = getFlowdata(latest)!;
     expect(d[0][0]).toMatchObject({ bg: "#FFC7CE", fc: "#9C0006" });

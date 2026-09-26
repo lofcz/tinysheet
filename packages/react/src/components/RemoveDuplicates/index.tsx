@@ -13,6 +13,8 @@ import {
 import React, { useContext, useMemo, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
+import { ListChecks } from "lucide-react";
+import { Button, DialogShell } from "../ui";
 import "../DataVerification/dataTools.css";
 import DtCheck from "../DataVerification/DtCheck";
 
@@ -100,26 +102,39 @@ const RemoveDuplicates: React.FC = () => {
   };
 
   return (
-    <div className="fortune-dt-dialog fortune-remove-duplicates">
-      <div className="fortune-dt-title">{t.title}</div>
+    <DialogShell
+      title={t.title}
+      className="fortune-dt-dialog fortune-remove-duplicates"
+      onClose={hideDialog}
+      onConfirm={onOk}
+      footer={
+        <>
+          <Button variant="secondary" onClick={hideDialog}>
+            {t.cancel}
+          </Button>
+          <Button variant="primary" onClick={onOk}>
+            {t.ok}
+          </Button>
+        </>
+      }
+    >
       <div className="fortune-dt-subtitle">{t.prompt}</div>
-      <div className="fortune-dt-row" style={{ marginBottom: 8 }}>
-        <div
+      <div className="fortune-dt-row" style={{ marginBottom: 10 }}>
+        <Button
+          size="sm"
           className="fortune-dt-icon-button"
-          role="button"
-          tabIndex={0}
+          icon={ListChecks}
           onClick={() => setChecked(allColumns)}
         >
           {t.selectAll}
-        </div>
-        <div
+        </Button>
+        <Button
+          size="sm"
           className="fortune-dt-icon-button"
-          role="button"
-          tabIndex={0}
           onClick={() => setChecked([])}
         >
           {t.unselectAll}
-        </div>
+        </Button>
         <div style={{ flex: 1 }} />
         <DtCheck
           style={{ margin: 0 }}
@@ -129,10 +144,8 @@ const RemoveDuplicates: React.FC = () => {
           {t.hasHeaders}
         </DtCheck>
       </div>
-      <div className="fortune-dt-scroll" style={{ padding: "6px 10px" }}>
-        <div className="fortune-dt-label" style={{ marginBottom: 6 }}>
-          {t.columns}
-        </div>
+      <div className="fortune-dt-scroll fortune-rd-columns">
+        <div className="fortune-dt-section-title">{t.columns}</div>
         {allColumns.map((c) => (
           <DtCheck
             key={c}
@@ -155,28 +168,7 @@ const RemoveDuplicates: React.FC = () => {
           {error}
         </div>
       )}
-      <div
-        className="fortune-dt-buttons"
-        style={{ justifyContent: "flex-end" }}
-      >
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onClick={onOk}
-        >
-          {t.ok}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onClick={hideDialog}
-        >
-          {t.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

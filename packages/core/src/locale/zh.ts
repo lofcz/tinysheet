@@ -79,6 +79,10 @@ export default {
     toolLess: "少于",
     toolClose: "收起",
     toolMoreTip: "更多功能",
+    theme: "主题",
+    themeLight: "浅色",
+    themeDark: "深色",
+    themeAuto: "跟随系统",
     moreOptions: "更多选项",
 
     cellFormat: "设置单元格格式",
@@ -736,6 +740,13 @@ export default {
     customize: "自定义状态栏",
     copied: "已复制到剪贴板",
     clickToCopy: "点击复制",
+    views: "工作簿视图",
+    normalView: "普通",
+    pageLayoutView: "页面布局",
+    pageBreakPreview: "分页预览",
+    zoom: "缩放",
+    zoomToSelection: "缩放到选定区域",
+    tabNavHint: "按住 Ctrl 单击滚动到末端；右键单击显示所有工作表",
   },
   cellMenu: {
     cut: "剪切",
@@ -952,6 +963,7 @@ export default {
     specialSame: "相同",
   },
   sheetconfig: {
+    insert: "插入",
     delete: "删除",
     copy: "复制",
     rename: "重命名",
@@ -1531,6 +1543,10 @@ export default {
     expandFormulaBar: "展开编辑栏 (Ctrl+Shift+U)",
     collapseFormulaBar: "折叠编辑栏 (Ctrl+Shift+U)",
     resizeFormulaBar: "拖动以调整编辑栏大小",
+    formulaBarCancel: "放弃编辑",
+    formulaBarEnter: "确认编辑",
+    formulaBarInsertFunction: "插入函数",
+    nameBoxResize: "拖动以调整名称框宽度",
   },
   definedNames: {
     nameManager: "名称管理器",

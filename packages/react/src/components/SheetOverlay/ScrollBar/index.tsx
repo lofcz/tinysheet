@@ -11,10 +11,23 @@ const ScrollBar: React.FC<Props> = ({ axis }) => {
   const { context, refs, setContext } = useContext(WorkbookContext);
 
   useEffect(() => {
+    const bar = (axis === "x" ? refs.scrollbarX : refs.scrollbarY).current!;
+    const wanted = axis === "x" ? context.scrollLeft : context.scrollTop;
     if (axis === "x") {
-      refs.scrollbarX.current!.scrollLeft = context.scrollLeft;
+      bar.scrollLeft = wanted;
     } else {
-      refs.scrollbarY.current!.scrollTop = context.scrollTop;
+      bar.scrollTop = wanted;
+    }
+    // Past the end of the sheet (PageDown, scrolling a cell into view near
+    // the last row...) the scrollbar stops at its end: the sheet must stop
+    // there too, or it is drawn and hit-tested further than it shows.
+    const size = axis === "x" ? bar.clientWidth : bar.clientHeight;
+    const actual = axis === "x" ? bar.scrollLeft : bar.scrollTop;
+    if (size > 0 && Math.abs(actual - wanted) >= 1) {
+      setContext((draftCtx) => {
+        if (axis === "x") draftCtx.scrollLeft = actual;
+        else draftCtx.scrollTop = actual;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [axis === "x" ? context.scrollLeft : context.scrollTop]);

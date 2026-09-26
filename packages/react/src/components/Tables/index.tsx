@@ -37,30 +37,25 @@ import type {
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import Combo from "../Toolbar/Combo";
-import { activateOnKey } from "../Toolbar/Button";
-import { registerSheetOverlay, registerToolbarItem } from "../../extensions";
+import { Gallery, GalleryItem, MenuItem } from "../ui";
+import { Button as UiButton, DialogShell } from "../ui";
+import { registerSheetOverlay } from "../../extensions";
 import TableOverlay from "./TableOverlay";
-import {
-  InsertSlicerDialog,
-  SlicerLayer,
-  SlicerToolbarButton,
-  useInsertSlicer,
-} from "./Slicers";
+import { InsertSlicerDialog, SlicerLayer, useInsertSlicer } from "./Slicers";
 import "./index.css";
 
 let installed = false;
 
 /**
  * Table chrome over the grid (header filter buttons, total-row dropdown,
- * resize handle, AutoCorrect), slicer panels and the Slicer toolbar item.
+ * resize handle, AutoCorrect) and slicer panels. The ribbon commands
+ * (Insert › Table / Slicer, Home › Format as Table) live in ../Ribbon.
  */
 export function installTablesUI() {
   if (installed) return;
   installed = true;
   registerSheetOverlay("tables", TableOverlay);
   registerSheetOverlay("slicers", SlicerLayer);
-  registerToolbarItem("slicer", () => <SlicerToolbarButton />);
 }
 
 export { InsertSlicerDialog, SlicerLayer, TableOverlay };
@@ -125,7 +120,7 @@ function errorText(ctx: Context, err: TableError) {
 }
 
 /** The table containing the active cell, if any. */
-function activeTable(ctx: Context) {
+export function activeTable(ctx: Context) {
   const last = _.last(ctx.luckysheet_select_save);
   if (!last) return null;
   const r = last.row_focus ?? last.row[0];
@@ -138,84 +133,136 @@ const TextButton: React.FC<{
   primary?: boolean;
   children: React.ReactNode;
 }> = ({ onClick, primary, children }) => (
-  <div
-    className={`button-basic ${primary ? "button-primary" : "button-default"}`}
-    role="button"
-    tabIndex={0}
-    onClick={onClick}
-    onKeyDown={activateOnKey}
-  >
+  <UiButton variant={primary ? "primary" : "secondary"} onClick={onClick}>
     {children}
-  </div>
+  </UiButton>
 );
 
-/** A small picture of a table style (header row + banded rows). */
-export const TableStylePreview: React.FC<{
-  styleKey: string;
-  selected?: boolean;
-  label: string;
-  onClick: () => void;
-}> = ({ styleKey, selected, label, onClick }) => {
+/**
+ * Mini table of a table style (a Format as Table gallery tile): the header
+ * row, banded rows and the row lines in the style's own colours (data, not
+ * theme colours), drawn pixel-aligned.
+ */
+export const TableStylePreview: React.FC<{ styleKey: string }> = ({
+  styleKey,
+}) => {
   const style = TABLE_STYLES[styleKey];
-  // actual cell colours of the style (data, not theme colours)
-  const rowColor = (row: number) => {
+  if (!style) return null;
+  const light = !style.header;
+  const line = style.headerText && light ? style.headerText : "#BFBFBF";
+  const rows = [0, 1, 2, 3, 4];
+  const fill = (row: number) => {
     if (row === 0) return style.header || "#FFFFFF";
     return row % 2 === 1 ? style.band : (style.fill ?? "#FFFFFF");
   };
+  const w = 40;
+  const h = 30;
+  const rh = h / rows.length;
   return (
-    <div
-      className={`fortune-table-style${
-        selected ? " fortune-table-style-selected" : ""
-      }`}
-      role="button"
-      tabIndex={0}
-      aria-label={label}
-      aria-pressed={selected}
-      title={label}
-      onClick={onClick}
-      onKeyDown={activateOnKey}
+    <svg
+      className="fortune-table-style-svg"
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+      shapeRendering="crispEdges"
     >
-      {[0, 1, 2, 3].map((row) => (
-        <div
-          key={row}
-          className="fortune-table-style-row"
-          style={{ backgroundColor: rowColor(row) }}
+      {rows.map((r) => (
+        <rect key={r} x={0} y={r * rh} width={w} height={rh} fill={fill(r)} />
+      ))}
+      {rows.slice(1).map((r) => (
+        <line
+          key={`l${r}`}
+          x1={0}
+          x2={w}
+          y1={r * rh}
+          y2={r * rh}
+          stroke={r === 1 ? line : "rgba(0,0,0,0.12)"}
+          strokeWidth={r === 1 && light ? 1.2 : 0.6}
         />
       ))}
-    </div>
+      {/* column lines of the data */}
+      {[1, 2, 3].map((c) => (
+        <line
+          key={`c${c}`}
+          x1={(c * w) / 4}
+          x2={(c * w) / 4}
+          y1={0}
+          y2={h}
+          stroke={style.text ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.08)"}
+          strokeWidth={0.6}
+        />
+      ))}
+      {light && (
+        <>
+          <line x1={0} x2={w} y1={0.5} y2={0.5} stroke={line} strokeWidth={1} />
+          <line
+            x1={0}
+            x2={w}
+            y1={h - 0.5}
+            y2={h - 0.5}
+            stroke={line}
+            strokeWidth={1}
+          />
+        </>
+      )}
+    </svg>
   );
 };
 
-/** The style gallery: light, medium and dark sections. */
-const StyleGallery: React.FC<{
-  selected?: string;
-  onPick: (key: string) => void;
-}> = ({ selected, onPick }) => {
+/** Items of the table style gallery: Light, Medium and Dark sections. */
+export function useTableStyleItems(): GalleryItem[] {
   const { context } = useContext(WorkbookContext);
   const tt = tableToolsLocale(context);
+  return useMemo(
+    () =>
+      (["light", "medium", "dark"] as const).flatMap((group) =>
+        TABLE_STYLE_GROUPS[group].map((key) => ({
+          id: key,
+          label: styleLabel(context, key),
+          group: tt.styleGroups[group],
+          preview: <TableStylePreview styleKey={key} />,
+        }))
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [context.lang, tt]
+  );
+}
+
+/**
+ * The Format as Table style gallery (a ui `Gallery`): light, medium and
+ * dark sections; `selected` is outlined.
+ */
+export const TableStyleGallery: React.FC<{
+  selected?: string;
+  onPick: (key: string) => void;
+  footer?: MenuItem[];
+  onClose?: () => void;
+  autoFocus?: boolean;
+}> = ({ selected, onPick, footer, onClose, autoFocus }) => {
+  const { context } = useContext(WorkbookContext);
+  const { tables: t } = locale(context);
+  const items = useTableStyleItems();
   return (
-    <>
-      {(["light", "medium", "dark"] as const).map((group) => (
-        <div key={group} className="fortune-table-style-section">
-          <div className="fortune-table-menu-title">
-            {tt.styleGroups[group]}
-          </div>
-          <div className="fortune-table-style-grid">
-            {TABLE_STYLE_GROUPS[group].map((key) => (
-              <TableStylePreview
-                key={key}
-                styleKey={key}
-                label={styleLabel(context, key)}
-                selected={selected === key}
-                onClick={() => onPick(key)}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </>
+    <Gallery
+      items={items}
+      selectedId={selected}
+      onPick={onPick}
+      footer={footer}
+      onClose={onClose}
+      autoFocus={autoFocus}
+      columns={7}
+      itemWidth={48}
+      itemHeight={38}
+      maxHeight={360}
+      className="fortune-table-style-gallery"
+      aria-label={t.formatAsTable}
+    />
   );
 };
+
+/** Alias used by the Home tab's Format as Table button. */
+export const StyleGallery = TableStyleGallery;
 
 /** "Create Table" dialog: range + "My table has headers". */
 export const CreateTableDialog: React.FC<{ styleKey: string }> = ({
@@ -275,8 +322,18 @@ export const CreateTableDialog: React.FC<{ styleKey: string }> = ({
   };
 
   return (
-    <div className="fortune-table-dialog">
-      <div className="fortune-table-dialog-title">{t.createTable}</div>
+    <DialogShell
+      title={t.createTable}
+      className="fortune-table-dialog"
+      footer={
+        <>
+          <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
+          <TextButton primary onClick={ok}>
+            {button.confirm}
+          </TextButton>
+        </>
+      }
+    >
       <div className="fortune-table-dialog-field">
         <label htmlFor={`${uid}-range`}>{t.tableRange}</label>
         <input
@@ -308,13 +365,7 @@ export const CreateTableDialog: React.FC<{ styleKey: string }> = ({
           {error}
         </div>
       )}
-      <div className="fortune-table-dialog-footer">
-        <TextButton primary onClick={ok}>
-          {button.confirm}
-        </TextButton>
-        <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -366,9 +417,9 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
 
   if (!ref || !table) {
     return (
-      <div className="fortune-table-dialog">
+      <DialogShell title={t.tableDesignTitle} className="fortune-table-dialog">
         <div className="fortune-table-dialog-error">{t.errorNotFound}</div>
-      </div>
+      </DialogShell>
     );
   }
 
@@ -452,8 +503,37 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
   };
 
   return (
-    <div className="fortune-table-dialog fortune-table-design">
-      <div className="fortune-table-dialog-title">{t.tableDesignTitle}</div>
+    <DialogShell
+      title={t.tableDesignTitle}
+      className="fortune-table-dialog fortune-table-design"
+      footer={
+        <>
+          <TextButton
+            onClick={() =>
+              showDialog(t.convertConfirm, "yesno", () => {
+                setContext((ctx) => {
+                  convertTableToRange(ctx, table.name);
+                });
+                hideDialog();
+              })
+            }
+          >
+            {t.convertToRange}
+          </TextButton>
+          <TextButton
+            onClick={() =>
+              showDialog(<InsertSlicerDialog tableName={table.name} />)
+            }
+          >
+            {tt.insertSlicer}
+          </TextButton>
+          <div className="fortune-table-dialog-spacer" />
+          <TextButton primary onClick={hideDialog}>
+            {button.close}
+          </TextButton>
+        </>
+      }
+    >
       <div className="fortune-table-design-grid">
         <div className="fortune-table-dialog-field">
           <label htmlFor={`${uid}-name`}>{t.tableName}</label>
@@ -554,115 +634,61 @@ export const TableDesignDialog: React.FC<{ tableName: string }> = ({
           {error}
         </div>
       )}
-      <div className="fortune-table-dialog-footer">
-        <TextButton
-          onClick={() =>
-            showDialog(t.convertConfirm, "yesno", () => {
-              setContext((ctx) => {
-                convertTableToRange(ctx, table.name);
-              });
-              hideDialog();
-            })
-          }
-        >
-          {t.convertToRange}
-        </TextButton>
-        <TextButton
-          onClick={() =>
-            showDialog(<InsertSlicerDialog tableName={table.name} />)
-          }
-        >
-          {tt.insertSlicer}
-        </TextButton>
-        <div className="fortune-table-dialog-spacer" />
-        <TextButton primary onClick={hideDialog}>
-          {button.close}
-        </TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
-/** Sprite symbol for the toolbar icon (kept out of the shared sprite). */
-const TableIconSymbol: React.FC = () => (
-  <svg style={{ display: "none" }} aria-hidden="true">
-    <symbol id="tinysheet-format-as-table" viewBox="0 0 24 24">
-      <path
-        fill="currentColor"
-        d="M4 4h16v16H4V4zm2 2v3h12V6H6zm0 5v3h5v-3H6zm7 0v3h5v-3h-5zm-7 5v2h5v-2H6zm7 0v2h5v-2h-5z"
-      />
-    </symbol>
-  </svg>
-);
-
 /**
- * Toolbar "Format as Table": a gallery of styles. Outside a table it asks
- * for the range; inside a table it restyles it and offers Table Design.
+ * The Format as Table drop-down content: the style gallery, and in a table
+ * Table Design… / Insert Slicer…. Picking a style restyles the table the
+ * active cell is in, or opens Create Table. `onClose` closes the popover.
  */
-export const FormatAsTableButton: React.FC = () => {
+export const FormatAsTableGallery: React.FC<{
+  onClose: () => void;
+  autoFocus?: boolean;
+}> = ({ onClose, autoFocus }) => {
   const { context, setContext } = useContext(WorkbookContext);
   const { showDialog } = useDialog();
   const { tables: t } = locale(context);
   const tt = tableToolsLocale(context);
   const inTable = activeTable(context);
   const insertSlicer = useInsertSlicer();
+  const footer: MenuItem[] = [];
+  if (inTable) {
+    footer.push({
+      id: "table-design",
+      label: t.tableDesign,
+      icon: "table",
+      onSelect: () =>
+        showDialog(<TableDesignDialog tableName={inTable.table.name} />),
+    });
+    if (inTable.table.headerRow) {
+      footer.push({
+        id: "insert-slicer",
+        label: `${tt.insertSlicer}…`,
+        icon: "filter",
+        onSelect: () => insertSlicer(),
+      });
+    }
+  }
   return (
-    <>
-      <TableIconSymbol />
-      <Combo iconId="tinysheet-format-as-table" tooltip={t.formatAsTable}>
-        {(setOpen) => (
-          <div className="fortune-table-menu">
-            <StyleGallery
-              selected={inTable?.table.style}
-              onPick={(key) => {
-                setOpen(false);
-                if (context.allowEdit === false) return;
-                if (inTable) {
-                  setContext((ctx) => {
-                    setTableOptions(ctx, inTable.table.name, {
-                      style: key,
-                    });
-                  });
-                } else {
-                  showDialog(<CreateTableDialog styleKey={key} />);
-                }
-              }}
-            />
-            {inTable && (
-              <div
-                className="fortune-table-menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => {
-                  setOpen(false);
-                  showDialog(
-                    <TableDesignDialog tableName={inTable.table.name} />
-                  );
-                }}
-                onKeyDown={activateOnKey}
-              >
-                {t.tableDesign}
-              </div>
-            )}
-            {inTable && inTable.table.headerRow && (
-              <div
-                className="fortune-table-menu-item"
-                role="menuitem"
-                tabIndex={0}
-                onClick={() => {
-                  setOpen(false);
-                  insertSlicer();
-                }}
-                onKeyDown={activateOnKey}
-              >
-                {`${tt.insertSlicer}…`}
-              </div>
-            )}
-          </div>
-        )}
-      </Combo>
-    </>
+    <TableStyleGallery
+      selected={inTable?.table.style}
+      autoFocus={autoFocus}
+      footer={footer}
+      onClose={onClose}
+      onPick={(key) => {
+        if (context.allowEdit === false) return;
+        if (inTable) {
+          setContext((ctx) => {
+            setTableOptions(ctx, inTable.table.name, {
+              style: key,
+            });
+          });
+        } else {
+          showDialog(<CreateTableDialog styleKey={key} />);
+        }
+      }}
+    />
   );
 };
-
-export default FormatAsTableButton;

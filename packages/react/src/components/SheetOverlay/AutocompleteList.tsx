@@ -185,6 +185,8 @@ const AutocompleteList: React.FC = () => {
       ref={listRef}
       className="fortune-autocomplete-list"
       role="listbox"
+      // the wheel scrolls the list, not the sheet
+      data-fortune-popup=""
       onMouseDown={(e) => {
         // keep focus in the cell editor
         e.preventDefault();
@@ -197,6 +199,7 @@ const AutocompleteList: React.FC = () => {
         minWidth: Math.max(col - colPre, 120),
         maxHeight: 200,
         overflowY: "auto",
+        overscrollBehavior: "contain",
         backgroundColor: "var(--fortune-bg-elevated)",
         color: "var(--fortune-text)",
         border: "1px solid var(--fortune-border)",

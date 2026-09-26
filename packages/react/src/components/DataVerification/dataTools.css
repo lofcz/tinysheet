@@ -1,78 +1,68 @@
-/* Shared layout of the data tools dialogs (validation, sort, filter,
-   remove duplicates, text to columns). Colours come from --fortune-* tokens. */
+/*
+ * Shared layout of the data tools dialogs (validation, sort, filter,
+ * remove duplicates, text to columns, what-if, outline, protection). Each is
+ * a DialogShell (ui/Dialog): `.fortune-dt-dialog` sits on the dialog, the
+ * rest are the Fika form pieces inside it.
+ */
 
 .fortune-dt-dialog {
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size);
-  min-width: 440px;
-  max-width: 640px;
+  width: 480px;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
   user-select: none;
 }
 
+/* dialogs not (yet) drawn as a DialogShell keep a heading */
 .fortune-dt-title {
-  font-size: var(--fortune-font-size-lg, 16px);
-  font-weight: 500;
-  margin: 0 0 var(--fortune-space-3);
+  margin: 0 0 12px;
+  color: var(--ts-text-strong);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .fortune-dt-subtitle {
-  font-size: var(--fortune-font-size-sm);
-  color: var(--fortune-text-muted);
-  margin: 0 0 var(--fortune-space-3);
+  margin: 0 0 12px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  line-height: 1.45;
 }
 
 .fortune-dt-tabs {
-  display: flex;
-  gap: var(--fortune-space-1);
-  border-bottom: 1px solid var(--fortune-divider, var(--fortune-border));
-  margin-bottom: var(--fortune-space-3);
+  margin-bottom: 16px;
 }
 
-.fortune-dt-tab {
-  padding: 6px 12px;
-  cursor: pointer;
-  color: var(--fortune-text-muted);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  border-radius: var(--fortune-radius-sm) var(--fortune-radius-sm) 0 0;
-}
-
-.fortune-dt-tab:hover {
-  background: var(--fortune-bg-hover);
-}
-
-.fortune-dt-tab.active {
-  color: var(--fortune-accent-text, var(--fortune-accent));
-  border-bottom-color: var(--fortune-accent);
+.fortune-dt-panel {
+  min-height: 280px;
 }
 
 .fortune-dt-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: var(--fortune-space-3);
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 .fortune-dt-label {
-  font-size: var(--fortune-font-size-sm);
-  color: var(--fortune-text-muted);
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-dt-hint {
-  font-size: var(--fortune-font-size-sm);
-  color: var(--fortune-text-subtle, var(--fortune-text-muted));
+  color: var(--ts-subtle);
+  font-size: var(--ts-font-size-sm);
+  line-height: 1.45;
 }
 
 .fortune-dt-error {
-  font-size: var(--fortune-font-size-sm);
-  color: var(--fortune-danger);
-  margin-bottom: var(--fortune-space-2);
+  margin-bottom: 8px;
+  color: var(--ts-danger);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-dt-row {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2);
+  gap: 10px;
 }
 
 .fortune-dt-row > .fortune-dt-field {
@@ -85,41 +75,61 @@
 .fortune-dt-textarea {
   box-sizing: border-box;
   width: 100%;
-  min-height: var(--fortune-control-height, 30px);
-  padding: 0 8px;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg-input, var(--fortune-bg));
-  color: var(--fortune-text);
+  min-height: var(--ts-control);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  background-color: var(--ts-surface);
+  color: var(--ts-text);
   font-family: inherit;
-  font-size: var(--fortune-font-size);
+  font-size: var(--ts-font-size);
   outline: none;
+  transition:
+    background-color var(--ts-fast),
+    border-color var(--ts-fast);
+}
+
+.fortune-dt-input:hover:not(:focus, :disabled),
+.fortune-dt-select:hover:not(:focus, :disabled),
+.fortune-dt-textarea:hover:not(:focus, :disabled) {
+  background-color: var(--ts-hover);
 }
 
 .fortune-dt-textarea {
-  padding: 6px 8px;
-  min-height: 72px;
+  min-height: 80px;
+  padding: 8px 10px;
   resize: vertical;
 }
 
 .fortune-dt-input:focus,
 .fortune-dt-select:focus,
 .fortune-dt-textarea:focus {
-  border-color: var(--fortune-accent);
-  box-shadow: var(--fortune-focus-ring);
+  border-color: var(--ts-ring);
+  background-color: var(--ts-pane);
+  box-shadow: none;
 }
 
+/* a reference field with Excel's collapse-dialog (pick a range) button */
 .fortune-dt-input-group {
   display: flex;
   align-items: stretch;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg-input, var(--fortune-bg));
+  min-height: var(--ts-control);
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  transition:
+    background-color var(--ts-fast),
+    border-color var(--ts-fast);
+}
+
+.fortune-dt-input-group:hover:not(:focus-within) {
+  background: var(--ts-hover);
 }
 
 .fortune-dt-input-group:focus-within {
-  border-color: var(--fortune-accent);
-  box-shadow: var(--fortune-focus-ring);
+  border-color: var(--ts-ring);
+  background: var(--ts-pane);
 }
 
 .fortune-dt-input-group .fortune-dt-input {
@@ -130,23 +140,32 @@
 
 .fortune-dt-picker {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  width: 30px;
+  width: 26px;
+  margin: 3px;
+  border-radius: 6px;
+  color: var(--ts-muted);
   cursor: pointer;
-  border-left: 1px solid var(--fortune-border);
-  color: var(--fortune-icon);
 }
 
 .fortune-dt-picker:hover {
-  background: var(--fortune-bg-hover);
+  background: var(--ts-active);
+  color: var(--ts-text-strong);
+}
+
+.fortune-dt-picker:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ts-ring);
 }
 
 .fortune-dt-check {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: var(--fortune-space-2);
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--ts-text);
   cursor: pointer;
 }
 
@@ -157,8 +176,8 @@
 .fortune-dt-buttons {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2);
-  margin-top: var(--fortune-space-4);
+  gap: 8px;
+  margin-top: 16px;
 }
 
 .fortune-dt-buttons .fortune-dt-spacer {
@@ -166,39 +185,58 @@
 }
 
 .fortune-dt-section {
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius);
-  padding: var(--fortune-space-3);
-  margin-bottom: var(--fortune-space-3);
+  margin-bottom: 12px;
+}
+
+.fortune-dt-section + .fortune-dt-section {
+  padding-top: 14px;
+  border-top: 1px solid var(--ts-border);
 }
 
 .fortune-dt-section-title {
-  font-weight: 500;
-  margin-bottom: var(--fortune-space-2);
+  margin-bottom: 8px;
+  color: var(--ts-section-label);
+  font-size: var(--ts-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
+/* small secondary buttons (Select All, Add Level, Delete Level) */
 .fortune-dt-icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   min-width: 28px;
   height: 28px;
-  padding: 0 6px;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg);
-  color: var(--fortune-text);
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  color: var(--ts-text);
+  font: inherit;
+  font-size: var(--ts-font-size-sm);
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
-  font-size: var(--fortune-font-size-sm);
+  transition: background-color var(--ts-fast);
 }
 
 .fortune-dt-icon-button:hover {
-  background: var(--fortune-bg-hover);
+  background: var(--ts-hover);
 }
 
-.fortune-dt-icon-button[aria-disabled="true"] {
-  opacity: 0.5;
-  cursor: not-allowed;
+.fortune-dt-icon-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.fortune-dt-icon-button[aria-disabled="true"],
+.fortune-dt-icon-button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .fortune-dt-table {
@@ -208,64 +246,79 @@
 
 .fortune-dt-table th,
 .fortune-dt-table td {
-  text-align: left;
-  padding: 4px 6px;
-  border-bottom: 1px solid var(--fortune-divider, var(--fortune-border));
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--ts-border);
   font-weight: normal;
+  text-align: left;
 }
 
 .fortune-dt-table th {
-  color: var(--fortune-text-muted);
-  font-size: var(--fortune-font-size-sm);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--ts-pane);
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  font-weight: 500;
+}
+
+.fortune-dt-table tr:last-child td {
+  border-bottom: 0;
 }
 
 .fortune-dt-table tr.selected td {
-  background: var(--fortune-accent-soft);
+  background: color-mix(in srgb, var(--ts-surface) 55%, var(--ts-pane));
+}
+
+.fortune-dt-table tr.selected td:first-child {
+  box-shadow: inset 2px 0 0 var(--ts-ink);
 }
 
 .fortune-dt-scroll {
-  max-height: 220px;
+  max-height: 240px;
   overflow: auto;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
 }
 
 /* error alert icons */
 .fortune-dt-alert {
   display: flex;
-  gap: var(--fortune-space-3);
+  gap: 14px;
   align-items: flex-start;
   min-width: 320px;
   max-width: 480px;
 }
 
 .fortune-dt-alert-icon {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   font-size: 18px;
-  color: var(--fortune-text-inverse);
+  font-weight: 700;
 }
 
 .fortune-dt-alert-icon.stop {
-  background: var(--fortune-danger);
+  background: color-mix(in srgb, var(--ts-danger) 14%, transparent);
+  color: var(--ts-danger);
 }
 
 .fortune-dt-alert-icon.warning {
-  background: var(--fortune-warning);
+  background: color-mix(in srgb, var(--ts-warning) 16%, transparent);
+  color: var(--ts-warning);
 }
 
 .fortune-dt-alert-icon.information {
-  background: var(--fortune-accent);
-  color: var(--fortune-on-accent);
+  background: color-mix(in srgb, var(--ts-accent) 14%, transparent);
+  color: var(--ts-accent);
 }
 
 .fortune-dt-alert-message {
-  white-space: pre-wrap;
+  padding-top: 8px;
   line-height: 1.5;
+  white-space: pre-wrap;
 }

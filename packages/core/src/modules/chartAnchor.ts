@@ -65,7 +65,9 @@ export function pixelToIndex(
   axis: Axis,
   px: number
 ): { index: number; offset: number } {
-  const p = Math.max(0, px);
+  // hundredths of a px: a position computed through a zoom that lands a
+  // hair before a cell edge is on the edge
+  const p = Math.round(Math.max(0, px) * 100) / 100;
   // exponential then binary search on the (monotonic) start positions
   let hi = 1;
   while (hi < 1 << 22 && startOf(ctx, sheetId, axis, hi) <= p) hi *= 2;

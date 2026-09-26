@@ -12,13 +12,16 @@ import {
   valueShowEs,
   createRangeHightlight,
   isShowHidenCR,
-  israngeseleciton,
   escapeHTMLTag,
   isAllowEdit,
   getEditorArrowAction,
-  getEditMode,
-  setEditMode,
   returnToEditSheet,
+  fixRowStyleOverflowInFreeze,
+  fixColumnStyleOverflowInFreeze,
+  cellFontName,
+  defaultFontFamily,
+  resolveCellFill,
+  resolveCellTextColor,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -48,7 +51,8 @@ const InputBox: React.FC = () => {
   const prevSheetId = usePrevious<string>(context.currentSheetId);
   const prevEditOrigin = usePrevious(context.formulaEditOrigin);
   const [isHidenRC, setIsHidenRC] = useState<boolean>(false);
-  const firstSelection = context.luckysheet_select_save?.[0];
+  // the range holding the active cell: the last one (Ctrl+click adds ranges)
+  const firstSelection = _.last(context.luckysheet_select_save);
   const row_index = firstSelection?.row_focus!;
   const col_index = firstSelection?.column_focus!;
   const preText = useRef("");
@@ -59,12 +63,29 @@ const InputBox: React.FC = () => {
     if (firstSelection && context.luckysheetCellUpdate.length > 0) {
       const flowdata = getFlowdata(context);
       if (!flowdata) return {};
-      return getStyleByCell(
+      const style = getStyleByCell(
         context,
         flowdata,
         firstSelection.row_focus!,
         firstSelection.column_focus!
       );
+      // the editor shows the cell's font, fill and (theme-adapted) colour
+      const cell = flowdata[firstSelection.row_focus!]?.[
+        firstSelection.column_focus!
+      ] as { ff?: string | number; fs?: number | string; bg?: string } | null;
+      const family = defaultFontFamily(context);
+      const fill = style.background ?? cell?.bg;
+      return {
+        fontFamily: cell?.ff
+          ? `"${cellFontName(context, cell)}", ${family}`
+          : family,
+        fontSize: `${Number(cell?.fs) || context.defaultFontSize}pt`,
+        ...style,
+        ...(fill ? { background: resolveCellFill(context, fill) } : null),
+        ...(style.color || fill
+          ? { color: resolveCellTextColor(context, style.color, fill) }
+          : null),
+      };
     }
     return {};
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -235,18 +256,11 @@ const InputBox: React.FC = () => {
     [context.luckysheetCellUpdate.length, formulaKeys, setContext]
   );
 
-  const onMouseUp = useCallback(() => {
-    // clicking into the text while in Enter mode switches to Edit mode
-    if (getEditMode(contextRef.current) === "enter") {
-      setContext((draftCtx) => {
-        setEditMode(draftCtx, "edit");
-      });
-    }
-    formulaKeys.onMouseUp();
-  }, [formulaKeys, setContext]);
-
   const onChange = useCallback(
     (__: any, isBlur?: boolean) => {
+      // leaving the editor changes nothing: its text was handled as it was
+      // typed (or written by Point mode / the formula bar)
+      if (isBlur) return;
       const e = lastKeyDownEventRef.current;
       if (!e) return;
       const kcode = e.keyCode;
@@ -269,14 +283,6 @@ const InputBox: React.FC = () => {
         (e.ctrlKey && kcode === 86)
       ) {
         setContext((draftCtx) => {
-          if (
-            (draftCtx.formulaCache.rangestart ||
-              draftCtx.formulaCache.rangedrag_column_start ||
-              draftCtx.formulaCache.rangedrag_row_start ||
-              israngeseleciton(draftCtx)) &&
-            isBlur
-          )
-            return;
           if (!isAllowEdit(draftCtx, draftCtx.luckysheet_select_save)) {
             return;
           }
@@ -325,13 +331,38 @@ const InputBox: React.FC = () => {
           ? {
               left: firstSelection.left,
               top: firstSelection.top,
+              // a cell in the frozen panes stays put while the sheet scrolls
+              ..._.pick(
+                fixRowStyleOverflowInFreeze(
+                  context,
+                  row_index,
+                  row_index,
+                  refs.globalCache.freezen?.[context.currentSheetId]
+                ),
+                "top"
+              ),
+              ..._.pick(
+                fixColumnStyleOverflowInFreeze(
+                  context,
+                  col_index,
+                  col_index,
+                  refs.globalCache.freezen?.[context.currentSheetId]
+                ),
+                "left"
+              ),
               zIndex: _.isEmpty(context.luckysheetCellUpdate) ? -1 : 19,
               display: "block",
             }
           : { left: -10000, top: -10000, display: "block" }
       }
       onMouseDown={(e) => e.stopPropagation()}
-      onMouseUp={(e) => e.stopPropagation()}
+      onMouseUp={(e) => {
+        // a drag started on the grid (picking a range, moving a
+        // reference's box) ends here too
+        const ctx = contextRef.current;
+        if (!ctx.luckysheet_scroll_status && !ctx.formulaCache.referenceDrag)
+          e.stopPropagation();
+      }}
     >
       <div
         className="luckysheet-input-box-inner"
@@ -362,7 +393,9 @@ const InputBox: React.FC = () => {
           onChange={onChange}
           onKeyDown={onKeyDown}
           onKeyUp={formulaKeys.onKeyUp}
-          onMouseUp={onMouseUp}
+          // clicking into the text switches to Edit mode
+          onMouseDown={formulaKeys.onMouseDown}
+          onMouseUp={formulaKeys.onMouseUp}
           onPaste={onPaste}
           allowEdit={edit ? !isHidenRC : edit}
         />

@@ -38,6 +38,7 @@ import {
 } from "./refAdjust";
 import { registerSortListener, SortMove } from "./sort";
 import { selectRangesOnSheet } from "./goTo";
+import { drawCornerMark } from "./cellMarks";
 
 export { threadedCommentsLocale } from "../locale/threadedComments";
 export type { ThreadedCommentsLocale } from "../locale/threadedComments";
@@ -829,15 +830,15 @@ export function installThreadedComments() {
       if (!thread) return;
       const palette =
         threadedCommentMarkerColors[ctx.theme === "dark" ? "dark" : "light"];
-      const size = 8 * zoom;
-      const right = x + w - 1;
-      renderCtx.beginPath();
-      renderCtx.moveTo(right - size, y);
-      renderCtx.lineTo(right, y);
-      renderCtx.lineTo(right, y + size);
-      renderCtx.closePath();
-      renderCtx.fillStyle = thread.resolved ? palette.resolved : palette.active;
-      renderCtx.fill();
+      drawCornerMark(
+        renderCtx,
+        "tr",
+        x,
+        y,
+        w,
+        7 * zoom,
+        thread.resolved ? palette.resolved : palette.active
+      );
     },
   });
 }

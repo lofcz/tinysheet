@@ -7,18 +7,20 @@ import {
   threadedCommentCellName,
   threadedCommentsLocale,
 } from "@lofcz/tinysheet-core";
+import { MessageSquare } from "lucide-react";
 import WorkbookContext from "../../context";
+import { ICON_STROKE } from "../ui";
 import Avatar, { CommentText } from "./Avatar";
-import { CardIcon } from "./CommentCard";
 import { useNow } from "./useThreadedComments";
 
 type Filter = "all" | "active" | "resolved";
 
 /**
- * The Comments pane: every thread of the workbook, filtered by status;
- * clicking one goes to its cell and opens it.
+ * The Comments pane (Excel's Review > Show Comments), docked in the side
+ * pane: every thread of the workbook, filtered by status; clicking one goes
+ * to its cell and opens it. The dock draws the title and close button.
  */
-const CommentsPane: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
+const CommentsPane: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const t = threadedCommentsLocale(context);
   const now = useNow();
@@ -57,35 +59,17 @@ const CommentsPane: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
   ];
 
   return (
-    // the pane keeps its clicks and keys from the grid below it
+    // the pane keeps its clicks and keys from the grid
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-    <aside
-      className="fortune-comments-pane"
-      style={style}
-      aria-label={t.paneTitle}
-      onMouseDown={(e) => e.stopPropagation()}
-      onMouseUp={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.stopPropagation()}
+    <div
+      className="fortune-comments-pane ts-pane-content"
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === "Escape") close();
       }}
     >
-      <div className="fortune-comments-pane-header">
-        <h2 className="fortune-comments-pane-title">{t.paneTitle}</h2>
-        <button
-          type="button"
-          className="fortune-thread-icon-button"
-          title={t.close}
-          aria-label={t.close}
-          onClick={close}
-        >
-          <CardIcon name="close" />
-        </button>
-      </div>
       <div
-        className="fortune-comments-pane-filter"
+        className="fortune-comments-pane-filter ts-segmented"
         role="group"
         aria-label={t.filterLabel}
       >
@@ -94,7 +78,7 @@ const CommentsPane: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
             key={key}
             type="button"
             aria-pressed={filter === key}
-            className={`fortune-comments-filter${
+            className={`ts-segmented-item fortune-comments-filter${
               filter === key ? " fortune-comments-filter-active" : ""
             }`}
             onClick={() => setFilter(key)}
@@ -105,9 +89,10 @@ const CommentsPane: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
       </div>
       <div className="fortune-comments-pane-list">
         {shown.length === 0 && (
-          <p className="fortune-comments-pane-empty">
-            {all.length === 0 ? t.noComments : t.noMatching}
-          </p>
+          <div className="ts-pane-empty fortune-comments-pane-empty">
+            <MessageSquare size={28} strokeWidth={ICON_STROKE} aria-hidden />
+            <p>{all.length === 0 ? t.noComments : t.noMatching}</p>
+          </div>
         )}
         {shown.map(({ sheetId, r, c, thread }) => {
           const where = multiSheet
@@ -124,6 +109,7 @@ const CommentsPane: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
                 thread.resolved ? " fortune-comments-item-resolved" : ""
               }${selected ? " fortune-comments-item-selected" : ""}`}
               data-thread-id={thread.id}
+              aria-current={selected || undefined}
               onClick={() =>
                 setContext(
                   (ctx) => {
@@ -171,7 +157,7 @@ const CommentsPane: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
           );
         })}
       </div>
-    </aside>
+    </div>
   );
 };
 

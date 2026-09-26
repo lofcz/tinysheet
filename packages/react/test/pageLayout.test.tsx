@@ -1,6 +1,13 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import React from "react";
 import { Workbook, WorkbookInstance, registerPageLayoutFeature } from "../src";
+import { showRibbonItem } from "./ribbonHelpers";
 
 registerPageLayoutFeature();
 
@@ -27,13 +34,28 @@ function renderBook() {
 const setup = (ref: React.RefObject<WorkbookInstance>) =>
   ref.current!.getSheet().pageSetup ?? {};
 
+/** Page Layout / View ribbon commands: [item id, menu entry]. */
+const MENUS: Record<string, [string, string?]> = {
+  setPrintArea: ["print-area", "Set Print Area"],
+  clearPrintArea: ["print-area", "Clear Print Area"],
+  insertPageBreak: ["breaks", "Insert Page Break"],
+  landscape: ["orientation", "Landscape"],
+  pageBreakPreview: ["view-page-break"],
+  pageSetup: ["page-setup"],
+};
+
 function menu(container: HTMLElement, action: string) {
-  fireEvent.click(
-    container.querySelector('.fortune-page-layout-menu [role="button"]')!
-  );
-  const item = container.querySelector(`[data-action="${action}"]`);
+  const [id, label] = MENUS[action];
+  const item = showRibbonItem(container, id);
   expect(item).toBeTruthy();
-  fireEvent.click(item!.parentElement!);
+  fireEvent.click(item!.querySelector("button")!);
+  if (!label) return;
+  // the drop-down is a popover (portaled)
+  const entry = Array.from(
+    document.querySelectorAll<HTMLElement>('[role^="menuitem"]')
+  ).find((el) => el.textContent?.trim() === label);
+  expect(entry).toBeTruthy();
+  fireEvent.click(entry!);
 }
 
 describe("page layout toolbar", () => {
@@ -82,7 +104,8 @@ describe("page setup dialog", () => {
     fireEvent.change(getByLabelText("Rows to repeat at top:"), {
       target: { value: "$1:$1" },
     });
-    fireEvent.click(getByLabelText("Gridlines"));
+    // the dialog's (the ribbon's Sheet Options has a Gridlines group too)
+    fireEvent.click(within(dialog).getByLabelText("Gridlines"));
     fireEvent.click(getByRole("tab", { name: "Header/Footer" }));
     fireEvent.change(getByLabelText("Center section"), {
       target: { value: "Page &P" },
@@ -118,7 +141,8 @@ describe("page setup dialog", () => {
 describe("print preview", () => {
   it("opens from the Print button and pages through the sheet", async () => {
     const { getByRole, container } = renderBook();
-    fireEvent.click(getByRole("button", { name: "Print (Ctrl+P)" }));
+    showRibbonItem(container, "print");
+    fireEvent.click(getByRole("button", { name: "Print Preview" }));
     await waitFor(() =>
       expect(
         container.ownerDocument.querySelector(".fortune-print-preview")
@@ -147,8 +171,9 @@ describe("print preview", () => {
     const original = window.print;
     window.print = print;
     try {
-      const { getByRole } = renderBook();
-      fireEvent.click(getByRole("button", { name: "Print (Ctrl+P)" }));
+      const { getByRole, container } = renderBook();
+      showRibbonItem(container, "print");
+      fireEvent.click(getByRole("button", { name: "Print Preview" }));
       const button = await waitFor(() =>
         getByRole("button", { name: "Print" })
       );

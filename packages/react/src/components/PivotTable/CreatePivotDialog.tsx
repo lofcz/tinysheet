@@ -17,7 +17,7 @@ import type {
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import { useAlert } from "../../hooks/useAlert";
-import { activateOnKey } from "../Toolbar/Button";
+import { Button, DialogShell } from "../ui";
 import { pivotErrorText } from "./usePivotUpdate";
 
 export const PivotButton: React.FC<{
@@ -26,17 +26,13 @@ export const PivotButton: React.FC<{
   children: React.ReactNode;
   className?: string;
 }> = ({ onClick, primary, children, className }) => (
-  <div
-    className={`button-basic ${primary ? "button-primary" : "button-default"}${
-      className ? ` ${className}` : ""
-    }`}
-    role="button"
-    tabIndex={0}
+  <Button
+    variant={primary ? "primary" : "secondary"}
+    className={className}
     onClick={onClick}
-    onKeyDown={activateOnKey}
   >
     {children}
-  </div>
+  </Button>
 );
 
 /** A check box or radio button with its label. */
@@ -155,12 +151,26 @@ const CreatePivotDialog: React.FC = () => {
   };
 
   const onEnter = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") ok();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      ok();
+    }
   };
 
   return (
-    <div className="fortune-pivot-dialog" data-testid="pivot-create-dialog">
-      <div className="fortune-pivot-dialog-title">{t.createTitle}</div>
+    <DialogShell
+      title={t.createTitle}
+      className="fortune-pivot-dialog"
+      data-testid="pivot-create-dialog"
+      footer={
+        <>
+          <PivotButton onClick={hideDialog}>{t.cancel}</PivotButton>
+          <PivotButton primary onClick={ok}>
+            {t.ok}
+          </PivotButton>
+        </>
+      }
+    >
       <fieldset className="fortune-pivot-dialog-group">
         <legend>{t.chooseData}</legend>
         <label className="fortune-pivot-dialog-field" htmlFor={`${uid}-src`}>
@@ -216,13 +226,7 @@ const CreatePivotDialog: React.FC = () => {
           {error}
         </div>
       )}
-      <div className="fortune-pivot-dialog-footer">
-        <PivotButton primary onClick={ok}>
-          {t.ok}
-        </PivotButton>
-        <PivotButton onClick={hideDialog}>{t.cancel}</PivotButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

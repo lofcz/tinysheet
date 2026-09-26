@@ -12,7 +12,7 @@
 import type { Context } from "../context";
 import type { Cell, CellMatrix } from "../types";
 import { locale } from "../locale";
-import { colors } from "./color";
+import { referenceColors as colors } from "./color";
 import { getNameCandidates } from "./names";
 import { escapeColumnName, findTable, tableAt } from "./tables";
 
@@ -825,6 +825,31 @@ export function autoCloseFormula(text: string) {
   return text.replace(/\s+$/, "") + ")".repeat(depth);
 }
 
+/**
+ * Excel's case on commit: references (not their sheet names), `TRUE` /
+ * `FALSE` and the names of the functions `isFunction` knows (given the name
+ * in upper case) are written in upper case: `=sum(a1)` → `=SUM(A1)`.
+ */
+export function normalizeFormulaCase(
+  text: string,
+  isFunction: (name: string) => boolean
+) {
+  if (!text.startsWith("=")) return text;
+  return tokenizeFormula(text)
+    .map((t) => {
+      if (t.type === "reference") {
+        const bang = t.text.lastIndexOf("!");
+        return t.text.slice(0, bang + 1) + t.text.slice(bang + 1).toUpperCase();
+      }
+      if (t.type === "bool") return t.text.toUpperCase();
+      if (t.type === "function" && isFunction(t.text.toUpperCase())) {
+        return t.text.toUpperCase();
+      }
+      return t.text;
+    })
+    .join("");
+}
+
 /* -------------------------------------------------------------------------- */
 /*                         References and their colours                       */
 /* -------------------------------------------------------------------------- */
@@ -892,6 +917,59 @@ export function parseReference(ref: string): ParsedReference | null {
   return null;
 }
 
+function columnLetters(index: number) {
+  let n = index + 1;
+  let s = "";
+  while (n > 0) {
+    const m = (n - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+/**
+ * Rewrites reference `ref` to point at `row` × `column` (zero-based, null
+ * for a whole column / row), keeping its sheet name and the `$` anchoring of
+ * each part: moving `$B$2` one row down gives `$B$3`, resizing `A1` gives
+ * `A1:B3`. Returns null when `ref` is not a reference.
+ */
+export function formatReferenceLike(
+  ref: string,
+  row: [number, number] | null,
+  column: [number, number] | null
+): string | null {
+  if (!parseReference(ref) || (row == null && column == null)) return null;
+  const [prefix, body] = splitSheetPrefix(ref.trim());
+  const parts = body.split(":");
+  const flags = parts.map((p) => {
+    const cell = p.match(CELL_PART);
+    if (cell) return [cell[1], cell[3]];
+    const col = p.match(COL_PART);
+    if (col) return [col[1], col[1]];
+    const r = p.match(ROW_PART);
+    if (r) return [r[1], r[1]];
+    return null;
+  });
+  if (flags.some((f) => f == null)) return null;
+  const [colAbs0, rowAbs0] = flags[0]!;
+  const [colAbs1, rowAbs1] = flags[flags.length - 1]!;
+  const col = (i: number, abs: string) => abs + columnLetters(i);
+  const rowText = (i: number, abs: string) => `${abs}${i + 1}`;
+  if (row == null) {
+    return `${prefix}${col(column![0], colAbs0)}:${col(column![1], colAbs1)}`;
+  }
+  if (column == null) {
+    return `${prefix}${rowText(row[0], rowAbs0)}:${rowText(row[1], rowAbs1)}`;
+  }
+  const first = col(column[0], colAbs0) + rowText(row[0], rowAbs0);
+  if (row[0] === row[1] && column[0] === column[1]) return prefix + first;
+  return `${prefix}${first}:${col(column[1], colAbs1)}${rowText(
+    row[1],
+    rowAbs1
+  )}`;
+}
+
 /**
  * Key identifying the cells a reference points at, so `A1`, `$A$1` and `a1`
  * share a colour (and a highlight box) like in Excel.
@@ -901,8 +979,15 @@ export function referenceKey(ref: string) {
   return (prefix + body.replace(/\$/g, "")).toUpperCase();
 }
 
+/**
+ * Colours of the references of a formula being edited (the text in the
+ * editors and the boxes on the grid), in Excel's order: `referenceColors`
+ * (./color.ts), shared with the grid's reference boxes.
+ */
+export const REFERENCE_COLORS = colors;
+
 export function referenceColor(colorIndex: number) {
-  return colors[colorIndex % colors.length];
+  return REFERENCE_COLORS[colorIndex % REFERENCE_COLORS.length];
 }
 
 /**
@@ -1321,6 +1406,87 @@ export function closeFormulaParens(el: HTMLElement | null | undefined) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*                         Undo / redo inside the editor                      */
+/* -------------------------------------------------------------------------- */
+
+type EditorSnapshot = { text: string; caret: number };
+
+/**
+ * Undo steps of the text being edited (Ctrl+Z / Ctrl+Y while editing undo
+ * typing and picked references, not sheet changes). The last undo entry is
+ * the current text.
+ */
+export type EditorHistory = {
+  undo: EditorSnapshot[];
+  redo: EditorSnapshot[];
+};
+
+const EDITOR_HISTORY_LIMIT = 200;
+
+function snapshotOf(el: HTMLElement): EditorSnapshot {
+  const text = el.textContent ?? "";
+  return { text, caret: getCaretOffset(el) ?? text.length };
+}
+
+/** Records the text of `el` as an undo step when it changed. */
+export function recordEditorState(history: EditorHistory, el: HTMLElement) {
+  const now = snapshotOf(el);
+  const last = history.undo[history.undo.length - 1];
+  if (last?.text === now.text) {
+    last.caret = now.caret;
+    return;
+  }
+  history.undo.push(now);
+  if (history.undo.length > EDITOR_HISTORY_LIMIT) history.undo.shift();
+  history.redo = [];
+}
+
+function restoreEditorState(el: HTMLElement, s: EditorSnapshot) {
+  el.textContent = s.text;
+  setCaretOffset(el, s.caret);
+}
+
+/**
+ * Undoes the last change of the text in `el` (Ctrl+Z while editing).
+ * Returns false when there is nothing to undo; the caller re-renders.
+ */
+export function undoEditorState(history: EditorHistory, el: HTMLElement) {
+  recordEditorState(history, el);
+  if (history.undo.length < 2) return false;
+  history.redo.push(history.undo.pop()!);
+  restoreEditorState(el, history.undo[history.undo.length - 1]);
+  return true;
+}
+
+/** Redoes a change undone by {@link undoEditorState} (Ctrl+Y). */
+export function redoEditorState(history: EditorHistory, el: HTMLElement) {
+  const next = history.redo.pop();
+  if (!next) return false;
+  const { redo } = history;
+  recordEditorState(history, el);
+  history.redo = redo;
+  history.undo.push(next);
+  restoreEditorState(el, next);
+  return true;
+}
+
+/**
+ * The formula in `el` as Excel commits it: missing closing parentheses
+ * added, references and function names in upper case.
+ */
+export function finishFormulaEdit(
+  ctx: Context,
+  el: HTMLElement | null | undefined
+) {
+  closeFormulaParens(el);
+  const text = el?.innerText ?? el?.textContent ?? "";
+  if (!el || !text.startsWith("=")) return;
+  const functions = getFunctionListMap(ctx);
+  const normalized = normalizeFormulaCase(text, (name) => name in functions);
+  if (normalized !== text) el.textContent = normalized;
+}
+
+/* -------------------------------------------------------------------------- */
 /*                              Context updates                               */
 /* -------------------------------------------------------------------------- */
 
@@ -1427,10 +1593,10 @@ export function getActiveFunctionCandidate(ctx: Context): string | null {
 /* -------------------------------------------------------------------------- */
 
 /** Height (px) of the one-line formula bar. */
-export const FORMULA_BAR_COLLAPSED_HEIGHT = 28;
+export const FORMULA_BAR_COLLAPSED_HEIGHT = 36;
 /** Smallest and default height (px) of the expanded formula bar. */
-export const FORMULA_BAR_MIN_HEIGHT = 48;
-export const FORMULA_BAR_DEFAULT_HEIGHT = 88;
+export const FORMULA_BAR_MIN_HEIGHT = 56;
+export const FORMULA_BAR_DEFAULT_HEIGHT = 96;
 
 /** The expanded formula bar height, kept between the minimum and `max`. */
 export function clampFormulaBarHeight(height: number, max = 600) {

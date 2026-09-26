@@ -70,7 +70,7 @@ const SpillRange: React.FC = () => {
       );
     });
     // the menu is gone: give the keyboard back to the sheet
-    setTimeout(() => refs.cellInput.current?.focus());
+    setTimeout(() => refs.cellInput.current?.focus({ preventScroll: true }));
   };
 
   // the badge sits left of the anchor, or right of it in column A

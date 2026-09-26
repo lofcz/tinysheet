@@ -32,8 +32,9 @@ import {
   hasPendingRecalc,
   runRecalcSlice,
   setRecalcScheduler,
+  defaultCurrencySymbol,
 } from "@lofcz/tinysheet-core";
-import type { History } from "@lofcz/tinysheet-core";
+import type { History, ThemeSetting } from "@lofcz/tinysheet-core";
 import { flushSync } from "react-dom";
 import React, {
   useMemo,
@@ -55,20 +56,21 @@ import {
   WorkbookProvider,
   WorkbookStore,
 } from "../../context/store";
-import Toolbar from "../Toolbar";
+import { Ribbon } from "../Ribbon";
+import { SidePaneProvider, SidePaneSlot } from "../SidePane";
 import FxEditor from "../FxEditor";
 import SheetTab from "../SheetTab";
 import ContextMenu from "../ContextMenu";
 import SVGDefines from "../SVGDefines";
 import SheetTabContextMenu from "../ContextMenu/SheetTab";
 import DataToolsLayer from "../DataVerification/DataToolsLayer";
-import MoreItemsContaier from "../Toolbar/MoreItemsContainer";
 import { generateAPIs } from "./api";
 import { ModalProvider } from "../../context/modal";
 import FilterMenu from "../ContextMenu/FilterMenu";
 import FormatCells from "../FormatCells";
 import SheetList from "../SheetList";
 import StatusBar from "../StatusBar";
+import ViewControls from "../StatusBar/ViewControls";
 import { useResolvedTheme } from "../../hooks/useResolvedTheme";
 
 enablePatches();
@@ -76,6 +78,7 @@ enablePatches();
 // Prop-less children as constant elements: React skips them when the
 // Workbook re-renders, and the TrackedScope around each re-renders them only
 // for the context fields they read.
+const RIBBON = <Ribbon />;
 const FX_EDITOR = <FxEditor />;
 const SHEET_TAB = <SheetTab />;
 const SHEET_LIST = <SheetList />;
@@ -85,12 +88,19 @@ const SHEET_TAB_CONTEXT_MENU = <SheetTabContextMenu />;
 const DATA_TOOLS_LAYER = <DataToolsLayer />;
 const FORMAT_CELLS = <FormatCells />;
 const STATUS_BAR = <StatusBar />;
+const VIEW_CONTROLS = <ViewControls />;
 
 export type WorkbookInstance = ReturnType<typeof generateAPIs>;
 
 type AdditionalProps = {
   onChange?: (data: SheetType[]) => void;
   onOp?: (op: Op[]) => void;
+  /**
+   * The user picked a theme with the toolbar's theme switch. Uncontrolled
+   * workbooks (no `theme` prop) have already switched; a controlled one
+   * shows the new theme once the host passes it back as `theme`.
+   */
+  onThemeChange?: (theme: ThemeSetting) => void;
 };
 
 /** Run `cb` when the browser is idle (after paint); returns a canceller. */
@@ -131,7 +141,7 @@ function shallowEqualProps(
 }
 
 const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
-  ({ onChange, onOp, data: originalData, ...props }, ref) => {
+  ({ onChange, onOp, onThemeChange, data: originalData, ...props }, ref) => {
     const globalCache = useRef<GlobalCache>({ undoList: [], redoList: [] });
     const cellInput = useRef<HTMLDivElement>(null);
     const fxInput = useRef<HTMLDivElement>(null);
@@ -161,9 +171,6 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     const [context, setContext] = useState(() => defaultContext(refs));
     const { info } = locale(context);
 
-    const [moreToolbarItems, setMoreToolbarItems] =
-      useState<React.ReactNode>(null);
-
     // Recompute when any prop changes, including props added or removed after
     // mount (a values-array dependency list would change length and be
     // ignored by React).
@@ -173,10 +180,36 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       settingsProps.current = props;
       settingsVersion.current += 1;
     }
-    const mergedSettings = useMemo(
+    const propSettings = useMemo(
       () => _.assign(_.cloneDeep(defaultSettings), props) as Required<Settings>,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [settingsVersion.current]
+    );
+
+    // Colour theme: controlled by the `theme` prop when it is set, otherwise
+    // workbook state that starts from `defaultTheme` and follows the
+    // toolbar's theme switch. `settings.theme` is always the one in effect.
+    const [uncontrolledTheme, setUncontrolledTheme] = useState<ThemeSetting>(
+      () => props.defaultTheme ?? defaultSettings.defaultTheme
+    );
+    const controlledTheme = props.theme;
+    const themeSetting: ThemeSetting = controlledTheme ?? uncontrolledTheme;
+    const mergedSettings = useMemo(
+      () =>
+        propSettings.theme === themeSetting
+          ? propSettings
+          : { ...propSettings, theme: themeSetting },
+      [propSettings, themeSetting]
+    );
+    const onThemeChangeRef = useRef(onThemeChange);
+    onThemeChangeRef.current = onThemeChange;
+    const themeControlled = controlledTheme != null;
+    const setTheme = useCallback(
+      (theme: ThemeSetting) => {
+        if (!themeControlled) setUncontrolledTheme(theme);
+        onThemeChangeRef.current?.(theme);
+      },
+      [themeControlled]
     );
 
     // Keep hooks on a ref so selection / settings effects do not re-subscribe
@@ -383,9 +416,17 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         settings: mergedSettings,
         handleUndo,
         handleRedo,
+        setTheme,
         refs,
       }),
-      [handleRedo, handleUndo, mergedSettings, refs, setContextWithProduce]
+      [
+        handleRedo,
+        handleUndo,
+        mergedSettings,
+        refs,
+        setContextWithProduce,
+        setTheme,
+      ]
     );
     const providerValue = useMemo(
       () => ({ context, ...workbookApi }),
@@ -417,6 +458,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           draftCtx.defaultcolumnNum = mergedSettings.column;
           draftCtx.defaultrowNum = mergedSettings.row;
           draftCtx.defaultFontSize = mergedSettings.defaultFontSize;
+          draftCtx.defaultFontFamily = mergedSettings.defaultFontFamily;
           if (_.isEmpty(draftCtx.luckysheetfile)) {
             // Shallow copies: ensureSheetIndex fills in ids and status.
             // (Running it through produce would deep-freeze every cell of
@@ -499,7 +541,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
 
           draftCtx.config = _.isNil(sheet.config) ? {} : sheet.config;
           draftCtx.insertedImgs = sheet.images;
-          draftCtx.currency = mergedSettings.currency || "¥";
+          draftCtx.currency = mergedSettings.currency || "";
 
           draftCtx.zoomRatio = _.isNil(sheet.zoomRatio) ? 1 : sheet.zoomRatio;
           draftCtx.rowHeaderWidth =
@@ -543,6 +585,10 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               navigator.userLanguage; // 兼容IE浏览器
             draftCtx.lang = lang;
           }
+          // no currency set: the language's (Excel follows the locale)
+          if (!mergedSettings.currency) {
+            draftCtx.currency = defaultCurrencySymbol(draftCtx.lang);
+          }
         },
         { noHistory: true }
       );
@@ -555,6 +601,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       mergedSettings.column,
       mergedSettings.row,
       mergedSettings.defaultFontSize,
+      mergedSettings.defaultFontFamily,
       mergedSettings.devicePixelRatio,
       mergedSettings.lang,
       mergedSettings.allowEdit,
@@ -732,9 +779,14 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
       [context, setContextWithProduce]
     );
 
-    const onMoreToolbarItemsClose = useCallback(() => {
-      setMoreToolbarItems(null);
-    }, []);
+    // context menus (cell, header, filter, sheet tab, sheet list)
+    const closePopovers = useCallback(() => {
+      setContextWithProduce((draftCtx) => {
+        draftCtx.contextMenu = {};
+        draftCtx.filterContextMenu = undefined;
+        draftCtx.showSheetList = undefined;
+      });
+    }, [setContextWithProduce]);
 
     useEffect(() => {
       document.addEventListener("paste", onPaste);
@@ -771,32 +823,13 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     // ~1300 lines of static SVG symbols: keep the element identity stable so
     // React skips it on every context change.
     const svgDefines = useMemo(
-      () => <SVGDefines currency={mergedSettings.currency} />,
-      [mergedSettings.currency]
+      () => <SVGDefines currency={context.currency ?? ""} />,
+      [context.currency]
     );
 
     // Stable elements, each in its own TrackedScope: a Workbook render (on
     // every context change) skips them, and each re-renders only when the
     // context fields it reads change.
-    const moreItemsOpen = moreToolbarItems !== null;
-    const toolbar = useMemo(
-      () => (
-        <Toolbar
-          moreItemsOpen={moreItemsOpen}
-          setMoreItems={setMoreToolbarItems}
-        />
-      ),
-      [moreItemsOpen]
-    );
-    const moreItems = useMemo(
-      () =>
-        moreToolbarItems && (
-          <MoreItemsContaier onClose={onMoreToolbarItemsClose}>
-            {moreToolbarItems}
-          </MoreItemsContaier>
-        ),
-      [moreToolbarItems, onMoreToolbarItemsClose]
-    );
 
     const i = getSheetIndex(context, context.currentSheetId);
     if (i == null) {
@@ -810,80 +843,100 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     return (
       <WorkbookProvider store={store} value={providerValue}>
         <ModalProvider>
-          <div
-            className="fortune-container"
-            data-theme={resolvedTheme}
-            ref={workbookContainer}
-            onKeyDown={onKeyDown}
-          >
-            <section
-              aria-labelledby="shortcuts-heading"
-              id="shortcut-list"
-              className="sr-only"
-              tabIndex={0}
-              aria-live="polite"
+          <SidePaneProvider>
+            <div
+              className="fortune-container"
+              data-theme={resolvedTheme}
+              data-chrome={
+                mergedSettings.chrome === "compact" ? "compact" : "suite"
+              }
+              ref={workbookContainer}
+              onKeyDown={onKeyDown}
             >
-              <h2 id="shortcuts-heading">{info.shortcuts}</h2>
-              <ul>
-                <li>{info.toggleSheetFocusShortcut}</li>
-                <li>{info.selectRangeShortcut}</li>
-                <li>{info.autoFillDownShortcut}</li>
-                <li>{info.autoFillRightShortcut}</li>
-                <li>{info.boldTextShortcut}</li>
-                <li>{info.copyShortcut}</li>
-                <li>{info.pasteShortcut}</li>
-                <li>{info.undoShortcut}</li>
-                <li>{info.redoShortcut}</li>
-                <li>{info.deleteCellContentShortcut}</li>
-                <li>{info.confirmCellEditShortcut}</li>
-                <li>{info.moveRightShortcut}</li>
-                <li>{info.moveLeftShortcut}</li>
-              </ul>
-            </section>
-            {svgDefines}
-            <div className="fortune-workarea">
+              <section
+                aria-labelledby="shortcuts-heading"
+                id="shortcut-list"
+                className="sr-only"
+                tabIndex={0}
+                aria-live="polite"
+              >
+                <h2 id="shortcuts-heading">{info.shortcuts}</h2>
+                <ul>
+                  <li>{info.toggleSheetFocusShortcut}</li>
+                  <li>{info.selectRangeShortcut}</li>
+                  <li>{info.autoFillDownShortcut}</li>
+                  <li>{info.autoFillRightShortcut}</li>
+                  <li>{info.boldTextShortcut}</li>
+                  <li>{info.copyShortcut}</li>
+                  <li>{info.pasteShortcut}</li>
+                  <li>{info.undoShortcut}</li>
+                  <li>{info.redoShortcut}</li>
+                  <li>{info.deleteCellContentShortcut}</li>
+                  <li>{info.confirmCellEditShortcut}</li>
+                  <li>{info.moveRightShortcut}</li>
+                  <li>{info.moveLeftShortcut}</li>
+                </ul>
+              </section>
+              {svgDefines}
+              {/*
+              The suite shell (docs/DESIGN.md): ribbon pane, grid pane
+              (formula bar + grid) with the side pane dock right of it, and
+              the bottom pane (sheet tabs, status bar, zoom).
+            */}
               {mergedSettings.showToolbar && (
-                <TrackedScope>{toolbar}</TrackedScope>
+                <div className="fortune-pane fortune-ribbon-pane">
+                  <TrackedScope>{RIBBON}</TrackedScope>
+                </div>
               )}
-              {mergedSettings.showFormulaBar && (
-                <TrackedScope>{FX_EDITOR}</TrackedScope>
+              <div className="fortune-body">
+                <div className="fortune-pane fortune-grid-pane">
+                  {mergedSettings.showFormulaBar && (
+                    <TrackedScope>{FX_EDITOR}</TrackedScope>
+                  )}
+                  <Sheet sheet={sheet} />
+                </div>
+                <SidePaneSlot />
+              </div>
+              {(mergedSettings.showSheetTabs ||
+                mergedSettings.showStatsBar) && (
+                <div className="fortune-pane fortune-bottom-pane">
+                  <div className="fortune-bottom-bar">
+                    {mergedSettings.showSheetTabs && (
+                      <TrackedScope>{SHEET_TAB}</TrackedScope>
+                    )}
+                    {mergedSettings.showStatsBar && (
+                      <TrackedScope>{STATUS_BAR}</TrackedScope>
+                    )}
+                    <TrackedScope>{VIEW_CONTROLS}</TrackedScope>
+                  </div>
+                </div>
+              )}
+              <TrackedScope>{CONTEXT_MENU}</TrackedScope>
+              <TrackedScope>{FILTER_MENU}</TrackedScope>
+              <TrackedScope>{DATA_TOOLS_LAYER}</TrackedScope>
+              <TrackedScope>{SHEET_TAB_CONTEXT_MENU}</TrackedScope>
+              {context.formatCellsDialog && (
+                <TrackedScope>{FORMAT_CELLS}</TrackedScope>
+              )}
+              {context.showSheetList && (
+                <TrackedScope>{SHEET_LIST}</TrackedScope>
+              )}
+              {!_.isEmpty(context.contextMenu) && (
+                <div
+                  onMouseDown={closePopovers}
+                  // scrolling the page under an open menu closes it
+                  onWheel={closePopovers}
+                  onMouseMove={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  className="fortune-popover-backdrop"
+                />
               )}
             </div>
-            <Sheet sheet={sheet} />
-            {mergedSettings.showSheetTabs && (
-              <TrackedScope>{SHEET_TAB}</TrackedScope>
-            )}
-            <TrackedScope>{CONTEXT_MENU}</TrackedScope>
-            <TrackedScope>{FILTER_MENU}</TrackedScope>
-            <TrackedScope>{DATA_TOOLS_LAYER}</TrackedScope>
-            <TrackedScope>{SHEET_TAB_CONTEXT_MENU}</TrackedScope>
-            {context.formatCellsDialog && (
-              <TrackedScope>{FORMAT_CELLS}</TrackedScope>
-            )}
-            {context.showSheetList && <TrackedScope>{SHEET_LIST}</TrackedScope>}
-            {moreItems && <TrackedScope>{moreItems}</TrackedScope>}
-            {!_.isEmpty(context.contextMenu) && (
-              <div
-                onMouseDown={() => {
-                  setContextWithProduce((draftCtx) => {
-                    draftCtx.contextMenu = {};
-                    draftCtx.filterContextMenu = undefined;
-                    draftCtx.showSheetList = undefined;
-                  });
-                }}
-                onMouseMove={(e) => e.stopPropagation()}
-                onMouseUp={(e) => e.stopPropagation()}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                className="fortune-popover-backdrop"
-              />
-            )}
-            {mergedSettings.showStatsBar && (
-              <TrackedScope>{STATUS_BAR}</TrackedScope>
-            )}
-          </div>
+          </SidePaneProvider>
         </ModalProvider>
       </WorkbookProvider>
     );

@@ -10,7 +10,6 @@ import {
   getPageSetup,
   pagePaperPx,
   headerFooterPlainText,
-  locale,
   parsePrintRanges,
   parseTitleColumns,
   parseTitleRows,
@@ -21,7 +20,8 @@ import {
   titleRowsToText,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
-import SVGIcon from "../SVGIcon";
+import { Printer } from "lucide-react";
+import { Button, DialogShell, Tabs } from "../ui";
 import { formatText, usePageLayoutText } from "./shared";
 
 export type PageSetupTab = "page" | "margins" | "headerFooter" | "sheet";
@@ -74,7 +74,7 @@ const PageSetupDialog: React.FC<Props> = ({
 }) => {
   const { context, setContext } = useContext(WorkbookContext);
   const t = usePageLayoutText();
-  const { button } = locale(context);
+
   const uid = useId();
   const [tab, setTab] = useState<PageSetupTab>(initialTab);
   const [draft, setDraft] = useState<PageSetup>(() => ({
@@ -327,7 +327,7 @@ const PageSetupDialog: React.FC<Props> = ({
               <button
                 type="button"
                 key={key}
-                className="button-basic button-default"
+                className="ts-btn ts-btn--secondary ts-btn--sm"
                 onClick={() => set({ margins: { ...MARGIN_PRESETS[key] } })}
               >
                 {t.marginPresets[key]}
@@ -680,105 +680,61 @@ const PageSetupDialog: React.FC<Props> = ({
     );
   }
 
+  const ok = () => {
+    if (apply()) onClose();
+  };
+
   return (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-    <div
-      ref={dialogRef}
-      className="fortune-dialog fortune-page-setup"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={`${uid}-title`}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          e.stopPropagation();
-          onClose();
-        }
-      }}
-    >
-      <div className="fortune-fc-header">
-        <div id={`${uid}-title`} className="dialog-title">
-          {t.pageSetupTitle}
-        </div>
-        <button
-          type="button"
-          className="fortune-fc-close"
-          aria-label={button.close}
-          title={button.close}
-          onClick={onClose}
-        >
-          <SVGIcon name="close" />
-        </button>
-      </div>
-      <div
-        className="fortune-fc-tabs"
-        role="tablist"
-        aria-label={t.pageSetupTitle}
-        onKeyDown={(e) => {
-          const i = TABS.indexOf(tab);
-          let next = -1;
-          if (e.key === "ArrowRight") next = (i + 1) % TABS.length;
-          if (e.key === "ArrowLeft") next = (i + TABS.length - 1) % TABS.length;
-          if (next >= 0) {
-            e.preventDefault();
-            setTab(TABS[next]);
-            (e.currentTarget.children[next] as HTMLElement)?.focus();
-          }
-        }}
-      >
-        {TABS.map((key) => (
-          <button
-            type="button"
-            key={key}
-            role="tab"
-            id={`${uid}-tab-${key}`}
-            aria-selected={key === tab}
-            aria-controls={`${uid}-panel`}
-            tabIndex={key === tab ? 0 : -1}
-            className={`fortune-fc-tab${key === tab ? " active" : ""}`}
-            onClick={() => setTab(key)}
-          >
-            {t.tabs[key]}
-          </button>
-        ))}
-      </div>
-      <div
-        id={`${uid}-panel`}
-        className="fortune-fc-panel fortune-ps-panel"
-        role="tabpanel"
-        aria-labelledby={`${uid}-tab-${tab}`}
-      >
-        {body}
-      </div>
-      <div className="fortune-dialog-box-button-container">
-        {onPrintPreview && (
-          <button
-            type="button"
-            className="fortune-message-box-button button-basic button-default fortune-ps-preview"
+    <DialogShell
+      title={t.pageSetupTitle}
+      className="fortune-page-setup"
+      onClose={onClose}
+      onConfirm={ok}
+      footerStart={
+        onPrintPreview && (
+          <Button
+            variant="secondary"
+            icon={Printer}
+            className="fortune-ps-preview"
             onClick={() => {
               if (apply()) onPrintPreview();
             }}
           >
             {t.printPreview.replace(/…$/, "")}
-          </button>
-        )}
-        <button
-          type="button"
-          className="fortune-message-box-button button-basic button-primary"
-          onClick={() => {
-            if (apply()) onClose();
-          }}
+          </Button>
+        )
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            {t.cancel}
+          </Button>
+          <Button variant="primary" onClick={ok}>
+            {t.ok}
+          </Button>
+        </>
+      }
+    >
+      <div ref={dialogRef} className="fortune-ps-frame">
+        <Tabs
+          fill
+          idPrefix={uid}
+          aria-label={t.pageSetupTitle}
+          className="ts-dialog-tabs"
+          tabs={TABS.map((key) => ({ id: key, label: t.tabs[key] }))}
+          value={tab}
+          onChange={(id) => setTab(id as PageSetupTab)}
+        />
+        <div
+          id={`${uid}-panel-${tab}`}
+          className="fortune-fc-panel fortune-ps-panel"
+          role="tabpanel"
+          aria-labelledby={`${uid}-tab-${tab}`}
         >
-          {t.ok}
-        </button>
-        <button
-          type="button"
-          className="fortune-message-box-button button-basic button-default"
-          onClick={onClose}
-        >
-          {t.cancel}
-        </button>
+          {body}
+        </div>
       </div>
-    </div>
+    </DialogShell>
   );
 };
 

@@ -9,8 +9,8 @@ import {
 import React, { useContext, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import { activateOnKey } from "../Toolbar/Button";
 import { RefField, startRefPick } from "./refPick";
+import { Button, DialogShell } from "../ui";
 
 type Fields = { rowInput: string; colInput: string };
 
@@ -103,13 +103,22 @@ const DataTable: React.FC<{
   };
 
   return (
-    <div
+    <DialogShell
+      title={t.title}
       className="fortune-dt-dialog fortune-data-table"
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onOk();
-      }}
+      onClose={hideDialog}
+      onConfirm={onOk}
+      footer={
+        <>
+          <Button variant="secondary" onClick={hideDialog}>
+            {t.cancel}
+          </Button>
+          <Button variant="primary" onClick={onOk}>
+            {t.ok}
+          </Button>
+        </>
+      }
     >
-      <div className="fortune-dt-title">{t.title}</div>
       <div className="fortune-dt-subtitle">
         {refText(context, range)} — {t.hint}
       </div>
@@ -128,30 +137,7 @@ const DataTable: React.FC<{
         onPick={() => pick("colInput", t.colInput)}
       />
       {error && <div className="fortune-dt-error">{error}</div>}
-      <div
-        className="fortune-dt-buttons"
-        style={{ justifyContent: "flex-end" }}
-      >
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onKeyDown={activateOnKey}
-          onClick={onOk}
-        >
-          {t.ok}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onKeyDown={activateOnKey}
-          onClick={hideDialog}
-        >
-          {t.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

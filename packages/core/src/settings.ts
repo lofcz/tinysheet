@@ -12,6 +12,7 @@ import {
 } from "./types";
 import type { ErrorCheckingOptions } from "./modules/errorChecking";
 import type { ThemeSetting } from "./theme";
+import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from "./modules/fonts";
 
 export type Hooks = {
   beforeUpdateCell?: (r: number, c: number, value: any) => boolean;
@@ -190,7 +191,15 @@ export type Settings = {
   columnHeaderHeight?: number;
   defaultColWidth?: number;
   defaultRowHeight?: number;
+  /** Font size (pt) of cells without a size of their own. @default 11 */
   defaultFontSize?: number;
+  /**
+   * CSS font-family of cells without a font of their own (Excel's "Body"
+   * font). A stored numeric `ff` keeps meaning an index into the locale's
+   * font list; this only replaces what an unset font shows as.
+   * @default 'Calibri, Carlito, "Segoe UI", Arial, sans-serif'
+   */
+  defaultFontFamily?: string;
   toolbarItems?: string[];
   cellContextMenu?: string[];
   headerContextMenu?: string[];
@@ -206,13 +215,28 @@ export type Settings = {
     icon?: React.ReactNode;
     onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   }[];
+  /**
+   * Currency symbol of the Currency / Accounting formats. Unset: the
+   * language's symbol (`$` for English, `¥` for Chinese, ...).
+   */
   currency?: string;
   /**
    * Colour theme of the workbook UI and canvas. `auto` follows the
    * `prefers-color-scheme` media query and updates live.
-   * @default "light"
+   *
+   * Controlled: when set, the workbook always shows this theme and the
+   * toolbar's theme switch only reports the user's choice through
+   * `onThemeChange`. Leave it unset (and use `defaultTheme`) to let the
+   * user switch themes from the toolbar.
    */
   theme?: ThemeSetting;
+  /**
+   * Initial theme when `theme` is not controlled; the toolbar's theme
+   * switch (toolbar item "theme") changes it afterwards. Nothing is
+   * persisted: store the value from `onThemeChange` to remember it.
+   * @default "light"
+   */
+  defaultTheme?: ThemeSetting;
   /** Author of new threaded comments (who may edit/delete their posts). */
   currentUser?: CommentUser | null;
   /** People offered by the @mention picker of threaded comments. */
@@ -235,6 +259,60 @@ export type Settings = {
   calculation?: CalcSettings;
   /** Background error checking rules (green triangles). */
   errorChecking?: ErrorCheckingOptions;
+  /**
+   * A custom ribbon: tabs → groups → items (toolbar item names or ribbon
+   * command ids). `null` shows the default Excel-like ribbon, filtered by
+   * `toolbarItems` when that list is not the default. See the react
+   * package's components/Ribbon.
+   */
+  ribbon?: RibbonTabConfig[] | null;
+  /**
+   * Chrome around the grid: "suite" (default) lays the ribbon, grid and
+   * status bar out as padded panes on the surface colour, like the other
+   * apps of the suite; "compact" drops the outer padding for embedding.
+   */
+  chrome?: "suite" | "compact";
+  /** File > New; the menu item shows when set. */
+  onNewWorkbook?: (() => void) | null;
+  /** File > Open (.xlsx, .csv); the menu item shows when set. */
+  onOpenFile?: ((file: File) => void) | null;
+  /** File > Save As; the menu item shows when set. */
+  onSaveAs?: ((format: "xlsx" | "csv") => void) | null;
+};
+
+/** One ribbon item: a toolbar item name / ribbon command id, and its size. */
+export type RibbonItemConfig =
+  | string
+  | {
+      id: string;
+      /** large: icon over label (Paste, PivotTable); small: 32px button. */
+      size?: "large" | "small";
+    };
+
+/** A ribbon group entry: one item, or small items stacked in rows. */
+export type RibbonEntryConfig =
+  | RibbonItemConfig
+  | { rows: RibbonItemConfig[][] };
+
+export type RibbonGroupConfig = {
+  id: string;
+  /** Shown under the group; built-in group ids have translated labels. */
+  label?: string;
+  /** Icon name of the collapsed group button (see react ui/icons). */
+  icon?: string;
+  items: RibbonEntryConfig[];
+  /**
+   * Scaling order when the window narrows: lower collapses first. Groups
+   * without one collapse right to left.
+   */
+  priority?: number;
+};
+
+export type RibbonTabConfig = {
+  id: string;
+  /** Built-in tab ids have translated labels. */
+  label?: string;
+  groups: RibbonGroupConfig[];
 };
 
 export const defaultSettings: Required<Settings> = {
@@ -255,7 +333,8 @@ export const defaultSettings: Required<Settings> = {
   columnHeaderHeight: 20,
   defaultColWidth: 73,
   defaultRowHeight: 19,
-  defaultFontSize: 10,
+  defaultFontSize: DEFAULT_FONT_SIZE,
+  defaultFontFamily: DEFAULT_FONT_FAMILY,
   // Excel's Home tab order, grouped like its ribbon groups; items that do
   // not fit move to the "More" menu from the end.
   toolbarItems: [
@@ -304,6 +383,7 @@ export const defaultSettings: Required<Settings> = {
     "|",
     // View / Insert
     "freeze",
+    "theme", // View › Light / Dark / System theme
     "image",
     "picture-in-cell", // Place picture in cell (pictures in cells)
     "chart",
@@ -402,9 +482,11 @@ export const defaultSettings: Required<Settings> = {
     "hide-column",
   ], // header菜单
   sheetTabContextMenu: [
+    "insert",
     "delete",
-    "copy",
     "rename",
+    "copy",
+    "protect",
     "color",
     "hide",
     "|",
@@ -424,12 +506,22 @@ export const defaultSettings: Required<Settings> = {
   generateSheetId: () => uuidv4(),
   hooks: {},
   customToolbarItems: [],
-  currency: "¥",
-  theme: "light", // "light" | "dark" | "auto"
+  // empty: the locale's currency symbol ($ for English, see
+  // defaultCurrencySymbol)
+  currency: "",
+  // "light" | "dark" | "auto". A `theme` prop controls it; without one the
+  // workbook starts from `defaultTheme` and the toolbar switch changes it.
+  theme: "light",
+  defaultTheme: "light",
   currentUser: null,
   users: [],
   searchUsers: null,
   showPageBreaksAfterPrint: true,
   calculation: {},
   errorChecking: {},
+  ribbon: null,
+  chrome: "suite",
+  onNewWorkbook: null,
+  onOpenFile: null,
+  onSaveAs: null,
 };

@@ -1,0 +1,303 @@
+/*
+ * The ribbon: tab row (File, segmented tabs, quick access) and command row
+ * (groups as Fika tool clusters with labels under them).
+ */
+
+.fortune-ribbon {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  color: var(--ts-text);
+  font-family: var(--ts-font);
+  font-size: var(--ts-font-size);
+  user-select: none;
+}
+
+/* ---------- Tab row ---------- */
+
+.fortune-ribbon-tabrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px 6px;
+}
+
+.fortune-ribbon-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 10px 0 14px;
+  border: 0;
+  border-radius: var(--ts-radius-cluster);
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+  font: inherit;
+  font-size: var(--ts-font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--ts-fast);
+}
+
+.fortune-ribbon-file:hover,
+.fortune-ribbon-file.ts-open {
+  background: var(--ts-ink-hover);
+}
+
+.fortune-ribbon-file:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.fortune-ribbon-file > svg {
+  opacity: 0.7;
+}
+
+.fortune-ribbon-tabs {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.fortune-ribbon-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.fortune-ribbon-tabrow-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.fortune-ribbon-quick {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 1px 3px;
+  box-sizing: border-box;
+  border-radius: var(--ts-radius-cluster);
+  background: var(--ts-surface);
+}
+
+.fortune-ribbon-toggle {
+  color: var(--ts-muted);
+}
+
+/* ---------- Command row ---------- */
+
+.fortune-ribbon-commands {
+  position: relative;
+  min-width: 0;
+  padding: 0 8px 6px;
+  /* clip sideways only: legacy drop-downs hang below the row */
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+/* collapsed ribbon: a tab click shows the commands over the grid */
+.fortune-ribbon--peek .fortune-ribbon-commands {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: -1px;
+  right: -1px;
+  z-index: 1002;
+  padding-top: 8px;
+  background: var(--ts-pane);
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius-pane);
+  box-shadow: var(--ts-shadow);
+  overflow: visible;
+  animation: ts-pop-in 180ms var(--ts-ease);
+}
+
+.fortune-ribbon-groups {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  width: max-content;
+  /* the legacy .fortune-toolbar look is replaced here */
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.fortune-ribbon-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.fortune-ribbon-cluster {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  height: 72px;
+  padding: 3px;
+  box-sizing: border-box;
+  border-radius: var(--ts-radius-cluster);
+  background: var(--ts-surface);
+}
+
+.fortune-ribbon-group-label {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-xs);
+  line-height: 14px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.fortune-ribbon-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.fortune-ribbon-column + .fortune-ribbon-column {
+  padding-left: 2px;
+  margin-left: 2px;
+  box-shadow: -1px 0 0 0 var(--ts-active);
+}
+
+.fortune-ribbon-column--large + .fortune-ribbon-column,
+.fortune-ribbon-column + .fortune-ribbon-column--large {
+  box-shadow: none;
+  padding-left: 0;
+  margin-left: 0;
+}
+
+.fortune-ribbon-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+}
+
+.fortune-ribbon-item {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.fortune-ribbon-column--large .fortune-ribbon-item {
+  height: 100%;
+}
+
+/* a large button fills the column (its tooltip anchor too), so icons and
+   captions line up whether or not the button has a drop-down */
+.fortune-ribbon-column--large
+  .fortune-ribbon-item
+  > .ts-tooltip-anchor:has(> .ts-large),
+.fortune-ribbon-column--large
+  .fortune-ribbon-item
+  > .fortune-ribbon-contents
+  > .ts-tooltip-anchor:has(> .ts-large) {
+  align-self: stretch;
+}
+
+/* collapsed group: one button that opens the whole group */
+.fortune-ribbon-group-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 52px;
+  height: 100%;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--ts-radius);
+  background: transparent;
+  color: var(--ts-text);
+  cursor: pointer;
+  transition:
+    background-color var(--ts-fast),
+    color var(--ts-fast);
+}
+
+.fortune-ribbon-group-button > svg:last-child {
+  opacity: 0.7;
+}
+
+.fortune-ribbon-group-button:hover {
+  background: var(--ts-active);
+  color: var(--ts-text-strong);
+}
+
+.fortune-ribbon-group-button.ts-open {
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+}
+
+.fortune-ribbon-group-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.fortune-ribbon-group-popover.ts-popover {
+  overflow: visible;
+  padding: 8px 8px 6px;
+}
+
+/* ---------- Legacy toolbar items inside the ribbon ---------- */
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover) .fortune-toolbar-button {
+  min-width: var(--ts-control);
+  height: var(--ts-control);
+  margin: 0;
+  padding: 0;
+  border-radius: var(--ts-radius);
+  color: var(--ts-text);
+}
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover) .fortune-toolbar-button {
+  width: var(--ts-control);
+}
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover)
+  .fortune-toolbar-button:hover:not([aria-disabled="true"]) {
+  background-color: var(--ts-active);
+  color: var(--ts-text-strong);
+}
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover)
+  .fortune-toolbar-button.fortune-toolbar-button-active,
+:is(.fortune-ribbon, .fortune-ribbon-group-popover)
+  .fortune-toolbar-button[aria-pressed="true"] {
+  background-color: var(--ts-ink);
+  color: var(--ts-on-ink);
+}
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover)
+  .fortune-toolbar-button.fortune-toolbar-button-active
+  svg,
+:is(.fortune-ribbon, .fortune-ribbon-group-popover)
+  .fortune-toolbar-button[aria-pressed="true"]
+  svg {
+  color: var(--ts-on-ink);
+}
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover)
+  .fortune-toolbar-button
+  svg {
+  color: inherit;
+}
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover) .fortune-toolbar-divider {
+  height: 20px;
+  margin: 0 4px;
+}
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover) .fortune-tooltip {
+  top: calc(var(--ts-control) + 6px);
+}

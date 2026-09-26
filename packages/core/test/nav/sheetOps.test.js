@@ -6,7 +6,9 @@ import {
   getGroupedSheetIds,
   hideSheets,
   mirrorGroupedSheetEdits,
+  deleteSheet,
   moveSheet,
+  moveSheets,
   onSheetTabActivated,
   renameSheet,
   rewriteSheetReferences,
@@ -180,6 +182,45 @@ describe("duplicate / move", () => {
     expect(names(ctx)).toEqual(["Sheet1", "My Sheet", "Data"]);
     moveSheet(ctx, "id_1", "id_3");
     expect(names(ctx)).toEqual(["My Sheet", "Sheet1", "Data"]);
+  });
+
+  test("grouped sheets move together, keeping their order", () => {
+    const ctx = threeSheets();
+    ctx.luckysheetfile.push({ name: "Last", id: "id_4", order: 3, data: [] });
+    moveSheets(ctx, ["id_3", "id_1"], null);
+    expect(names(ctx)).toEqual(["My Sheet", "Last", "Sheet1", "Data"]);
+    // before a sheet that is itself moving: before the next one that stays
+    moveSheets(ctx, ["id_1", "id_3"], "id_1");
+    expect(names(ctx)).toEqual(["My Sheet", "Last", "Sheet1", "Data"]);
+    moveSheets(ctx, ["id_2", "id_4"], "id_3");
+    expect(names(ctx)).toEqual(["Sheet1", "My Sheet", "Last", "Data"]);
+    expect(
+      [...ctx.luckysheetfile]
+        .sort((a, b) => a.order - b.order)
+        .map((s) => s.order)
+    ).toEqual([0, 1, 2, 3]);
+  });
+});
+
+describe("delete", () => {
+  test("deleting the active sheet shows its right neighbour, else the left", () => {
+    const ctx = threeSheets();
+    ctx.luckysheetfile[2].zoomRatio = 1.5;
+    ctx.currentSheetId = "id_2";
+    deleteSheet(ctx, "id_2");
+    expect(ctx.currentSheetId).toBe("id_3");
+    expect(ctx.zoomRatio).toBe(1.5);
+    deleteSheet(ctx, "id_3");
+    expect(ctx.currentSheetId).toBe("id_1");
+    expect(names(ctx)).toEqual(["Sheet1"]);
+  });
+
+  test("hidden neighbours are skipped", () => {
+    const ctx = threeSheets();
+    ctx.luckysheetfile[2].hide = 1;
+    ctx.currentSheetId = "id_2";
+    deleteSheet(ctx, "id_2");
+    expect(ctx.currentSheetId).toBe("id_1");
   });
 });
 

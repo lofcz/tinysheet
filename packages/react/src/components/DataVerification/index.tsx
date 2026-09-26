@@ -11,7 +11,8 @@ import {
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import SVGIcon from "../SVGIcon";
+import { SquareDashedMousePointer } from "lucide-react";
+import { Button, DialogShell, ICON_STROKE, Tabs } from "../ui";
 import "./index.css";
 import "./dataTools.css";
 import DtCheck from "./DtCheck";
@@ -178,7 +179,7 @@ const DataVerification: React.FC<{ keepState?: boolean }> = ({ keepState }) => {
         title={dvLocale.selectCellRange}
         onClick={() => pickRange(field)}
       >
-        <SVGIcon name="tab" width={16} height={16} />
+        <SquareDashedMousePointer size={16} strokeWidth={ICON_STROKE} />
       </div>
     </div>
   );
@@ -488,65 +489,54 @@ const DataVerification: React.FC<{ keepState?: boolean }> = ({ keepState }) => {
   );
 
   return (
-    <div id="fortune-data-verification" className="fortune-dt-dialog">
-      <div className="fortune-dt-title">{t.title}</div>
-      <div className="fortune-dt-tabs" role="tablist">
-        {(
-          [
-            ["settings", t.settings],
-            ["input", t.inputMessage],
-            ["error", t.errorAlert],
-          ] as const
-        ).map(([key, label]) => (
-          <div
-            key={key}
-            role="tab"
-            tabIndex={0}
-            aria-selected={tab === key}
-            className={`fortune-dt-tab${tab === key ? " active" : ""}`}
-            onClick={() => setTab(key)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") setTab(key);
-            }}
-          >
-            {label}
-          </div>
-        ))}
-      </div>
-      <div style={{ minHeight: 260 }}>
-        {tab === "settings" && settings}
-        {tab === "input" && inputMessage}
-        {tab === "error" && errorAlert}
-      </div>
-      {!_.isEmpty(error) && <div className="fortune-dt-error">{error}</div>}
-      <div className="fortune-dt-buttons">
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onClick={onClearAll}
-        >
+    <DialogShell
+      title={t.title}
+      className="fortune-dt-dialog fortune-dv-dialog"
+      onClose={onCancel}
+      onConfirm={onOk}
+      footerStart={
+        <Button variant="ghost" onClick={onClearAll}>
           {t.clearAll}
-        </div>
-        <div className="fortune-dt-spacer" />
+        </Button>
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel}>
+            {t.cancel}
+          </Button>
+          <Button variant="primary" onClick={onOk}>
+            {t.ok}
+          </Button>
+        </>
+      }
+    >
+      <div id="fortune-data-verification">
+        <Tabs
+          fill
+          idPrefix="fortune-dv"
+          className="fortune-dt-tabs"
+          aria-label={t.title}
+          tabs={[
+            { id: "settings", label: t.settings },
+            { id: "input", label: t.inputMessage },
+            { id: "error", label: t.errorAlert },
+          ]}
+          value={tab}
+          onChange={(id) => setTab(id as typeof tab)}
+        />
         <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onClick={onOk}
+          className="fortune-dt-panel"
+          role="tabpanel"
+          id={`fortune-dv-panel-${tab}`}
+          aria-labelledby={`fortune-dv-tab-${tab}`}
         >
-          {t.ok}
+          {tab === "settings" && settings}
+          {tab === "input" && inputMessage}
+          {tab === "error" && errorAlert}
         </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onClick={onCancel}
-        >
-          {t.cancel}
-        </div>
+        {!_.isEmpty(error) && <div className="fortune-dt-error">{error}</div>}
       </div>
-    </div>
+    </DialogShell>
   );
 };
 

@@ -1,5 +1,7 @@
 import _ from "lodash";
 import { Context } from "../context";
+import { Freezen } from "../types";
+import { frozenScrollMin } from "./freeze";
 
 export function mousePosition(x: number, y: number, ctx: Context) {
   const newX = x - ctx.rowHeaderWidth;
@@ -63,4 +65,119 @@ export function colLocation(x: number, visibleCol: number[]) {
   }
 
   return colLocationByIndex(col_index, visibleCol);
+}
+
+/**
+ * The row (column) whose bottom (right) border is within `slop` px of
+ * `pos` (sheet px, along `edges` = visibledatarow / visibledatacolumn),
+ * on either side of it: what a header border drag resizes. -1 when no
+ * border is that close. Hidden rows/columns are never picked.
+ */
+export function borderIndexAt(edges: number[], pos: number, slop = 4) {
+  if (edges.length === 0) return -1;
+  // the first row/column ending at an edge (skipping hidden ones after it)
+  const first = (edge: number) => _.sortedIndex(edges, edge);
+  // Excel: just past an edge with hidden rows/columns before it (the double
+  // line) the border is the last hidden one's, and dragging unhides it
+  const lastHidden = (edge: number) => {
+    const last = _.sortedLastIndex(edges, edge) - 1;
+    const start = edge === 0 ? -1 : first(edge);
+    return last > start ? last : -1;
+  };
+  const i = Math.min(_.sortedIndex(edges, pos), edges.length - 1);
+  let best = -1;
+  let bestDist = slop + 1;
+  [i, i - 1].forEach((k) => {
+    if (k < 0) return;
+    const edge = edges[k];
+    const dist = Math.abs(edge - pos);
+    if (dist >= bestDist) return;
+    const hidden = pos > edge ? lastHidden(edge) : -1;
+    if (hidden >= 0) {
+      bestDist = dist;
+      best = hidden;
+    } else if (edge > 0) {
+      bestDist = dist;
+      best = first(edge);
+    }
+  });
+  return best;
+}
+
+/**
+ * Whether row/column `index` is hidden (no size): its border is the double
+ * line Excel unhides it from.
+ */
+export function isHiddenAt(edges: number[], index: number) {
+  if (index < 0 || index >= edges.length) return false;
+  return edges[index] === (index > 0 ? edges[index - 1] : 0);
+}
+
+/** The visible cell area (headers excluded) that `container` is or holds. */
+export function getCellAreaElement(container: HTMLElement): HTMLElement {
+  if (container.classList.contains("fortune-cell-area")) return container;
+  return (
+    container.querySelector<HTMLElement>(".fortune-cell-area") ?? container
+  );
+}
+
+/**
+ * Where a pointer is on the grid. `mouseX`/`mouseY` are relative to the
+ * visible cell area (headers excluded); `x`/`y` are sheet coordinates (the
+ * scroll and frozen panes applied), like the edges in
+ * `ctx.visibledatarow`/`visibledatacolumn`.
+ *
+ * With `clamp` (a drag), a pointer past an edge of the cell area is taken
+ * to that edge, so it hits the first/last visible row or column rather
+ * than rows scrolled out of view. A drag anchored (`anchorRow`,
+ * `anchorCol`) in the scrolling pane does not reach into the frozen panes
+ * until the scrolling pane is scrolled back to its start.
+ */
+export function getGridPoint(
+  ctx: Context,
+  freeze: Freezen | undefined,
+  e: { clientX: number; clientY: number },
+  container: HTMLElement,
+  options: { clamp?: boolean; anchorRow?: number; anchorCol?: number } = {}
+) {
+  const rect = getCellAreaElement(container).getBoundingClientRect();
+  let mouseX = e.clientX - rect.left;
+  let mouseY = e.clientY - rect.top;
+  const hData = freeze?.horizontal?.freezenhorizontaldata;
+  const vData = freeze?.vertical?.freezenverticaldata;
+  // the part of the cell area the frozen rows / columns cover
+  const frozenH = hData ? hData[0] - hData[2] : 0;
+  const frozenW = vData ? vData[0] - vData[2] : 0;
+  if (options.clamp) {
+    const maxX = Math.max(0, (rect.width || ctx.cellmainWidth) - 1);
+    const maxY = Math.max(0, (rect.height || ctx.cellmainHeight) - 1);
+    mouseX = Math.min(Math.max(mouseX, 0), maxX);
+    mouseY = Math.min(Math.max(mouseY, 0), maxY);
+    const min = frozenScrollMin(ctx);
+    if (
+      hData &&
+      mouseY < frozenH &&
+      options.anchorRow != null &&
+      options.anchorRow >= hData[1] &&
+      ctx.scrollTop > min.top
+    ) {
+      mouseY = frozenH;
+    }
+    if (
+      vData &&
+      mouseX < frozenW &&
+      options.anchorCol != null &&
+      options.anchorCol >= vData[1] &&
+      ctx.scrollLeft > min.left
+    ) {
+      mouseX = frozenW;
+    }
+  }
+  let x = mouseX + ctx.scrollLeft;
+  let y = mouseY + ctx.scrollTop;
+  const inVerticalFreeze = !!vData && mouseX < frozenW;
+  const inHorizontalFreeze = !!hData && mouseY < frozenH;
+  if (inVerticalFreeze) x = mouseX + vData![2];
+  if (inHorizontalFreeze) y = mouseY + hData![2];
+  return { mouseX, mouseY, x, y, inHorizontalFreeze, inVerticalFreeze };
 }

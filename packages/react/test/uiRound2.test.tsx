@@ -107,12 +107,11 @@ describe("cell context menu", () => {
     const menu = openMenu(container);
     expect(menu).toBeTruthy();
     const labels = Array.from(
-      menu.querySelectorAll(":scope > [role=menuitem] .fortune-menuitem-label")
+      menu.querySelectorAll(":scope > [role=menuitem] .ts-menu-label")
     ).map((el) => el.textContent);
     expect(labels).toEqual([
       "Cut",
       "Copy",
-      "Paste",
       "Paste Special…",
       "Insert…",
       "Delete…",

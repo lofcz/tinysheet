@@ -11,7 +11,9 @@ import {
   fixColumnStyleOverflowInFreeze,
   handleColFreezeHandleMouseDown,
   getSheetIndex,
-  fixPositionOnFrozenCells,
+  getGridPoint,
+  borderIndexAt,
+  isHiddenAt,
   autofitColumns,
   getAutofitTargets,
 } from "@lofcz/tinysheet-core";
@@ -27,6 +29,10 @@ import React, {
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 
+/** The resize handle: 8px, centred on the border (see borderIndexAt). */
+const HANDLE_SIZE = 8;
+const COL_HANDLE_OFFSET = 5;
+
 const ColumnHeader: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,7 +42,9 @@ const ColumnHeader: React.FC = () => {
     col_pre: -1,
     col_index: -1,
   });
-  const [hoverInFreeze, setHoverInFreeze] = useState(false);
+  // the column border under the pointer (either side of it): what the
+  // resize handle drags
+  const [border, setBorder] = useState({ index: -1, inFreeze: false });
   const [selectedLocation, setSelectedLocation] = useState<
     { col: number; col_pre: number; c1: number; c2: number }[]
   >([]);
@@ -67,24 +75,21 @@ const ColumnHeader: React.FC = () => {
       if (context.luckysheet_cols_change_size) {
         return;
       }
-      const mouseX =
-        e.pageX -
-        containerRef.current!.getBoundingClientRect().left -
-        window.scrollX;
-      const _x = mouseX + containerRef.current!.scrollLeft;
-      const freeze = refs.globalCache.freezen?.[context.currentSheetId];
-      const { x, inVerticalFreeze } = fixPositionOnFrozenCells(
-        freeze,
-        _x,
-        0,
-        mouseX,
-        0
+      // columns are where the cells are (the header is 1px off them)
+      const { x, inVerticalFreeze } = getGridPoint(
+        context,
+        refs.globalCache.freezen?.[context.currentSheetId],
+        e,
+        refs.cellArea.current!
       );
       const col_location = colLocation(x, context.visibledatacolumn);
       const [col_pre, col, col_index] = col_location;
       if (col_index !== hoverLocation.col_index) {
         setHoverLocation({ col_pre, col, col_index });
-        setHoverInFreeze(inVerticalFreeze);
+      }
+      const index = borderIndexAt(context.visibledatacolumn, x);
+      if (index !== border.index || inVerticalFreeze !== border.inFreeze) {
+        setBorder({ index, inFreeze: inVerticalFreeze });
       }
       const flowdata = getFlowdata(context);
       if (!_.isNil(flowdata))
@@ -97,7 +102,13 @@ const ColumnHeader: React.FC = () => {
             },
           ]);
     },
-    [context, hoverLocation.col_index, refs.globalCache.freezen]
+    [
+      context,
+      hoverLocation.col_index,
+      border,
+      refs.globalCache.freezen,
+      refs.cellArea,
+    ]
   );
 
   const onMouseDown = useCallback(
@@ -108,13 +119,14 @@ const ColumnHeader: React.FC = () => {
           draftCtx,
           refs.globalCache,
           nativeEvent,
-          containerRef.current!,
+          // hit-tested against the cells' columns
+          refs.cellArea.current!,
           refs.cellInput.current!,
           refs.fxInput.current!
         );
       });
     },
-    [refs.globalCache, refs.cellInput, refs.fxInput, setContext]
+    [refs.globalCache, refs.cellArea, refs.cellInput, refs.fxInput, setContext]
   );
 
   const onMouseLeave = useCallback(() => {
@@ -122,11 +134,13 @@ const ColumnHeader: React.FC = () => {
       return;
     }
     setHoverLocation({ col: -1, col_pre: -1, col_index: -1 });
+    setBorder({ index: -1, inFreeze: false });
   }, [context.luckysheet_cols_change_size]);
 
   const onColSizeHandleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       const { nativeEvent } = e;
+      const { index } = border;
       setContext((draftCtx) => {
         handleColSizeHandleMouseDown(
           draftCtx,
@@ -134,12 +148,19 @@ const ColumnHeader: React.FC = () => {
           nativeEvent,
           containerRef.current!,
           refs.workbookContainer.current!,
-          refs.cellArea.current!
+          refs.cellArea.current!,
+          index
         );
       });
       e.stopPropagation();
     },
-    [refs.cellArea, refs.globalCache, refs.workbookContainer, setContext]
+    [
+      border,
+      refs.cellArea,
+      refs.globalCache,
+      refs.workbookContainer,
+      setContext,
+    ]
   );
 
   // double-click a column border: autofit (every selected column when the
@@ -147,14 +168,22 @@ const ColumnHeader: React.FC = () => {
   const onColumnSizeHandleDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       e.stopPropagation();
-      const index = hoverLocation.col_index;
+      const { index } = border;
       if (index < 0) return;
       setContext((draftCtx) => {
         if (!isAllowEdit(draftCtx)) return;
+        // on the double line of a hidden column: unhide it and fit it
+        if (isHiddenAt(draftCtx.visibledatacolumn, index)) {
+          delete draftCtx.config.colhidden?.[index];
+          const i = getSheetIndex(draftCtx, draftCtx.currentSheetId);
+          if (i != null) draftCtx.luckysheetfile[i].config = draftCtx.config;
+          autofitColumns(draftCtx, [index]);
+          return;
+        }
         autofitColumns(draftCtx, getAutofitTargets(draftCtx, "column", index));
       });
     },
-    [hoverLocation.col_index, setContext]
+    [border, setContext]
   );
 
   const onColFreezeHandleMouseDown = useCallback(
@@ -226,7 +255,7 @@ const ColumnHeader: React.FC = () => {
       ref={containerRef}
       className="fortune-col-header"
       style={{
-        height: context.columnHeaderHeight - 1.5,
+        height: context.columnHeaderHeight - 1,
       }}
       onMouseMove={onMouseMove}
       onMouseDown={onMouseDown}
@@ -247,9 +276,22 @@ const ColumnHeader: React.FC = () => {
         onMouseDown={onColSizeHandleMouseDown}
         onDoubleClick={onColumnSizeHandleDoubleClick}
         style={{
+          // straddles the border, 4px each side like the hover test (the
+          // header starts 1px right of the cells)
           left:
-            hoverLocation.col - 5 + (hoverInFreeze ? context.scrollLeft : 0),
+            (context.visibledatacolumn[border.index] ?? 0) -
+            COL_HANDLE_OFFSET +
+            (border.inFreeze ? context.scrollLeft : 0),
+          width: HANDLE_SIZE,
+          display:
+            border.index >= 0 || context.luckysheet_cols_change_size
+              ? "block"
+              : "none",
           opacity: context.luckysheet_cols_change_size ? 1 : 0,
+          // the double line of a hidden column (Excel's split cursor)
+          cursor: isHiddenAt(context.visibledatacolumn, border.index)
+            ? "col-resize"
+            : undefined,
         }}
       />
       {!context.luckysheet_cols_change_size && hoverLocation.col_index >= 0 ? (
@@ -297,7 +339,6 @@ const ColumnHeader: React.FC = () => {
               left: col_pre,
               width: col - col_pre - 1,
               display: "block",
-              backgroundColor: "rgba(76, 76, 76, 0.1)",
             },
             fixColumnStyleOverflowInFreeze(
               context,

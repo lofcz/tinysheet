@@ -79,3 +79,22 @@ const scenario = typeof window !== "undefined" ? window.__e2eScenario : null;
 Scenario.args = scenario
   ? { data: scenario.data, theme: scenario.theme ?? "light" }
   : {};
+
+declare global {
+  interface Window {
+    /** File menu actions the FileActions story received. */
+    __fileActions?: string[];
+  }
+}
+
+const recordFileAction = (action: string) => {
+  window.__fileActions = [...(window.__fileActions ?? []), action];
+};
+
+/** A workbook whose host handles File › New, Open… and Save As. */
+export const FileActions = Template.bind({});
+FileActions.args = {
+  onNewWorkbook: () => recordFileAction("new"),
+  onOpenFile: (file: File) => recordFileAction(`open:${file.name}`),
+  onSaveAs: (format: "xlsx" | "csv") => recordFileAction(`save:${format}`),
+};

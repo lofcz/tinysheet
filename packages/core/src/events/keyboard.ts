@@ -45,7 +45,7 @@ import {
   setEditMode,
   toggleEditMode,
 } from "../modules/editMode";
-import { closeFormulaParens } from "../modules/formulaEditor";
+import { finishFormulaEdit } from "../modules/formulaEditor";
 import { clearGroupedSheetsContents } from "../modules/sheet";
 import { checkProtection } from "../modules/protection";
 
@@ -247,7 +247,7 @@ export function commitEditAndMove(
   if (ctx.luckysheetCellUpdate.length < 2) return;
   const cell = _.clone(ctx.luckysheetCellUpdate) as [number, number];
   const prevSelection = _.cloneDeep(ctx.luckysheet_select_save);
-  closeFormulaParens(editor);
+  finishFormulaEdit(ctx, editor);
   updateCell(ctx, cell[0], cell[1], editor, undefined, canvas);
   clearEditMode(ctx);
   if (
@@ -301,7 +301,7 @@ export function handleGlobalEnter(
         number,
       ];
       const prevSelection = _.cloneDeep(ctx.luckysheet_select_save);
-      closeFormulaParens(cellInput);
+      finishFormulaEdit(ctx, cellInput);
       commitToSelection(ctx, cellInput, lastCellUpdate, prevSelection, canvas);
       clearEditMode(ctx);
       e.preventDefault();
@@ -788,13 +788,17 @@ function eventMemo(e: Event) {
 }
 
 /**
- * The editor as it was when `e` was first handled (missing closing
- * parentheses added), in the shape `updateCell` reads.
+ * The editor as it was when `e` was first handled (a formula finished like
+ * Excel commits it, see finishFormulaEdit), in the shape `updateCell` reads.
  */
-function editorSnapshot(e: Event, editor: HTMLDivElement): HTMLDivElement {
+function editorSnapshot(
+  ctx: Context,
+  e: Event,
+  editor: HTMLDivElement
+): HTMLDivElement {
   const memo = eventMemo(e);
   if (!memo.editor) {
-    closeFormulaParens(editor);
+    finishFormulaEdit(ctx, editor);
     const clone = editor.cloneNode(true) as HTMLDivElement;
     memo.editor = {
       innerText: editor.innerText,
@@ -859,7 +863,13 @@ export function handleEditingKeyDown(
         e.stopPropagation();
       }
     } else if (memo.action === "commit" && allowEdit) {
-      commitEditAndMove(ctx, editorSnapshot(e, editor), arrow, "arrow", canvas);
+      commitEditAndMove(
+        ctx,
+        editorSnapshot(ctx, e, editor),
+        arrow,
+        "arrow",
+        canvas
+      );
       e.preventDefault();
       e.stopPropagation();
     }
@@ -879,7 +889,7 @@ export function handleEditingKeyDown(
 
   if (key === "Enter") {
     if (!allowEdit) return;
-    handleGlobalEnter(ctx, editorSnapshot(e, editor), e, canvas);
+    handleGlobalEnter(ctx, editorSnapshot(ctx, e, editor), e, canvas);
     e.stopPropagation();
     // after committing from the formula bar the grid takes the keys again
     if (fromFx && ctx.luckysheetCellUpdate.length === 0) cellInput.focus();
@@ -887,7 +897,7 @@ export function handleEditingKeyDown(
     if (!allowEdit) return;
     commitEditAndMove(
       ctx,
-      editorSnapshot(e, editor),
+      editorSnapshot(ctx, e, editor),
       e.shiftKey ? "left" : "right",
       "enter",
       canvas
@@ -1144,6 +1154,9 @@ export function handleGlobalKeyDown(
     ) {
       if (!allowEdit) {
         checkProtection(ctx, "editCells");
+        // the refused key must not stay in the (hidden) cell editor, where
+        // the next edit would pick it up
+        if (!e.ctrlKey && !e.metaKey) e.preventDefault();
         return;
       }
       if (

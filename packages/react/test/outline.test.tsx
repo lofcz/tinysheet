@@ -4,13 +4,13 @@ import produce from "immer";
 import { defaultContext, Context } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../src/context";
 import { ModalProvider } from "../src/context/modal";
-import { getToolbarItemRenderer, getSheetOverlays } from "../src/extensions";
+import { getSheetOverlays } from "../src/extensions";
 import {
   OutlineGutter,
   OutlinePrompt,
-  OutlineToolbarItem,
   SubtotalDialog,
 } from "../src/components/Outline";
+import { GroupCommand } from "../src/components/Ribbon/commands/data";
 import {
   dedupeOutlineSteps,
   outlineStep,
@@ -85,8 +85,7 @@ const Harness: React.FC<{
 };
 
 describe("outline UI", () => {
-  it("registers the toolbar item and the prompt overlay", () => {
-    expect(getToolbarItemRenderer("outline")).toBeTruthy();
+  it("registers the prompt overlay", () => {
     expect(getSheetOverlays().some((o) => o.key === "outlinePrompt")).toBe(
       true
     );
@@ -172,7 +171,7 @@ describe("outline UI", () => {
     ).toBeTruthy();
   });
 
-  it("toolbar Group asks rows or columns for a plain range", () => {
+  it("the ribbon's Group asks rows or columns for a plain range", () => {
     const initial = makeContext({
       luckysheet_select_save: [
         { row: [1, 2], column: [0, 1], row_focus: 1, column_focus: 0 },
@@ -180,13 +179,12 @@ describe("outline UI", () => {
     });
     const { container, getByText, getByLabelText } = render(
       <Harness initial={initial}>
-        <OutlineToolbarItem />
+        <GroupCommand id="outline" size="large" />
       </Harness>
     );
     fireEvent.click(
-      container.querySelector(".fortune-toolbar-combo-button") as Element
+      container.querySelector('button[aria-label="Group"]') as Element
     );
-    fireEvent.click(getByText("Group"));
     fireEvent.click(getByLabelText("Columns"));
     fireEvent.click(getByText("OK"));
     expect(current.config.colOutlineLevel).toEqual({ 0: 1, 1: 1 });

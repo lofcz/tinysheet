@@ -79,8 +79,8 @@ describe("chart UI, round 2", () => {
     fireEvent.contextMenu(box, { clientX: 20, clientY: 30 });
     const menu = container.querySelector(".fortune-chart-menu") as HTMLElement;
     expect(menu).toBeTruthy();
-    const keys = Array.from(menu.querySelectorAll("[data-chart-menu]")).map(
-      (el) => el.getAttribute("data-chart-menu")
+    const keys = Array.from(menu.querySelectorAll("[data-key]")).map((el) =>
+      el.getAttribute("data-key")
     );
     expect(keys).toEqual([
       "cut",
@@ -91,7 +91,7 @@ describe("chart UI, round 2", () => {
       "edit",
       "delete",
     ]);
-    fireEvent.click(menu.querySelector('[data-chart-menu="edit"]')!);
+    fireEvent.click(menu.querySelector('[data-key="edit"]')!);
     expect(container.querySelector(".fortune-chart-menu")).toBeNull();
     expect(container.querySelector(".fortune-chart-editor")).toBeTruthy();
   });

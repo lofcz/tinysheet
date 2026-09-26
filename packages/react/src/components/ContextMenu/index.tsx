@@ -32,13 +32,14 @@ import {
   getSheetProtection,
   isProtectionActionAllowed,
   SheetProtectionAction,
+  handlePasteSpecial,
+  PasteSpecialOptions,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import React, {
   useContext,
   useRef,
   useCallback,
-  useLayoutEffect,
   useEffect,
   useMemo,
   useState,
@@ -48,11 +49,12 @@ import WorkbookContext, { SetContextOptions } from "../../context";
 import { ModalContext } from "../../context/modal";
 import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
-import Divider from "./Divider";
 import "./index.css";
 import "./cellMenu.css";
-import Menu from "./Menu";
-import MenuIcon from "./icons";
+import { menuIcon } from "./icons";
+import { ContextMenuPopup, Icon, MenuItem } from "../ui";
+import { menuText } from "./text";
+import PasteOptions, { PasteOption } from "./PasteOptions";
 import CustomSort from "../CustomSort";
 import DataVerification from "../DataVerification";
 import {
@@ -117,15 +119,6 @@ function tidyDividers(entries: MenuEntry[]) {
   return out;
 }
 
-function menuItemsOf(container: HTMLElement | null) {
-  if (!container) return [];
-  return Array.from(
-    container.querySelectorAll<HTMLElement>(
-      ":scope > .luckysheet-cols-menuitem"
-    )
-  ).filter((el) => el.getAttribute("aria-disabled") !== "true");
-}
-
 /** Every index spanned by the whole-row / whole-column parts of a selection. */
 function spannedIndexes(sel: Range[] | undefined, type: "row" | "column") {
   const out: number[] = [];
@@ -169,19 +162,12 @@ function activeCellAnchor(
 const ContextMenu: React.FC = () => {
   const { showDialog, hideDialog } = useDialog();
   const { showModal } = useContext(ModalContext);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const submenuRef = useRef<HTMLDivElement>(null);
   const workbookCtx = useContext(WorkbookContext);
   const { context, setContext, settings, refs } = workbookCtx;
   const { contextMenu } = context;
   const { showAlert } = useAlert();
   const { rightclick, drag, generalDialog, cellMenu } = locale(context);
-  const [submenu, setSubmenu] = useState<{
-    key: string;
-    left: number;
-    top: number;
-    focus: boolean;
-  } | null>(null);
+  const text = menuText(context);
   const [pickList, setPickList] = useState<PickListState | null>(null);
   const runInsertDelete = useInsertDeleteRunner();
   const open = !_.isEmpty(contextMenu);
@@ -208,10 +194,6 @@ const ContextMenu: React.FC = () => {
     });
     focusSheet();
   }, [focusSheet, setContext]);
-
-  useEffect(() => {
-    if (!open) setSubmenu(null);
-  }, [open]);
 
   const sel = context.luckysheet_select_save;
   const last = sel?.[sel.length - 1];
@@ -335,9 +317,22 @@ const ContextMenu: React.FC = () => {
       type: "node",
       key: `add-${type}-${dir}`,
       node: (
-        <Menu
+        <div
           key={`add-${type}-${dir}`}
-          onClick={(e, container) => {
+          className="ts-menu-item fortune-menu-count-item"
+          role="menuitem"
+          tabIndex={-1}
+          data-key={`add-${type}-${dir}`}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              e.currentTarget.click();
+            }
+          }}
+          onClick={(e) => {
+            const container = e.currentTarget;
             const position = type === "row" ? last.row[0] : last.column[0];
             const countStr = container.querySelector("input")?.value;
             if (countStr == null) return;
@@ -378,7 +373,10 @@ const ContextMenu: React.FC = () => {
             );
           }}
         >
-          <>
+          <span className="ts-menu-icon">
+            <Icon icon={menuIcon("insert")} />
+          </span>
+          <span className="ts-menu-label">
             {_.startsWith(context.lang ?? "", "zh") && (
               <>
                 {rightclick.to}
@@ -393,11 +391,12 @@ const ContextMenu: React.FC = () => {
               onKeyDown={(e) => e.stopPropagation()}
               tabIndex={0}
               type="text"
-              className="luckysheet-mousedown-cancel"
+              className="fortune-menu-count-input"
+              aria-label={rightclick.number}
               placeholder={rightclick.number}
               defaultValue="1"
             />
-            <span className="luckysheet-cols-rows-shift-word luckysheet-mousedown-cancel">
+            <span className="luckysheet-cols-rows-shift-word">
               {`${type === "row" ? rightclick.row : rightclick.column}  `}
             </span>
             {!_.startsWith(context.lang ?? "", "zh") && (
@@ -405,8 +404,8 @@ const ContextMenu: React.FC = () => {
                 {(rightclick as any)[dir]}
               </span>
             )}
-          </>
-        </Menu>
+          </span>
+        </div>
       ),
     }));
   };
@@ -441,35 +440,75 @@ const ContextMenu: React.FC = () => {
           disabled: multi,
           onSelect: () => run((draftCtx) => handleCopy(draftCtx)),
         });
-      case "paste":
+      case "paste": {
         if (!regeneratorRuntime) return [];
-        return item({
-          key: name,
-          label: cellMenu.paste,
-          icon: "paste",
-          shortcut: mod("V"),
-          disabled: !editable,
-          onSelect: async () => {
-            let clipboardText = "";
-            const sessionClipboardText =
-              sessionStorage.getItem("localClipboard") || "";
-            try {
-              clipboardText = await navigator.clipboard.readText();
-            } catch (err) {
-              console.warn(
-                "Clipboard access blocked. Attempting to use sessionStorage fallback."
-              );
-            }
-            const finalText = clipboardText || sessionClipboardText;
-            run((draftCtx) => handlePasteByClick(draftCtx, finalText));
+        const hasCopy = !!context.luckysheet_copy_save?.copyRange?.length;
+        const special = multi || !editable || !hasCopy;
+        const paste = async (option: PasteOption) => {
+          if (option !== "all") {
+            const options: PasteSpecialOptions =
+              option === "transpose"
+                ? { transpose: true }
+                : option === "link"
+                  ? { pasteLink: true }
+                  : { paste: option };
+            run((draftCtx) => {
+              handlePasteSpecial(draftCtx, options);
+            });
+            return;
+          }
+          let clipboardText = "";
+          const sessionClipboardText =
+            sessionStorage.getItem("localClipboard") || "";
+          try {
+            clipboardText = await navigator.clipboard.readText();
+          } catch (err) {
+            console.warn(
+              "Clipboard access blocked. Attempting to use sessionStorage fallback."
+            );
+          }
+          const finalText = clipboardText || sessionClipboardText;
+          run((draftCtx) => handlePasteByClick(draftCtx, finalText));
+        };
+        return [
+          {
+            type: "node",
+            key: name,
+            node: (
+              <PasteOptions
+                title={text.pasteOptions}
+                onPaste={paste}
+                options={[
+                  { id: "all", label: text.pasteAll, disabled: !editable },
+                  { id: "values", label: text.pasteValues, disabled: special },
+                  {
+                    id: "formulas",
+                    label: text.pasteFormulas,
+                    disabled: special,
+                  },
+                  {
+                    id: "transpose",
+                    label: text.pasteTranspose,
+                    disabled: special,
+                  },
+                  {
+                    id: "formats",
+                    label: text.pasteFormatting,
+                    disabled: special,
+                  },
+                  { id: "link", label: text.pasteLink, disabled: special },
+                ]}
+              />
+            ),
           },
-        });
+        ];
+      }
       case "paste-special":
         if (!getContextMenuAction("pasteSpecial")) return [];
         return item({
           key: name,
           label: cellMenu.pasteSpecial,
-          icon: "paste",
+          icon: "paste-special",
           shortcut: isMac ? "⌃⌘V" : "Ctrl+Alt+V",
           // pastes the last copy of the workbook
           disabled:
@@ -570,7 +609,7 @@ const ContextMenu: React.FC = () => {
           type: "item",
           key: "filter-toggle",
           label: hasFilter ? cellMenu.clearFilter : cellMenu.addFilter,
-          icon: "filter",
+          icon: hasFilter ? "filter-clear" : "filter",
           disabled: multi || !editable,
           onSelect: () => run((draftCtx) => createFilter(draftCtx)),
         };
@@ -590,7 +629,7 @@ const ContextMenu: React.FC = () => {
           type: "item",
           key: asc ? "sort-az" : "sort-za",
           label: asc ? cellMenu.sortAZ : cellMenu.sortZA,
-          icon: "sort",
+          icon: asc ? "sort-az" : "sort-za",
           disabled: multi || !editable,
           onSelect: () => run((draftCtx) => sortSelection(draftCtx, asc)),
         });
@@ -907,139 +946,27 @@ const ContextMenu: React.FC = () => {
   const entries = open
     ? tidyDividers(_.flatMap(names, (name, i) => buildEntry(name, i)))
     : [];
-  const submenuParent = submenu
-    ? (entries.find((e) => e.type === "item" && e.key === submenu.key) as
-        | ItemEntry
-        | undefined)
-    : undefined;
-
-  const openSubmenu = (key: string, el: HTMLElement, focus: boolean) => {
-    const wb = refs.workbookContainer.current?.getBoundingClientRect();
-    const menu = containerRef.current?.getBoundingClientRect();
-    if (!wb || !menu) return;
-    const itemRect = el.getBoundingClientRect();
-    setSubmenu({
-      key,
-      left: menu.right - wb.left - 2,
-      top: itemRect.top - wb.top - 5,
-      focus,
+  // entries -> MenuList items (lucide icons, data-key = entry key)
+  const toMenuItems = (list: MenuEntry[]): MenuItem[] =>
+    list.map((entry): MenuItem => {
+      if (entry.type === "divider") return { type: "separator", id: entry.key };
+      if (entry.type === "node") {
+        return { type: "custom", id: entry.key, render: () => entry.node };
+      }
+      return {
+        id: entry.key,
+        label: entry.label,
+        icon: menuIcon(entry.icon),
+        shortcut: entry.shortcut,
+        disabled: entry.disabled,
+        children: entry.children?.length
+          ? toMenuItems(entry.children)
+          : undefined,
+        // entries close the menu themselves (a dialog may take the focus)
+        onSelect: entry.onSelect ?? close,
+      };
     });
-  };
-
-  const onMenuKeyDown = (
-    e: React.KeyboardEvent<HTMLDivElement>,
-    level: 0 | 1
-  ) => {
-    const container = e.currentTarget;
-    const items = menuItemsOf(container);
-    const current = document.activeElement as HTMLElement | null;
-    const index = current ? items.indexOf(current) : -1;
-    const focusAt = (i: number) =>
-      items[(i + items.length) % items.length]?.focus();
-    switch (e.key) {
-      case "ArrowDown":
-        focusAt(index + 1);
-        break;
-      case "ArrowUp":
-        focusAt(index <= 0 ? items.length - 1 : index - 1);
-        break;
-      case "Home":
-        focusAt(0);
-        break;
-      case "End":
-        focusAt(items.length - 1);
-        break;
-      case "ArrowRight":
-        if (level === 0 && current?.getAttribute("aria-haspopup") === "menu") {
-          openSubmenu(current.dataset.key!, current, true);
-        }
-        break;
-      case "ArrowLeft":
-        if (level === 1) {
-          setSubmenu(null);
-          containerRef.current
-            ?.querySelector<HTMLElement>(`[data-key="${submenu?.key}"]`)
-            ?.focus();
-        }
-        break;
-      case "Escape":
-        if (level === 1) {
-          setSubmenu(null);
-          containerRef.current
-            ?.querySelector<HTMLElement>(`[data-key="${submenu?.key}"]`)
-            ?.focus();
-        } else {
-          close();
-        }
-        break;
-      case "Enter":
-      case " ":
-        if (current && items.includes(current)) current.click();
-        break;
-      case "Tab":
-        break;
-      default:
-        return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const renderEntries = (list: MenuEntry[], level: 0 | 1) =>
-    list.map((entry) => {
-      if (entry.type === "divider") return <Divider key={entry.key} />;
-      if (entry.type === "node") return entry.node;
-      const hasChildren = !!entry.children?.length;
-      const expanded = level === 0 && submenu?.key === entry.key;
-      return (
-        <div
-          key={entry.key}
-          data-key={entry.key}
-          role="menuitem"
-          tabIndex={entry.disabled ? -1 : 0}
-          aria-disabled={entry.disabled || undefined}
-          aria-haspopup={hasChildren ? "menu" : undefined}
-          aria-expanded={hasChildren ? expanded : undefined}
-          className={`luckysheet-cols-menuitem luckysheet-mousedown-cancel fortune-menuitem${
-            entry.disabled ? " fortune-menuitem-disabled" : ""
-          }${expanded ? " fortune-menuitem-expanded" : ""}`}
-          onMouseEnter={(e) => {
-            if (level !== 0) return;
-            if (hasChildren && !entry.disabled) {
-              openSubmenu(entry.key, e.currentTarget, false);
-            } else if (submenu) {
-              setSubmenu(null);
-            }
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (entry.disabled) return;
-            if (hasChildren) {
-              openSubmenu(entry.key, e.currentTarget, true);
-              return;
-            }
-            entry.onSelect?.();
-          }}
-        >
-          <div className="luckysheet-cols-menuitem-content luckysheet-mousedown-cancel fortune-menuitem-content">
-            <span className="fortune-menuitem-icon">
-              {entry.icon && <MenuIcon name={entry.icon} />}
-            </span>
-            <span className="fortune-menuitem-label">{entry.label}</span>
-            {entry.shortcut && (
-              <span className="fortune-menuitem-shortcut">
-                {entry.shortcut}
-              </span>
-            )}
-            {hasChildren && (
-              <span className="fortune-menuitem-arrow">
-                <MenuIcon name="chevron" size={16} />
-              </span>
-            )}
-          </div>
-        </div>
-      );
-    });
+  const menuItems = open ? toMenuItems(entries) : [];
 
   // keyboard: Shift+F10 / the context-menu key open the menu at the active
   // cell (entire rows / columns get the header menu)
@@ -1082,7 +1009,7 @@ const ContextMenu: React.FC = () => {
       if (
         target &&
         target !== refs.cellInput.current &&
-        (target.closest(".fortune-context-menu") ||
+        (target.closest(".fortune-context-menu, .ts-context-menu") ||
           /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
       ) {
         return;
@@ -1141,102 +1068,41 @@ const ContextMenu: React.FC = () => {
     showModal,
   ]);
 
-  useLayoutEffect(() => {
-    // re-position the context menu if it overflows the window
-    if (!containerRef.current) {
-      return;
-    }
-    const winH = window.innerHeight;
-    const winW = window.innerWidth;
-    const rect = containerRef.current.getBoundingClientRect();
-    const workbookRect =
-      refs.workbookContainer.current?.getBoundingClientRect();
-    if (!workbookRect) {
-      return;
-    }
-    const menuW = rect.width;
-    const menuH = rect.height;
-    let top = contextMenu.y || 0;
-    let left = contextMenu.x || 0;
-
-    let hasOverflow = false;
-    if (workbookRect.left + left + menuW > winW) {
-      left -= menuW;
-      hasOverflow = true;
-    }
-    if (workbookRect.top + top + menuH > winH) {
-      top -= menuH;
-      hasOverflow = true;
-    }
-    if (top < 0) {
-      top = 0;
-      hasOverflow = true;
-    }
-    if (hasOverflow) {
-      setContext((draftCtx) => {
-        draftCtx.contextMenu.x = left;
-        draftCtx.contextMenu.y = top;
-      });
-    }
-  }, [contextMenu.x, contextMenu.y, refs.workbookContainer, setContext]);
-
-  // focus the first enabled item when the menu opens
-  useLayoutEffect(() => {
-    if (!open) return;
-    menuItemsOf(containerRef.current)[0]?.focus({ preventScroll: true });
-  }, [open, contextMenu.x, contextMenu.y]);
-
-  // keep the submenu on screen, then focus it when opened from the keyboard
-  useLayoutEffect(() => {
-    const el = submenuRef.current;
-    if (!submenu || !el) return;
-    const wb = refs.workbookContainer.current?.getBoundingClientRect();
-    const menu = containerRef.current?.getBoundingClientRect();
-    const rect = el.getBoundingClientRect();
-    if (wb && menu && rect.right > window.innerWidth) {
-      el.style.left = `${menu.left - wb.left - rect.width + 2}px`;
-    }
-    if (wb && rect.bottom > window.innerHeight) {
-      el.style.top = `${Math.max(
-        0,
-        submenu.top - (rect.bottom - window.innerHeight)
-      )}px`;
-    }
-    if (submenu.focus) menuItemsOf(el)[0]?.focus({ preventScroll: true });
-  }, [submenu, refs.workbookContainer]);
-
+  const wbRect = open
+    ? refs.workbookContainer.current?.getBoundingClientRect()
+    : undefined;
   return (
     <>
       {open && (
-        <div
-          role="menu"
-          className="fortune-context-menu luckysheet-cols-menu fortune-cell-menu"
-          ref={containerRef}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+        <ContextMenuPopup
+          x={(wbRect?.left ?? 0) + (contextMenu.x ?? 0)}
+          y={(wbRect?.top ?? 0) + (contextMenu.y ?? 0)}
+          items={menuItems}
+          within={refs.workbookContainer.current}
+          className="fortune-context-menu-list fortune-cell-menu"
+          popupClassName="fortune-context-menu-popup"
+          submenuClassName="fortune-cell-submenu"
+          minWidth={232}
+          aria-label={
+            contextMenu.imageMenu
+              ? text.pictureMenu
+              : headerType === "row"
+                ? text.rowMenu
+                : headerType === "column"
+                  ? text.columnMenu
+                  : text.cellMenu
+          }
+          onClose={(reason) => {
+            if (reason === "select") return;
+            if (reason === "outside") {
+              setContext((draftCtx) => {
+                draftCtx.contextMenu = {};
+              });
+              return;
+            }
+            close();
           }}
-          onKeyDown={(e) => onMenuKeyDown(e, 0)}
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-        >
-          {renderEntries(entries, 0)}
-        </div>
-      )}
-      {open && submenuParent?.children && submenu && (
-        <div
-          role="menu"
-          aria-label={submenuParent.label}
-          className="fortune-context-menu luckysheet-cols-menu fortune-cell-menu fortune-cell-submenu"
-          ref={submenuRef}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onKeyDown={(e) => onMenuKeyDown(e, 1)}
-          style={{ left: submenu.left, top: submenu.top }}
-        >
-          {renderEntries(submenuParent.children, 1)}
-        </div>
+        />
       )}
       {pickList && (
         <PickList state={pickList} onClose={() => setPickList(null)} />

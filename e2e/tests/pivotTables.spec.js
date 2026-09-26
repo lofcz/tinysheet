@@ -44,7 +44,7 @@ async function values(page, r1, c1, r2, c2) {
 async function insertPivot(sheet, page) {
   await fillData(page);
   await sheet.click(1, 0);
-  await (await toolbarButton(page, "Pivot Table")).click();
+  await (await toolbarButton(page, "PivotTable")).click();
   const dialog = page.getByTestId("pivot-create-dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel("Table/Range")).toHaveValue(
@@ -90,7 +90,7 @@ test.describe("PivotTables", () => {
         '.fortune-pivot-area[data-area="values"] .fortune-pivot-chip-button'
       )
       .click();
-    await pane.getByRole("menuitem", { name: "Value Field Settings…" }).click();
+    await page.getByRole("menuitem", { name: "Value Field Settings…" }).click();
     const settings = page.getByTestId("pivot-value-settings");
     await settings.getByLabel("Summarize value field by").selectOption("count");
     await settings.getByRole("button", { name: "OK" }).click();
@@ -158,7 +158,11 @@ test.describe("PivotTables", () => {
       pivotSheet
     );
     // close the pane; the menu brings it back
-    await pane.getByRole("button", { name: "Close" }).click();
+    // the pane is docked: the dock's header closes it
+    await page
+      .locator(".fortune-side-slot")
+      .getByRole("button", { name: "Close pane" })
+      .click();
     await expect(pane).toBeHidden();
     await page.mouse.click(x, y, { button: "right" });
     await page.getByRole("menuitem", { name: "Show Field List" }).click();

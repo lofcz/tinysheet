@@ -11,14 +11,17 @@ import {
 import React, { useCallback, useContext, useMemo } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import SVGIcon from "../SVGIcon";
+import { ListChecks, Pencil, Trash2 } from "lucide-react";
+import { Button, IconButton, ICON_STROKE } from "../ui";
+import { SidePane } from "../SidePane";
 import DataVerification from ".";
 import "./dataTools.css";
 import "./sidebar.css";
 
 /**
  * Data validation rules of the current sheet (FortuneSheet#746): each rule
- * with the ranges it applies to, plus edit and delete.
+ * with the ranges it applies to, plus edit and delete. Shown in the side
+ * pane dock (DataVerificationPane).
  */
 const DataVerificationSidebar: React.FC = () => {
   const { context, setContext } = useContext(WorkbookContext);
@@ -30,12 +33,6 @@ const DataVerificationSidebar: React.FC = () => {
   const dv = context.luckysheetfile[sheetIndex]?.dataVerification;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const rules = useMemo(() => getDataVerificationRules(context), [dv]);
-
-  const close = useCallback(() => {
-    setContext((ctx) => {
-      ctx.dataVerificationSidebar = false;
-    });
-  }, [setContext]);
 
   const openDialog = useCallback(
     (ruleId?: string) => {
@@ -61,47 +58,25 @@ const DataVerificationSidebar: React.FC = () => {
   );
 
   return (
-    <div
-      className="fortune-dv-sidebar"
-      aria-label={t.rules}
-      style={{
-        top: (context.toolbarHeight || 0) + (context.calculatebarHeight || 0),
-        bottom:
-          (context.sheetBarHeight || 0) + (context.statisticBarHeight || 0),
-      }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
-    >
-      <div className="fortune-dv-sidebar-header">
-        <div className="fortune-dv-sidebar-title">{t.rules}</div>
-        <div
-          className="fortune-dv-sidebar-close"
-          role="button"
-          tabIndex={0}
-          aria-label={t.close}
-          title={t.close}
-          onClick={close}
-        >
-          <SVGIcon name="close" width={16} height={16} />
-        </div>
-      </div>
+    <div className="fortune-dv-sidebar ts-pane-content ts-pane-padded">
       <div className="fortune-dv-sidebar-actions">
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
+        <Button
+          variant="primary"
+          size="sm"
+          icon="plus"
           onClick={() => openDialog()}
         >
           {t.addRule}
-        </div>
+        </Button>
         <span className="fortune-dt-hint">
           {formatLocaleText(t.ruleCount, { count: rules.length })}
         </span>
       </div>
       <div className="fortune-dv-sidebar-list">
         {rules.length === 0 && (
-          <div className="fortune-dt-hint fortune-dv-sidebar-empty">
-            {t.noRules}
+          <div className="ts-pane-empty fortune-dv-sidebar-empty">
+            <ListChecks size={28} strokeWidth={ICON_STROKE} aria-hidden />
+            <p>{t.noRules}</p>
           </div>
         )}
         {rules.map((rule) => (
@@ -112,7 +87,8 @@ const DataVerificationSidebar: React.FC = () => {
             tabIndex={0}
             onClick={() => select(rule.ranges)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") select(rule.ranges);
+              if (e.key === "Enter" && e.target === e.currentTarget)
+                select(rule.ranges);
             }}
           >
             <div className="fortune-dv-rule-range">
@@ -129,35 +105,51 @@ const DataVerificationSidebar: React.FC = () => {
               </div>
             )}
             <div className="fortune-dv-rule-buttons">
-              <div
-                className="fortune-dt-icon-button"
-                role="button"
-                tabIndex={0}
+              <IconButton
+                size="sm"
+                icon={Pencil}
+                label={t.edit}
                 onClick={(e) => {
                   e.stopPropagation();
                   openDialog(rule.id);
                 }}
-              >
-                {t.edit}
-              </div>
-              <div
-                className="fortune-dt-icon-button"
-                role="button"
-                tabIndex={0}
+              />
+              <IconButton
+                size="sm"
+                icon={Trash2}
+                label={t.delete}
                 onClick={(e) => {
                   e.stopPropagation();
                   setContext((ctx) => {
                     deleteDataVerificationRule(ctx, rule.id);
                   });
                 }}
-              >
-                {t.delete}
-              </div>
+              />
             </div>
           </div>
         ))}
       </div>
     </div>
+  );
+};
+
+/** The validation rules pane, docked in the side pane. */
+export const DataVerificationPane: React.FC = () => {
+  const { context, setContext } = useContext(WorkbookContext);
+  const t = dataToolsLocale(context).dataValidation;
+  return (
+    <SidePane
+      id="data-validation"
+      title={t.rules}
+      open={!!context.dataVerificationSidebar}
+      onClose={() =>
+        setContext((ctx) => {
+          ctx.dataVerificationSidebar = false;
+        })
+      }
+    >
+      <DataVerificationSidebar />
+    </SidePane>
   );
 };
 

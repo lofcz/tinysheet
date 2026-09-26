@@ -31,7 +31,7 @@ describe("formula bar size", () => {
     });
     setFormulaBarHeight(ctx, 900, 400);
     expect(ctx.formulaBarHeight).toBe(400);
-    setFormulaBarHeight(ctx, 42, 400);
+    setFormulaBarHeight(ctx, 50, 400);
     expect(ctx.formulaBarHeight).toBe(FORMULA_BAR_MIN_HEIGHT);
     setFormulaBarHeight(ctx, 30, 400);
     expect(ctx.formulaBarExpanded).toBe(false);

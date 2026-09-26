@@ -11,7 +11,8 @@ import {
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../src/context";
 import { SlicerLayer, TableOverlay } from "../src/components/Tables";
-import { getSheetOverlays, getToolbarItemRenderer } from "../src/extensions";
+import { getSheetOverlays } from "../src/extensions";
+import { getRibbonCommand } from "../src/components/Ribbon";
 
 const text = (v: string) => ({ v, m: v, ct: { fa: "General", t: "g" } });
 const num = (v: number) => ({ v, m: `${v}`, ct: { fa: "General", t: "n" } });
@@ -83,10 +84,10 @@ const Harness: React.FC<{ initial: Context; children: React.ReactNode }> = ({
 };
 
 describe("tables UI", () => {
-  it("registers its overlays and the Slicer toolbar item", () => {
+  it("registers its overlays; Insert › Slicer is a ribbon command", () => {
     const keys = getSheetOverlays().map((o) => o.key);
     expect(keys).toEqual(expect.arrayContaining(["tables", "slicers"]));
-    expect(getToolbarItemRenderer("slicer")).toBeTruthy();
+    expect(getRibbonCommand("slicer")).toBeTruthy();
   });
 
   it("draws header filter buttons that open the table-scoped menu", () => {

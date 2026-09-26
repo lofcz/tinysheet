@@ -1,16 +1,27 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, toolbarButton } = require("../fixtures");
 
 // Page layout and printing (stream R8): print area, page breaks, Page
 // Break Preview, Page Setup, Print Preview and the browser print flow.
 
+// Page Layout › Page Setup menus and View › Workbook Views
+const MENUS = {
+  setPrintArea: ["Print Area", "Set Print Area"],
+  insertPageBreak: ["Breaks", "Insert Page Break"],
+  resetPageBreaks: ["Breaks", "Reset All Page Breaks"],
+};
+
 async function menu(page, action) {
-  const button = page.getByRole("button", { name: "Page Layout", exact: true });
-  // the default toolbar may move the item into the "More" overflow
-  if (!(await button.isVisible())) {
-    await page.getByRole("button", { name: "More", exact: true }).click();
+  if (action === "pageBreakPreview") {
+    await (await toolbarButton(page, "Page Break Preview")).click();
+    return;
   }
-  await button.click();
-  await page.locator(`[data-action="${action}"]`).click();
+  if (action === "pageSetup") {
+    await (await toolbarButton(page, "Page Setup…")).click();
+    return;
+  }
+  const [button, item] = MENUS[action];
+  await (await toolbarButton(page, button)).click();
+  await page.getByRole("menuitem", { name: item, exact: true }).click();
 }
 
 const pageSetup = (page) =>

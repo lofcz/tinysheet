@@ -1,0 +1,225 @@
+/*
+ * Home tab commands: the boxes (font, size, number format), labelled
+ * small buttons, colour bars, the colour drop-down and galleries. Tokens
+ * only (Workbook/index.css).
+ */
+
+/* ---------- Boxes: pane-coloured fields inside the surface cluster ---------- */
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover)
+  :is(.ts-home-field, .ts-home-font, .ts-home-size) {
+  height: 30px;
+  background: var(--ts-pane);
+  box-shadow: inset 0 0 0 1px var(--ts-border);
+  font-size: var(--ts-font-size-sm);
+}
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover)
+  :is(.ts-home-field, .ts-home-font, .ts-home-size):hover:not(:disabled) {
+  background: var(--ts-pane);
+  box-shadow: inset 0 0 0 1px var(--ts-ring);
+}
+
+:is(.fortune-ribbon, .fortune-ribbon-group-popover)
+  :is(.ts-home-font, .ts-home-size):focus-within,
+:is(.fortune-ribbon, .fortune-ribbon-group-popover) .ts-home-field.ts-open {
+  background: var(--ts-pane);
+  box-shadow: inset 0 0 0 1px var(--ts-ring);
+}
+
+.ts-home-font input,
+.ts-home-size input {
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-home-size {
+  padding: 0 0 0 6px;
+}
+
+.ts-home-size .ts-combo-arrow {
+  width: 18px;
+}
+
+.ts-home-field {
+  padding: 0 6px 0 9px;
+}
+
+/* ---------- Toggle sets and labelled buttons ---------- */
+
+.ts-home-set {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ts-home-label {
+  font-size: var(--ts-font-size-sm);
+  line-height: 1;
+}
+
+.ts-icon-btn.ts-home-active:not(.ts-open) {
+  background: var(--ts-active);
+  color: var(--ts-text-strong);
+}
+
+/* labelled small buttons lose their text when the group is scaled down */
+.fortune-ribbon-group[data-state="compact"] .ts-home-label {
+  display: none;
+}
+
+/* ---------- Colour bars (Fill Color, Font Color) ---------- */
+
+.ts-home-color-glyph {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  margin-top: -2px;
+}
+
+.ts-home-color-bar {
+  width: 16px;
+  height: 3px;
+  border-radius: 1px;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+}
+
+/* ---------- Number format list ---------- */
+
+.ts-home-format-item {
+  display: flex;
+  flex-direction: column;
+  line-height: 15px;
+}
+
+.ts-home-format-preview {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ts-home-format-preview:empty {
+  display: none;
+}
+
+.ts-home-format-menu .ts-menu-item:has(.ts-home-format-preview:not(:empty)) {
+  height: 40px;
+}
+
+/* ---------- Large buttons: Excel's two-line labels ---------- */
+
+.fortune-ribbon-item:is(
+    [data-item="cells-insert"],
+    [data-item="cells-delete"],
+    [data-item="cells-format"],
+    [data-item="conditionFormat"],
+    [data-item="formatAsTable"],
+    [data-item="cell-styles"],
+    [data-item="sort-filter"],
+    [data-item="search"]
+  )
+  .ts-large {
+  min-width: 48px;
+}
+
+.fortune-ribbon-item[data-item="conditionFormat"] .ts-large-label {
+  max-width: 66px;
+}
+
+.fortune-ribbon-item[data-item="formatAsTable"] .ts-large-label {
+  max-width: 52px;
+}
+
+.fortune-ribbon-item:is(
+    [data-item="cell-styles"],
+    [data-item="sort-filter"],
+    [data-item="search"]
+  )
+  .ts-large-label {
+  /* two lines, the chevron after the second word (Excel) */
+  max-width: 46px;
+}
+
+/* ---------- Dialogs (Series, Rename Sheet) ---------- */
+
+.ts-home-series {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+
+.ts-home-series fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ts-home-series legend {
+  margin-bottom: 6px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  font-weight: 600;
+}
+
+.ts-home-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.ts-home-radio input {
+  margin: 0;
+  accent-color: var(--ts-ink);
+}
+
+.ts-home-series-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-home-plain-input {
+  height: var(--ts-control);
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  color: var(--ts-text);
+  font: inherit;
+  outline: none;
+}
+
+.ts-home-plain-input:focus {
+  background: var(--ts-pane);
+  border-color: var(--ts-ring);
+}
+
+.ts-home-error {
+  margin-top: 8px;
+  color: var(--ts-danger);
+  font-size: var(--ts-font-size-sm);
+}
+
+/* denser split arrows and labelled buttons inside the Home groups */
+.fortune-ribbon-group:is(
+    [data-ribbon-group="font"],
+    [data-ribbon-group="alignment"],
+    [data-ribbon-group="number"],
+    [data-ribbon-group="editing"]
+  )
+  .ts-split-arrow {
+  width: 14px;
+}
+
+.fortune-ribbon-group[data-ribbon-group="editing"] .ts-icon-btn--text {
+  padding: 0 6px;
+}

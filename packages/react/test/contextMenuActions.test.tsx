@@ -69,7 +69,7 @@ describe("cell menu entries backed by other features", () => {
     fireEvent.click(menu.querySelector('[data-key="copy"]')!);
     clickEntry(container, "paste-special");
     await waitFor(() =>
-      expect(container.querySelector(".fortune-paste-special")).toBeTruthy()
+      expect(document.querySelector(".fortune-paste-special")).toBeTruthy()
     );
   });
 
@@ -119,35 +119,40 @@ describe("cell menu entries backed by other features", () => {
   });
 
   it("Insert… refuses to tear a table apart, with Excel's message", async () => {
-    const { container, ref, getByLabelText, getByText, findByText } =
-      renderBook({
-        data: [
-          {
-            name: "Sheet1",
-            celldata: [num(0, 0, 1), num(1, 0, 2), num(2, 0, 3)],
-            tables: [
-              {
-                name: "Table1",
-                range: { row: [0, 2], column: [0, 1] },
-                headerRow: true,
-                totalRow: false,
-                bandedRows: true,
-                bandedColumns: false,
-                firstColumn: false,
-                lastColumn: false,
-                style: "TableStyleMedium2",
-                columns: [{ name: "A" }, { name: "B" }],
-              },
-            ],
-          },
-        ],
-      });
+    const { container, ref, getByLabelText, getByText } = renderBook({
+      data: [
+        {
+          name: "Sheet1",
+          celldata: [num(0, 0, 1), num(1, 0, 2), num(2, 0, 3)],
+          tables: [
+            {
+              name: "Table1",
+              range: { row: [0, 2], column: [0, 1] },
+              headerRow: true,
+              totalRow: false,
+              bandedRows: true,
+              bandedColumns: false,
+              firstColumn: false,
+              lastColumn: false,
+              style: "TableStyleMedium2",
+              columns: [{ name: "A" }, { name: "B" }],
+            },
+          ],
+        },
+      ],
+    });
     select(ref, [{ row: [1, 1], column: [1, 1] }]);
     clickEntry(container, "insert-cells");
     fireEvent.click(getByLabelText("Shift cells down"));
-    fireEvent.click(getByText("OK"));
+    // the refusal is reported from a timer once the edit has run: run that
+    // timer and the alert's render inside act, so a loaded machine cannot
+    // outrun a polling timeout
+    await act(async () => {
+      fireEvent.click(getByText("OK"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(
-      await findByText(
+      getByText(
         "This operation is not allowed. The operation is attempting to shift cells in a table on your worksheet."
       )
     ).toBeTruthy();
@@ -170,7 +175,7 @@ describe("Ctrl+- / Ctrl+Shift+= keyboard", () => {
     select(ref, [{ row: [0, 0], column: [0, 0] }]);
 
   it("opens the Delete… dialog for a cell range", () => {
-    const { container, ref, getByText, getByLabelText } = renderBook();
+    const { container, ref, getByLabelText, getByRole } = renderBook();
     focusSheet(ref);
     select(ref, [{ row: [0, 1], column: [0, 0] }]);
     fireEvent.keyDown(workbookEl(container), {
@@ -178,7 +183,8 @@ describe("Ctrl+- / Ctrl+Shift+= keyboard", () => {
       code: "Minus",
       ctrlKey: true,
     });
-    expect(getByText("Delete")).toBeTruthy();
+    // the dialog by its title (the ribbon has a Delete button too)
+    expect(getByRole("dialog", { name: "Delete" })).toBeTruthy();
     expect(getByLabelText("Shift cells up")).toBeTruthy();
   });
 

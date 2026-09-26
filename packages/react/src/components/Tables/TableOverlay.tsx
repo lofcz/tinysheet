@@ -37,8 +37,9 @@ import type {
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
+import { trackPointerDrag } from "../../hooks/pointerDrag";
 import SVGIcon from "../SVGIcon";
-import { FormulaSearch } from "../FormulaSearch";
+import { InsertFunctionDialog } from "../Ribbon/commands/functions";
 
 const TOTAL_FUNCTIONS: [TableTotalFunction, string][] = [
   ["none", "fnNone"],
@@ -254,12 +255,12 @@ const TotalRowDropdown: React.FC<{
             className="fortune-table-popup-item"
             onClick={() => {
               setOpen(false);
-              showDialog(<FormulaSearch onCancel={hideDialog} />);
+              showDialog(<InsertFunctionDialog onCancel={hideDialog} />);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 setOpen(false);
-                showDialog(<FormulaSearch onCancel={hideDialog} />);
+                showDialog(<InsertFunctionDialog onCancel={hideDialog} />);
               }
             }}
           >
@@ -281,7 +282,7 @@ type ResizeDrag = {
 
 /** The resize handle at a table's bottom-right corner. */
 const TableResizeHandle: React.FC<{ table: SheetTable }> = ({ table }) => {
-  const { context, setContext } = useContext(WorkbookContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
   const tt = tableToolsLocale(context);
   const drag = useRef<ResizeDrag | null>(null);
   const [preview, setPreview] = useState<{ r2: number; c2: number } | null>(
@@ -294,8 +295,7 @@ const TableResizeHandle: React.FC<{ table: SheetTable }> = ({ table }) => {
   const minRows = (table.headerRow ? 1 : 0) + (table.totalRow ? 1 : 0) + 1;
 
   const target = useCallback(
-    (e: MouseEvent) => {
-      const d = drag.current!;
+    (e: MouseEvent, d: NonNullable<typeof drag.current>) => {
       const g = geometry.current;
       const x = d.right + (e.pageX - d.startX);
       const y = d.bottom + (e.pageY - d.startY);
@@ -309,37 +309,30 @@ const TableResizeHandle: React.FC<{ table: SheetTable }> = ({ table }) => {
     [c1, minRows, r1]
   );
 
-  useEffect(() => {
-    if (!preview) return undefined;
-    const onMove = (e: MouseEvent) => {
-      if (drag.current) setPreview(target(e));
-    };
-    const onUp = (e: MouseEvent) => {
+  const onMove = useCallback(
+    (e: MouseEvent) => {
+      if (drag.current) setPreview(target(e, drag.current));
+    },
+    [target]
+  );
+  const onUp = useCallback(
+    (e: MouseEvent) => {
       const d = drag.current;
       drag.current = null;
       setPreview(null);
       if (!d) return;
-      const { r2, c2 } = target(e);
+      const { r2, c2 } = target(e, d);
       if (r2 === table.range.row[1] && c2 === table.range.column[1]) return;
       setContext((ctx) => {
         resizeTable(ctx, d.table, { row: [r1, r2], column: [c1, c2] });
       });
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [
-    c1,
-    preview,
-    r1,
-    setContext,
-    table.range.column,
-    table.range.row,
-    target,
-  ]);
+    },
+    [c1, r1, setContext, table.range.column, table.range.row, target]
+  );
+  const handlers = useRef({ onMove, onUp });
+  handlers.current = { onMove, onUp };
+  const stopTracking = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopTracking.current?.(), []);
 
   const right = context.visibledatacolumn[table.range.column[1]] ?? 0;
   const bottom = context.visibledatarow[table.range.row[1]] ?? 0;
@@ -363,6 +356,20 @@ const TableResizeHandle: React.FC<{ table: SheetTable }> = ({ table }) => {
             bottom,
           };
           setPreview({ r2: table.range.row[1], c2: table.range.column[1] });
+          stopTracking.current?.();
+          stopTracking.current = trackPointerDrag(e, {
+            onMove: (ev) => handlers.current.onMove(ev),
+            onEnd: (ev) => {
+              handlers.current.onUp(ev);
+              refs.cellInput.current?.focus({ preventScroll: true });
+            },
+            // Esc: the table keeps its size
+            onCancel: () => {
+              drag.current = null;
+              setPreview(null);
+              refs.cellInput.current?.focus({ preventScroll: true });
+            },
+          });
         }}
       />
       {preview && (

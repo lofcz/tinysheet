@@ -79,6 +79,10 @@ export default {
     toolLess: "कम",
     toolClose: "बंद करें",
     toolMoreTip: "अधिक सुविधाएँ",
+    theme: "थीम",
+    themeLight: "हल्की",
+    themeDark: "गहरी",
+    themeAuto: "सिस्टम",
     moreOptions: "अधिक विकल्प",
 
     cellFormat: "सेल फॉर्मेट कॉन्फ़िगरेशन",
@@ -910,6 +914,7 @@ export default {
     specialSame: "समान",
   },
   sheetconfig: {
+    insert: "डालें",
     delete: "हटाएं",
     copy: "कॉपी करें",
     rename: "नाम बदलें",
@@ -1491,6 +1496,10 @@ export default {
     expandFormulaBar: "सूत्र पट्टी विस्तृत करें (Ctrl+Shift+U)",
     collapseFormulaBar: "सूत्र पट्टी संक्षिप्त करें (Ctrl+Shift+U)",
     resizeFormulaBar: "सूत्र पट्टी का आकार बदलने के लिए खींचें",
+    formulaBarCancel: "संपादन रद्द करें",
+    formulaBarEnter: "संपादन की पुष्टि करें",
+    formulaBarInsertFunction: "फ़ंक्शन सम्मिलित करें",
+    nameBoxResize: "नाम बॉक्स का आकार बदलने के लिए खींचें",
   },
   definedNames: {
     nameManager: "नाम प्रबंधक",

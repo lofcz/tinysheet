@@ -11,39 +11,38 @@ import type { CFRule } from "@lofcz/tinysheet-core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
+import { ChevronDown, ChevronUp, type LucideIcon } from "lucide-react";
+import { Button, DialogShell, IconButton } from "../ui";
 import RuleEditor from "./RuleEditor";
 import { CFText, RuleFormatPreview, describeRule } from "./previews";
 
 type Editing = { sheetId: string; index: number; rule: CFRule } | null;
 
-function activate(fn: () => void) {
-  return (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      fn();
-    }
-  };
-}
-
 const ToolButton: React.FC<{
   label: string;
   onClick: () => void;
   disabled?: boolean;
-  children?: React.ReactNode;
-}> = ({ label, onClick, disabled, children }) => (
-  <div
-    className="button-basic button-default fortune-cf-toolbutton"
-    role="button"
-    tabIndex={disabled ? -1 : 0}
-    aria-disabled={disabled || undefined}
-    aria-label={label}
-    title={label}
-    onClick={disabled ? undefined : onClick}
-    onKeyDown={disabled ? undefined : activate(onClick)}
-  >
-    {children ?? label}
-  </div>
-);
+  icon?: LucideIcon;
+}> = ({ label, onClick, disabled, icon }) =>
+  icon ? (
+    <IconButton
+      size="sm"
+      icon={icon}
+      label={label}
+      disabled={disabled}
+      className="fortune-cf-toolbutton"
+      onClick={onClick}
+    />
+  ) : (
+    <Button
+      size="sm"
+      className="fortune-cf-toolbutton"
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {label}
+    </Button>
+  );
 
 /**
  * Conditional Formatting Rules Manager: list, create, edit, delete,
@@ -136,35 +135,58 @@ const ManageRules: React.FC = () => {
 
   if (editing) {
     return (
-      <div className="fortune-cf-dialog">
-        <RuleEditor
-          rule={editing.rule}
-          isNew={editing.index < 0}
-          text={text}
-          buttons={{ confirm: button.confirm, cancel: button.cancel }}
-          onCancel={() => setEditing(null)}
-          onOk={(rule) => {
-            const { sheetId: id, index } = editing;
-            const newIndex = index < 0 ? rulesOf(id).length : index;
-            update(id, (list) => {
-              if (index < 0) list.push(rule);
-              else list[index] = rule;
-              return list;
-            });
-            setSelected({ sheetId: id, index: newIndex });
-            setRangeText({});
-            setEditing(null);
-          }}
-        />
-      </div>
+      <RuleEditor
+        rule={editing.rule}
+        isNew={editing.index < 0}
+        text={text}
+        buttons={{ confirm: button.confirm, cancel: button.cancel }}
+        onCancel={() => setEditing(null)}
+        onOk={(rule) => {
+          const { sheetId: id, index } = editing;
+          const newIndex = index < 0 ? rulesOf(id).length : index;
+          update(id, (list) => {
+            if (index < 0) list.push(rule);
+            else list[index] = rule;
+            return list;
+          });
+          setSelected({ sheetId: id, index: newIndex });
+          setRangeText({});
+          setEditing(null);
+        }}
+      />
     );
   }
 
   const sheets = context.luckysheetfile;
+  const ok = () => {
+    apply();
+    hideDialog();
+  };
 
   return (
-    <div className="fortune-cf-dialog fortune-cf-manager">
-      <div className="fortune-cf-title">{text.manageRulesTitle}</div>
+    <DialogShell
+      title={text.manageRulesTitle}
+      className="fortune-cf-dialog fortune-cf-manager"
+      onClose={hideDialog}
+      onConfirm={ok}
+      footer={
+        <>
+          <Button variant="secondary" onClick={hideDialog}>
+            {button.cancel}
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!Object.values(dirty).some(Boolean)}
+            onClick={apply}
+          >
+            {text.applyLabel}
+          </Button>
+          <Button variant="primary" onClick={ok}>
+            {button.confirm}
+          </Button>
+        </>
+      }
+    >
       <div className="fortune-cf-inline">
         <label htmlFor="fortune-cf-scope">{text.showRulesFor}</label>
         <select
@@ -239,16 +261,14 @@ const ManageRules: React.FC = () => {
           label={text.moveUp}
           disabled={sel === null || rowPos <= 0}
           onClick={() => move(1)}
-        >
-          ▲
-        </ToolButton>
+          icon={ChevronUp}
+        />
         <ToolButton
           label={text.moveDown}
           disabled={sel === null || rowPos < 0 || rowPos >= rows.length - 1}
           onClick={() => move(-1)}
-        >
-          ▼
-        </ToolButton>
+          icon={ChevronDown}
+        />
       </div>
       <div className="fortune-cf-table-wrap">
         <table className="fortune-cf-table" role="grid">
@@ -334,43 +354,7 @@ const ManageRules: React.FC = () => {
           </tbody>
         </table>
       </div>
-      <div className="fortune-cf-buttons">
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onClick={() => {
-            apply();
-            hideDialog();
-          }}
-          onKeyDown={activate(() => {
-            apply();
-            hideDialog();
-          })}
-        >
-          {button.confirm}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onClick={hideDialog}
-          onKeyDown={activate(hideDialog)}
-        >
-          {button.cancel}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          aria-disabled={!Object.values(dirty).some(Boolean) || undefined}
-          onClick={apply}
-          onKeyDown={activate(apply)}
-        >
-          {text.applyLabel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

@@ -1,0 +1,555 @@
+/*
+ * Form building blocks of dialogs and side panes (docs/DESIGN.md): radio,
+ * labelled field rows, Fika sections (small-caps headings), swatches, and
+ * the Fika look for the native controls dialogs still use (text inputs,
+ * selects, check boxes, radio buttons, group boxes).
+ */
+
+.ts-theme-root,
+.fortune-container,
+.fortune-modal-container {
+  --ts-section-label: #a1a1aa;
+  --ts-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+:is(
+  .ts-theme-root,
+  .fortune-container,
+  .fortune-modal-container
+)[data-theme="dark"] {
+  --ts-section-label: #8b8b94;
+  --ts-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* ---------- radio ---------- */
+
+.ts-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ts-radio--disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- native controls in dialogs and panes ---------- */
+
+:is(.ts-dialog, .fortune-side-pane) input[type="checkbox"],
+:is(.ts-dialog, .fortune-side-pane) input[type="radio"],
+.ts-radio input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--ts-ring);
+  background: var(--ts-pane);
+  cursor: pointer;
+  vertical-align: -3px;
+  transition:
+    background-color var(--ts-fast),
+    border-color var(--ts-fast),
+    box-shadow var(--ts-fast);
+}
+
+:is(.ts-dialog, .fortune-side-pane) input[type="checkbox"] {
+  border-radius: 4px;
+}
+
+:is(.ts-dialog, .fortune-side-pane) input[type="radio"],
+.ts-radio input {
+  border-radius: 50%;
+}
+
+:is(.ts-dialog, .fortune-side-pane) input[type="checkbox"]:checked,
+:is(.ts-dialog, .fortune-side-pane) input[type="checkbox"]:indeterminate,
+:is(.ts-dialog, .fortune-side-pane) input[type="radio"]:checked,
+.ts-radio input:checked {
+  border-color: var(--ts-ink);
+  background: var(--ts-ink);
+}
+
+:is(.ts-dialog, .fortune-side-pane) input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4.5px;
+  top: 1.5px;
+  width: 4px;
+  height: 8px;
+  border: 2px solid var(--ts-on-ink);
+  border-left: 0;
+  border-top: 0;
+  transform: rotate(45deg);
+}
+
+:is(.ts-dialog, .fortune-side-pane)
+  input[type="checkbox"]:indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 6.5px;
+  width: 8px;
+  height: 0;
+  border-top: 2px solid var(--ts-on-ink);
+}
+
+:is(.ts-dialog, .fortune-side-pane) input[type="radio"]:checked::after,
+.ts-radio input:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ts-on-ink);
+}
+
+:is(.ts-dialog, .fortune-side-pane)
+  :is(input[type="checkbox"], input[type="radio"]):hover:not(
+    :checked,
+    :disabled
+  ),
+.ts-radio input:hover:not(:checked, :disabled) {
+  border-color: var(--ts-muted);
+}
+
+:is(.ts-dialog, .fortune-side-pane)
+  :is(input[type="checkbox"], input[type="radio"]):focus-visible,
+.ts-radio input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ts-active);
+  border-color: var(--ts-muted);
+}
+
+:is(.ts-dialog, .fortune-side-pane)
+  :is(input[type="checkbox"], input[type="radio"]):disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* text fields and selects: surface fill, 8px radius, a ring on focus */
+:where(.ts-dialog, .fortune-side-pane)
+  :where(
+    input[type="text"],
+    input[type="number"],
+    input[type="password"],
+    input[type="search"],
+    input[type="url"],
+    input[type="email"],
+    input:not([type]),
+    select
+  ) {
+  height: var(--ts-control);
+  padding: 0 10px;
+  box-sizing: border-box;
+  color: var(--ts-text);
+  background-color: var(--ts-surface);
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  font-family: inherit;
+  font-size: var(--ts-font-size);
+  outline: none;
+}
+
+:where(.ts-dialog, .fortune-side-pane) :where(textarea) {
+  padding: 8px 10px;
+  box-sizing: border-box;
+  color: var(--ts-text);
+  background-color: var(--ts-surface);
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  font-family: inherit;
+  font-size: var(--ts-font-size);
+  outline: none;
+  resize: vertical;
+}
+
+:where(.ts-dialog, .fortune-side-pane) :where(select:not([multiple])) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  background-image: var(--ts-select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 14px 14px;
+  cursor: pointer;
+}
+
+:where(.ts-dialog, .fortune-side-pane) :where(select[multiple]) {
+  height: auto;
+  padding: 4px;
+}
+
+:where(.ts-dialog, .fortune-side-pane)
+  :where(
+    input[type="text"],
+    input[type="number"],
+    input[type="password"],
+    input[type="search"],
+    input[type="url"],
+    input[type="email"],
+    input:not([type]),
+    select,
+    textarea
+  ):hover:not(:disabled, :focus) {
+  background-color: var(--ts-hover);
+}
+
+:where(.ts-dialog, .fortune-side-pane)
+  :where(
+    input[type="text"],
+    input[type="number"],
+    input[type="password"],
+    input[type="search"],
+    input[type="url"],
+    input[type="email"],
+    input:not([type]),
+    select,
+    textarea
+  ):focus {
+  background-color: var(--ts-pane);
+  border-color: var(--ts-ring);
+  box-shadow: none;
+}
+
+:where(.ts-dialog, .fortune-side-pane)
+  :where(input, select, textarea):disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+:where(.ts-dialog, .fortune-side-pane) :where(label) {
+  color: var(--ts-text);
+}
+
+/* Excel's group boxes become Fika sections: a small-caps heading, no box */
+:where(.ts-dialog, .fortune-side-pane) :where(fieldset) {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+:where(.ts-dialog, .fortune-side-pane) :where(legend) {
+  float: left;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 0;
+  color: var(--ts-section-label);
+  font-size: var(--ts-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+:where(.ts-dialog, .fortune-side-pane) :where(legend) + * {
+  clear: both;
+}
+
+:where(.ts-dialog, .fortune-side-pane) :where(fieldset:disabled) {
+  opacity: 0.55;
+}
+
+/* ---------- field rows ---------- */
+
+.ts-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ts-field-label {
+  flex: 0 0 42%;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  line-height: 1.3;
+}
+
+.ts-field-control {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ts-field-control > .ts-input,
+.ts-field-control > .ts-select,
+.ts-field-control > .ts-combo,
+.ts-field-control > input,
+.ts-field-control > select {
+  flex: 1;
+  min-width: 0;
+}
+
+.ts-field--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.ts-field--stacked .ts-field-label {
+  flex: none;
+}
+
+/* ---------- sections (Fika PanelSection) ---------- */
+
+.ts-section + .ts-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ts-border);
+}
+
+.ts-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ts-section-label {
+  color: var(--ts-section-label);
+  font-size: var(--ts-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.ts-section-action {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- swatches ---------- */
+
+.ts-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ts-swatch {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(24, 24, 27, 0.12);
+  cursor: pointer;
+  transition: box-shadow var(--ts-fast);
+}
+
+[data-theme="dark"] .ts-swatch {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.ts-swatch:hover {
+  box-shadow: inset 0 0 0 1px rgba(24, 24, 27, 0.35);
+}
+
+.ts-swatch--selected,
+[data-theme="dark"] .ts-swatch--selected {
+  box-shadow:
+    0 0 0 2px var(--ts-pane),
+    0 0 0 3.5px var(--ts-ink);
+}
+
+.ts-swatch-row--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* the custom colour chip: a rainbow ring around a native colour input */
+.ts-swatch--custom {
+  display: inline-block;
+  overflow: hidden;
+  background: conic-gradient(
+    #ef4444,
+    #f59e0b,
+    #eab308,
+    #22c55e,
+    #06b6d4,
+    #3b82f6,
+    #a855f7,
+    #ef4444
+  );
+}
+
+.ts-swatch--custom input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ts-swatch--custom:focus-within {
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.ts-swatch--none {
+  background:
+    linear-gradient(
+      to top right,
+      transparent calc(50% - 1px),
+      var(--ts-danger) calc(50% - 1px),
+      var(--ts-danger) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ),
+    var(--ts-pane);
+}
+
+/* a Fika tool cluster of icon buttons (B I U, alignment) */
+.ts-cluster {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--ts-radius-cluster);
+  background: var(--ts-surface);
+}
+
+/* ---------- dialog layout helpers ---------- */
+
+/* a list box (Excel's list controls): a bordered, scrolling column */
+.ts-listbox {
+  box-sizing: border-box;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
+  background: var(--ts-pane);
+  overflow: auto;
+}
+
+/* a preview / sample box */
+.ts-sample {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  box-sizing: border-box;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  color: var(--ts-text-strong);
+}
+
+/* muted help text under a control */
+.ts-hint {
+  margin: 0;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  line-height: 1.45;
+}
+
+.ts-error {
+  margin: 0;
+  color: var(--ts-danger);
+  font-size: var(--ts-font-size-sm);
+  line-height: 1.45;
+}
+
+/* dialog tabs sit under the title, full width */
+.ts-dialog-tabs {
+  flex: 0 0 auto;
+}
+
+.ts-dialog-panel {
+  outline: none;
+}
+
+.ts-dialog-footer-start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+}
+
+/* modeless dialogs (Find and Replace): no backdrop, the sheet stays usable */
+.ts-dialog-backdrop--modeless {
+  background: transparent;
+  pointer-events: none;
+  animation: none;
+}
+
+.ts-dialog-backdrop--modeless > .ts-dialog {
+  pointer-events: auto;
+}
+
+/* scrollbars of dialogs portaled outside the workbook */
+.ts-dialog ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background-color: transparent;
+}
+
+.ts-dialog ::-webkit-scrollbar-thumb {
+  background-color: rgba(113, 113, 122, 0.35);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 10px;
+}
+
+.ts-dialog ::-webkit-scrollbar-corner {
+  background-color: transparent;
+}
+
+/* selects keep room for the chevron whatever padding a dialog gives them */
+:is(.ts-dialog, .fortune-side-pane) select:not([multiple], [size]) {
+  padding-right: 28px;
+  background-image: var(--ts-select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 14px 14px;
+  text-overflow: ellipsis;
+}
+
+/* the ui Checkbox draws its own box: its native input stays hidden */
+:is(.ts-dialog, .fortune-side-pane) .ts-checkbox input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+}
+
+/*
+ * Dialogs fade in without moving: their title bar is a drag handle and the
+ * position must be stable from the first frame (Excel does not animate).
+ */
+div.ts-dialog {
+  animation: ts-dialog-fade 160ms ease-out;
+}
+
+@keyframes ts-dialog-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* clicks on the drawn box reach the (hidden) native check box */
+.ts-checkbox-box {
+  pointer-events: none;
+}

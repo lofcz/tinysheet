@@ -1,0 +1,434 @@
+/*
+ * Insert, Page Layout and View commands: rich menu entries, the chart and
+ * shape galleries, Scale to Fit, Sheet Options, the Show checkboxes, and
+ * the Insert Chart and Zoom dialogs. Tokens only (--ts-*), both themes.
+ */
+
+/* ---------- Menu entries with a help line (Freeze Panes, Margins, Size) */
+
+.ts-menu-item:has(> .ts-menu-label > .ts-tabs-rich) {
+  height: auto;
+  min-height: 30px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  align-items: flex-start;
+  white-space: normal;
+}
+
+.ts-menu-item:has(> .ts-menu-label > .ts-tabs-rich) > .ts-menu-icon {
+  margin-top: 1px;
+}
+
+.ts-tabs-rich {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 260px;
+}
+
+.ts-tabs-rich-title {
+  color: var(--ts-text-strong);
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.ts-tabs-rich-detail {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  line-height: 16px;
+}
+
+/* ---------- Chart galleries (Insert › Charts family drop-downs) ---------- */
+
+.ts-chart-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 204px;
+  outline: none;
+}
+
+.ts-chart-gallery-title {
+  padding: 0 2px 4px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ts-chart-gallery-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 60px);
+  gap: 4px;
+}
+
+.ts-chart-gallery-tile,
+.ts-chart-dialog-variant {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  color: var(--ts-text);
+  cursor: pointer;
+  transition:
+    background-color var(--ts-fast),
+    border-color var(--ts-fast),
+    color var(--ts-fast);
+}
+
+.ts-chart-gallery-tile:hover:not(:disabled),
+.ts-chart-gallery-tile:focus-visible,
+.ts-chart-dialog-variant:hover {
+  border-color: var(--ts-border);
+  background: var(--ts-active);
+  color: var(--ts-text-strong);
+  outline: none;
+}
+
+.ts-chart-gallery-tile:focus-visible,
+.ts-chart-dialog-variant:focus-visible {
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.ts-chart-gallery-tile:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ts-chart-gallery-footer {
+  padding-top: 6px;
+  border-top: 1px solid var(--ts-border);
+}
+
+.ts-chart-gallery-more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--ts-radius);
+  background: transparent;
+  color: var(--ts-text);
+  font: inherit;
+  font-size: var(--ts-font-size);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ts-chart-gallery-more:hover,
+.ts-chart-gallery-more:focus-visible {
+  background: var(--ts-hover);
+  outline: none;
+}
+
+/* ---------- Shapes gallery ---------- */
+
+.ts-shape-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 292px;
+  max-height: min(460px, 70vh);
+  overflow-y: auto;
+  outline: none;
+}
+
+.ts-shape-gallery-tiles {
+  display: grid;
+  grid-template-columns: repeat(9, 30px);
+  gap: 2px;
+}
+
+.ts-shape-gallery-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ts-text);
+  cursor: pointer;
+  transition: background-color var(--ts-fast);
+}
+
+.ts-shape-gallery-tile:hover,
+.ts-shape-gallery-tile:focus-visible {
+  background: var(--ts-active);
+  color: var(--ts-text-strong);
+  outline: none;
+}
+
+.ts-shape-gallery-tile.ts-pressed {
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+}
+
+/* ---------- Page Layout › Scale to Fit ---------- */
+
+.ts-scale-fit {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  padding: 0 4px;
+}
+
+.ts-scale-fit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-scale-fit-row > .ts-icon {
+  flex: 0 0 auto;
+  color: var(--ts-muted);
+}
+
+.ts-scale-fit-label {
+  width: 46px;
+  white-space: nowrap;
+}
+
+.ts-scale-fit .ts-select,
+.ts-scale-fit .ts-input {
+  height: 20px;
+  border-radius: 6px;
+  background: var(--ts-pane);
+  box-shadow: inset 0 0 0 1px var(--ts-border);
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-scale-fit .ts-select {
+  padding: 0 4px 0 8px;
+}
+
+.ts-scale-fit .ts-select:hover:not(:disabled) {
+  background: var(--ts-hover);
+}
+
+.ts-scale-fit .ts-input input {
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-scale-fit .ts-number-step {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Sheet Options (Gridlines / Headings: View, Print) ---------- */
+
+.ts-sheet-option {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  padding: 0 8px;
+}
+
+.ts-sheet-option-caption {
+  color: var(--ts-text-strong);
+  font-size: var(--ts-font-size-sm);
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.ts-sheet-option .ts-checkbox,
+.ts-show-option.ts-checkbox {
+  min-height: 20px;
+  font-size: var(--ts-font-size-sm);
+  gap: 6px;
+}
+
+/* View › Show: aligned columns of checkboxes */
+.ts-show-option.ts-checkbox {
+  min-width: 96px;
+  height: 28px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-radius: var(--ts-radius);
+  transition: background-color var(--ts-fast);
+}
+
+.ts-show-option.ts-checkbox:hover {
+  background: var(--ts-active);
+}
+
+/* ---------- Insert Chart dialog ---------- */
+
+.ts-chart-dialog .ts-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ts-chart-dialog-body {
+  display: flex;
+  gap: 16px;
+  min-height: 380px;
+}
+
+.ts-chart-dialog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 0 auto;
+  max-height: 440px;
+  padding: 6px;
+  overflow-y: auto;
+  border-radius: var(--ts-radius-pane);
+  background: var(--ts-surface);
+}
+
+.ts-chart-dialog-thumb {
+  flex: 0 0 auto;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--ts-pane);
+  cursor: pointer;
+  transition: border-color var(--ts-fast);
+}
+
+.ts-chart-dialog-thumb:hover {
+  border-color: var(--ts-active);
+}
+
+.ts-chart-dialog-thumb[aria-selected="true"],
+.ts-chart-dialog-variant[aria-selected="true"] {
+  border-color: var(--ts-ink);
+}
+
+.ts-chart-dialog-thumb:focus-visible,
+.ts-chart-dialog-family:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.ts-chart-dialog-thumb > div {
+  pointer-events: none;
+}
+
+.ts-chart-dialog-families {
+  gap: 1px;
+  width: 168px;
+}
+
+.ts-chart-dialog-family {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--ts-radius);
+  background: transparent;
+  color: var(--ts-text);
+  font: inherit;
+  font-size: var(--ts-font-size);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ts-chart-dialog-family:hover {
+  background: var(--ts-hover);
+}
+
+.ts-chart-dialog-family[aria-selected="true"] {
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+}
+
+.ts-chart-dialog-variants-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ts-chart-dialog-variants {
+  display: flex;
+  gap: 6px;
+}
+
+.ts-chart-dialog-variant {
+  border-width: 2px;
+}
+
+.ts-chart-dialog-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ts-chart-dialog-name {
+  color: var(--ts-text-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ts-chart-dialog-preview {
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius-pane);
+  background: var(--ts-cell, var(--ts-pane));
+}
+
+.ts-chart-dialog-description {
+  margin: 0;
+  max-width: 440px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  line-height: 18px;
+}
+
+.ts-chart-dialog-hint {
+  color: var(--ts-warning);
+  font-size: var(--ts-font-size-sm);
+}
+
+/* ---------- Screenshot result ---------- */
+
+.ts-screenshot-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ts-screenshot-result img {
+  max-width: 100%;
+  max-height: 60vh;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
+}
+
+/* the check of a chosen entry that has an icon (Margins, Orientation) */
+.ts-menu-hint > .ts-tabs-check {
+  display: block;
+  color: var(--ts-text-strong);
+}
+
+.ts-chart-svg > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

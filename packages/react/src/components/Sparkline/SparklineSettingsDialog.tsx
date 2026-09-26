@@ -24,6 +24,7 @@ import { RangeField } from "./SparklineDataDialog";
 import { SparklineTypeIcon, SPARKLINE_TYPES } from "./icons";
 import SparklinePreview from "./SparklinePreview";
 import { SPARKLINE_STYLES } from "./styles";
+import { Button, DialogShell } from "../ui";
 
 export type SparklineSettingsDialogProps = {
   sheetId: string;
@@ -192,9 +193,13 @@ const SparklineSettingsDialog: React.FC<SparklineSettingsDialogProps> = (
 
   if (!opts) {
     return (
-      <div className="fortune-sparkline-dialog">
+      <DialogShell
+        title={t.settingsTitle}
+        onClose={hideDialog}
+        className="fortune-sparkline-dialog"
+      >
         <div>{t.noSparkline}</div>
-      </div>
+      </DialogShell>
     );
   }
   const set = (patch: Partial<SparklineGroupOptions>) =>
@@ -251,11 +256,23 @@ const SparklineSettingsDialog: React.FC<SparklineSettingsDialogProps> = (
   const isLine = opts.type === "line";
 
   return (
-    <div
+    <DialogShell
+      title={t.settingsTitle}
       className="fortune-sparkline-dialog fortune-sparkline-settings"
+      onClose={hideDialog}
+      onConfirm={ok}
       aria-label={t.settingsTitle}
+      footer={
+        <>
+          <Button variant="secondary" onClick={hideDialog}>
+            {button.cancel}
+          </Button>
+          <Button variant="primary" onClick={ok}>
+            {button.confirm}
+          </Button>
+        </>
+      }
     >
-      <div className="fortune-sparkline-dialog-title">{t.settingsTitle}</div>
       <div className="fortune-sparkline-scroll">
         <div className="fortune-sparkline-row">
           <div
@@ -494,27 +511,7 @@ const SparklineSettingsDialog: React.FC<SparklineSettingsDialogProps> = (
           {error}
         </div>
       )}
-      <div className="fortune-sparkline-footer">
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onClick={ok}
-          onKeyDown={activateOnKey}
-        >
-          {button.confirm}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onClick={hideDialog}
-          onKeyDown={activateOnKey}
-        >
-          {button.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

@@ -6,6 +6,7 @@ import type {
   CellStyleId,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
+import { Gallery, GalleryItem } from "../ui";
 import "./index.css";
 
 const GROUPS: CellStyleDef["group"][] = ["goodBad", "data", "titles", "number"];
@@ -34,55 +35,74 @@ function swatchStyle(style: CellStyleDef): React.CSSProperties {
   return css;
 }
 
+/** The Cell Styles gallery items (id = the style id), grouped like Excel. */
+export function useCellStyleItems(): GalleryItem[] {
+  const { context } = useContext(WorkbookContext);
+  const { cellStyles } = locale(context);
+  const currency = context.currency || "$";
+  return useMemo(() => {
+    const styles = getCellStyles(currency);
+    return GROUPS.flatMap((group) =>
+      styles
+        .filter((s) => s.group === group)
+        .map((s) => ({
+          id: s.id,
+          label: cellStyles.names[s.id],
+          group: cellStyles.groups[group],
+          preview: (
+            <span
+              className={`fortune-cell-style${s.fill ? " has-fill" : ""}${
+                s.font?.fc ? " has-color" : ""
+              }`}
+              data-style={s.id}
+              style={swatchStyle(s)}
+            >
+              {cellStyles.names[s.id]}
+            </span>
+          ),
+        }))
+    );
+  }, [cellStyles, currency]);
+}
+
 /**
- * Excel's Cell Styles gallery: a click applies the style to the selection
- * (one undo step).
+ * Excel's Cell Styles gallery (Home › Styles): a click applies the style to
+ * the selection (one undo step). `bare` drops the panel chrome, for use
+ * inside a ui `Popover`:
+ *
+ *   <SplitButton … popover={(close) => <CellStyles bare onApplied={close} />} />
  */
-const CellStyles: React.FC<{ onApplied?: () => void }> = ({ onApplied }) => {
+const CellStyles: React.FC<{ onApplied?: () => void; bare?: boolean }> = ({
+  onApplied,
+  bare,
+}) => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const { cellStyles } = locale(context);
   const currency = context.currency || "$";
-  const styles = useMemo(() => getCellStyles(currency), [currency]);
+  const items = useCellStyleItems();
 
-  const apply = (id: CellStyleId) => {
+  const apply = (id: string) => {
     const canvas = refs.canvas.current?.getContext("2d") || undefined;
-    setContext((ctx) => applyCellStyle(ctx, id, currency, canvas));
+    setContext((ctx) =>
+      applyCellStyle(ctx, id as CellStyleId, currency, canvas)
+    );
     onApplied?.();
   };
 
   return (
     <div
-      className="fortune-cell-styles"
-      role="menu"
-      aria-label={cellStyles.title}
+      className={`fortune-cell-styles${bare ? " fortune-cell-styles--bare" : ""}`}
     >
-      {GROUPS.map((group) => (
-        <div key={group} className="fortune-cell-styles-group">
-          <div className="fortune-cell-styles-heading">
-            {cellStyles.groups[group]}
-          </div>
-          <div className="fortune-cell-styles-grid">
-            {styles
-              .filter((s) => s.group === group)
-              .map((s) => (
-                <button
-                  type="button"
-                  key={s.id}
-                  role="menuitem"
-                  data-style={s.id}
-                  className={`fortune-cell-style${s.fill ? " has-fill" : ""}${
-                    s.font?.fc ? " has-color" : ""
-                  }`}
-                  style={swatchStyle(s)}
-                  title={cellStyles.names[s.id]}
-                  onClick={() => apply(s.id)}
-                >
-                  {cellStyles.names[s.id]}
-                </button>
-              ))}
-          </div>
-        </div>
-      ))}
+      <Gallery
+        items={items}
+        onPick={apply}
+        columns={4}
+        itemWidth={104}
+        itemHeight={30}
+        maxHeight={380}
+        autoFocus
+        aria-label={cellStyles.title}
+      />
     </div>
   );
 };

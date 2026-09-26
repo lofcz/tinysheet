@@ -3,6 +3,7 @@ import { PatchOptions } from "./utils";
 import type { Chart } from "./modules/chart";
 import type { SparklineGroup } from "./modules/sparkline";
 import type { Shape } from "./modules/shapes";
+import type { EditorHistory } from "./modules/formulaEditor";
 
 export type Op = {
   op:
@@ -804,12 +805,16 @@ export type GlobalCache = {
   redoList: History[];
   /** undo group being recorded (see withUndoGroup) */
   undoGroup?: { id: number; depth: number };
+  /** undo steps of the text being edited in a cell (see recordEditorState) */
+  editorHistory?: EditorHistory;
   editingCommentBoxEle?: HTMLDivElement;
   freezen?: Record<string, Freezen>;
   image?: {
     imgInitialPosition: Rect | undefined;
     cursorMoveStartPosition: { x: number; y: number } | undefined;
     resizingSide: string | undefined;
+    /** the box shown while dragging (screen px), once the pointer moved */
+    current?: { left: number; top: number; width: number; height: number };
   };
   commentBox?: {
     movingId: string | undefined;

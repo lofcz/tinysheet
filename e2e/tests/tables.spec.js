@@ -7,9 +7,7 @@ async function makeTable(sheet, page) {
   await sheet.fillColumn(0, 0, ["Region", "East", "West", "East", "North"]);
   await sheet.fillColumn(0, 1, ["Qty", "2", "1", "4", "3"]);
   await sheet.select(0, 0, 4, 1);
-  await page
-    .locator('.fortune-toolbar-combo-arrow[data-tips="Format as Table"]')
-    .click();
+  await (await toolbarButton(page, "Format as Table")).click();
   await page.getByRole("button", { name: "Blue", exact: true }).click();
   await page.getByRole("button", { name: "OK" }).click();
   await expect
@@ -56,13 +54,12 @@ test.describe("tables", () => {
   test("total row function dropdown", async ({ sheet, page }) => {
     await makeTable(sheet, page);
     await sheet.click(1, 0);
-    await page
-      .locator('.fortune-toolbar-combo-arrow[data-tips="Format as Table"]')
-      .click();
+    await (await toolbarButton(page, "Format as Table")).click();
     await page.getByText("Table Design…", { exact: true }).click();
     await page.getByLabel("Total row").check();
+    // the footer's Close (the title bar has a close button too)
     await page
-      .locator(".fortune-table-design")
+      .locator(".fortune-table-design .ts-dialog-footer")
       .getByRole("button", { name: "Close", exact: true })
       .click();
     await sheet.click(5, 1);
@@ -77,7 +74,7 @@ test.describe("tables", () => {
   test("slicers filter the table", async ({ sheet, page }) => {
     await makeTable(sheet, page);
     await sheet.click(2, 0);
-    await (await toolbarButton(page, "Insert Slicer")).click();
+    await (await toolbarButton(page, "Slicer")).click();
     const dialog = page.locator(".fortune-slicer-insert");
     await dialog.getByLabel("Region").check();
     await dialog.getByRole("button", { name: "OK" }).click();

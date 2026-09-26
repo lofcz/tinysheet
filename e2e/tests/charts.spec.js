@@ -48,21 +48,19 @@ test.describe("charts", () => {
 
     const [svg] = await Promise.all([
       page.waitForEvent("download"),
-      menu.locator('[data-chart-menu="exportSvg"]').click(),
+      menu.locator('[data-key="exportSvg"]').click(),
     ]);
     expect(svg.suggestedFilename()).toBe("Waterfall.svg");
 
     await box.click({ button: "right" });
     const [png] = await Promise.all([
       page.waitForEvent("download"),
-      page.locator('.fortune-chart-menu [data-chart-menu="exportPng"]').click(),
+      page.locator('.fortune-chart-menu [data-key="exportPng"]').click(),
     ]);
     expect(png.suggestedFilename()).toBe("Waterfall.png");
 
     await box.click({ button: "right" });
-    await page
-      .locator('.fortune-chart-menu [data-chart-menu="copyAsImage"]')
-      .click();
+    await page.locator('.fortune-chart-menu [data-key="copyAsImage"]').click();
     await expect
       .poll(() =>
         page.evaluate(async () => {

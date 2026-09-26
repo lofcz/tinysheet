@@ -5,6 +5,7 @@ import { normalizeSelection } from "./modules/selection";
 import { computeAxisPositions } from "./modules/geometry";
 import { Hooks } from "./settings";
 import type { ThemeName } from "./theme";
+import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from "./modules/fonts";
 import type { EditState } from "./modules/editMode";
 import type { TraceArrowsState } from "./modules/formulaAudit";
 import type { ErrorCheckingOptions } from "./modules/errorChecking";
@@ -342,6 +343,11 @@ export type Context = {
 
   fontList: any[];
   defaultFontSize: number;
+  /**
+   * CSS font-family of cells without a font (`settings.defaultFontFamily`).
+   * Numeric `ff` values keep indexing the locale's font list.
+   */
+  defaultFontFamily: string;
 
   luckysheetPaintModelOn: boolean;
   luckysheetPaintSingle: boolean;
@@ -366,6 +372,8 @@ export type Context = {
   pageLayout?: {
     /** Page Break Preview view of these sheets (by id). */
     breakPreviewSheets?: string[];
+    /** Page Layout view of these sheets (by id): the pages outlined. */
+    layoutViewSheets?: string[];
     /** Sheets whose automatic page breaks show in Normal view (after printing). */
     shownBreakSheets?: string[];
     /** Open the Print Preview (set by Ctrl+P, read by the React UI). */
@@ -418,7 +426,8 @@ export function defaultContext(refs: RefValues): Context {
     config: {},
     // 提醒弹窗
     warnDialog: undefined,
-    currency: "¥",
+    // empty: the locale's currency (see defaultCurrencySymbol)
+    currency: "",
     rangeDialog: {
       show: false,
       rangeTxt: "",
@@ -665,7 +674,8 @@ export function defaultContext(refs: RefValues): Context {
     allowEdit: true,
 
     fontList: [],
-    defaultFontSize: 10,
+    defaultFontSize: DEFAULT_FONT_SIZE,
+    defaultFontFamily: DEFAULT_FONT_FAMILY,
 
     luckysheetPaintModelOn: false,
     luckysheetPaintSingle: false,

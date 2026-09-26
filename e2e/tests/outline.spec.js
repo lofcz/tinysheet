@@ -1,14 +1,13 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, ribbonItem } = require("../fixtures");
 
 // Outline and subtotals (stream R3): Data › Subtotal, the outline gutter,
 // Group / Ungroup with Shift+Alt+Right / Left.
 
-async function openOutlineMenu(page) {
-  const item = page.locator('[data-tips="Group & Outline"]').first();
-  if (!(await item.isVisible())) {
-    await page.locator('[data-tips="More"]').first().click();
-  }
-  await item.click();
+/** Data › Outline › Subtotal. */
+async function openSubtotal(page) {
+  await (
+    await ribbonItem(page, '[data-item="outline-subtotal"] button')
+  ).click();
 }
 
 function config(page) {
@@ -30,8 +29,7 @@ test.describe("outline", () => {
     await sheet.fillColumn(0, 0, ["Region", "East", "East", "West"]);
     await sheet.fillColumn(0, 1, ["Qty", "1", "2", "3"]);
     await sheet.click(1, 0);
-    await openOutlineMenu(page);
-    await page.getByText("Subtotal…", { exact: true }).click();
+    await openSubtotal(page);
     const dialog = page.getByTestId("subtotal-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel("Qty")).toBeChecked();

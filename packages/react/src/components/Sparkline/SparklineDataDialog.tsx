@@ -18,6 +18,8 @@ import { useDialog } from "../../hooks/useDialog";
 import { activateOnKey } from "../Toolbar/Button";
 import { startRangePick } from "./rangePicker";
 import { SparklineTypeIcon, SPARKLINE_TYPES } from "./icons";
+import { SquareDashedMousePointer } from "lucide-react";
+import { Button, DialogShell, ICON_STROKE } from "../ui";
 
 export type SparklineDataDialogProps = {
   /** insert: Insert Sparklines; group: edit a group; single: one sparkline. */
@@ -65,7 +67,10 @@ export const RangeField: React.FC<{
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") onEnter?.();
+            if (e.key === "Enter" && onEnter) {
+              e.preventDefault();
+              onEnter();
+            }
           }}
         />
         <div
@@ -77,19 +82,11 @@ export const RangeField: React.FC<{
           onClick={onPick}
           onKeyDown={activateOnKey}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-            <rect
-              x="2"
-              y="3"
-              width="12"
-              height="10"
-              rx="1"
-              fill="none"
-              stroke="currentColor"
-            />
-            <path d="M2 6.5h12M6 3v10" stroke="currentColor" />
-            <rect x="6" y="6.5" width="8" height="6.5" fill="currentColor" />
-          </svg>
+          <SquareDashedMousePointer
+            size={16}
+            strokeWidth={ICON_STROKE}
+            aria-hidden
+          />
         </div>
       </div>
     </div>
@@ -179,8 +176,23 @@ const SparklineDataDialog: React.FC<SparklineDataDialogProps> = (props) => {
   else if (mode === "group") title = t.editGroupDataTitle;
 
   return (
-    <div className="fortune-sparkline-dialog" aria-label={title}>
-      <div className="fortune-sparkline-dialog-title">{title}</div>
+    <DialogShell
+      title={title}
+      className="fortune-sparkline-dialog"
+      onClose={hideDialog}
+      onConfirm={ok}
+      aria-label={title}
+      footer={
+        <>
+          <Button variant="secondary" onClick={hideDialog}>
+            {button.cancel}
+          </Button>
+          <Button variant="primary" onClick={ok}>
+            {button.confirm}
+          </Button>
+        </>
+      }
+    >
       {mode === "insert" && (
         <div
           className="fortune-sparkline-types"
@@ -241,27 +253,7 @@ const SparklineDataDialog: React.FC<SparklineDataDialogProps> = (props) => {
           {error}
         </div>
       )}
-      <div className="fortune-sparkline-footer">
-        <div
-          className="button-basic button-primary"
-          role="button"
-          tabIndex={0}
-          onClick={ok}
-          onKeyDown={activateOnKey}
-        >
-          {button.confirm}
-        </div>
-        <div
-          className="button-basic button-default"
-          role="button"
-          tabIndex={0}
-          onClick={hideDialog}
-          onKeyDown={activateOnKey}
-        >
-          {button.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

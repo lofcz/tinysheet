@@ -10,7 +10,9 @@ import {
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../src/context";
 import { ModalProvider } from "../src/context/modal";
-import { getToolbarItemRenderer, getSheetOverlays } from "../src/extensions";
+import { getSheetOverlays } from "../src/extensions";
+import { getRibbonCommand } from "../src/components/Ribbon";
+import { registerBuiltinRibbonCommands } from "../src/components/Ribbon/commands";
 import {
   AdvancedFilter,
   DataTable,
@@ -90,12 +92,23 @@ const v = (a1: string) => {
 const setField = (container: HTMLElement, id: string, value: string) =>
   fireEvent.change(container.querySelector(`#${id}`)!, { target: { value } });
 
-beforeAll(() => registerCellTools());
+beforeAll(() => {
+  registerCellTools();
+  registerBuiltinRibbonCommands();
+});
+
+/** A ribbon command by id, as the ribbon renders it. */
+const command = (id: string) => {
+  const { Component } = getRibbonCommand(id)!;
+  return <Component id={id} size="large" />;
+};
 
 describe("registration", () => {
-  it("registers the toolbar items, in the default toolbar, and overlays", () => {
-    expect(getToolbarItemRenderer("checkbox")).toBeTruthy();
-    expect(getToolbarItemRenderer("data-tools")).toBeTruthy();
+  it("has ribbon commands, default toolbar names, and overlays", () => {
+    expect(getRibbonCommand("checkbox")).toBeTruthy();
+    expect(getRibbonCommand("flash-fill")?.options.aliases).toContain(
+      "data-tools"
+    );
     expect(defaultSettings.toolbarItems).toContain("checkbox");
     expect(defaultSettings.toolbarItems).toContain("data-tools");
     const keys = getSheetOverlays().map((o) => o.key);
@@ -105,16 +118,14 @@ describe("registration", () => {
   });
 });
 
-describe("toolbar", () => {
+describe("ribbon commands", () => {
   it("the Checkbox button inserts and removes checkboxes", () => {
     const ctx = makeContext();
     ctx.luckysheet_select_save = [
       { row: [0, 1], column: [0, 0], row_focus: 0, column_focus: 0 },
     ];
     const { getByRole } = render(
-      <Harness initial={ctx}>
-        {getToolbarItemRenderer("checkbox")!({ name: "checkbox", tooltip: "" })}
-      </Harness>
+      <Harness initial={ctx}>{command("checkbox")}</Harness>
     );
     const button = getByRole("button", { name: "Checkbox" });
     expect(button.getAttribute("aria-pressed")).toBe("false");
@@ -126,7 +137,7 @@ describe("toolbar", () => {
     expect(current.luckysheetfile[0].data![1][0]?.cb).toBeUndefined();
   });
 
-  it("Flash Fill from the Data tools menu fills and reports the count", () => {
+  it("Flash Fill fills and reports the count", () => {
     const ctx = makeContext({
       A1: "Nancy Davolio",
       B1: "Nancy",
@@ -141,15 +152,11 @@ describe("toolbar", () => {
     )!.Component;
     const { getByRole, getByText } = render(
       <Harness initial={ctx}>
-        {getToolbarItemRenderer("data-tools")!({
-          name: "data-tools",
-          tooltip: "",
-        })}
+        {command("flash-fill")}
         <Notice />
       </Harness>
     );
-    fireEvent.click(getByRole("button", { name: "Data tools" }));
-    fireEvent.click(getByText("Flash Fill"));
+    fireEvent.click(getByRole("button", { name: "Flash Fill" }));
     expect([v("B2"), v("B3")]).toEqual(["Andrew", "Janet"]);
     expect(getByText("Flash Fill: 2 cells changed")).toBeTruthy();
   });

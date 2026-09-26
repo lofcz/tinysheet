@@ -14,6 +14,7 @@ import { installTablesUI } from "./components/Tables";
 import { registerProtectionFeatures } from "./components/Protection";
 import { registerPageLayoutFeature } from "./components/PageLayout";
 import { registerCellTools } from "./components/CellTools";
+import { registerBuiltinRibbonCommands } from "./components/Ribbon/commands";
 
 let loaded = false;
 
@@ -29,4 +30,5 @@ export function loadBuiltinFeatures() {
   registerProtectionFeatures();
   registerPageLayoutFeature();
   registerCellTools();
+  registerBuiltinRibbonCommands();
 }

@@ -19,13 +19,11 @@ import {
   activeCellTable,
   addTableSlicers,
   clearSlicerFilter,
-  colLocation,
   findSlicer,
   getSlicerItems,
   getTables,
   locale,
   removeSlicer,
-  rowLocation,
   selectSlicerItem,
   slicerHasFilter,
   SLICER_DEFAULTS,
@@ -40,8 +38,11 @@ import type {
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
+import { trackPointerDrag } from "../../hooks/pointerDrag";
 import { activateOnKey } from "../Toolbar/Button";
-import SVGIcon from "../SVGIcon";
+import { Button as UiButton, DialogShell } from "../ui";
+import { FunnelX, Settings2, Trash2 } from "lucide-react";
+import { ContextMenuPopup, MenuItem } from "../ui";
 
 /* ------------------------------------------------------------------------ */
 /* Styles                                                                   */
@@ -131,8 +132,13 @@ function anchorOf(ctx: Context, box: Box) {
   const zoom = ctx.zoomRatio || 1;
   const left = Math.max(0, box.left);
   const top = Math.max(0, box.top);
-  const [colPre, , c] = colLocation(left, ctx.visibledatacolumn);
-  const [rowPre, , r] = rowLocation(top, ctx.visibledatarow);
+  // the cell the corner is in (an edge starts the next cell, as in Excel)
+  const cellAt = (edges: number[], pos: number) => {
+    const i = Math.min(_.sortedLastIndex(edges, pos), edges.length - 1);
+    return [i > 0 ? edges[i - 1] : 0, i] as const;
+  };
+  const [colPre, c] = cellAt(ctx.visibledatacolumn, left);
+  const [rowPre, r] = cellAt(ctx.visibledatarow, top);
   return {
     r,
     c,
@@ -480,15 +486,9 @@ const TextButton: React.FC<{
   primary?: boolean;
   children: React.ReactNode;
 }> = ({ onClick, primary, children }) => (
-  <div
-    className={`button-basic ${primary ? "button-primary" : "button-default"}`}
-    role="button"
-    tabIndex={0}
-    onClick={onClick}
-    onKeyDown={activateOnKey}
-  >
+  <UiButton variant={primary ? "primary" : "secondary"} onClick={onClick}>
     {children}
-  </div>
+  </UiButton>
 );
 
 /** Insert Slicers: pick the columns of the table to create slicers for. */
@@ -521,8 +521,18 @@ export const InsertSlicerDialog: React.FC<{ tableName: string }> = ({
     hideDialog();
   };
   return (
-    <div className="fortune-table-dialog fortune-slicer-insert">
-      <div className="fortune-table-dialog-title">{tt.insertSlicer}</div>
+    <DialogShell
+      title={tt.insertSlicer}
+      className="fortune-table-dialog fortune-slicer-insert"
+      footer={
+        <>
+          <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
+          <TextButton primary onClick={ok}>
+            {button.confirm}
+          </TextButton>
+        </>
+      }
+    >
       <div className="fortune-slicer-dialog-hint">{tt.insertSlicerHint}</div>
       <div className="fortune-slicer-insert-list" role="group">
         {table.columns.map((col, i) => (
@@ -543,13 +553,7 @@ export const InsertSlicerDialog: React.FC<{ tableName: string }> = ({
           </div>
         ))}
       </div>
-      <div className="fortune-table-dialog-footer">
-        <TextButton primary onClick={ok}>
-          {button.confirm}
-        </TextButton>
-        <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -622,8 +626,18 @@ export const SlicerSettingsDialog: React.FC<{ name: string }> = ({ name }) => {
     (k) => SLICER_STYLES[k].group
   );
   return (
-    <div className="fortune-table-dialog fortune-slicer-settings">
-      <div className="fortune-table-dialog-title">{tt.slicerSettingsTitle}</div>
+    <DialogShell
+      title={tt.slicerSettingsTitle}
+      className="fortune-table-dialog fortune-slicer-settings"
+      footer={
+        <>
+          <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
+          <TextButton primary onClick={ok}>
+            {button.confirm}
+          </TextButton>
+        </>
+      }
+    >
       <div className="fortune-table-design-grid">
         <div className="fortune-table-dialog-field">
           <label htmlFor={`${uid}-name`}>{tt.name}</label>
@@ -758,92 +772,66 @@ export const SlicerSettingsDialog: React.FC<{ name: string }> = ({ name }) => {
           {error}
         </div>
       )}
-      <div className="fortune-table-dialog-footer">
-        <TextButton primary onClick={ok}>
-          {button.confirm}
-        </TextButton>
-        <TextButton onClick={hideDialog}>{button.cancel}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
-/** Context menu of a slicer (right-click). */
+/** Context menu of a slicer (right-click; viewport coordinates). */
 const SlicerMenu: React.FC<{
   x: number;
   y: number;
   name: string;
   onClose: () => void;
 }> = ({ x, y, name, onClose }) => {
-  const { context, setContext } = useContext(WorkbookContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
   const { showDialog } = useDialog();
   const tt = tableToolsLocale(context);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener("mousedown", onDown, true);
-    return () => document.removeEventListener("mousedown", onDown, true);
-  }, [onClose]);
   const filtered = slicerHasFilter(context, name);
-  const entries: [string, boolean, () => void][] = [
-    [
-      tt.slicerSettings,
-      true,
-      () => showDialog(<SlicerSettingsDialog name={name} />),
-    ],
-    [
-      tt.clearFilter,
-      filtered,
-      () =>
+  const items: MenuItem[] = [
+    {
+      id: "slicer-settings",
+      label: tt.slicerSettings,
+      icon: Settings2,
+      onSelect: () => showDialog(<SlicerSettingsDialog name={name} />),
+    },
+    {
+      id: "slicer-clear-filter",
+      label: tt.clearFilter,
+      icon: FunnelX,
+      disabled: !filtered,
+      onSelect: () =>
         setContext((ctx) => {
           clearSlicerFilter(ctx, name);
         }),
-    ],
-    [
-      tt.removeSlicer,
-      true,
-      () =>
+    },
+    { type: "separator", id: "s1" },
+    {
+      id: "slicer-remove",
+      label: tt.removeSlicer,
+      icon: Trash2,
+      onSelect: () =>
         setContext((ctx) => {
           removeSlicer(ctx, name);
         }),
-    ],
+    },
   ];
   return (
-    <div
-      ref={ref}
-      className="fortune-table-popup fortune-slicer-menu"
-      role="menu"
-      style={{ left: x, top: y }}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      {entries.map(([label, enabled, run]) => (
-        <div
-          key={label}
-          role="menuitem"
-          tabIndex={0}
-          aria-disabled={!enabled}
-          className={`fortune-table-popup-item${
-            enabled ? "" : " fortune-table-popup-item-disabled"
-          }`}
-          onClick={() => {
-            if (!enabled) return;
-            onClose();
-            run();
-          }}
-          onKeyDown={activateOnKey}
-        >
-          {label}
-        </div>
-      ))}
-    </div>
+    <ContextMenuPopup
+      x={x}
+      y={y}
+      items={items}
+      within={refs.workbookContainer.current}
+      popupClassName="fortune-slicer-menu"
+      minWidth={180}
+      aria-label={name}
+      onClose={() => onClose()}
+    />
   );
 };
 
 /** Every slicer of the current sheet (a registered sheet overlay). */
 export const SlicerLayer: React.FC = () => {
-  const { context, setContext, refs } = useContext(WorkbookContext);
+  const { context, setContext } = useContext(WorkbookContext);
   const tables = getTables(context, context.currentSheetId).filter(
     (t) => t.table.slicers?.length
   );
@@ -894,11 +882,12 @@ export const SlicerLayer: React.FC = () => {
     setPreview({ name: d.name, box: d.current });
   }, []);
 
+  const stopTracking = useRef<(() => void) | null>(null);
+
   const onMouseUp = useCallback(() => {
     const d = drag.current;
     drag.current = null;
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup", onMouseUp);
+    stopTracking.current = null;
     setPreview(null);
     if (!d?.moved) return;
     setContext((ctx) => {
@@ -918,13 +907,14 @@ export const SlicerLayer: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onMouseMove, setContext]);
 
-  useEffect(
-    () => () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    },
-    [onMouseMove, onMouseUp]
-  );
+  // Esc (or a lost pointer): the slicer stays where it was
+  const onDragCancel = useCallback(() => {
+    drag.current = null;
+    stopTracking.current = null;
+    setPreview(null);
+  }, []);
+
+  useEffect(() => () => stopTracking.current?.(), []);
 
   const startDrag = useCallback(
     (e: React.MouseEvent, slicer: TableSlicer, mode: DragMode) => {
@@ -956,10 +946,22 @@ export const SlicerLayer: React.FC = () => {
         current: box,
         moved: false,
       };
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
+      stopTracking.current?.();
+      stopTracking.current = trackPointerDrag(e, {
+        onMove: onMouseMove,
+        onEnd: onMouseUp,
+        onCancel: onDragCancel,
+      });
     },
-    [context, onMouseMove, onMouseUp, readonly, setContext, tables]
+    [
+      context,
+      onDragCancel,
+      onMouseMove,
+      onMouseUp,
+      readonly,
+      setContext,
+      tables,
+    ]
   );
 
   const openMenu = useCallback(
@@ -967,17 +969,9 @@ export const SlicerLayer: React.FC = () => {
       e.preventDefault();
       e.stopPropagation();
       if (readonly) return;
-      const area = refs.cellArea.current?.getBoundingClientRect();
-      const box = slicerBox(context, slicer);
-      const x = area
-        ? e.clientX - area.left + refs.scrollbarX.current!.scrollLeft
-        : box.left;
-      const y = area
-        ? e.clientY - area.top + refs.scrollbarY.current!.scrollTop
-        : box.top;
-      setMenu({ x, y, name: slicer.name });
+      setMenu({ x: e.clientX, y: e.clientY, name: slicer.name });
     },
-    [context, readonly, refs.cellArea, refs.scrollbarX, refs.scrollbarY]
+    [readonly]
   );
 
   if (tables.length === 0) return null;
@@ -1027,43 +1021,3 @@ export function useInsertSlicer() {
     showDialog(<InsertSlicerDialog tableName={ref.table.name} />);
   }, [context, showDialog]);
 }
-
-/** Sprite symbol of the slicer toolbar icon. */
-const SlicerIconSymbol: React.FC = () => (
-  <svg style={{ display: "none" }} aria-hidden="true">
-    <symbol id="tinysheet-slicer" viewBox="0 0 24 24">
-      <path
-        fill="currentColor"
-        d="M4 3h16v18H4V3zm2 2v2h12V5H6zm1 4v3h10V9H7zm0 5v3h10v-3H7z"
-      />
-    </symbol>
-  </svg>
-);
-
-/** Toolbar "Slicer" (Insert › Slicer). */
-export const SlicerToolbarButton: React.FC<{ tooltip?: string }> = () => {
-  const { context } = useContext(WorkbookContext);
-  const insert = useInsertSlicer();
-  const tt = tableToolsLocale(context);
-  const label = tt.insertSlicer;
-  return (
-    <>
-      <SlicerIconSymbol />
-      <div
-        className="fortune-toolbar-button fortune-toolbar-item"
-        role="button"
-        tabIndex={0}
-        data-tips={label}
-        aria-label={label}
-        aria-disabled={context.allowEdit === false || undefined}
-        onClick={insert}
-        onKeyDown={activateOnKey}
-      >
-        <SVGIcon name="tinysheet-slicer" />
-        <div className="fortune-tooltip" aria-hidden="true">
-          {label}
-        </div>
-      </div>
-    </>
-  );
-};

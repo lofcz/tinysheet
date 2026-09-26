@@ -1,8 +1,6 @@
 import React from "react";
 import type { SparklineLocale, SparklineType } from "@lofcz/tinysheet-core";
 
-export const SPARKLINE_TOOLBAR_ICON = "fortune-insert-sparkline";
-
 export const SPARKLINE_TYPES: {
   type: SparklineType;
   label: keyof SparklineLocale;
@@ -60,31 +58,5 @@ export const SparklineTypeIcon: React.FC<{
         <rect x="16.9" y="8" width="2.2" height="4" />
       </g>
     )}
-  </svg>
-);
-
-/** The toolbar icon, as a <symbol> for SVGIcon. */
-export const SparklineToolbarSymbol: React.FC = () => (
-  <svg style={{ position: "absolute", width: 0, height: 0 }} aria-hidden="true">
-    <defs>
-      <symbol id={SPARKLINE_TOOLBAR_ICON} viewBox="0 0 24 24" fill="none">
-        <rect
-          x="3.75"
-          y="6.75"
-          width="16.5"
-          height="10.5"
-          rx="1.5"
-          stroke="currentColor"
-          strokeWidth="1.5"
-        />
-        <path
-          d="M6.5 14l3-3.5 2.5 2 2.5-3.5 3 2.5"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </symbol>
-    </defs>
   </svg>
 );

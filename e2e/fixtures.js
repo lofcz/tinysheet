@@ -14,23 +14,70 @@ const IGNORED_CONSOLE = [/favicon\.ico/];
 
 const storyUrl = (id) => `/iframe.html?id=${id}&viewMode=story`;
 
+/** The ribbon (tab row + command row) and any open collapsed-group popup. */
+const ribbonRoot = (page) =>
+  page.locator(".fortune-ribbon, .fortune-ribbon-group-popover");
+
+/** Switch the ribbon to a tab by id ("home", "insert", "formulas", ...). */
+async function ribbonTab(page, id) {
+  const tab = page.locator(`.fortune-ribbon [role=tab][data-tab="${id}"]`);
+  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+}
+
+async function firstVisible(locator) {
+  const count = await locator.count();
+  for (let i = 0; i < count; i += 1) {
+    const el = locator.nth(i);
+    if (await el.isVisible().catch(() => false)) return el;
+  }
+  return null;
+}
+
 /**
- * A toolbar button by its accessible name. Items that do not fit the width
- * sit in the "More" overflow: it is opened when the button is not visible.
+ * Find a ribbon control anywhere: `locate(root)` returns a locator inside
+ * the ribbon. Tries the current tab, then every tab, opening each
+ * collapsed group (Excel's scaling) on the way. Returns the first visible
+ * match; throws when no tab has it.
+ */
+async function ribbonLocate(page, locate) {
+  const hit = await firstVisible(locate(ribbonRoot(page)));
+  if (hit) return hit;
+  const ids = await page
+    .locator(".fortune-ribbon [role=tab]")
+    .evaluateAll((els) => els.map((el) => el.dataset.tab));
+  for (const id of ids) {
+    await ribbonTab(page, id);
+    const found = await firstVisible(locate(ribbonRoot(page)));
+    if (found) return found;
+    const collapsed = page.locator(".fortune-ribbon [data-group-button]");
+    const n = await collapsed.count();
+    for (let i = 0; i < n; i += 1) {
+      await collapsed.nth(i).click();
+      const inGroup = await firstVisible(
+        locate(page.locator(".fortune-ribbon-group-popover"))
+      );
+      if (inGroup) return inGroup;
+      await page.keyboard.press("Escape");
+    }
+  }
+  throw new Error("ribbon control not found in any tab");
+}
+
+/**
+ * A ribbon button by its accessible name (a string matches exactly; a
+ * RegExp as given). Switches to the tab that holds it and opens its group
+ * when the ribbon collapsed the group to fit the window.
  */
 async function toolbarButton(page, name) {
-  const inBar = page
-    .locator(".fortune-toolbar")
-    .getByRole("button", { name, exact: true });
-  if (await inBar.first().isVisible()) return inBar.first();
-  const more = page.locator(".fortune-toolbar-more-container");
-  if (!(await more.isVisible())) {
-    await page
-      .locator(".fortune-toolbar")
-      .getByRole("button", { name: "More" })
-      .click();
-  }
-  return more.getByRole("button", { name, exact: true }).first();
+  return ribbonLocate(page, (root) =>
+    root.getByRole("button", { name, exact: typeof name === "string" })
+  );
+}
+
+/** A ribbon element by CSS selector, e.g. '[data-testid="toolbar-protection"]'. */
+async function ribbonItem(page, selector) {
+  return ribbonLocate(page, (root) => root.locator(selector));
 }
 
 class Sheet {
@@ -216,4 +263,13 @@ const test = base.extend({
   },
 });
 
-module.exports = { test, expect, Sheet, storyUrl, toolbarButton };
+module.exports = {
+  test,
+  expect,
+  Sheet,
+  storyUrl,
+  toolbarButton,
+  ribbonItem,
+  ribbonTab,
+  ribbonLocate,
+};

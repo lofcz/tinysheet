@@ -12,10 +12,10 @@ async function openStory(page, id = "shapes--gallery") {
   return sheet;
 }
 
-/** Open the Insert › Shapes gallery (it may sit in the "More" overflow). */
+/** Open the Insert › Shapes gallery. */
 async function openGallery(page) {
-  await (await toolbarButton(page, "Shapes: Dropdown")).click();
-  await expect(page.locator(".fortune-shape-gallery")).toBeVisible();
+  await (await toolbarButton(page, "Shapes")).click();
+  await expect(page.locator(".ts-shape-gallery")).toBeVisible();
 }
 
 async function center(locator) {
@@ -116,10 +116,12 @@ test.describe("shapes", () => {
       )
       .toBe("Plan ahead");
     await rect.click({ button: "right" });
-    await page.getByRole("menuitem", { name: /Format shape/ }).click();
-    const pane = page.getByRole("complementary", { name: "Format shape" });
+    await page.getByRole("menuitem", { name: /Format Shape/ }).click();
+    const pane = page.getByRole("complementary", { name: "Format Shape" });
     await expect(pane).toBeVisible();
+    await pane.getByRole("button", { name: "Text Options" }).click();
     await pane.getByRole("button", { name: "Bold" }).click();
+    await pane.getByRole("button", { name: "Shape Options" }).click();
     await pane.getByLabel("Shadow").uncheck();
     await expect
       .poll(async () => {
@@ -166,7 +168,7 @@ test.describe("shapes", () => {
     await expect(page.locator("[data-shape-id]")).toHaveCount(7);
     await openGallery(page);
     const bg = await page
-      .locator(".fortune-shape-gallery")
+      .locator(".ts-shape-gallery")
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(bg).not.toBe("rgb(255, 255, 255)");
   });

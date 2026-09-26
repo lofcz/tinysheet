@@ -397,6 +397,44 @@ export function isPageBreakPreview(ctx: Context, sheetId?: string) {
   );
 }
 
+/** Excel's View › Workbook Views. */
+export type WorkbookView = "normal" | "pageBreakPreview" | "pageLayout";
+
+/** Is the sheet in Page Layout view (its pages outlined)? */
+export function isPageLayoutView(ctx: Context, sheetId?: string) {
+  return !!ctx.pageLayout?.layoutViewSheets?.includes(
+    sheetId ?? ctx.currentSheetId
+  );
+}
+
+/** The view of the sheet (current sheet by default). */
+export function getWorkbookView(ctx: Context, sheetId?: string): WorkbookView {
+  if (isPageBreakPreview(ctx, sheetId)) return "pageBreakPreview";
+  if (isPageLayoutView(ctx, sheetId)) return "pageLayout";
+  return "normal";
+}
+
+/**
+ * Switch the current sheet to Normal, Page Break Preview or Page Layout
+ * view (one at a time, like Excel).
+ */
+export function setWorkbookView(ctx: Context, view: WorkbookView) {
+  const id = ctx.currentSheetId;
+  ctx.pageLayout = {
+    ...ctx.pageLayout,
+    breakPreviewSheets: toggleId(
+      ctx.pageLayout?.breakPreviewSheets,
+      id,
+      view === "pageBreakPreview"
+    ),
+    layoutViewSheets: toggleId(
+      ctx.pageLayout?.layoutViewSheets,
+      id,
+      view === "pageLayout"
+    ),
+  };
+}
+
 /** Show (or hide) the automatic page break lines in Normal view. */
 export function setShowPageBreaks(ctx: Context, on: boolean, sheetId?: string) {
   const id = sheetId ?? ctx.currentSheetId;

@@ -4,7 +4,7 @@ import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import FilterStatus from "../FilterOption/FilterStatus";
 import DataVerificationAlert from "./Alert";
-import DataVerificationSidebar from "./Sidebar";
+import { DataVerificationPane } from "./Sidebar";
 
 /**
  * Workbook-level UI of the data tools: the validation error alert, the
@@ -30,7 +30,7 @@ const DataToolsLayer: React.FC = () => {
 
   return (
     <>
-      {context.dataVerificationSidebar && <DataVerificationSidebar />}
+      <DataVerificationPane />
       <FilterStatus />
     </>
   );

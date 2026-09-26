@@ -34,6 +34,12 @@ import {
   fixRowStyleOverflowInFreeze,
   fixColumnStyleOverflowInFreeze,
   handleKeydownForZoom,
+  handleReferenceBoxMouseDown,
+  ReferenceDragHandle,
+  getDragAutoScroll,
+  frozenScrollMin,
+  isCancelableGridDrag,
+  cancelGridDrag,
   api,
 } from "@lofcz/tinysheet-core";
 import _ from "lodash";
@@ -105,10 +111,16 @@ const SheetOverlay: React.FC = () => {
 
           if (
             !_.isEmpty(draftCtx.luckysheet_select_save?.[0]) &&
-            refs.cellInput.current
+            refs.cellInput.current &&
+            // a formula edited in the formula bar keeps the focus there
+            // while cells are clicked into it (Point mode)
+            !(
+              draftCtx.luckysheetCellUpdate.length > 0 &&
+              document.activeElement === refs.fxInput.current
+            )
           ) {
             setTimeout(() => {
-              refs.cellInput.current?.focus();
+              refs.cellInput.current?.focus({ preventScroll: true });
             });
           }
         });
@@ -157,11 +169,57 @@ const SheetOverlay: React.FC = () => {
     [refs.cellArea, refs.globalCache, setContext, settings]
   );
 
+  // dragging the border of a formula reference's box moves the reference, a
+  // corner resizes it; the editor keeps the focus
+  const referenceBoxMouseDown = useCallback(
+    (
+      e: React.MouseEvent<HTMLDivElement>,
+      rangeIndex: number,
+      handle: ReferenceDragHandle
+    ) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const { nativeEvent } = e;
+      setContext((draftCtx) => {
+        handleReferenceBoxMouseDown(
+          draftCtx,
+          refs.globalCache,
+          nativeEvent,
+          refs.cellInput.current!,
+          refs.fxInput.current,
+          containerRef.current!,
+          rangeIndex,
+          handle
+        );
+      });
+    },
+    [refs.cellInput, refs.fxInput, refs.globalCache, setContext]
+  );
+
+  // The cell area's DOM scroll mirrors the sheet's scroll (its overlays are
+  // placed in sheet coordinates). The browser may scroll it on its own, e.g.
+  // to bring the focused cell editor into view: that would move every
+  // overlay (selection, editor...) off the cells drawn on the canvas.
+  const onCellAreaScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const el = e.currentTarget;
+      if (el.scrollTop !== context.scrollTop) el.scrollTop = context.scrollTop;
+      if (el.scrollLeft !== context.scrollLeft) {
+        el.scrollLeft = context.scrollLeft;
+      }
+    },
+    [context]
+  );
+
   const onLeftTopClick = useCallback(() => {
     setContext((draftCtx) => {
       selectAll(draftCtx);
     });
-  }, [setContext]);
+    // keyboard (typing, Delete, Ctrl+V) goes on to the grid, as after a
+    // click on a cell
+    refs.cellInput.current?.focus({ preventScroll: true });
+  }, [refs.cellInput, setContext]);
 
   const debouncedShowLinkCard = useMemo(
     () =>
@@ -205,8 +263,84 @@ const SheetOverlay: React.FC = () => {
     [debouncedShowLinkCard]
   );
 
+  // Auto-scroll: while a drag (selecting, filling, moving cells) holds the
+  // pointer past the grid's edge, the sheet keeps scrolling, one step per
+  // frame even when the pointer stays still, and the drag follows.
+  const autoScroll = useRef<{
+    frame: number | null;
+    time: number;
+    event: MouseEvent | null;
+  }>({ frame: null, time: 0, event: null });
+  const autoScrollStep = useRef<() => void>(() => {});
+  autoScrollStep.current = () => {
+    const state = autoScroll.current;
+    state.frame = null;
+    const e = state.event;
+    const container = containerRef.current;
+    const barX = refs.scrollbarX.current;
+    const barY = refs.scrollbarY.current;
+    if (!e || !container || !barX || !barY) return;
+    const now = performance.now();
+    const dt = state.time ? now - state.time : 16;
+    const { dx, dy } = getDragAutoScroll(
+      context,
+      refs.globalCache,
+      e,
+      container,
+      dt
+    );
+    if (!dx && !dy) {
+      state.time = 0;
+      return;
+    }
+    state.time = now;
+    // at least a pixel per frame, whatever the frame rate
+    const px = (d: number) =>
+      d === 0 ? 0 : Math.sign(d) * Math.max(1, Math.round(Math.abs(d)));
+    const min = frozenScrollMin(context);
+    if (dx) barX.scrollLeft = Math.max(min.left, barX.scrollLeft + px(dx));
+    if (dy) barY.scrollTop = Math.max(min.top, barY.scrollTop + px(dy));
+    // the browser clamps them to the scroll range
+    const left = barX.scrollLeft;
+    const top = barY.scrollTop;
+    if (left !== context.scrollLeft || top !== context.scrollTop) {
+      setContext((draftCtx) => {
+        draftCtx.scrollLeft = left;
+        draftCtx.scrollTop = top;
+        // extend the drag to what scrolled into view
+        handleOverlayMouseMove(
+          draftCtx,
+          refs.globalCache,
+          e,
+          refs.cellInput.current!,
+          barX,
+          barY,
+          container,
+          refs.fxInput.current
+        );
+      });
+    }
+    state.frame = requestAnimationFrame(() => autoScrollStep.current());
+  };
+  useEffect(
+    () => () => {
+      const { frame } = autoScroll.current;
+      if (frame != null) cancelAnimationFrame(frame);
+    },
+    []
+  );
+
   const onMouseMove = useCallback(
     (nativeEvent: MouseEvent) => {
+      // a drag with the primary button: auto-scroll past the grid's edge
+      // eslint-disable-next-line no-bitwise
+      if (nativeEvent.buttons & 1) {
+        const state = autoScroll.current;
+        state.event = nativeEvent;
+        if (state.frame == null) {
+          state.frame = requestAnimationFrame(() => autoScrollStep.current());
+        }
+      }
       setContext((draftCtx) => {
         overShowLinkCard(
           draftCtx,
@@ -241,6 +375,11 @@ const SheetOverlay: React.FC = () => {
 
   const onMouseUp = useCallback(
     (nativeEvent: MouseEvent) => {
+      const scrolling = autoScroll.current;
+      if (scrolling.frame != null) cancelAnimationFrame(scrolling.frame);
+      scrolling.frame = null;
+      scrolling.time = 0;
+      scrolling.event = null;
       setContext((draftCtx) => {
         try {
           handleOverlayMouseUp(
@@ -359,7 +498,7 @@ const SheetOverlay: React.FC = () => {
 
       // Only reset selection if there's no existing selection
       if (!currentSheet.luckysheet_select_save?.length) {
-        api.setSelection(draftCtx, [{ row: [0], column: [0] }], {});
+        api.setSelection(draftCtx, [{ row: [0, 0], column: [0, 0] }], {});
       }
     });
   }, [context.currentSheetId, setContext]);
@@ -433,6 +572,30 @@ const SheetOverlay: React.FC = () => {
     };
   }, [onMouseUp]);
 
+  // Esc while dragging the selection's border, the fill handle, a header
+  // border, a freeze line or a picture cancels the drag (Excel)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key !== "Escape" ||
+        !isCancelableGridDrag(context, refs.globalCache)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      const scrolling = autoScroll.current;
+      if (scrolling.frame != null) cancelAnimationFrame(scrolling.frame);
+      scrolling.frame = null;
+      scrolling.event = null;
+      setContext((draftCtx) => {
+        cancelGridDrag(draftCtx, refs.globalCache, containerRef.current!);
+      });
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [context, refs.globalCache, setContext]);
+
   useEffect(() => {
     document.addEventListener("keydown", onKeyDownForZoom);
     return () => {
@@ -492,6 +655,91 @@ const SheetOverlay: React.FC = () => {
 
   const computedCellValue = cellValue();
 
+  // Selection look (Excel): several ranges show as fills only, the active
+  // cell stays clear of the fill, Select All lights up when all is selected.
+  const selections = context.luckysheet_select_save ?? [];
+  const multiSelection = selections.length > 1;
+  const freezeCache = refs.globalCache.freezen?.[context.currentSheetId];
+  const lastSel = _.last(selections);
+  const focusStyle: React.CSSProperties = lastSel
+    ? _.assign(
+        {
+          left: lastSel.left,
+          top: lastSel.top,
+          width: lastSel.width || 0,
+          height: lastSel.height || 0,
+          display: "block",
+        },
+        fixRowStyleOverflowInFreeze(
+          context,
+          lastSel.row_focus || 0,
+          lastSel.row_focus || 0,
+          freezeCache
+        ),
+        fixColumnStyleOverflowInFreeze(
+          context,
+          lastSel.column_focus || 0,
+          lastSel.column_focus || 0,
+          freezeCache
+        )
+      )
+    : {};
+  const selectionBoxStyle = (selection: (typeof selections)[number]) =>
+    _.assign(
+      {
+        left: selection.left_move,
+        top: selection.top_move,
+        width: selection?.width_move || 0,
+        height: selection?.height_move || 0,
+        display: "block",
+      },
+      fixRowStyleOverflowInFreeze(
+        context,
+        selection.row[0],
+        selection.row[1],
+        freezeCache
+      ),
+      fixColumnStyleOverflowInFreeze(
+        context,
+        selection.column[0],
+        selection.column[1],
+        freezeCache
+      )
+    ) as React.CSSProperties & {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    };
+  // The fill of the range holding the active cell has a hole there.
+  const selectionFillStyle = (
+    selection: (typeof selections)[number],
+    holdsFocus: boolean
+  ): React.CSSProperties | undefined => {
+    if (!holdsFocus || focusStyle.display === "none") return undefined;
+    const box = selectionBoxStyle(selection);
+    const x = Number(focusStyle.left) - box.left;
+    const y = Number(focusStyle.top) - box.top;
+    const w = Number(focusStyle.width);
+    const h = Number(focusStyle.height);
+    if (![x, y, w, h].every(Number.isFinite)) return undefined;
+    // the active cell is the whole range: nothing to fill
+    if (x <= 0 && y <= 0 && x + w >= box.width && y + h >= box.height) {
+      return { display: "none" };
+    }
+    return {
+      clipPath: `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${x}px ${y}px, ${
+        x + w
+      }px ${y}px, ${x + w}px ${y + h}px, ${x}px ${y + h}px, ${x}px ${y}px)`,
+    };
+  };
+  const allSelected =
+    selections.length === 1 &&
+    selections[0].row[0] <= 0 &&
+    selections[0].column[0] <= 0 &&
+    selections[0].row[1] >= context.visibledatarow.length - 1 &&
+    selections[0].column[1] >= context.visibledatacolumn.length - 1;
+
   useEffect(() => {
     if (context.sheetFocused) {
       setLastRangeText(String(rangeText));
@@ -517,9 +765,10 @@ const SheetOverlay: React.FC = () => {
           className="fortune-left-top"
           onClick={onLeftTopClick}
           tabIndex={0}
+          data-all-selected={allSelected || undefined}
           style={{
-            width: context.rowHeaderWidth - 1.5,
-            height: context.columnHeaderHeight - 1.5,
+            width: context.rowHeaderWidth - 2,
+            height: context.columnHeaderHeight - 2,
           }}
         />
         <TrackedScope>{COLUMN_HEADER}</TrackedScope>
@@ -540,12 +789,17 @@ const SheetOverlay: React.FC = () => {
           onMouseDown={cellAreaMouseDown}
           onDoubleClick={cellAreaDoubleClick}
           onContextMenu={cellAreaContextMenu}
+          onScroll={onCellAreaScroll}
           style={{
             width: context.cellmainWidth,
             height: context.cellmainHeight,
+            // Excel: the thick cross over cells, the thin one while
+            // filling, the move arrows while moving the selection
             cursor: context.luckysheet_cell_selected_extend
               ? "crosshair"
-              : "default",
+              : context.luckysheet_cell_selected_move
+                ? "move"
+                : "cell",
           }}
         >
           <div id="fortune-formula-functionrange" />
@@ -576,18 +830,22 @@ const SheetOverlay: React.FC = () => {
                     data-type={d}
                     className={`fortune-selection-copy-${d} fortune-copy`}
                     style={{ backgroundColor }}
+                    onMouseDown={(e) =>
+                      referenceBoxMouseDown(e, rangeIndex, "move")
+                    }
                   />
                 ))}
                 <div
                   className="fortune-selection-copy-hc"
                   style={{ backgroundColor }}
                 />
-                {["lt", "rt", "lb", "rb"].map((d) => (
+                {(["lt", "rt", "lb", "rb"] as const).map((d) => (
                   <div
                     key={d}
                     data-type={d}
                     className={`fortune-selection-highlight-${d} luckysheet-highlight`}
                     style={{ backgroundColor }}
+                    onMouseDown={(e) => referenceBoxMouseDown(e, rangeIndex, d)}
                   />
                 ))}
               </div>
@@ -619,34 +877,8 @@ const SheetOverlay: React.FC = () => {
           />
           <div
             className="luckysheet-cell-selected-focus"
-            style={
-              (context.luckysheet_select_save?.length ?? 0) > 0
-                ? (() => {
-                    const selection = _.last(context.luckysheet_select_save)!;
-                    return _.assign(
-                      {
-                        left: selection.left,
-                        top: selection.top,
-                        width: selection?.width || 0,
-                        height: selection?.height || 0,
-                        display: "block",
-                      },
-                      fixRowStyleOverflowInFreeze(
-                        context,
-                        selection.row_focus || 0,
-                        selection.row_focus || 0,
-                        refs.globalCache.freezen?.[context.currentSheetId]
-                      ),
-                      fixColumnStyleOverflowInFreeze(
-                        context,
-                        selection.column_focus || 0,
-                        selection.column_focus || 0,
-                        refs.globalCache.freezen?.[context.currentSheetId]
-                      )
-                    );
-                  })()
-                : {}
-            }
+            data-multi={multiSelection || undefined}
+            style={focusStyle}
             onMouseDown={(e) => e.preventDefault()}
           />
           <TrackedScope>{SPILL_RANGE}</TrackedScope>
@@ -705,27 +937,11 @@ const SheetOverlay: React.FC = () => {
                   key={index}
                   id="luckysheet-cell-selected"
                   className="luckysheet-cell-selected"
-                  style={_.assign(
-                    {
-                      left: selection.left_move,
-                      top: selection.top_move,
-                      width: selection?.width_move || 0,
-                      height: selection?.height_move || 0,
-                      display: "block",
-                    },
-                    fixRowStyleOverflowInFreeze(
-                      context,
-                      selection.row[0],
-                      selection.row[1],
-                      refs.globalCache.freezen?.[context.currentSheetId]
-                    ),
-                    fixColumnStyleOverflowInFreeze(
-                      context,
-                      selection.column[0],
-                      selection.column[1],
-                      refs.globalCache.freezen?.[context.currentSheetId]
-                    )
-                  )}
+                  data-multi={multiSelection || undefined}
+                  data-editing={
+                    context.luckysheetCellUpdate.length > 0 || undefined
+                  }
+                  style={selectionBoxStyle(selection)}
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     const { nativeEvent } = e;
@@ -741,6 +957,13 @@ const SheetOverlay: React.FC = () => {
                     });
                   }}
                 >
+                  <div
+                    className="luckysheet-cs-fill"
+                    style={selectionFillStyle(
+                      selection,
+                      index === selections.length - 1
+                    )}
+                  />
                   <div className="luckysheet-cs-inner-border" />
                   <div
                     className="luckysheet-cs-fillhandle"
@@ -750,7 +973,10 @@ const SheetOverlay: React.FC = () => {
                         createDropCellRange(
                           draftContext,
                           nativeEvent,
-                          containerRef.current!
+                          containerRef.current!,
+                          refs.globalCache.freezen?.[
+                            draftContext.currentSheetId
+                          ]
                         );
                       });
                       e.stopPropagation();

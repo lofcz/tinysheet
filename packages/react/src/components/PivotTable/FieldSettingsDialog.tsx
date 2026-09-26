@@ -22,6 +22,7 @@ import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import { PivotButton, PivotCheck } from "./CreatePivotDialog";
 import { usePivotUpdate } from "./usePivotUpdate";
+import { DialogShell } from "../ui";
 
 const SHOW_AS: PivotShowAs[] = [
   "normal",
@@ -85,10 +86,19 @@ export const ValueFieldSettingsDialog: React.FC<{
   const needsBase =
     draft.showAs === "difference" || draft.showAs === "percentDifference";
   return (
-    <div className="fortune-pivot-dialog" data-testid="pivot-value-settings">
-      <div className="fortune-pivot-dialog-title">
-        {t.valueFieldSettings.replace("…", "")}
-      </div>
+    <DialogShell
+      title={t.valueFieldSettings.replace("…", "")}
+      className="fortune-pivot-dialog"
+      data-testid="pivot-value-settings"
+      footer={
+        <>
+          <PivotButton onClick={hideDialog}>{t.cancel}</PivotButton>
+          <PivotButton primary onClick={ok}>
+            {t.ok}
+          </PivotButton>
+        </>
+      }
+    >
       <div className="fortune-pivot-dialog-muted">{draft.field}</div>
       <label className="fortune-pivot-dialog-field" htmlFor={`${uid}-name`}>
         <span>{t.customName}</span>
@@ -198,13 +208,7 @@ export const ValueFieldSettingsDialog: React.FC<{
           ))}
         </datalist>
       </label>
-      <div className="fortune-pivot-dialog-footer">
-        <PivotButton primary onClick={ok}>
-          {t.ok}
-        </PivotButton>
-        <PivotButton onClick={hideDialog}>{t.cancel}</PivotButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -313,13 +317,19 @@ export const FieldSettingsDialog: React.FC<{
 
   const allChecked = hidden.size === 0;
   return (
-    <div
+    <DialogShell
+      title={t.fieldSettings.replace("…", "")}
       className="fortune-pivot-dialog fortune-pivot-field-dialog"
       data-testid="pivot-field-settings"
+      footer={
+        <>
+          <PivotButton onClick={hideDialog}>{t.cancel}</PivotButton>
+          <PivotButton primary onClick={ok}>
+            {t.ok}
+          </PivotButton>
+        </>
+      }
     >
-      <div className="fortune-pivot-dialog-title">
-        {t.fieldSettings.replace("…", "")}
-      </div>
       <div className="fortune-pivot-dialog-muted">{info?.name ?? field}</div>
       <div className="fortune-pivot-dialog-cols">
         <div>
@@ -564,12 +574,6 @@ export const FieldSettingsDialog: React.FC<{
           </div>
         </div>
       </div>
-      <div className="fortune-pivot-dialog-footer">
-        <PivotButton primary onClick={ok}>
-          {t.ok}
-        </PivotButton>
-        <PivotButton onClick={hideDialog}>{t.cancel}</PivotButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };

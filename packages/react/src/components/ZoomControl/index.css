@@ -1,76 +1,114 @@
+/*
+ * Zoom (right end of the status bar): − slider + and the percentage.
+ * The slider is Fika's (ink thumb ring on a 4px track) with Excel's scale:
+ * 100% in the middle, marked by a tick.
+ */
 .fortune-zoom-container {
-  white-space: nowrap;
-  overflow: visible;
   display: flex;
+  flex: none;
   align-items: center;
   gap: 2px;
+  white-space: nowrap;
   user-select: none;
 }
 
-.fortune-zoom-button {
-  display: flex;
-  cursor: pointer;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--fortune-radius-sm);
-  transition: background-color var(--fortune-transition);
+.fortune-zoom-container .fortune-zoom-button {
+  color: var(--ts-muted);
 }
 
-.fortune-zoom-button:hover {
-  background: var(--fortune-bg-hover);
-}
-
-.fortune-zoom-button:active {
-  background: var(--fortune-bg-active);
-}
-
-.fortune-zoom-ratio {
+.fortune-zoom-slider {
   position: relative;
   display: flex;
-  justify-content: center;
-  width: 52px;
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size-sm);
+  align-items: center;
+  width: 108px;
+  height: 26px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  border-radius: 6px;
   cursor: pointer;
+  outline: none;
+  touch-action: none;
+}
+
+.fortune-zoom-slider:focus-visible {
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.fortune-zoom-slider-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ts-active);
+  transition: background-color var(--ts-fast);
+}
+
+.fortune-zoom-slider:hover .fortune-zoom-slider-track,
+.fortune-zoom-slider.dragging .fortune-zoom-slider-track {
+  background: var(--ts-ring);
+}
+
+/* 100% */
+.fortune-zoom-slider-tick {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ts-subtle);
+}
+
+.fortune-zoom-slider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid var(--ts-ink);
+  border-radius: 50%;
+  background: var(--ts-pane);
+  transform: translate(-50%, -50%);
+  transition:
+    box-shadow var(--ts-fast),
+    width var(--ts-fast),
+    height var(--ts-fast);
+}
+
+.fortune-zoom-slider:hover .fortune-zoom-slider-thumb,
+.fortune-zoom-slider.dragging .fortune-zoom-slider-thumb {
+  box-shadow: 0 0 0 3px var(--ts-active);
+}
+
+.fortune-zoom-slider.dragging {
+  cursor: grabbing;
 }
 
 .fortune-zoom-ratio-current {
-  width: 100%;
+  min-width: 46px;
+  height: 26px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ts-text-strong);
+  font: inherit;
+  font-size: var(--ts-font-size-sm);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-
-.fortune-zoom-ratio-item {
+  letter-spacing: 0.02em;
   cursor: pointer;
   outline: none;
+  transition: background-color var(--ts-fast);
 }
 
-.fortune-zoom-ratio-item:hover,
-.fortune-zoom-ratio-item:focus-visible {
-  background: var(--fortune-bg-hover);
+.fortune-zoom-ratio-current:hover,
+.fortune-zoom-ratio-current.open {
+  background: var(--ts-active);
 }
 
-.fortune-zoom-ratio-item[aria-selected="true"] {
-  background: var(--fortune-accent-soft);
-  color: var(--fortune-accent-text);
-}
-
-.fortune-zoom-ratio-menu {
-  position: absolute;
-  bottom: 34px;
-  left: 0;
-  min-width: 72px;
-  line-height: 28px;
-  box-shadow: var(--fortune-shadow);
-  border: 1px solid var(--fortune-border);
-  padding: var(--fortune-space-1) 0;
-  border-radius: var(--fortune-radius);
-  background: var(--fortune-bg-elevated);
-  color: var(--fortune-text);
-  z-index: 1004;
-}
-
-.fortune-zoom-ratio-text {
-  padding: 0 var(--fortune-space-3);
+.fortune-zoom-ratio-current:focus-visible {
+  box-shadow: 0 0 0 2px var(--ts-ring);
 }

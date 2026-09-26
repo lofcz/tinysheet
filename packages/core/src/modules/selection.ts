@@ -27,6 +27,7 @@ import {
   replaceHtml,
 } from "../utils";
 import { hasPartMC } from "./validation";
+import { getFrozenCells } from "./freeze";
 import { is_date, update } from "./format";
 // @ts-ignore
 import SSF from "./ssf";
@@ -47,8 +48,12 @@ export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
   if (!sheet) return;
 
   const frozen = sheet?.frozen;
+  // cells in the frozen panes are always in view: no scrolling for them
+  const frozenCells = getFrozenCells(sheet);
+  const inFrozen = (i: number, start: number, count: number) =>
+    !frozenCells.split && count > 0 && i >= start && i < start + count;
 
-  if (r >= 0) {
+  if (r >= 0 && !inFrozen(r, frozenCells.top, frozenCells.rows)) {
     const row_focus = sheet?.frozen?.range?.row_focus || 0;
     // the frozen pane's visible height (it may start below row 1)
     const hiddenH = frozen?.top ? (ctx.visibledatarow[frozen.top - 1] ?? 0) : 0;
@@ -60,12 +65,12 @@ export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
     if (row - scrollTop - winH + 20 > 0) {
       ctx.scrollTop = row - winH + 20;
     } else if (row_pre - scrollTop - freezeH < 0) {
-      const scrollAmount = Math.max(20, freezeH);
-      ctx.scrollTop = row_pre - scrollAmount;
+      // the cell at the top of the scrolling pane (below frozen rows)
+      ctx.scrollTop = row_pre - freezeH;
     }
   }
 
-  if (c >= 0) {
+  if (c >= 0 && !inFrozen(c, frozenCells.left, frozenCells.columns)) {
     const column_focus = sheet?.frozen?.range?.column_focus || 0;
     const hiddenW = frozen?.left
       ? (ctx.visibledatacolumn[frozen.left - 1] ?? 0)
@@ -80,8 +85,7 @@ export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
     if (col - scrollLeft - winW + 20 > 0) {
       ctx.scrollLeft = col - winW + 20;
     } else if (col_pre - scrollLeft - freezeW < 0) {
-      const scrollAmount = Math.max(20, freezeW);
-      ctx.scrollLeft = col_pre - scrollAmount;
+      ctx.scrollLeft = col_pre - freezeW;
     }
   }
 }
@@ -126,9 +130,10 @@ export function normalizeSelection(
 
   for (let i = 0; i < selection.length; i += 1) {
     const r1 = selection[i].row[0];
-    const r2 = selection[i].row[1];
     const c1 = selection[i].column[0];
-    const c2 = selection[i].column[1];
+    // a single cell may be given as { row: [r], column: [c] }
+    const r2 = selection[i].row[1] ?? r1;
+    const c2 = selection[i].column[1] ?? c1;
 
     let rf;
     let cf;

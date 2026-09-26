@@ -1,4 +1,21 @@
-import React, { useCallback, useContext } from "react";
+import React, { useContext } from "react";
+import {
+  ArrowUpNarrowWide,
+  Blend,
+  Brackets,
+  CalendarDays,
+  ChartBarBig,
+  ChevronLeft,
+  ChevronRight,
+  CopyCheck,
+  Equal,
+  Eraser,
+  Highlighter,
+  ListChecks,
+  Plus,
+  Signal,
+  TextSearch,
+} from "lucide-react";
 import "./index.css";
 import {
   locale,
@@ -15,15 +32,13 @@ import {
   CF_DATA_BAR_COLORS,
   CF_ICON_SET_GROUPS,
 } from "@lofcz/tinysheet-core";
-import type { CFRule } from "@lofcz/tinysheet-core";
+import type { CFIconSetName, CFRule } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
-import Select, { Option } from "../Toolbar/Select";
-import SVGIcon from "../SVGIcon";
 import { useDialog } from "../../hooks/useDialog";
 import ConditionRules from "./ConditionRules";
 import ManageRules from "./ManageRules";
 import RuleEditor from "./RuleEditor";
-import { MenuDivider } from "../Toolbar/Divider";
+import { Gallery, GalleryItem, MenuItem } from "../ui";
 import {
   CFText,
   ColorScaleSwatch,
@@ -31,389 +46,328 @@ import {
   IconSetPreview,
 } from "./previews";
 
-function activate(fn: () => void) {
-  return (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      e.stopPropagation();
-      fn();
-    }
-  };
-}
-
 /** New Formatting Rule as a standalone dialog; stores the rule on OK. */
 const NewRuleDialog: React.FC<{ rule: CFRule }> = ({ rule }) => {
   const { context, setContext } = useContext(WorkbookContext);
   const { hideDialog } = useDialog();
   const loc = locale(context);
   return (
-    <div className="fortune-cf-dialog">
-      <RuleEditor
-        rule={rule}
-        isNew
-        text={loc.conditionformat as unknown as CFText}
-        buttons={{ confirm: loc.button.confirm, cancel: loc.button.cancel }}
-        onCancel={hideDialog}
-        onOk={(r) => {
-          setContext((ctx) => {
-            addCFRule(ctx, r);
-          });
-          hideDialog();
-        }}
-      />
-    </div>
+    <RuleEditor
+      rule={rule}
+      isNew
+      text={loc.conditionformat as unknown as CFText}
+      buttons={{ confirm: loc.button.confirm, cancel: loc.button.cancel }}
+      onCancel={hideDialog}
+      onOk={(r) => {
+        setContext((ctx) => {
+          addCFRule(ctx, r);
+        });
+        hideDialog();
+      }}
+    />
   );
 };
 
-const ConditionalFormat: React.FC<{
-  items: string[];
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}> = ({ items, setOpen }) => {
-  const { context, setContext, refs } = useContext(WorkbookContext);
+/** The default items of the Conditional Formatting menu (Excel's order). */
+export const CONDITIONAL_FORMAT_ITEMS = [
+  "highlightCellRules",
+  "itemSelectionRules",
+  "-",
+  "dataBar",
+  "colorGradation",
+  "icons",
+  "-",
+  "newFormatRule",
+  "deleteRule",
+  "manageRules",
+];
+
+/**
+ * Excel's Conditional Formatting menu as ui `MenuItem`s: Highlight Cells
+ * Rules ▸, Top/Bottom Rules ▸, Data Bars ▸ / Color Scales ▸ / Icon Sets ▸
+ * (preset galleries), New Rule…, Clear Rules ▸, Manage Rules…. `close`
+ * closes the drop-down it is in (called before a dialog opens).
+ *
+ *   const items = useConditionalFormatMenu(() => setOpen(false));
+ *   <LargeButton icon="conditionFormat" label="Conditional Formatting"
+ *     menu={items} />
+ */
+export function useConditionalFormatMenu(
+  close: () => void,
+  names: string[] = CONDITIONAL_FORMAT_ITEMS
+): MenuItem[] {
+  const { context, setContext } = useContext(WorkbookContext);
   const { showDialog } = useDialog();
   const text = locale(context).conditionformat as unknown as CFText;
 
-  // 子菜单溢出屏幕时，重新定位子菜单位置
-  // re-position the subMenu if it overflows the window
-  const showSubMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-      const menuItem = e.currentTarget;
-      const line = menuItem.querySelector(
-        ".fortune-toolbar-menu-line"
-      ) as HTMLDivElement | null;
-      const subMenu = menuItem.querySelector(
-        ".condition-format-sub-menu"
-      ) as HTMLDivElement | null;
-      if (!subMenu || !line) return;
-      const menuItemRect = menuItem.getBoundingClientRect();
-      const lineRect = line.getBoundingClientRect();
-      const containerRect =
-        refs.workbookContainer.current!.getBoundingClientRect();
-      const width = parseFloat(subMenu.style.width);
-      subMenu.style.display = "block";
-      if (containerRect.right - menuItemRect.right < width) {
-        // open to the left of the menu
-        subMenu.style.left = `${menuItemRect.left - lineRect.left - width}px`;
-      } else {
-        subMenu.style.left = `${menuItemRect.right - lineRect.left}px`;
-      }
-      subMenu.style.right = "auto";
+  const selection = () => cleanCFRanges(context.luckysheet_select_save);
+
+  const openEditor = (rule: Omit<CFRule, "cellrange">) => {
+    close();
+    showDialog(
+      <NewRuleDialog rule={{ ...rule, cellrange: selection() } as CFRule} />
+    );
+  };
+
+  const run = (fn: (ctx: any) => void) => {
+    close();
+    setContext((ctx) => {
+      fn(ctx);
+    });
+  };
+
+  const moreRules = (rule: Omit<CFRule, "cellrange">): MenuItem[] => [
+    { type: "separator" },
+    {
+      id: "more-rules",
+      label: text.moreRules,
+      onSelect: () => openEditor(rule),
     },
-    [refs.workbookContainer]
-  );
-
-  const hideSubMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-      const subMenu = e.currentTarget.querySelector(
-        ".condition-format-sub-menu"
-      ) as HTMLDivElement | null;
-      if (subMenu) subMenu.style.display = "none";
-    },
-    []
-  );
-
-  const selection = useCallback(
-    () => cleanCFRanges(context.luckysheet_select_save),
-    [context.luckysheet_select_save]
-  );
-
-  const openEditor = useCallback(
-    (rule: Omit<CFRule, "cellrange">) => {
-      setOpen(false);
-      showDialog(
-        <NewRuleDialog rule={{ ...rule, cellrange: selection() } as CFRule} />
-      );
-    },
-    [selection, setOpen, showDialog]
-  );
-
-  const run = useCallback(
-    (fn: (ctx: any) => void) => {
-      setOpen(false);
-      setContext((ctx) => {
-        fn(ctx);
-      });
-    },
-    [setContext, setOpen]
-  );
-
-  const subMenu = (
-    name: string,
-    width: number,
-    children: React.ReactNode
-  ): React.ReactNode => (
-    <Option key={name} onMouseEnter={showSubMenu} onMouseLeave={hideSubMenu}>
-      <div className="fortune-toolbar-menu-line">
-        {text[name]}
-        <SVGIcon name="rightArrow" width={18} />
-        <div
-          className="condition-format-sub-menu"
-          role="menu"
-          style={{ display: "none", width }}
-        >
-          {children}
-        </div>
-      </div>
-    </Option>
-  );
-
-  const menuItem = (
-    key: string,
-    label: React.ReactNode,
-    onClick: () => void,
-    hint?: React.ReactNode
-  ) => (
-    <div
-      className="condition-format-item"
-      key={key}
-      role="menuitem"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      onKeyDown={activate(onClick)}
-      tabIndex={0}
-    >
-      {label}
-      {hint !== undefined && <span>{hint}</span>}
-    </div>
-  );
-
-  const moreRules = (rule: Omit<CFRule, "cellrange">) => [
-    <div className="horizontal-line" key="more-line" />,
-    menuItem("moreRules", text.moreRules, () => openEditor(rule)),
   ];
 
-  const getConditionFormatItem = (name: string): React.ReactNode => {
-    if (name === "-") {
-      return <MenuDivider key={name} />;
-    }
+  const gallery = (
+    id: string,
+    items: GalleryItem[],
+    apply: (id: string) => void,
+    columns: number,
+    size: [number, number] = [40, 40]
+  ): MenuItem => ({
+    type: "custom",
+    id,
+    render: (closeMenu) => (
+      <Gallery
+        items={items}
+        columns={columns}
+        itemWidth={size[0]}
+        itemHeight={size[1]}
+        className="fortune-cf-preset-gallery"
+        onPick={(picked) => {
+          closeMenu();
+          apply(picked);
+        }}
+      />
+    ),
+  });
+
+  const item = (name: string): MenuItem[] => {
+    if (name === "-") return [{ type: "separator" }];
     if (name === "highlightCellRules") {
-      return subMenu(name, 190, [
-        ...[
-          { type: "greaterThan", hint: ">" },
-          { type: "lessThan", hint: "<" },
-          { type: "between", hint: "[ ]" },
-          { type: "equal", hint: "=" },
-          { type: "textContains", hint: "ab" },
-          { type: "occurrenceDate", hint: "" },
-          { type: "duplicateValue", hint: "" },
-        ].map((v) =>
-          menuItem(
-            v.type,
-            text[`qt_${v.type}`],
-            () => {
-              setOpen(false);
-              showDialog(<ConditionRules type={v.type} />);
-            },
-            v.hint
-          )
-        ),
-        ...moreRules({
-          type: "default",
-          conditionName: "between",
-          conditionValue: ["", ""],
-          format: { cellColor: "#FFC7CE", textColor: "#9C0006" },
-        }),
-      ]);
+      return [
+        {
+          id: name,
+          label: text.highlightCellRules,
+          icon: Highlighter,
+          children: [
+            ...[
+              { type: "greaterThan", icon: ChevronRight },
+              { type: "lessThan", icon: ChevronLeft },
+              { type: "between", icon: Brackets },
+              { type: "equal", icon: Equal },
+              { type: "textContains", icon: TextSearch },
+              { type: "occurrenceDate", icon: CalendarDays },
+              { type: "duplicateValue", icon: CopyCheck },
+            ].map((v): MenuItem => ({
+              id: v.type,
+              label: text[`qt_${v.type}`],
+              icon: v.icon,
+              onSelect: () => {
+                close();
+                showDialog(<ConditionRules type={v.type} />);
+              },
+            })),
+            ...moreRules({
+              type: "default",
+              conditionName: "between",
+              conditionValue: ["", ""],
+              format: { cellColor: "#FFC7CE", textColor: "#9C0006" },
+            }),
+          ],
+        },
+      ];
     }
     if (name === "itemSelectionRules") {
-      return subMenu(name, 190, [
-        ...[
-          "top10",
-          "top10_percent",
-          "last10",
-          "last10_percent",
-          "aboveAverage",
-          "belowAverage",
-        ].map((type) =>
-          menuItem(type, text[`qt_${type}`], () => {
-            setOpen(false);
-            showDialog(<ConditionRules type={type} />);
-          })
-        ),
-        ...moreRules({
-          type: "default",
-          conditionName: "top10",
-          conditionValue: [10],
-          format: { cellColor: "#FFC7CE", textColor: "#9C0006" },
-        }),
-      ]);
+      return [
+        {
+          id: name,
+          label: text.itemSelectionRules,
+          icon: ArrowUpNarrowWide,
+          children: [
+            ...[
+              "top10",
+              "top10_percent",
+              "last10",
+              "last10_percent",
+              "aboveAverage",
+              "belowAverage",
+            ].map((type): MenuItem => ({
+              id: type,
+              label: text[`qt_${type}`],
+              onSelect: () => {
+                close();
+                showDialog(<ConditionRules type={type} />);
+              },
+            })),
+            ...moreRules({
+              type: "default",
+              conditionName: "top10",
+              conditionValue: [10],
+              format: { cellColor: "#FFC7CE", textColor: "#9C0006" },
+            }),
+          ],
+        },
+      ];
     }
     if (name === "dataBar") {
-      const gallery = (gradient: boolean) => (
-        <div className="fortune-cf-gallery">
-          {CF_DATA_BAR_COLORS.map((color, i) => {
-            const label =
-              text[`${gradient ? "gradient" : "solidColor"}DataBar_${i + 1}`];
-            return (
-              <div
-                key={color}
-                className="fortune-cf-gallery-item"
-                role="menuitem"
-                tabIndex={0}
-                title={label}
-                aria-label={label}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  run((ctx) =>
-                    addDataBarRule(ctx, makeDataBar(color, gradient))
-                  );
-                }}
-                onKeyDown={activate(() =>
-                  run((ctx) =>
-                    addDataBarRule(ctx, makeDataBar(color, gradient))
-                  )
-                )}
-              >
-                <DataBarSwatch color={color} gradient={gradient} />
-              </div>
-            );
-          })}
-        </div>
-      );
-      return subMenu(name, 176, [
-        <div className="fortune-cf-gallery-title" key="g">
-          {text.gradientFill}
-        </div>,
-        <React.Fragment key="gg">{gallery(true)}</React.Fragment>,
-        <div className="fortune-cf-gallery-title" key="s">
-          {text.solidFill}
-        </div>,
-        <React.Fragment key="sg">{gallery(false)}</React.Fragment>,
-        ...moreRules({
-          type: "dataBar",
-          dataBar: makeDataBar(CF_DATA_BAR_COLORS[0], true),
-        }),
-      ]);
+      const bars = (gradient: boolean): GalleryItem[] =>
+        CF_DATA_BAR_COLORS.map((color, i) => ({
+          id: `${gradient ? "g" : "s"}:${color}`,
+          label:
+            text[`${gradient ? "gradient" : "solidColor"}DataBar_${i + 1}`],
+          group: gradient ? text.gradientFill : text.solidFill,
+          preview: <DataBarSwatch color={color} gradient={gradient} />,
+        }));
+      return [
+        {
+          id: name,
+          label: text.dataBar,
+          icon: ChartBarBig,
+          children: [
+            gallery(
+              "data-bar-gallery",
+              [...bars(true), ...bars(false)],
+              (picked) => {
+                const [kind, color] = picked.split(":");
+                run((ctx) =>
+                  addDataBarRule(ctx, makeDataBar(color, kind === "g"))
+                );
+              },
+              3
+            ),
+            ...moreRules({
+              type: "dataBar",
+              dataBar: makeDataBar(CF_DATA_BAR_COLORS[0], true),
+            }),
+          ],
+        },
+      ];
     }
     if (name === "colorGradation") {
-      return subMenu(name, 176, [
-        <div className="fortune-cf-gallery" key="gallery">
-          {CF_COLOR_SCALE_PRESETS.map((colors, i) => {
-            const label = text[`colorGradation_${i + 1}`];
-            const apply = () =>
-              run((ctx) =>
-                addColorScaleRule(ctx, colorScaleFromPreset(colors))
-              );
-            return (
-              <div
-                key={colors.join()}
-                className="fortune-cf-gallery-item"
-                role="menuitem"
-                tabIndex={0}
-                title={label}
-                aria-label={label}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  apply();
-                }}
-                onKeyDown={activate(apply)}
-              >
-                <ColorScaleSwatch colors={colors} />
-              </div>
-            );
-          })}
-        </div>,
-        ...moreRules({
-          type: "colorGradation",
-          colorScale: {
-            stops: colorScaleFromPreset(CF_COLOR_SCALE_PRESETS[0]),
-          },
-        }),
-      ]);
+      return [
+        {
+          id: name,
+          label: text.colorGradation,
+          icon: Blend,
+          children: [
+            gallery(
+              "color-scale-gallery",
+              CF_COLOR_SCALE_PRESETS.map((colors, i) => ({
+                id: String(i),
+                label: text[`colorGradation_${i + 1}`],
+                preview: <ColorScaleSwatch colors={colors} />,
+              })),
+              (picked) =>
+                run((ctx) =>
+                  addColorScaleRule(
+                    ctx,
+                    colorScaleFromPreset(CF_COLOR_SCALE_PRESETS[Number(picked)])
+                  )
+                ),
+              4
+            ),
+            ...moreRules({
+              type: "colorGradation",
+              colorScale: {
+                stops: colorScaleFromPreset(CF_COLOR_SCALE_PRESETS[0]),
+              },
+            }),
+          ],
+        },
+      ];
     }
     if (name === "icons") {
-      return subMenu(name, 250, [
-        ...CF_ICON_SET_GROUPS.map((g) => (
-          <React.Fragment key={g.key}>
-            <div className="fortune-cf-gallery-title">
-              {text[`isGroup_${g.key}`]}
-            </div>
-            <div className="fortune-cf-gallery fortune-cf-gallery-icons">
-              {g.sets.map((set) => {
-                const label = text[`is_${set}`] ?? set;
-                const apply = () =>
-                  run((ctx) => addIconSetRule(ctx, makeIconSet(set)));
-                return (
-                  <div
-                    key={set}
-                    className="fortune-cf-gallery-item"
-                    role="menuitem"
-                    tabIndex={0}
-                    title={label}
-                    aria-label={label}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      apply();
-                    }}
-                    onKeyDown={activate(apply)}
-                  >
-                    <IconSetPreview name={set} size={14} />
-                  </div>
-                );
-              })}
-            </div>
-          </React.Fragment>
-        )),
-        ...moreRules({
-          type: "icons",
-          iconSet: makeIconSet("3TrafficLights1"),
-        }),
-      ]);
+      return [
+        {
+          id: name,
+          label: text.icons,
+          icon: Signal,
+          children: [
+            gallery(
+              "icon-set-gallery",
+              CF_ICON_SET_GROUPS.flatMap((g) =>
+                g.sets.map((set) => ({
+                  id: set,
+                  label: text[`is_${set}`] ?? set,
+                  group: text[`isGroup_${g.key}`],
+                  preview: <IconSetPreview name={set} size={14} />,
+                }))
+              ),
+              (set) =>
+                run((ctx) =>
+                  addIconSetRule(ctx, makeIconSet(set as CFIconSetName))
+                ),
+              2,
+              [96, 28]
+            ),
+            ...moreRules({
+              type: "icons",
+              iconSet: makeIconSet("3TrafficLights1"),
+            }),
+          ],
+        },
+      ];
     }
     if (name === "newFormatRule") {
-      return (
-        <Option
-          key={name}
-          onClick={() =>
+      return [
+        {
+          id: name,
+          label: text.newRule,
+          icon: Plus,
+          onSelect: () =>
             openEditor({
               type: "default",
               conditionName: "between",
               conditionValue: ["", ""],
               format: { cellColor: "#FFC7CE", textColor: "#9C0006" },
-            })
-          }
-        >
-          <div className="fortune-toolbar-menu-line">{text.newRule}</div>
-        </Option>
-      );
+            }),
+        },
+      ];
     }
     if (name === "deleteRule") {
-      return subMenu("clearRules", 230, [
-        menuItem("selection", text.clearRulesSelection, () =>
-          run((ctx) => clearCFRules(ctx, "selection"))
-        ),
-        menuItem("sheet", text.clearRulesSheet, () =>
-          run((ctx) => clearCFRules(ctx, "sheet"))
-        ),
-      ]);
+      return [
+        {
+          id: name,
+          label: text.clearRules,
+          icon: Eraser,
+          children: [
+            {
+              id: "clear-selection",
+              label: text.clearRulesSelection,
+              onSelect: () => run((ctx) => clearCFRules(ctx, "selection")),
+            },
+            {
+              id: "clear-sheet",
+              label: text.clearRulesSheet,
+              onSelect: () => run((ctx) => clearCFRules(ctx, "sheet")),
+            },
+          ],
+        },
+      ];
     }
     if (name === "manageRules") {
-      return (
-        <Option
-          key={name}
-          onClick={() => {
-            setOpen(false);
+      return [
+        {
+          id: name,
+          label: text.manageRules,
+          icon: ListChecks,
+          onSelect: () => {
+            close();
             showDialog(<ManageRules />);
-          }}
-        >
-          <div className="fortune-toolbar-menu-line">{text.manageRules}</div>
-        </Option>
-      );
+          },
+        },
+      ];
     }
-    return <div key={name} />;
+    return [];
   };
 
-  return (
-    <div className="condition-format">
-      <Select style={{ overflow: "visible" }}>
-        {items.map((v) => (
-          <div key={`option${v}`}>{getConditionFormatItem(v)}</div>
-        ))}
-      </Select>
-    </div>
-  );
-};
-
-export default ConditionalFormat;
+  return names.flatMap(item);
+}

@@ -481,6 +481,33 @@ export function syncContextAfterHistory(
 }
 
 /**
+ * When undo or redo removed or hid the active sheet (an added, unhidden or
+ * hidden sheet), the sheet that was active when the change was made is shown
+ * again, or else the first visible sheet.
+ */
+function keepShownSheet(ctx: Context, history: History) {
+  const index = getSheetIndex(ctx, ctx.currentSheetId);
+  if (index != null && ctx.luckysheetfile[index].hide !== 1) return;
+  const visible = (i: number | null | undefined): i is number =>
+    i != null && ctx.luckysheetfile[i].hide !== 1;
+  let next: number | null | undefined = getSheetIndex(
+    ctx,
+    history.options?.id ?? ""
+  );
+  if (!visible(next)) {
+    const first = _.sortBy(
+      ctx.luckysheetfile.filter((s) => s.hide !== 1),
+      (s) => Number(s.order ?? 0)
+    )[0];
+    next = first ? getSheetIndex(ctx, first.id!) : undefined;
+  }
+  if (!visible(next)) return;
+  const sheet = ctx.luckysheetfile[next];
+  ctx.currentSheetId = sheet.id!;
+  ctx.zoomRatio = sheet.zoomRatio || 1;
+}
+
+/**
  * Like Excel, undo and redo show the sheet the change was made on. Returns
  * true when the current sheet changed.
  */
@@ -603,6 +630,7 @@ export function applyUndoSteps(
       }
     }
     context = produceNoPatches(context, (draft) => {
+      keepShownSheet(draft, history);
       const switched = showHistorySheet(draft, history, inverse);
       syncContextAfterHistory(draft, inverse, switched);
     });
@@ -649,6 +677,7 @@ export function applyRedoSteps(
   steps.forEach((history) => {
     context = applyContextPatches(context, history.patches);
     context = produceNoPatches(context, (draft) => {
+      keepShownSheet(draft, history);
       const switched = showHistorySheet(draft, history, history.patches);
       syncContextAfterHistory(draft, history.patches, switched);
     });

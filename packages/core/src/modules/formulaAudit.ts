@@ -18,7 +18,7 @@ import type { Context } from "../context";
 import type { Cell } from "../types";
 import { getSheetIndex } from "../utils";
 import { buildFormulaCellInfo, getDirectDependents } from "./formulaHelper";
-import { getCanvasTheme } from "../theme";
+import { resolveCellTextColor } from "../theme";
 import { getFontSet } from "./text";
 import { indexToColumn } from "./refAdjust";
 import { nameOfRange, sheetNameById } from "./names";
@@ -522,7 +522,7 @@ function drawFormulaText(args: {
     ctx.defaultFontSize || 10,
     ctx
   );
-  renderCtx.fillStyle = cell?.fc || getCanvasTheme(ctx).cellText;
+  renderCtx.fillStyle = resolveCellTextColor(ctx, cell?.fc, cell?.bg);
   renderCtx.textBaseline = "middle";
   renderCtx.textAlign = "left";
   renderCtx.fillText(f, (x + 2 * zoom) / zoom, (y + h / 2) / zoom);

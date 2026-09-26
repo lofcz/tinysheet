@@ -8,6 +8,9 @@ type Props = {
   onDoubleClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   disabled?: boolean;
   selected?: boolean;
+  /** Opens a panel (e.g. "More"): announced as expanded / collapsed. */
+  expanded?: boolean;
+  buttonRef?: React.Ref<HTMLDivElement>;
   children?: React.ReactNode;
 };
 
@@ -28,19 +31,26 @@ const Button: React.FC<Props> = ({
   iconId,
   disabled,
   selected,
+  expanded,
+  buttonRef,
   children,
 }) => {
   const className = [
     "fortune-toolbar-button",
     "fortune-toolbar-item",
-    selected ? "fortune-toolbar-button-active" : "",
+    selected || expanded ? "fortune-toolbar-button-active" : "",
   ]
     .filter(Boolean)
     .join(" ");
   return (
     <div
+      ref={buttonRef}
       className={className}
-      onClick={onClick}
+      onClick={(e) => {
+        // like a disabled <button>: no action (undo with nothing to undo)
+        if (disabled) return;
+        onClick?.(e);
+      }}
       onDoubleClick={onDoubleClick}
       onKeyDown={activateOnKey}
       tabIndex={0}
@@ -48,10 +58,12 @@ const Button: React.FC<Props> = ({
       role="button"
       aria-label={tooltip}
       aria-pressed={selected === undefined ? undefined : !!selected}
+      aria-haspopup={expanded === undefined ? undefined : true}
+      aria-expanded={expanded}
       aria-disabled={disabled || undefined}
     >
       <SVGIcon name={iconId} />
-      {tooltip && (
+      {tooltip && !expanded && (
         <div className="fortune-tooltip" aria-hidden="true">
           {tooltip}
         </div>

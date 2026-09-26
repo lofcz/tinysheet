@@ -7,6 +7,11 @@ export {
   ThreadedCommentsLayer,
   CommentsPane,
 } from "./ThreadedComments";
+export { registerInsertFunction } from "./FxEditor/insertFunction";
+export type {
+  InsertFunctionHandler,
+  InsertFunctionHelpers,
+} from "./FxEditor/insertFunction";
 export {
   registerContextMenuItem,
   registerContextMenuAction,
@@ -21,3 +26,11 @@ export {
   DataTable,
   GoalSeek,
 } from "./CellTools";
+
+// dialogs other features open (ribbon: View > Zoom, Formulas > Insert Function)
+export { ZoomDialog } from "./ZoomControl/ZoomDialog";
+export { InsertFunctionDialog } from "./Ribbon/commands/functions";
+export type {
+  InsertFunctionDialogProps,
+  InsertFunctionCategory,
+} from "./Ribbon/commands/functions";

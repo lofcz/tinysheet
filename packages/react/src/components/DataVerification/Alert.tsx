@@ -7,12 +7,14 @@ import {
 import React, { useCallback, useContext, useEffect, useRef } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
+import { CircleX, Info, TriangleAlert } from "lucide-react";
+import { Button, DialogShell } from "../ui";
 import "./dataTools.css";
 
-const ICONS: Record<string, string> = {
-  stop: "×",
-  warning: "!",
-  information: "i",
+const ICONS: Record<string, typeof Info> = {
+  stop: CircleX,
+  warning: TriangleAlert,
+  information: Info,
 };
 
 /**
@@ -24,7 +26,7 @@ const DataVerificationAlert: React.FC = () => {
   const { hideDialog } = useDialog();
   const t = dataToolsLocale(context).dataValidation;
   const alert = context.dataVerificationAlert;
-  const primaryRef = useRef<HTMLDivElement>(null);
+  const primaryRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     primaryRef.current?.focus();
@@ -72,43 +74,50 @@ const DataVerificationAlert: React.FC = () => {
   if (!alert) return null;
   const { style } = alert;
 
-  const button = (
-    label: string,
-    onClick: () => void,
-    ref?: React.Ref<HTMLDivElement>
-  ) => (
-    <div
-      ref={ref}
-      className={`button-basic ${ref ? "button-primary" : "button-default"}`}
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-    >
+  const Icon = ICONS[style] ?? Info;
+  const primary = (label: string, onClick: () => void) => (
+    <Button ref={primaryRef} variant="primary" onClick={onClick}>
       {label}
-    </div>
+    </Button>
+  );
+  const secondary = (label: string, onClick: () => void) => (
+    <Button variant="secondary" onClick={onClick}>
+      {label}
+    </Button>
   );
 
   return (
-    <div
-      className="fortune-dt-dialog"
-      style={{ minWidth: 340 }}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Escape") dismiss();
-      }}
+    <DialogShell
+      title={alert.title}
+      className="fortune-dt-dialog fortune-dv-alert"
+      onClose={dismiss}
+      footer={
+        <>
+          {style === "stop" && (
+            <>
+              {secondary(t.cancel, dismiss)}
+              {primary(t.retry, retry)}
+            </>
+          )}
+          {style === "warning" && (
+            <>
+              {secondary(t.cancel, dismiss)}
+              {secondary(t.no, dismiss)}
+              {primary(t.yes, accept)}
+            </>
+          )}
+          {style === "information" && (
+            <>
+              {secondary(t.cancel, dismiss)}
+              {primary(t.ok, accept)}
+            </>
+          )}
+        </>
+      }
     >
-      <div className="fortune-dt-title" role="alert">
-        {alert.title}
-      </div>
-      <div className="fortune-dt-alert">
+      <div className="fortune-dt-alert" role="alert">
         <div className={`fortune-dt-alert-icon ${style}`} aria-hidden="true">
-          {ICONS[style]}
+          <Icon size={20} strokeWidth={2} />
         </div>
         <div className="fortune-dt-alert-message">
           {alert.message}
@@ -117,31 +126,7 @@ const DataVerificationAlert: React.FC = () => {
           )}
         </div>
       </div>
-      <div
-        className="fortune-dt-buttons"
-        style={{ justifyContent: "flex-end" }}
-      >
-        {style === "stop" && (
-          <>
-            {button(t.retry, retry, primaryRef)}
-            {button(t.cancel, dismiss)}
-          </>
-        )}
-        {style === "warning" && (
-          <>
-            {button(t.yes, accept, primaryRef)}
-            {button(t.no, dismiss)}
-            {button(t.cancel, dismiss)}
-          </>
-        )}
-        {style === "information" && (
-          <>
-            {button(t.ok, accept, primaryRef)}
-            {button(t.cancel, dismiss)}
-          </>
-        )}
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

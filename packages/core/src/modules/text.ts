@@ -5,6 +5,12 @@ import { locale } from "../locale";
 import { Cell } from "../types";
 import { normalizedCellAttr } from "./cell";
 import { isInlineStringCell } from "./inline-string";
+import {
+  DEFAULT_FONT_FAMILY,
+  FALLBACK_FONT_FAMILY,
+  defaultFontFamily,
+  fontDisplayName,
+} from "./fonts";
 
 function checkWordByteLength(value: string) {
   return Math.ceil(value.charCodeAt(0).toString(2).length / 8);
@@ -118,8 +124,33 @@ function getTextSize(text: string, font: string) {
   return [w, h];
 }
 
-export function defaultFont(defaultFontSize: number) {
-  return `normal normal normal ${defaultFontSize}pt "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Heiti SC",  "WenQuanYi Micro Hei", sans-serif`;
+/**
+ * CSS font of a cell without a font of its own: the workbook's default
+ * family (`settings.defaultFontFamily`) at `defaultFontSize` points.
+ */
+export function defaultFont(
+  defaultFontSize: number,
+  family: string = DEFAULT_FONT_FAMILY
+) {
+  return `normal normal normal ${defaultFontSize}pt ${family}, ${FALLBACK_FONT_FAMILY}`;
+}
+
+/**
+ * Name of the font a cell shows in (the Font box): the locale font of a
+ * numeric `ff`, a string `ff` as is, else the workbook's default font.
+ */
+export function cellFontName(
+  ctx: Pick<Context, "lang"> & { defaultFontFamily?: string | null },
+  cell: { ff?: string | number | null } | null | undefined
+): string {
+  const ff = cell?.ff;
+  const fallback = fontDisplayName(defaultFontFamily(ctx));
+  if (ff == null || ff === "") return fallback;
+  if (/^\d+$/.test(String(ff))) {
+    const { fontarray } = locale(ctx as Context);
+    return fontarray[Number(ff)] ?? fallback;
+  }
+  return String(ff).replace(/^["']|["']$/g, "");
 }
 
 export function getFontSet(
@@ -154,11 +185,13 @@ export function getFontSet(
       fontAttr.push(`${Math.ceil(format.fs)}pt`);
     }
 
-    let fontSet = `"Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif`;
+    let fontSet = FALLBACK_FONT_FAMILY;
     if (ctx) {
       const { fontarray } = locale(ctx);
-      if (!format.ff) {
-        fontSet = `${fontarray[0]},${fontSet}`;
+      if (format.ff == null || format.ff === "") {
+        // no font: the workbook's default font (not fontarray[0], which is
+        // what a stored numeric ff of 0 means)
+        fontSet = `${defaultFontFamily(ctx)},${fontSet}`;
       } else {
         let fontfamily = null;
         if (ctx) {
@@ -193,7 +226,7 @@ export function getFontSet(
     }
     return `${fontAttr.join(" ")} ${fontSet}`;
   }
-  return defaultFont(defaultFontSize);
+  return defaultFont(defaultFontSize, defaultFontFamily(ctx));
 }
 
 // 获取有值单元格文本大小
@@ -554,7 +587,7 @@ function computeCellTextInfo(
 
     cancelLine = normalizedCellAttr(cell, "cl"); // cancelLine
     underLine = normalizedCellAttr(cell, "un"); // underLine
-    fontSize = normalizedCellAttr(cell, "fs");
+    fontSize = normalizedCellAttr(cell, "fs", sheetCtx.defaultFontSize);
 
     if (cell instanceof Object) {
       value = cell.m;

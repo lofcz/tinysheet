@@ -1,17 +1,54 @@
-#fortune-split-column {
-  width: 560px;
+/* Convert Text to Columns Wizard (a DialogShell, 3 steps like Excel's) */
+.fortune-ttc-dialog {
+  width: 600px;
+}
+
+.fortune-ttc-step {
+  margin-left: 10px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  font-weight: 400;
+}
+
+.fortune-ttc-steps {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.fortune-ttc-dot {
+  flex: 1;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--ts-active);
+  transition: background-color var(--ts-motion) var(--ts-ease);
+}
+
+.fortune-ttc-dot.is-done {
+  background: var(--ts-ink);
+}
+
+.fortune-ttc-dialog .fortune-dt-check > span b {
+  color: var(--ts-text-strong);
+  font-weight: 600;
+}
+
+.fortune-ttc-format {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  white-space: nowrap;
 }
 
 .fortune-ttc-fixed {
   position: relative;
-  overflow: auto;
   max-height: 220px;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg-input, var(--fortune-bg));
+  padding: 0 8px 8px;
+  overflow: auto;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
+  background: var(--ts-pane);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
-  padding: 0 6px 6px;
 }
 
 .fortune-ttc-measure {
@@ -23,12 +60,12 @@
 .fortune-ttc-ruler {
   position: relative;
   height: 18px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--fortune-border);
   margin-bottom: 4px;
+  border-bottom: 1px solid var(--ts-border);
+  cursor: pointer;
   background-image: linear-gradient(
     to right,
-    var(--fortune-border-strong, var(--fortune-border)) 1px,
+    var(--ts-ring) 1px,
     transparent 1px
   );
   background-size: 1ch 5px;
@@ -39,7 +76,7 @@
 .fortune-ttc-tick {
   position: absolute;
   top: 0;
-  color: var(--fortune-text-muted);
+  color: var(--ts-muted);
   font-size: 10px;
   transform: translateX(-50%);
 }
@@ -49,9 +86,9 @@
 }
 
 .fortune-ttc-line {
-  white-space: pre;
+  color: var(--ts-text);
   line-height: 18px;
-  color: var(--fortune-text);
+  white-space: pre;
 }
 
 .fortune-ttc-break {
@@ -64,28 +101,30 @@
   background: linear-gradient(
     to right,
     transparent 3px,
-    var(--fortune-accent) 3px,
-    var(--fortune-accent) 4px,
+    var(--ts-ink) 3px,
+    var(--ts-ink) 4px,
     transparent 4px
   );
 }
 
 .fortune-ttc-break:hover {
-  background-color: var(--fortune-accent-soft);
+  background-color: var(--ts-hover);
 }
 
 .fortune-ttc-preview td {
-  white-space: pre;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
+  white-space: pre;
 }
 
 .fortune-ttc-preview th .fortune-dt-select {
-  min-width: 90px;
+  min-width: 96px;
+  height: 28px;
+  min-height: 28px;
   font-size: 12px;
 }
 
 .fortune-ttc-preview td.fortune-ttc-skip {
-  color: var(--fortune-text-disabled, var(--fortune-text-muted));
+  color: var(--ts-subtle);
   text-decoration: line-through;
 }

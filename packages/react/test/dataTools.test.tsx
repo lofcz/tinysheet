@@ -172,7 +172,7 @@ describe("rules sidebar", () => {
         placeholder: "Qty",
       });
     });
-    const { getByText, getAllByText } = render(
+    const { getByText, getAllByLabelText } = render(
       <Harness initial={ctx}>
         <DataVerificationSidebar />
       </Harness>
@@ -182,7 +182,7 @@ describe("rules sidebar", () => {
     expect(getByText("Custom: =B2>0")).toBeTruthy();
     expect(getByText("2 rules")).toBeTruthy();
     act(() => {
-      fireEvent.click(getAllByText("Delete")[0]);
+      fireEvent.click(getAllByLabelText("Delete")[0]);
     });
     expect(getDataVerificationRules(current)).toHaveLength(1);
   });
@@ -201,7 +201,7 @@ describe("sort dialog", () => {
     expect(headers.checked).toBe(true);
     // column names come from the header row
     expect(container.textContent).toContain("Name");
-    fireEvent.click(getByText("+ Add Level"));
+    fireEvent.click(getByText("Add Level"));
     expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
     fireEvent.click(getByText("Delete Level"));
     expect(container.querySelectorAll("tbody tr")).toHaveLength(1);
@@ -241,6 +241,7 @@ describe("text to columns dialog", () => {
         <SplitColumn />
       </Harness>
     );
+    fireEvent.click(getByText("Next"));
     fireEvent.click(getByText("Semicolon"));
     const cells = Array.from(
       container.querySelectorAll(".fortune-ttc-preview tbody td")

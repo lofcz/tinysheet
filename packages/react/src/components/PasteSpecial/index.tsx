@@ -13,7 +13,7 @@ import React, {
   useState,
 } from "react";
 import WorkbookContext from "../../context";
-import { activateOnKey } from "../Toolbar/Button";
+import { Button, Dialog } from "../ui";
 import "./index.css";
 
 const MODES: PasteSpecialMode[] = [
@@ -95,39 +95,36 @@ const PasteSpecial: React.FC = () => {
       ?.focus();
   }, []);
 
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      e.stopPropagation();
-      if (e.key === "Escape") {
-        e.preventDefault();
-        close();
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        onOk();
-      }
-    },
-    [close, onOk]
-  );
-
   return (
-    <div
-      className="fortune-paste-special-mask"
-      onMouseDown={(e) => {
-        e.stopPropagation();
-        if (e.target === e.currentTarget) close();
-      }}
+    <Dialog
+      open
+      title={labels.title}
+      className="fortune-paste-special"
+      width={520}
+      closeOnBackdrop
+      onClose={close}
+      onConfirm={onOk}
+      footerStart={
+        <Button
+          variant="secondary"
+          className="fortune-paste-special-link"
+          onClick={() => apply({ pasteLink: true })}
+        >
+          {labels.pasteLink}
+        </Button>
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={close}>
+            {labels.cancel}
+          </Button>
+          <Button variant="primary" onClick={onOk}>
+            {labels.ok}
+          </Button>
+        </>
+      }
     >
-      {/* keyboard handling for the whole dialog: Enter = OK, Esc = cancel */}
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
-      <div
-        ref={dialogRef}
-        className="fortune-dialog fortune-paste-special"
-        role="dialog"
-        aria-modal="true"
-        aria-label={labels.title}
-        onKeyDown={onKeyDown}
-      >
-        <div className="fortune-paste-special-title">{labels.title}</div>
+      <div ref={dialogRef} className="fortune-paste-special-body">
         <fieldset className="fortune-paste-special-group">
           <legend>{labels.paste}</legend>
           <div className="fortune-paste-special-grid">
@@ -199,37 +196,8 @@ const PasteSpecial: React.FC = () => {
             <span>{labels.transpose}</span>
           </label>
         </div>
-        <div className="fortune-paste-special-buttons">
-          <div
-            className="fortune-message-box-button button-basic button-default fortune-paste-special-link"
-            role="button"
-            tabIndex={0}
-            onClick={() => apply({ pasteLink: true })}
-            onKeyDown={activateOnKey}
-          >
-            {labels.pasteLink}
-          </div>
-          <div
-            className="fortune-message-box-button button-basic button-primary"
-            role="button"
-            tabIndex={0}
-            onClick={onOk}
-            onKeyDown={activateOnKey}
-          >
-            {labels.ok}
-          </div>
-          <div
-            className="fortune-message-box-button button-basic button-default"
-            role="button"
-            tabIndex={0}
-            onClick={close}
-            onKeyDown={activateOnKey}
-          >
-            {labels.cancel}
-          </div>
-        </div>
       </div>
-    </div>
+    </Dialog>
   );
 };
 

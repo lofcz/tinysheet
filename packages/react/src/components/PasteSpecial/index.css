@@ -1,67 +1,33 @@
-.fortune-paste-special-mask {
-  position: absolute;
-  inset: 0;
-  z-index: 1004;
+/* Paste Special: a DialogShell; Excel's group boxes are Fika sections. */
+.fortune-paste-special-body {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--fortune-backdrop);
+  flex-direction: column;
+  gap: 16px;
 }
 
-.fortune-paste-special {
-  width: 440px;
-  padding: var(--fortune-space-4, 16px) var(--fortune-space-5, 20px);
-}
-
-.fortune-paste-special-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: var(--fortune-space-3, 12px);
-  cursor: default;
-}
-
-.fortune-paste-special-group {
-  margin: 0 0 var(--fortune-space-3, 12px);
-  padding: var(--fortune-space-2, 8px) var(--fortune-space-3, 12px);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm, 4px);
-}
-
-.fortune-paste-special-group legend {
-  padding: 0 4px;
-  color: var(--fortune-text-muted);
-}
-
-.fortune-paste-special-group[disabled] {
-  opacity: 0.5;
+.fortune-paste-special-group + .fortune-paste-special-group {
+  padding-top: 14px;
+  border-top: 1px solid var(--ts-border);
 }
 
 .fortune-paste-special-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px 12px;
+  gap: 6px 16px;
 }
 
 .fortune-paste-special-option {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
   line-height: 22px;
 }
 
 .fortune-paste-special-checks {
-  display: flex;
-  gap: 24px;
-  margin-bottom: var(--fortune-space-4, 16px);
-}
-
-.fortune-paste-special-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--fortune-space-2, 8px);
-}
-
-.fortune-paste-special-link {
-  margin-right: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ts-border);
 }

@@ -256,42 +256,65 @@
   vertical-align: middle;
 }
 
+/* ---- dialogs (DialogShells): quick rule, rule editor, rules manager ---- */
+
 .fortune-cf-dialog {
-  min-width: 460px;
-  max-width: 720px;
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size);
+  width: 520px;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+}
+
+.fortune-cf-editor {
+  width: 600px;
 }
 
 .fortune-cf-manager {
-  min-width: 640px;
+  width: 760px;
 }
 
 .fortune-cf-title {
-  font-size: var(--fortune-font-size-lg);
-  font-weight: 500;
-  margin-bottom: var(--fortune-space-3);
+  margin-bottom: 12px;
+  color: var(--ts-text-strong);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .fortune-cf-section-title {
-  margin: var(--fortune-space-3) 0 var(--fortune-space-2);
+  margin: 16px 0 8px;
+  color: var(--ts-section-label);
+  font-size: var(--ts-font-size-xs);
   font-weight: 600;
-  color: var(--fortune-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.fortune-cf-quick .fortune-cf-section-title {
+  margin-top: 0;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .fortune-cf-label {
-  color: var(--fortune-text-muted);
+  color: var(--ts-muted);
 }
 
 .fortune-cf-muted {
-  color: var(--fortune-text-subtle);
+  color: var(--ts-subtle);
 }
 
 .fortune-cf-inline {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2);
-  margin: var(--fortune-space-1) 0;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.fortune-cf-inline > label {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-cf-wrap {
@@ -302,46 +325,56 @@
   display: grid;
   grid-template-columns: max-content 1fr;
   align-items: center;
-  gap: var(--fortune-space-2) var(--fortune-space-3);
-  margin: var(--fortune-space-2) 0;
+  gap: 8px 12px;
+  margin: 8px 0;
+}
+
+.fortune-cf-grid2 > label {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-cf-input,
 .fortune-cf-select {
-  height: var(--fortune-control-height);
-  box-sizing: border-box;
-  padding: 0 var(--fortune-space-2);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg-input);
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size-sm);
-  outline: none;
+  height: var(--ts-control);
   min-width: 0;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--ts-radius);
+  background-color: var(--ts-surface);
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
+  outline: none;
 }
 
 .fortune-cf-input {
-  width: 140px;
+  width: 150px;
+}
+
+.fortune-cf-input:hover:not(:focus, :disabled),
+.fortune-cf-select:hover:not(:focus, :disabled) {
+  background-color: var(--ts-hover);
 }
 
 .fortune-cf-input:focus,
 .fortune-cf-select:focus {
-  border-color: var(--fortune-accent);
-  box-shadow: var(--fortune-focus-ring);
+  border-color: var(--ts-ring);
+  background-color: var(--ts-pane);
+  box-shadow: none;
 }
 
 .fortune-cf-input:disabled,
 .fortune-cf-select:disabled {
-  color: var(--fortune-text-disabled);
-  background: var(--fortune-bg-muted);
+  opacity: 0.55;
 }
 
 .fortune-cf-input.invalid {
-  border-color: var(--fortune-danger);
+  border-color: var(--ts-danger);
 }
 
 .fortune-cf-input-narrow {
-  width: 72px;
+  width: 80px;
 }
 
 .fortune-cf-input-wide {
@@ -353,16 +386,16 @@
 }
 
 .fortune-cf-select-narrow {
-  width: 56px;
+  width: 64px;
 }
 
 .fortune-cf-color {
   width: 36px;
-  height: 24px;
-  padding: 1px 2px;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg-input);
+  height: 26px;
+  padding: 2px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ts-surface);
   cursor: pointer;
 }
 
@@ -374,52 +407,68 @@
 .fortune-cf-check {
   display: inline-flex;
   align-items: center;
-  gap: var(--fortune-space-1);
-  margin: var(--fortune-space-1) var(--fortune-space-3) var(--fortune-space-1) 0;
+  gap: 8px;
+  margin: 4px 12px 4px 0;
   user-select: none;
   cursor: pointer;
 }
 
+/* Select a Rule Type: a list box */
 .fortune-cf-kinds {
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  padding: 2px 0;
+  padding: 4px;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
 }
 
 .fortune-cf-kind {
-  padding: 5px var(--fortune-space-3);
+  padding: 6px 10px;
+  border-radius: 6px;
   cursor: pointer;
   outline: none;
 }
 
-.fortune-cf-kind:hover,
+.fortune-cf-kind:hover {
+  background: var(--ts-hover);
+}
+
 .fortune-cf-kind:focus-visible {
-  background: var(--fortune-bg-hover);
+  box-shadow: 0 0 0 2px var(--ts-ring);
 }
 
 .fortune-cf-kind.selected {
-  background: var(--fortune-accent-soft);
-  color: var(--fortune-accent-text);
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
 }
 
+/* Edit the Rule Description */
 .fortune-cf-description {
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  padding: var(--fortune-space-2) var(--fortune-space-3);
-  background: var(--fortune-bg-subtle);
+  padding: 12px 14px;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+}
+
+.fortune-cf-description .fortune-cf-input,
+.fortune-cf-description .fortune-cf-select {
+  background-color: var(--ts-pane);
+}
+
+.fortune-cf-description .fortune-cf-input:hover:not(:focus, :disabled),
+.fortune-cf-description .fortune-cf-select:hover:not(:focus, :disabled) {
+  background-color: var(--ts-pane);
+  border-color: var(--ts-border);
 }
 
 .fortune-cf-columns {
   display: flex;
-  gap: var(--fortune-space-3);
-  margin: var(--fortune-space-2) 0;
+  gap: 12px;
+  margin: 8px 0;
 }
 
 .fortune-cf-column {
   display: flex;
-  flex-direction: column;
-  gap: var(--fortune-space-1);
   flex: 1;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -430,12 +479,12 @@
 
 .fortune-cf-column-labels {
   flex: 0 0 auto;
-  color: var(--fortune-text-muted);
+  color: var(--ts-muted);
 }
 
 .fortune-cf-column-labels span {
-  height: var(--fortune-control-height);
-  line-height: var(--fortune-control-height);
+  height: var(--ts-control);
+  line-height: var(--ts-control);
 }
 
 .fortune-cf-column-labels span:first-child {
@@ -447,7 +496,7 @@
   height: 18px;
   line-height: 18px;
   font-weight: 600;
-  color: var(--fortune-text);
+  color: var(--ts-text-strong);
 }
 
 .fortune-cf-icon-table {
@@ -455,34 +504,34 @@
 }
 
 .fortune-cf-icon-table th {
-  text-align: left;
+  padding: 2px 8px 2px 0;
+  color: var(--ts-muted);
   font-weight: normal;
-  color: var(--fortune-text-muted);
-  padding: 2px var(--fortune-space-2) 2px 0;
+  text-align: left;
 }
 
 .fortune-cf-icon-table td {
-  padding: 2px var(--fortune-space-2) 2px 0;
+  padding: 2px 8px 2px 0;
 }
 
 .fortune-cf-format {
   display: flex;
-  gap: var(--fortune-space-4);
+  gap: 16px;
   align-items: flex-start;
-  margin-top: var(--fortune-space-3);
-  padding-top: var(--fortune-space-2);
-  border-top: 1px solid var(--fortune-divider);
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ts-border);
 }
 
 .fortune-cf-format-grid {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-1);
+  gap: 4px;
 }
 
 .fortune-cf-format-row {
   display: grid;
-  grid-template-columns: 18px 110px auto;
+  grid-template-columns: 22px 110px auto;
   align-items: center;
 }
 
@@ -498,7 +547,7 @@
 .fortune-cf-format-preview {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-1);
+  gap: 4px;
   min-width: 140px;
 }
 
@@ -507,12 +556,13 @@
   align-items: center;
   justify-content: center;
   min-width: 120px;
-  height: 24px;
-  padding: 0 var(--fortune-space-2);
+  height: 26px;
+  padding: 0 8px;
   box-sizing: border-box;
-  border: 1px solid var(--fortune-border);
-  background: var(--fortune-bg);
-  color: var(--fortune-text);
+  border: 1px solid var(--ts-border);
+  border-radius: 6px;
+  background: var(--ts-cell);
+  color: var(--ts-text);
   white-space: nowrap;
 }
 
@@ -520,8 +570,8 @@
   display: block;
   width: 80%;
   height: 14px;
-  border: 1px solid transparent;
   margin-right: auto;
+  border: 1px solid transparent;
 }
 
 .fortune-cf-preview-icons {
@@ -531,47 +581,41 @@
 .fortune-cf-formula {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-1);
+  gap: 6px;
+}
+
+.fortune-cf-formula > label {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-cf-applies {
-  margin-top: var(--fortune-space-3);
+  margin-top: 12px;
 }
 
 .fortune-cf-error {
-  margin-top: var(--fortune-space-2);
-  color: var(--fortune-danger);
-}
-
-.fortune-cf-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--fortune-space-2);
-  margin-top: var(--fortune-space-4);
+  margin-top: 8px;
+  color: var(--ts-danger);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-cf-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--fortune-space-1);
-  margin: var(--fortune-space-2) 0;
+  gap: 6px;
+  margin: 12px 0 10px;
 }
 
 .fortune-cf-toolbutton {
   min-width: 0;
-  padding: 0 var(--fortune-space-3);
-}
-
-.fortune-cf-toolbutton[aria-disabled="true"] {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .fortune-cf-table-wrap {
   max-height: 300px;
+  min-height: 160px;
   overflow: auto;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
 }
 
 .fortune-cf-table {
@@ -583,18 +627,23 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--fortune-bg-muted);
-  color: var(--fortune-text-muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ts-border);
+  background: var(--ts-pane);
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
   font-weight: 500;
   text-align: left;
-  padding: 6px var(--fortune-space-2);
-  border-bottom: 1px solid var(--fortune-border);
 }
 
 .fortune-cf-table td {
-  padding: 4px var(--fortune-space-2);
-  border-bottom: 1px solid var(--fortune-divider);
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--ts-border);
   vertical-align: middle;
+}
+
+.fortune-cf-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .fortune-cf-table tbody tr {
@@ -602,19 +651,23 @@
 }
 
 .fortune-cf-table tbody tr:hover {
-  background: var(--fortune-bg-hover);
+  background: var(--ts-surface);
 }
 
 .fortune-cf-table tbody tr.selected {
-  background: var(--fortune-accent-soft);
+  background: var(--ts-surface);
+}
+
+.fortune-cf-table tbody tr.selected td:first-child {
+  box-shadow: inset 2px 0 0 var(--ts-ink);
 }
 
 .fortune-cf-table .fortune-cf-input {
-  width: 130px;
+  width: 140px;
 }
 
 .fortune-cf-desc {
-  max-width: 220px;
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -622,4 +675,27 @@
 
 .fortune-cf-center {
   text-align: center;
+}
+
+/* preset galleries of the Conditional Formatting menu (ui Gallery tiles) */
+.fortune-cf-preset-gallery .ts-gallery-item {
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+
+.fortune-cf-preset-gallery .ts-gallery-item > * {
+  flex: 0 0 auto;
+}
+
+.fortune-cf-preset-gallery .fortune-cf-bar-swatch,
+.fortune-cf-preset-gallery .fortune-cf-scale-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fortune-cf-preset-gallery .fortune-cf-iconset {
+  padding: 0;
 }

@@ -182,7 +182,12 @@ export const InsertDeleteDialog: React.FC<{
   };
 
   return (
-    <Dialog type="yesno" onOk={submit} onCancel={hideModal}>
+    <Dialog
+      type="yesno"
+      title={mode === "insert" ? cellMenu.insertTitle : cellMenu.deleteTitle}
+      onOk={submit}
+      onCancel={hideModal}
+    >
       <div
         className="fortune-cellmenu-dialog"
         onKeyDown={(e) => {
@@ -192,9 +197,6 @@ export const InsertDeleteDialog: React.FC<{
           }
         }}
       >
-        <div className="title">
-          {mode === "insert" ? cellMenu.insertTitle : cellMenu.deleteTitle}
-        </div>
         <div
           className="fortune-cellmenu-dialog-options"
           role="radiogroup"
@@ -273,11 +275,15 @@ export const SizeDialog: React.FC<{
   const label =
     type === "row" ? cellMenu.rowHeightLabel : cellMenu.columnWidthLabel;
   return (
-    <Dialog type="yesno" onOk={submit} onCancel={hideModal}>
+    <Dialog
+      type="yesno"
+      title={
+        type === "row" ? cellMenu.rowHeightTitle : cellMenu.columnWidthTitle
+      }
+      onOk={submit}
+      onCancel={hideModal}
+    >
       <div className="fortune-cellmenu-dialog">
-        <div className="title">
-          {type === "row" ? cellMenu.rowHeightTitle : cellMenu.columnWidthTitle}
-        </div>
         <label
           className="fortune-cellmenu-dialog-field"
           htmlFor={`fortune-${type}-size-input`}

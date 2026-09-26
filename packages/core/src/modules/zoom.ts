@@ -23,13 +23,14 @@ export function handleKeydownForZoom(ev: KeyboardEvent, currentZoom: number) {
     handled = true;
   }
 
-  if (handled) {
-    ev.preventDefault();
-    if (zoom >= MAX_ZOOM_RATIO) {
-      zoom = MAX_ZOOM_RATIO;
-    } else if (zoom < MIN_ZOOM_RATIO) {
-      zoom = MIN_ZOOM_RATIO;
-    }
+  // any other Ctrl shortcut (Ctrl+Z, Ctrl+C...) leaves the zoom alone, even
+  // one that is not a multiple of 10% (75%)
+  if (!handled) return currentZoom;
+  ev.preventDefault();
+  if (zoom >= MAX_ZOOM_RATIO) {
+    zoom = MAX_ZOOM_RATIO;
+  } else if (zoom < MIN_ZOOM_RATIO) {
+    zoom = MIN_ZOOM_RATIO;
   }
-  return parseFloat(zoom.toFixed(1));
+  return Math.round(zoom * 100) / 100;
 }

@@ -29,13 +29,13 @@ describe("number format", () => {
   test("currency", async () => {
     handleCurrencyFormat(ctx, cellInput);
     const flowdata = getFlowdata(ctx);
-    expect(flowdata[1][1].m).toBe("¥5.00 ");
+    expect(flowdata[1][1].m).toBe("$5.00 ");
   });
 
   test("accounting (ribbon currency button)", async () => {
     handleAccountingFormat(ctx, cellInput);
     const flowdata = getFlowdata(ctx);
-    expect(flowdata[1][1].m).toBe(" ¥5.00 ");
+    expect(flowdata[1][1].m).toBe(" $5.00 ");
   });
 
   // Excel's Percent Style button: 0%.

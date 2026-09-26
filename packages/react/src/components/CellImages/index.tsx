@@ -1,6 +1,6 @@
 /**
- * Pictures in cells, React side: the Picture in Cell toolbar item, the
- * Place in Cell / Place over Cells / Alt Text menu entries, a sheet overlay
+ * Pictures in cells, React side (Insert › Pictures › Place in Cell is a
+ * ribbon command, ../Ribbon): the Place in Cell / Place over Cells / Alt Text menu entries, a sheet overlay
  * that redraws the grid when pictures finish loading, shows a picture's alt
  * text on hover and pastes clipboard pictures into the active cell, and the
  * formula bar's picture chip. The model and drawing live in core
@@ -25,11 +25,9 @@ import {
 } from "@lofcz/tinysheet-core";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import WorkbookContext from "../../context";
-import { ModalContext } from "../../context/modal";
 import { WorkbookStoreContext } from "../../context/store";
-import { registerSheetOverlay, registerToolbarItem } from "../../extensions";
+import { registerSheetOverlay } from "../../extensions";
 import { registerContextMenuItem } from "../ContextMenu/actions";
-import { activateOnKey } from "../Toolbar/Button";
 import { AltTextDialog, InsertPictureDialog } from "./dialogs";
 import { isPictureFile, readPictureFile } from "./readImage";
 import "./index.css";
@@ -81,32 +79,6 @@ export const PictureInCellIcon: React.FC<{ size?: number }> = ({
     <circle cx="13.9" cy="10.1" r="0.9" fill="currentColor" />
   </svg>
 );
-
-const PictureInCellButton: React.FC<{ tooltip: string }> = ({ tooltip }) => {
-  const { context } = useContext(WorkbookContext);
-  const { showModal } = useContext(ModalContext);
-  const label = tooltip || locale(context).cellImage.pictureInCell;
-  return (
-    <div
-      className="fortune-toolbar-button fortune-toolbar-item"
-      onClick={() => {
-        if (context.allowEdit === false) return;
-        const at = activePictureTarget(context);
-        if (at) showModal(<InsertPictureDialog r={at.r} c={at.c} />);
-      }}
-      onKeyDown={activateOnKey}
-      tabIndex={0}
-      data-tips={label}
-      role="button"
-      aria-label={label}
-    >
-      <PictureInCellIcon />
-      <div className="fortune-tooltip" aria-hidden="true">
-        {label}
-      </div>
-    </div>
-  );
-};
 
 /** A single picture in pasted HTML with no text around it (a copied image). */
 function pastedPictureUrl(html: string) {
@@ -309,9 +281,6 @@ export function registerCellImageFeature() {
   registered = true;
   installCellImages();
   registerSheetOverlay("cellImages", CellImageLayer);
-  registerToolbarItem("picture-in-cell", ({ tooltip }) => (
-    <PictureInCellButton tooltip={tooltip} />
-  ));
   registerContextMenuItem("picture-in-cell", {
     label: (ctx) => locale(ctx).cellImage.insertPicture,
     icon: "image",

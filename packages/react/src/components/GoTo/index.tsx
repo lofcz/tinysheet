@@ -9,8 +9,7 @@ import React, { useCallback, useContext, useRef, useState } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
 import { LocationCondition } from "../LocationCondition";
-import SVGIcon from "../SVGIcon";
-import { activateOnKey } from "../Toolbar/Button";
+import { Button, Dialog } from "../ui";
 import "./index.css";
 
 const RECENT_KEY = "goTo.recent";
@@ -97,119 +96,81 @@ const GoTo: React.FC = () => {
   }, [close, showDialog]);
 
   return (
-    <div
-      className="fortune-goto-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
+    <Dialog
+      open
+      id="fortune-goto"
+      title={findAndReplace.gotoTitle}
+      className="fortune-goto"
+      closeOnBackdrop
+      onClose={close}
+      onConfirm={() => go(reference)}
+      footerStart={
+        <Button variant="secondary" onClick={openSpecial}>
+          {findAndReplace.gotoSpecialBtn}
+        </Button>
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={close}>
+            {button.cancel}
+          </Button>
+          <Button variant="primary" onClick={() => go(reference)}>
+            {button.confirm}
+          </Button>
+        </>
+      }
     >
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <div className="goto-label">{findAndReplace.goto}</div>
       <div
-        id="fortune-goto"
-        className="fortune-dialog"
-        role="dialog"
-        aria-label={findAndReplace.gotoTitle}
-        onKeyDown={(e) => {
-          e.stopPropagation();
-          if (e.key === "Escape") close();
-        }}
+        className="goto-list"
+        role="listbox"
+        aria-label={findAndReplace.goto}
       >
-        <div className="goto-header">
-          <div className="title">{findAndReplace.gotoTitle}</div>
+        {recent.map((item) => (
           <div
-            className="fortune-modal-dialog-icon-close"
-            onClick={close}
-            onKeyDown={activateOnKey}
-            role="button"
-            aria-label={button.close}
-            tabIndex={0}
-          >
-            <SVGIcon name="close" />
-          </div>
-        </div>
-        <div
-          className="goto-list"
-          role="listbox"
-          aria-label={findAndReplace.goto}
-        >
-          {recent.map((item) => (
-            <div
-              key={item}
-              role="option"
-              aria-selected={item === reference}
-              className={item === reference ? "on" : ""}
-              onClick={() => {
-                setReference(item);
-                setError("");
-              }}
-              onDoubleClick={() => go(item)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") go(item);
-              }}
-              tabIndex={0}
-            >
-              {item}
-            </div>
-          ))}
-        </div>
-        <label className="goto-field" htmlFor="fortune-goto-reference">
-          <span>{findAndReplace.gotoReference}</span>
-          <input
-            id="fortune-goto-reference"
-            ref={inputRef}
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
-            spellCheck="false"
-            value={reference}
-            aria-invalid={!!error}
-            onFocus={(e) => e.target.select()}
-            onChange={(e) => {
-              setReference(e.target.value);
+            key={item}
+            role="option"
+            aria-selected={item === reference}
+            className={item === reference ? "on" : ""}
+            onClick={() => {
+              setReference(item);
               setError("");
             }}
+            onDoubleClick={() => go(item)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                go(reference);
+                go(item);
               }
             }}
-          />
-        </label>
-        <div className="goto-error" role="alert">
-          {error}
-        </div>
-        <div className="goto-buttons">
-          <div
-            className="button-basic button-default"
-            onClick={openSpecial}
-            onKeyDown={activateOnKey}
-            role="button"
             tabIndex={0}
           >
-            {findAndReplace.gotoSpecialBtn}
+            {item}
           </div>
-          <div className="spacer" />
-          <div
-            className="button-basic button-primary"
-            onClick={() => go(reference)}
-            onKeyDown={activateOnKey}
-            role="button"
-            tabIndex={0}
-          >
-            {button.confirm}
-          </div>
-          <div
-            className="button-basic button-default"
-            onClick={close}
-            onKeyDown={activateOnKey}
-            role="button"
-            tabIndex={0}
-          >
-            {button.cancel}
-          </div>
-        </div>
+        ))}
       </div>
-    </div>
+      <label className="goto-field" htmlFor="fortune-goto-reference">
+        <span>{findAndReplace.gotoReference}</span>
+        <input
+          id="fortune-goto-reference"
+          ref={inputRef}
+          type="text"
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          spellCheck="false"
+          value={reference}
+          aria-invalid={!!error}
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => {
+            setReference(e.target.value);
+            setError("");
+          }}
+        />
+      </label>
+      <div className="goto-error" role="alert">
+        {error}
+      </div>
+    </Dialog>
   );
 };
 

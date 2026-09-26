@@ -1,54 +1,39 @@
-/* Cell Styles gallery (toolbar dropdown). */
+/* Cell Styles gallery (Home › Styles): a ui Gallery in a popover panel. */
 .fortune-cell-styles {
-  width: 452px;
-  max-width: calc(100vw - 32px);
-  max-height: 420px;
-  overflow: auto;
-  padding: var(--fortune-space-2) var(--fortune-space-3) var(--fortune-space-3);
   box-sizing: border-box;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius);
-  background: var(--fortune-bg-elevated);
-  box-shadow: var(--fortune-shadow);
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size);
+  max-width: calc(100vw - 32px);
+  padding: 10px;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius-pane);
+  background: var(--ts-pane);
+  box-shadow: var(--ts-shadow);
+  color: var(--ts-text);
   white-space: normal;
 }
 
-.fortune-cell-styles-heading {
-  margin: var(--fortune-space-2) 0 var(--fortune-space-1);
-  color: var(--fortune-text-muted);
-  font-size: var(--fortune-font-size-sm);
-  font-weight: 500;
+.fortune-cell-styles--bare {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.fortune-cell-styles-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--fortune-space-1);
-}
-
+/* the tile: the style applied to its name, on white like a cell */
 .fortune-cell-style {
-  height: 30px;
-  padding: 0 var(--fortune-space-2);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: calc(100% + 6px);
+  margin: -3px;
+  padding: 0 8px;
   overflow: hidden;
-  border: 1px solid var(--fortune-border);
-  border-radius: 2px;
-  background: var(--fortune-bg);
-  color: var(--fortune-text);
-  font-family: inherit;
-  font-size: var(--fortune-font-size-sm);
+  border-radius: 4px;
+  background: #ffffff;
+  color: #000000;
+  font-family: Calibri, Carlito, Arial, sans-serif;
+  font-size: var(--ts-font-size-sm);
   text-align: left;
   white-space: nowrap;
   text-overflow: ellipsis;
-  cursor: pointer;
-}
-
-.fortune-cell-style:hover {
-  outline: 2px solid var(--fortune-accent);
-  outline-offset: -1px;
-}
-
-.fortune-cell-style:focus-visible {
-  box-shadow: var(--fortune-focus-ring);
 }

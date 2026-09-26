@@ -56,6 +56,8 @@ const FormulaSearch: React.FC<Props> = ({ onSelectCandidate, ...props }) => {
       id="luckysheet-formula-search-c"
       className="luckysheet-formula-search-c"
       role="listbox"
+      // the wheel scrolls the list, not the sheet
+      data-fortune-popup=""
     >
       {context.functionCandidates.map((v, index) => (
         <div

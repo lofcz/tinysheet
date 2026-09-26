@@ -2,8 +2,8 @@ import type { Sheet } from "@lofcz/tinysheet-core";
 
 type CellData = NonNullable<Sheet["celldata"]>[number];
 
-const FONT = { ff: "Arial", fs: 10 };
-const HEADER = { ...FONT, bl: 1, bg: "#f2f2f2" };
+// cells use the workbook default font (Calibri 11pt)
+const HEADER = { bl: 1, bg: "#f2f2f2" };
 const MONEY = { fa: "#,##0", t: "n" };
 const PERCENT = { fa: "0.0%", t: "n" };
 
@@ -22,8 +22,7 @@ const regions: [string, number[]][] = [
 
 function cells(): CellData[] {
   const out: CellData[] = [];
-  const put = (r: number, c: number, v: CellData["v"]) =>
-    out.push({ r, c, v: { ...FONT, ...v } });
+  const put = (r: number, c: number, v: CellData["v"]) => out.push({ r, c, v });
 
   ["Region", "Q1", "Q2", "Q3", "Q4", "Total", "Share"].forEach((h, c) =>
     put(0, c, { ...HEADER, v: h, m: h })

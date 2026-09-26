@@ -21,7 +21,9 @@ import React, {
 } from "react";
 import WorkbookContext from "../../context";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { Check } from "lucide-react";
 import EditModeIndicator from "../EditModeIndicator";
+import { Icon } from "../ui/icons";
 import { getStatusBarItems } from "../../extensions";
 import "./index.css";
 
@@ -86,7 +88,10 @@ const StatusBar: React.FC = () => {
   const [calculating, setCalculating] = useState(false);
   const [menu, setMenu] = useState<MenuState>(null);
   const [copied, setCopied] = useState<StatusBarStatKey | null>(null);
+  /** Where the "Copied" bubble points (x: centre of the value). */
+  const [copiedAt, setCopiedAt] = useState<number>(0);
   const menuRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const data = getFlowdata(context);
   const selection = context.luckysheet_select_save;
@@ -159,6 +164,12 @@ const StatusBar: React.FC = () => {
   }, []);
 
   const copy = useCallback((key: StatusBarStatKey, text: string) => {
+    const item = rootRef.current?.querySelector<HTMLElement>(
+      `.fortune-status-bar-item[data-stat="${key}"]`
+    );
+    const root = rootRef.current?.getBoundingClientRect();
+    const rect = item?.getBoundingClientRect();
+    if (root && rect) setCopiedAt(rect.left + rect.width / 2 - root.left);
     const done = () => {
       setCopied(key);
       window.setTimeout(() => setCopied((k) => (k === key ? null : k)), 1200);
@@ -177,11 +188,18 @@ const StatusBar: React.FC = () => {
 
   return (
     <div
+      ref={rootRef}
       className="fortune-stat-area fortune-status-bar"
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        setMenu({ x: e.clientX, y: e.clientY });
+        // above the bottom bar, like Excel's menu over its status bar
+        const pane = e.currentTarget.closest(".fortune-bottom-pane");
+        const top = pane?.getBoundingClientRect().top;
+        setMenu({
+          x: e.clientX,
+          y: top != null ? Math.min(e.clientY, top - 6) : e.clientY,
+        });
       }}
     >
       {/* left side: mode indicator (Ready / Enter / Edit / Point) */}
@@ -214,7 +232,7 @@ const StatusBar: React.FC = () => {
             {statusBar.calculating}
           </span>
         )}
-        {shown.map((key) => {
+        {shown.map((key, i) => {
           const text = formatSelectionStat(key, stats, numberFormat);
           return (
             <button
@@ -222,6 +240,9 @@ const StatusBar: React.FC = () => {
               key={key}
               className="fortune-status-bar-item"
               data-stat={key}
+              // laid out right to left: when the bar is too narrow, the
+              // first aggregates wrap out of sight and Sum stays (CSS)
+              style={{ order: shown.length - i }}
               title={copied === key ? statusBar.copied : statusBar.clickToCopy}
               onClick={() => copy(key, text)}
             >
@@ -229,15 +250,19 @@ const StatusBar: React.FC = () => {
                 {statusBar[key]}:
               </span>{" "}
               <span className="fortune-status-bar-value">{text}</span>
-              {copied === key && (
-                <span className="fortune-status-bar-copied">
-                  {statusBar.copied}
-                </span>
-              )}
             </button>
           );
         })}
       </div>
+      {copied && shown.includes(copied) && (
+        <span
+          className="fortune-status-bar-copied"
+          role="status"
+          style={{ left: copiedAt }}
+        >
+          {statusBar.copied}
+        </span>
+      )}
       {menu && (
         <div
           ref={menuRef}
@@ -281,7 +306,7 @@ const StatusBar: React.FC = () => {
                 }}
               >
                 <span className="fortune-status-bar-check" aria-hidden="true">
-                  {checked ? "✓" : ""}
+                  {checked && <Icon icon={Check} size={14} strokeWidth={2} />}
                 </span>
                 <span className="fortune-status-bar-menu-label">
                   {statusBar[key]}

@@ -11,8 +11,7 @@
  * - context-menu items "pivot-refresh", "pivot-field-list" and
  *   "pivot-value-settings".
  */
-import React, { useContext, useEffect, useRef, useState } from "react";
-import ReactDOM from "react-dom";
+import React, { useContext, useEffect, useRef } from "react";
 import _ from "lodash";
 import {
   checkPivotUpdate,
@@ -24,6 +23,7 @@ import {
   pivotCellInfo,
   pivotDrillDown,
   pivotInRange,
+  dialogsLocale,
   pivotLocale,
   pivotSourceSignature,
   refreshPivotTable,
@@ -33,17 +33,16 @@ import type { Context } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
-import { registerSheetOverlay, registerToolbarItem } from "../../extensions";
+import { registerSheetOverlay } from "../../extensions";
 import { registerContextMenuItem } from "../ContextMenu/actions";
-import Button from "../Toolbar/Button";
 import CreatePivotDialog, { PivotButton } from "./CreatePivotDialog";
 import FieldsPane from "./FieldsPane";
+import { SidePane } from "../SidePane";
 import { ValueFieldSettingsDialog } from "./FieldSettingsDialog";
 import ReportDropdowns from "./ReportDropdowns";
 import { pivotErrorText } from "./usePivotUpdate";
 import "./index.css";
-
-export const PIVOT_TOOLBAR_ICON = "fortune-insert-pivot";
+import { DialogShell } from "../ui";
 
 /** The PivotTable of the active cell, with its sheet. */
 export function activePivot(ctx: Context) {
@@ -55,54 +54,6 @@ export function activePivot(ctx: Context) {
   return pivot ? { sheetId: ctx.currentSheetId, pivot, r, c } : null;
 }
 
-const PivotToolbarItem: React.FC<{ tooltip: string }> = ({ tooltip }) => {
-  const { context } = useContext(WorkbookContext);
-  const { showDialog } = useDialog();
-  const t = pivotLocale(context);
-  return (
-    <>
-      <svg
-        style={{ position: "absolute", width: 0, height: 0 }}
-        aria-hidden="true"
-      >
-        <defs>
-          <symbol id={PIVOT_TOOLBAR_ICON} viewBox="0 0 24 24" fill="none">
-            <rect
-              x="4.75"
-              y="4.75"
-              width="14.5"
-              height="14.5"
-              rx="1.5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-            <path
-              d="M4.75 9.25h14.5M9.25 4.75v14.5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-            <path
-              d="M12.5 14.5h4m0 0-1.5-1.5m1.5 1.5L15 16"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </symbol>
-        </defs>
-      </svg>
-      <Button
-        iconId={PIVOT_TOOLBAR_ICON}
-        tooltip={tooltip || t.insertPivotTable}
-        onClick={() => {
-          if (context.allowEdit === false) return;
-          showDialog(<CreatePivotDialog />);
-        }}
-      />
-    </>
-  );
-};
-
 /** Asks before a refresh overwrites cells (context-menu Refresh). */
 const ConfirmRefresh: React.FC<{ sheetId: string; id: string }> = ({
   sheetId,
@@ -112,23 +63,28 @@ const ConfirmRefresh: React.FC<{ sheetId: string; id: string }> = ({
   const { hideDialog } = useDialog();
   const t = pivotLocale(context);
   return (
-    <div className="fortune-pivot-dialog">
+    <DialogShell
+      title={dialogsLocale(context).appName}
+      className="fortune-pivot-dialog"
+      footer={
+        <>
+          <PivotButton onClick={hideDialog}>{t.cancel}</PivotButton>
+          <PivotButton
+            primary
+            onClick={() => {
+              setContext((ctx) => {
+                refreshPivotTable(ctx, sheetId, id, { force: true });
+              });
+              hideDialog();
+            }}
+          >
+            {t.ok}
+          </PivotButton>
+        </>
+      }
+    >
       <div>{t.confirmReplace}</div>
-      <div className="fortune-pivot-dialog-footer">
-        <PivotButton
-          primary
-          onClick={() => {
-            setContext((ctx) => {
-              refreshPivotTable(ctx, sheetId, id, { force: true });
-            });
-            hideDialog();
-          }}
-        >
-          {t.ok}
-        </PivotButton>
-        <PivotButton onClick={hideDialog}>{t.cancel}</PivotButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -320,17 +276,8 @@ function usePivotGuards() {
 }
 
 const PivotOverlay: React.FC = () => {
-  const { context, refs } = useContext(WorkbookContext);
+  const { context, setContext, refs } = useContext(WorkbookContext);
   usePivotGuards();
-  const [host, setHost] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    setHost(
-      (refs.cellArea.current?.closest(".fortune-sheet-overlay") as
-        | HTMLElement
-        | null
-        | undefined) ?? null
-    );
-  }, [refs.cellArea]);
   const active = activePivot(context);
   const pivots = getPivotTables(context, context.currentSheetId);
   const freeze = refs.globalCache.freezen?.[context.currentSheetId];
@@ -350,13 +297,27 @@ const PivotOverlay: React.FC = () => {
           }
         />
       ))}
-      {active &&
-        !context.pivotFieldListHidden &&
-        host &&
-        ReactDOM.createPortal(
-          <FieldsPane sheetId={active.sheetId} pivot={active.pivot} />,
-          host
+      <SidePane
+        id="pivot-fields"
+        title={pivotLocale(context).fieldsTitle}
+        open={!!active && !context.pivotFieldListHidden}
+        onClose={() =>
+          setContext(
+            (ctx) => {
+              ctx.pivotFieldListHidden = true;
+            },
+            { noHistory: true }
+          )
+        }
+      >
+        {active && (
+          <FieldsPane
+            key={active.pivot.id}
+            sheetId={active.sheetId}
+            pivot={active.pivot}
+          />
         )}
+      </SidePane>
     </>
   );
 };
@@ -367,9 +328,6 @@ let registered = false;
 export function registerPivotTableFeatures() {
   if (registered) return;
   registered = true;
-  registerToolbarItem("pivotTable", ({ tooltip }) => (
-    <PivotToolbarItem tooltip={tooltip} />
-  ));
   registerSheetOverlay("pivotTable", PivotOverlay);
   registerContextMenuItem("pivot-refresh", {
     label: (context) => pivotLocale(context).refresh,
@@ -386,9 +344,7 @@ export function registerPivotTableFeatures() {
         return;
       }
       if (error) {
-        showDialog(
-          <div className="fortune-pivot-dialog">{pivotErrorText(t, error)}</div>
-        );
+        showDialog(pivotErrorText(t, error));
         return;
       }
       setContext((ctx) => {

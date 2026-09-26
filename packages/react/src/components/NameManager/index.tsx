@@ -22,7 +22,7 @@ import {
 import type { DefinedNameEntry } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import { activateOnKey } from "../Toolbar/Button";
+import { Button, DialogShell } from "../ui";
 import "./index.css";
 
 type Mode =
@@ -48,18 +48,13 @@ const TextButton: React.FC<{
   disabled?: boolean;
   children: React.ReactNode;
 }> = ({ onClick, primary, disabled, children }) => (
-  <div
-    className={`button-basic ${primary ? "button-primary" : "button-default"}`}
-    role="button"
-    tabIndex={0}
-    aria-disabled={disabled || undefined}
-    onClick={() => {
-      if (!disabled) onClick();
-    }}
-    onKeyDown={activateOnKey}
+  <Button
+    variant={primary ? "primary" : "secondary"}
+    disabled={disabled}
+    onClick={onClick}
   >
     {children}
-  </div>
+  </Button>
 );
 
 /** New / Edit Name form. */
@@ -122,10 +117,20 @@ const NameEditor: React.FC<{
   };
 
   return (
-    <div className="fortune-name-editor">
-      <div className="fortune-name-manager-title">
-        {entry ? t.editNameTitle : t.newNameTitle}
-      </div>
+    <DialogShell
+      title={entry ? t.editNameTitle : t.newNameTitle}
+      className="fortune-name-editor"
+      onClose={onDone}
+      onConfirm={save}
+      footer={
+        <>
+          <TextButton onClick={onDone}>{button.cancel}</TextButton>
+          <TextButton primary onClick={save}>
+            {button.confirm}
+          </TextButton>
+        </>
+      }
+    >
       <div className="fortune-name-editor-row">
         <label htmlFor={`${uid}-name`}>{t.name}</label>
         <input
@@ -174,9 +179,6 @@ const NameEditor: React.FC<{
             setRefersTo(e.target.value);
             setError(null);
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") save();
-          }}
         />
       </div>
       {error && (
@@ -184,13 +186,7 @@ const NameEditor: React.FC<{
           {error}
         </div>
       )}
-      <div className="fortune-name-manager-footer">
-        <TextButton primary onClick={save}>
-          {button.confirm}
-        </TextButton>
-        <TextButton onClick={onDone}>{button.cancel}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -212,11 +208,28 @@ const CreateFromSelection: React.FC<{ onDone: () => void }> = ({ onDone }) => {
     ["bottom", t.bottomRow],
     ["right", t.rightColumn],
   ];
+  const confirm = () => {
+    if (!range) return;
+    setContext((ctx) => {
+      createNamesFromSelection(ctx, range, opts);
+    });
+    onDone();
+  };
   return (
-    <div className="fortune-name-editor">
-      <div className="fortune-name-manager-title">
-        {t.createFromSelectionTitle}
-      </div>
+    <DialogShell
+      title={t.createFromSelectionTitle}
+      className="fortune-name-editor fortune-name-from-selection"
+      onClose={onDone}
+      onConfirm={confirm}
+      footer={
+        <>
+          <TextButton onClick={onDone}>{button.cancel}</TextButton>
+          <TextButton primary disabled={!range} onClick={confirm}>
+            {button.confirm}
+          </TextButton>
+        </>
+      }
+    >
       {keys.map(([key, label]) => (
         <div key={key} className="fortune-name-editor-check">
           <input
@@ -228,23 +241,7 @@ const CreateFromSelection: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           <label htmlFor={`${uid}-${key}`}>{label}</label>
         </div>
       ))}
-      <div className="fortune-name-manager-footer">
-        <TextButton
-          primary
-          disabled={!range}
-          onClick={() => {
-            if (!range) return;
-            setContext((ctx) => {
-              createNamesFromSelection(ctx, range, opts);
-            });
-            onDone();
-          }}
-        >
-          {button.confirm}
-        </TextButton>
-        <TextButton onClick={onDone}>{button.cancel}</TextButton>
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 
@@ -297,36 +294,48 @@ export const NameManager: React.FC<{
 
   if (mode.kind === "edit") {
     return (
-      <div className="fortune-name-manager">
-        <NameEditor
-          entry={mode.entry}
-          onDone={() => {
-            if (initialMode === "newName") {
-              hideDialog();
-              refs.cellInput.current?.focus({ preventScroll: true });
-            } else {
-              setMode({ kind: "list" });
-            }
-          }}
-        />
-      </div>
+      <NameEditor
+        entry={mode.entry}
+        onDone={() => {
+          if (initialMode === "newName") {
+            hideDialog();
+            refs.cellInput.current?.focus({ preventScroll: true });
+          } else {
+            setMode({ kind: "list" });
+          }
+        }}
+      />
     );
   }
   if (mode.kind === "fromSelection") {
     return (
-      <div className="fortune-name-manager">
-        <CreateFromSelection
-          onDone={() => {
+      <CreateFromSelection
+        onDone={() => {
+          // opened on its own (Formulas › Create from Selection,
+          // Ctrl+Shift+F3): OK and Cancel close it, as in Excel
+          if (initialMode === "fromSelection") {
+            hideDialog();
+            refs.cellInput.current?.focus({ preventScroll: true });
+          } else {
             setMode({ kind: "list" });
-          }}
-        />
-      </div>
+          }
+        }}
+      />
     );
   }
 
   return (
-    <div className="fortune-name-manager">
-      <div className="fortune-name-manager-title">{t.nameManager}</div>
+    <DialogShell
+      title={t.nameManager}
+      className="fortune-name-manager"
+      onClose={hideDialog}
+      footerStart={
+        <TextButton onClick={() => setMode({ kind: "fromSelection" })}>
+          {t.createFromSelection}
+        </TextButton>
+      }
+      footer={<TextButton onClick={hideDialog}>{button.close}</TextButton>}
+    >
       <div className="fortune-name-manager-toolbar">
         <TextButton onClick={() => setMode({ kind: "edit", entry: null })}>
           {t.newName}
@@ -428,47 +437,7 @@ export const NameManager: React.FC<{
           }
         />
       </div>
-      <div className="fortune-name-manager-footer">
-        <TextButton onClick={() => setMode({ kind: "fromSelection" })}>
-          {t.createFromSelection}
-        </TextButton>
-        <div className="fortune-name-manager-spacer" />
-        <TextButton onClick={hideDialog}>{button.close}</TextButton>
-      </div>
-    </div>
-  );
-};
-
-/** Inline icon (not part of the shared SVG sprite). */
-export const NameManagerIcon: React.FC = () => (
-  <svg width={24} height={24} viewBox="0 0 24 24" aria-hidden="true">
-    <path
-      fill="currentColor"
-      d="M4 5h16v2H4zm0 4h10v2H4zm0 4h16v2H4zm0 4h10v2H4zm12.5-8.5L20 12l-3.5 3.5-1.4-1.4 2.1-2.1-2.1-2.1z"
-    />
-  </svg>
-);
-
-/** Toolbar button opening the Name Manager. */
-export const NameManagerButton: React.FC = () => {
-  const { context } = useContext(WorkbookContext);
-  const { showDialog } = useDialog();
-  const { definedNames: t } = locale(context);
-  return (
-    <div
-      className="fortune-toolbar-button fortune-toolbar-item"
-      role="button"
-      tabIndex={0}
-      aria-label={t.nameManager}
-      data-tips={t.nameManager}
-      onClick={() => showDialog(<NameManager />)}
-      onKeyDown={activateOnKey}
-    >
-      <NameManagerIcon />
-      <div className="fortune-tooltip" aria-hidden="true">
-        {t.nameManager}
-      </div>
-    </div>
+    </DialogShell>
   );
 };
 

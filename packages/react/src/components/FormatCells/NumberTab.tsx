@@ -212,7 +212,7 @@ const NumberTab: React.FC<Props> = ({
 
   const negativeList = (
     <div className="fortune-fc-group">
-      <div className="fortune-fc-label">{formatCells.negativeNumbers}:</div>
+      <div className="fortune-fc-label">{formatCells.negativeNumbers}</div>
       <ListBox
         className="fortune-fc-listbox-short"
         label={formatCells.negativeNumbers}
@@ -241,7 +241,7 @@ const NumberTab: React.FC<Props> = ({
     sampleValue?: number
   ) => (
     <div className="fortune-fc-group">
-      <div className="fortune-fc-label">{formatCells.type}:</div>
+      <div className="fortune-fc-label">{formatCells.type}</div>
       <ListBox
         label={formatCells.type}
         items={codes}
@@ -343,7 +343,7 @@ const NumberTab: React.FC<Props> = ({
   return (
     <div className="fortune-fc-number">
       <div className="fortune-fc-group fortune-fc-categories">
-        <div className="fortune-fc-label">{formatCells.category}:</div>
+        <div className="fortune-fc-label">{formatCells.category}</div>
         <ListBox
           label={formatCells.category}
           items={FORMAT_CATEGORIES}

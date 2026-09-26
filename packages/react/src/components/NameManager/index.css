@@ -1,47 +1,37 @@
+/* Name Manager, New / Edit Name, Create from Selection (DialogShells) */
 .fortune-name-manager {
-  width: 680px;
-  max-width: 100%;
-  color: var(--fortune-text);
-  font-size: var(--fortune-font-size);
-  display: flex;
-  flex-direction: column;
-  gap: var(--fortune-space-3, 12px);
+  width: 720px;
+  color: var(--ts-text);
+  font-size: var(--ts-font-size);
 }
 
-.fortune-name-manager-title {
-  font-size: var(--fortune-font-size-lg);
-  font-weight: 500;
+.fortune-name-manager .ts-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .fortune-name-manager-toolbar,
-.fortune-name-manager-footer,
 .fortune-name-manager-refers {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2, 8px);
+  gap: 6px;
 }
 
 .fortune-name-manager-spacer {
   flex: 1;
 }
 
-.fortune-name-manager-toolbar input[type="text"],
-.fortune-name-manager-toolbar select {
-  height: var(--fortune-control-height);
-  box-sizing: border-box;
-  padding: 0 var(--fortune-space-2, 8px);
-}
-
 .fortune-name-manager-toolbar input[type="text"] {
-  width: 140px;
+  width: 160px;
 }
 
 .fortune-name-manager-table-wrap {
   height: 240px;
   overflow: auto;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg);
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius);
+  background: var(--ts-pane);
 }
 
 .fortune-name-manager-table {
@@ -52,20 +42,21 @@
 
 .fortune-name-manager-table th,
 .fortune-name-manager-table td {
-  padding: 4px 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ts-border);
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-bottom: 1px solid var(--fortune-divider);
 }
 
 .fortune-name-manager-table th {
   position: sticky;
   top: 0;
+  background: var(--ts-pane);
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
   font-weight: 500;
-  color: var(--fortune-text-muted);
-  background: var(--fortune-bg-muted);
 }
 
 .fortune-name-manager-table tbody tr {
@@ -73,56 +64,69 @@
 }
 
 .fortune-name-manager-table tbody tr:hover {
-  background: var(--fortune-bg-hover);
+  background: var(--ts-surface);
 }
 
 .fortune-name-manager-table tbody tr[aria-selected="true"] {
-  background: var(--fortune-accent-soft);
+  background: var(--ts-surface);
+  box-shadow: inset 2px 0 0 var(--ts-ink);
+  color: var(--ts-text-strong);
 }
 
 .fortune-name-manager-table tbody tr:focus-visible {
   outline: none;
-  box-shadow: inset var(--fortune-focus-ring);
+  box-shadow: inset 0 0 0 2px var(--ts-ring);
 }
 
 .fortune-name-manager-empty {
-  padding: var(--fortune-space-4, 16px);
-  color: var(--fortune-text-muted);
+  padding: 32px 16px;
+  color: var(--ts-muted);
   text-align: center;
+}
+
+.fortune-name-manager-refers > span {
+  flex: 0 0 auto;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-name-manager-refers input {
   flex: 1;
-  height: var(--fortune-control-height);
-  box-sizing: border-box;
-  padding: 0 var(--fortune-space-2, 8px);
-  font-family: var(--fortune-font-family-mono, monospace);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .fortune-name-manager-error {
-  color: var(--fortune-danger);
+  color: var(--ts-danger);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-name-editor {
+  width: 440px;
+}
+
+.fortune-name-editor .ts-dialog-body {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-3, 12px);
+  gap: 10px;
 }
 
 .fortune-name-editor-row {
   display: grid;
-  grid-template-columns: 90px 1fr;
+  grid-template-columns: 88px 1fr;
   align-items: center;
-  gap: var(--fortune-space-2, 8px);
+  gap: 10px;
+}
+
+.fortune-name-editor-row > label {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-name-editor-row input,
 .fortune-name-editor-row select,
 .fortune-name-editor-row textarea {
-  box-sizing: border-box;
   width: 100%;
-  min-height: var(--fortune-control-height);
-  padding: 2px var(--fortune-space-2, 8px);
+  box-sizing: border-box;
 }
 
 .fortune-name-editor-row textarea {
@@ -132,6 +136,10 @@
 .fortune-name-editor-check {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2, 8px);
+  gap: 8px;
   user-select: none;
+}
+
+.fortune-name-from-selection {
+  width: 340px;
 }

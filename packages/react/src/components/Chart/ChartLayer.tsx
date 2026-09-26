@@ -30,6 +30,7 @@ import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { getChartClipboard, setChartClipboard } from "./chartClipboard";
 import ChartContextMenu, { ChartMenuState } from "./ChartContextMenu";
+import { trackPointerDrag } from "../../hooks/pointerDrag";
 import "./index.css";
 
 type Box = { left: number; top: number; width: number; height: number };
@@ -199,6 +200,7 @@ const ChartLayer: React.FC = () => {
   const files = useFrameThrottled(context.luckysheetfile, hasCharts);
   const [preview, setPreview] = useState<(Box & { id: string }) | null>(null);
   const drag = useRef<Drag | null>(null);
+  const stopTracking = useRef<(() => void) | null>(null);
   const cache = useRef(new Map<string, SvgCacheEntry>());
   const boxRefs = useRef(new Map<string, HTMLDivElement>());
   const [menu, setMenu] = useState<ChartMenuState | null>(null);
@@ -318,7 +320,7 @@ const ChartLayer: React.FC = () => {
       if (!target || !container?.contains(target)) return;
       if (
         target.closest?.(
-          ".fortune-chart-box, .fortune-chart-editor, .fortune-chart-menu, .fortune-toolbar, .fortune-toolbar-combo-popup"
+          ".fortune-chart-box, .fortune-chart-editor, .fortune-chart-menu, .fortune-toolbar, .ts-popover"
         )
       )
         return;
@@ -360,13 +362,42 @@ const ChartLayer: React.FC = () => {
     return () => window.removeEventListener("paste", onPaste, true);
   }, [readonly, refs.workbookContainer, setContext]);
 
+  // the nearest row / column edge to `pos` (sheet px at 100%): Alt snaps
+  const snapToGrid = useCallback(
+    (pos: number, axis: "x" | "y") => {
+      const edges =
+        axis === "x" ? context.visibledatacolumn : context.visibledatarow;
+      let best = 0;
+      edges.forEach((edge) => {
+        if (Math.abs(edge / zoom - pos) < Math.abs(best - pos)) {
+          best = edge / zoom;
+        }
+      });
+      return best;
+    },
+    [context.visibledatacolumn, context.visibledatarow, zoom]
+  );
+  const snapRef = useRef(snapToGrid);
+  snapRef.current = snapToGrid;
+
   const onMouseMove = useCallback((e: MouseEvent) => {
     const d = drag.current;
     if (!d) return;
-    const dx = (e.pageX - d.startX) / d.zoom;
-    const dy = (e.pageY - d.startY) / d.zoom;
+    let dx = (e.pageX - d.startX) / d.zoom;
+    let dy = (e.pageY - d.startY) / d.zoom;
     if (!d.moved && Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
     d.moved = true;
+    if (d.mode === "move") {
+      // Shift: only horizontally or vertically; Alt: snap to the grid
+      if (e.shiftKey) {
+        if (Math.abs(dx) >= Math.abs(dy)) dy = 0;
+        else dx = 0;
+      }
+      if (e.altKey) {
+        dx = snapRef.current(d.orig.left + dx, "x") - d.orig.left;
+        dy = snapRef.current(d.orig.top + dy, "y") - d.orig.top;
+      }
+    }
     d.current =
       d.mode === "move"
         ? {
@@ -378,33 +409,45 @@ const ChartLayer: React.FC = () => {
     setPreview({ id: d.id, ...d.current });
   }, []);
 
-  const onMouseUp = useCallback(() => {
-    const d = drag.current;
-    drag.current = null;
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup", onMouseUp);
-    if (d?.moved) {
-      const box = {
-        left: Math.round(d.current.left),
-        top: Math.round(d.current.top),
-        width: Math.round(d.current.width),
-        height: Math.round(d.current.height),
-      };
-      setContext((ctx) => {
-        updateChart(ctx, d.id, box);
-      });
-    }
-    setPreview(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onMouseMove, setContext]);
-
-  useEffect(
-    () => () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+  const onMouseUp = useCallback(
+    (e: MouseEvent) => {
+      const d = drag.current;
+      drag.current = null;
+      stopTracking.current = null;
+      if (d?.moved) {
+        const box = {
+          left: Math.round(d.current.left),
+          top: Math.round(d.current.top),
+          width: Math.round(d.current.width),
+          height: Math.round(d.current.height),
+        };
+        // Ctrl held on release: a copy goes there (Excel)
+        const copy = d.mode === "move" && (e.ctrlKey || e.metaKey);
+        setContext((ctx) => {
+          if (copy) {
+            const chart = ctx.luckysheetfile
+              .find((s) => s.id === ctx.currentSheetId)
+              ?.charts?.find((c) => c.id === d.id);
+            const pasted = chart ? pasteChart(ctx, chart, box) : null;
+            if (pasted) ctx.activeChart = pasted.id;
+            return;
+          }
+          updateChart(ctx, d.id, box);
+        });
+      }
+      setPreview(null);
     },
-    [onMouseMove, onMouseUp]
+    [setContext]
   );
+
+  // Esc (or a lost pointer): the chart stays where it was
+  const onDragCancel = useCallback(() => {
+    drag.current = null;
+    stopTracking.current = null;
+    setPreview(null);
+  }, []);
+
+  useEffect(() => () => stopTracking.current?.(), []);
 
   const startDrag = useCallback(
     (e: React.MouseEvent, chart: Chart, mode: Drag["mode"]) => {
@@ -429,12 +472,17 @@ const ChartLayer: React.FC = () => {
         current: orig,
         moved: false,
       };
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
+      stopTracking.current?.();
+      stopTracking.current = trackPointerDrag(e, {
+        onMove: onMouseMove,
+        onEnd: onMouseUp,
+        onCancel: onDragCancel,
+      });
     },
     [
       boxOf,
       context.activeChart,
+      onDragCancel,
       onMouseMove,
       onMouseUp,
       readonly,

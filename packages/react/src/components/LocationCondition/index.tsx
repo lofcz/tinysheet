@@ -8,8 +8,8 @@ import {
 import React, { useContext, useState, useCallback } from "react";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
-import { activateOnKey } from "../Toolbar/Button";
 import "./index.css";
+import { Button, DialogShell } from "../ui";
 
 const LEFT: GoToSpecialType[] = [
   "notes",
@@ -113,19 +113,23 @@ export const LocationCondition: React.FC<{}> = () => {
     type === "conditionalFormats" || type === "dataValidation";
 
   return (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-    <div
+    <DialogShell
       id="fortune-location-condition"
-      role="group"
-      aria-label={findAndReplace.gotoSpecialTitle}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          onConfirm();
-        }
-      }}
+      title={findAndReplace.gotoSpecialTitle}
+      className="fortune-goto-special"
+      onClose={() => hideDialog()}
+      onConfirm={onConfirm}
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => hideDialog()}>
+            {button.cancel}
+          </Button>
+          <Button variant="primary" onClick={onConfirm}>
+            {button.confirm}
+          </Button>
+        </>
+      }
     >
-      <div className="title">{findAndReplace.gotoSpecialTitle}</div>
       <div className="listbox">
         <div className="column">
           {LEFT.map((t) => (
@@ -181,26 +185,6 @@ export const LocationCondition: React.FC<{}> = () => {
           </div>
         </div>
       </div>
-      <div className="buttons">
-        <div
-          className="button-basic button-primary"
-          onClick={onConfirm}
-          onKeyDown={activateOnKey}
-          role="button"
-          tabIndex={0}
-        >
-          {button.confirm}
-        </div>
-        <div
-          className="button-basic button-default"
-          onClick={() => hideDialog()}
-          onKeyDown={activateOnKey}
-          role="button"
-          tabIndex={0}
-        >
-          {button.cancel}
-        </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 };

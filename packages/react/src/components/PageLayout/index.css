@@ -1,74 +1,71 @@
 /* Page layout and printing. Colours come from the --fortune-* tokens. */
 
-/* Page Setup dialog (reuses the Format Cells tab chrome) */
+/* Page Setup dialog: a DialogShell with Excel's four tabs */
 .fortune-page-setup {
-  width: 620px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100% - 32px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  font-family: var(--fortune-font-family);
+  width: 640px;
+  font-family: var(--ts-font);
 }
 
-.fortune-page-setup .fortune-dialog-box-button-container {
-  padding-top: var(--fortune-space-3);
-  border-top: 1px solid var(--fortune-divider);
+.fortune-ps-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .fortune-ps-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-3);
+  gap: 14px;
+  min-height: 360px;
 }
 
 .fortune-ps-group {
-  margin: 0;
-  padding: var(--fortune-space-2) var(--fortune-space-3) var(--fortune-space-3);
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-2);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.fortune-ps-group legend {
-  padding: 0 var(--fortune-space-1);
-  color: var(--fortune-text);
-  font-weight: 500;
+.fortune-ps-group + .fortune-ps-group {
+  padding-top: 14px;
+  border-top: 1px solid var(--ts-border);
 }
 
 .fortune-ps-row {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2);
+  gap: 8px;
 }
 
 .fortune-ps-wrap {
   flex-wrap: wrap;
-  column-gap: var(--fortune-space-4);
+  column-gap: 16px;
 }
 
 .fortune-ps-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--fortune-space-3);
+  gap: 12px;
 }
 
 .fortune-ps-columns > div {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-2);
+  gap: 8px;
 }
 
 .fortune-ps-field {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2);
-  color: var(--fortune-text);
+  gap: 8px;
+  color: var(--ts-text);
 }
 
 .fortune-ps-field > span {
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
   white-space: nowrap;
 }
 
@@ -77,30 +74,25 @@
 }
 
 .fortune-ps-field input[type="number"] {
-  width: 72px;
-  height: var(--fortune-control-height);
-  box-sizing: border-box;
-  padding: 0 var(--fortune-space-2);
+  width: 80px;
 }
 
 .fortune-ps-field input[type="text"],
 .fortune-ps-row select,
 .fortune-ps-field select {
-  height: var(--fortune-control-height);
-  box-sizing: border-box;
-  padding: 0 var(--fortune-space-2);
   min-width: 140px;
 }
 
 .fortune-ps-ref {
   flex: 1;
-  font-family: var(--fortune-font-family-mono, monospace);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .fortune-ps-check {
   display: inline-flex;
   align-items: center;
-  gap: var(--fortune-space-1);
+  gap: 8px;
+  margin-right: 12px;
   color: var(--fortune-text);
   cursor: pointer;
   user-select: none;
@@ -116,24 +108,24 @@
 }
 
 .fortune-ps-label {
-  margin-bottom: var(--fortune-space-1);
+  margin-bottom: 4px;
   font-weight: 500;
 }
 
-.fortune-ps-presets .button-basic {
+.fortune-ps-presets .ts-btn {
   min-width: 72px;
 }
 
 .fortune-ps-margins {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-4);
+  gap: 16px;
 }
 
 .fortune-ps-margin-grid {
   display: grid;
   grid-template-columns: auto auto;
-  gap: var(--fortune-space-2) var(--fortune-space-4);
+  gap: 8px 16px;
 }
 
 .fortune-ps-margin-grid .fortune-ps-field {
@@ -182,7 +174,7 @@
   grid-template-columns: 1fr 1fr 1fr;
   min-height: 28px;
   align-items: center;
-  padding: 0 var(--fortune-space-2);
+  padding: 0 8px;
   border: 1px solid var(--fortune-border);
   border-radius: var(--fortune-radius-sm);
   background: var(--fortune-bg);
@@ -202,12 +194,12 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--fortune-space-1);
+  gap: 4px;
 }
 
 .fortune-ps-code {
   height: 26px;
-  padding: 0 var(--fortune-space-2);
+  padding: 0 8px;
   border: 1px solid var(--fortune-border);
   border-radius: var(--fortune-radius-sm);
   background: var(--fortune-bg-subtle, var(--fortune-bg));
@@ -229,13 +221,13 @@
 .fortune-ps-sections {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--fortune-space-2);
+  gap: 8px;
 }
 
 .fortune-ps-sections label {
   display: flex;
   flex-direction: column;
-  gap: var(--fortune-space-1);
+  gap: 4px;
   color: var(--fortune-text-muted);
 }
 
@@ -245,73 +237,80 @@
   box-sizing: border-box;
   height: 64px;
   resize: vertical;
-  padding: var(--fortune-space-1) var(--fortune-space-2);
+  padding: 4px 8px;
   font-family: var(--fortune-font-family-mono, monospace);
 }
 
-/* Print Preview */
+/* Print Preview (Excel's File > Print): settings left, the page right */
 .fortune-print-preview {
   width: min(1100px, calc(100vw - 32px));
   height: min(820px, calc(100vh - 32px));
+  font-family: var(--ts-font);
+}
+
+.fortune-print-preview .ts-dialog-body {
   display: flex;
-  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
-  font-family: var(--fortune-font-family);
+}
+
+.fortune-pp-frame {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
 .fortune-pp-body {
-  flex: 1;
-  min-height: 0;
   display: flex;
-  border-top: 1px solid var(--fortune-divider);
-  margin-top: var(--fortune-space-2);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  gap: 16px;
 }
 
 .fortune-pp-settings {
-  width: 260px;
-  flex: none;
   display: flex;
+  flex: none;
   flex-direction: column;
-  gap: var(--fortune-space-2);
-  padding: var(--fortune-space-4);
-  border-right: 1px solid var(--fortune-divider);
+  gap: 8px;
+  width: 260px;
   overflow: auto;
-  color: var(--fortune-text);
+  color: var(--ts-text);
 }
 
 .fortune-pp-settings select {
-  height: var(--fortune-control-height);
-  padding: 0 var(--fortune-space-2);
+  width: 100%;
 }
 
 .fortune-pp-label {
-  margin-top: var(--fortune-space-2);
-  font-weight: 500;
+  margin-top: 12px;
+  color: var(--ts-section-label);
+  font-size: var(--ts-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.fortune-pp-print.button-basic {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--fortune-space-2);
+.fortune-pp-print.ts-btn {
   height: 40px;
-  font-size: var(--fortune-font-size-lg);
-}
-
-.fortune-pp-print svg {
-  width: 20px;
-  height: 20px;
+  font-size: 14px;
 }
 
 .fortune-pp-link {
   align-self: flex-start;
+  margin-top: 4px;
   padding: 0;
   border: none;
   background: none;
-  color: var(--fortune-accent-text);
+  color: var(--ts-accent);
   font: inherit;
-  text-decoration: underline;
   cursor: pointer;
+}
+
+.fortune-pp-link:hover {
+  text-decoration: underline;
 }
 
 .fortune-pp-hint {
@@ -319,97 +318,68 @@
 }
 
 .fortune-pp-preview {
-  flex: 1;
-  min-width: 0;
   display: flex;
+  flex: 1;
   flex-direction: column;
-  background: var(--fortune-bg-muted);
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--ts-radius-pane);
+  background: var(--ts-surface);
 }
 
 .fortune-pp-stage {
+  display: flex;
   flex: 1;
   min-height: 0;
+  padding: 20px;
   overflow: auto;
-  display: flex;
-  padding: var(--fortune-space-4);
 }
 
 .fortune-pp-sheet {
   position: relative;
-  margin: auto;
   flex: none;
-  box-shadow: var(--fortune-shadow-lg);
+  margin: auto;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
 .fortune-pp-page {
   position: absolute;
   left: 0;
   top: 0;
-  transform-origin: 0 0;
   background: #fff;
+  transform-origin: 0 0;
 }
 
 .fortune-pp-empty {
   margin: auto;
-  color: var(--fortune-text-muted);
+  color: var(--ts-muted);
 }
 
 .fortune-pp-nav {
   display: flex;
   align-items: center;
-  gap: var(--fortune-space-2);
-  padding: var(--fortune-space-2) var(--fortune-space-4);
-  border-top: 1px solid var(--fortune-divider);
-  background: var(--fortune-bg);
-  color: var(--fortune-text);
-}
-
-.fortune-pp-nav-button {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--fortune-border);
-  border-radius: var(--fortune-radius-sm);
-  background: var(--fortune-bg);
-  color: var(--fortune-text);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.fortune-pp-nav-button:disabled {
-  color: var(--fortune-text-disabled);
-  cursor: default;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--ts-border);
+  background: var(--ts-pane);
+  color: var(--ts-text);
 }
 
 .fortune-pp-page-of {
   display: inline-flex;
   align-items: center;
-  gap: var(--fortune-space-1);
+  gap: 6px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
 }
 
 .fortune-pp-page-of input {
-  width: 48px;
+  width: 52px;
   height: 28px;
-  box-sizing: border-box;
-  padding: 0 var(--fortune-space-1);
-}
-
-/* Toolbar menu */
-.fortune-page-menu-item {
-  justify-content: flex-start;
-  gap: var(--fortune-space-1);
-  min-width: 190px;
-}
-
-.fortune-page-menu-item.disabled {
-  color: var(--fortune-text-disabled);
-  cursor: default;
-}
-
-.fortune-page-menu-check {
-  display: inline-block;
-  width: 14px;
-  color: var(--fortune-accent-text);
+  padding: 0 6px;
+  text-align: center;
 }
 
 /* Page breaks in the cell area (Normal view and Page Break Preview) */
@@ -426,6 +396,33 @@
 /* above the selection box, so break lines stay draggable */
 .fortune-page-breaks.preview {
   z-index: 17;
+}
+
+/* Page Layout view: each printed page framed like a sheet of paper */
+.fortune-page-layout-page {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--ts-subtle);
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--ts-muted) 14%, transparent),
+    0 6px 18px rgba(24, 24, 27, 0.08);
+  pointer-events: none;
+}
+
+.fortune-page-layout-label {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  padding: 1px 8px;
+  border-radius: 0 2px 0 6px;
+  background: var(--ts-ink);
+  color: var(--ts-on-ink);
+  font-family: var(--ts-font, var(--fortune-font-family));
+  font-size: 11px;
+  line-height: 16px;
+  opacity: 0.78;
+  user-select: none;
 }
 
 .fortune-page-break-preview {

@@ -1,20 +1,15 @@
-const { test, expect } = require("../fixtures");
+const { test, expect, ribbonItem } = require("../fixtures");
 
 const PROTECTED =
   "The cell or chart you're trying to change is on a protected sheet.";
 
-/** Open a toolbar combo's menu (from the "More" overflow if needed). */
-async function openMenu(page, testId) {
-  const item = page.locator(`[data-testid="${testId}"]`);
-  if ((await item.count()) === 0) {
-    await page.locator('.fortune-toolbar [aria-label="More"]').click();
-  }
-  await item.locator(".fortune-toolbar-combo-arrow").click();
+/** A Review › Protect command by its item id. */
+async function protectCommand(page, id) {
+  await (await ribbonItem(page, `[data-item="${id}"] button`)).click();
 }
 
 async function protectSheet(page, password) {
-  await openMenu(page, "toolbar-protection");
-  await page.getByTestId("menu-protect-sheet").click();
+  await protectCommand(page, "protection");
   const dialog = page.getByTestId("protect-sheet-dialog");
   await expect(dialog.getByText("Use AutoFilter")).toBeVisible();
   if (password) {
@@ -64,8 +59,7 @@ test.describe("sheet protection", () => {
     await sheet.waitForSelection(1, 1);
 
     // unprotecting asks for the password
-    await openMenu(page, "toolbar-protection");
-    await page.getByTestId("menu-protect-sheet").click();
+    await protectCommand(page, "protection");
     await page.getByTestId("protection-password").fill("wrong");
     await page.getByTestId("protection-ok").click();
     await expect(
@@ -87,8 +81,7 @@ test.describe("sheet protection", () => {
     page,
   }) => {
     expect(sheet).toBeTruthy();
-    await openMenu(page, "toolbar-protection");
-    await page.getByTestId("menu-protect-workbook").click();
+    await protectCommand(page, "protect-workbook");
     await page.getByTestId("protection-ok").click();
     await page.locator(".fortune-sheettab-button").first().click();
     await expect(
@@ -110,26 +103,35 @@ test.describe("view options", () => {
     const headerBox = await header.boundingBox();
     expect(headerBox.height).toBeGreaterThan(10);
 
-    await openMenu(page, "toolbar-view-options");
-    await page.getByTestId("menu-headings").click();
+    // View › Show
+    await (
+      await ribbonItem(page, '[data-item="show-headings"] input')
+    ).click({
+      force: true,
+    });
     await expect
       .poll(async () => (await header.boundingBox())?.height ?? 0)
       .toBeLessThan(2);
 
-    await openMenu(page, "toolbar-view-options");
-    await page.getByTestId("menu-formula-bar").click();
+    await (
+      await ribbonItem(page, '[data-item="show-formula-bar"] input')
+    ).click({ force: true });
     await expect(page.locator(".fortune-fx-editor")).toBeHidden();
 
-    await openMenu(page, "toolbar-view-options");
-    await page.getByTestId("menu-gridlines").click();
+    await (
+      await ribbonItem(page, '[data-item="show-gridlines"] input')
+    ).click({ force: true });
     await expect
       .poll(() =>
         page.evaluate(() => window.__tinysheet.getSheet().showGridLines)
       )
       .toBe(0);
 
-    await openMenu(page, "toolbar-view-options");
-    await page.getByTestId("menu-headings").click();
+    await (
+      await ribbonItem(page, '[data-item="show-headings"] input')
+    ).click({
+      force: true,
+    });
     await expect
       .poll(async () => (await header.boundingBox())?.height ?? 0)
       .toBeGreaterThan(10);

@@ -5,7 +5,7 @@ import { Context, getFlowdata } from "../context";
 import {
   colLocation,
   colLocationByIndex,
-  mousePosition,
+  getGridPoint,
   rowLocation,
   rowLocationByIndex,
 } from "./location";
@@ -19,6 +19,10 @@ import { reconcileSpillsAfterMove } from "./spill";
 import { CFSplitRange } from "./ConditionFormat";
 import { adjustReferences, recalcAfterStructuralChange } from "./refAdjust";
 import { expandRowsAndColumns } from "./sheet";
+// eslint-disable-next-line import/no-cycle
+import { deleteCells, insertCells } from "./shiftCells";
+// eslint-disable-next-line import/no-cycle
+import { pasteSpecial } from "./pasteSpecial";
 // names, tables, charts and note boxes follow moved cells (reference
 // adjusters registered by modelSync)
 import "./modelSync";
@@ -487,14 +491,20 @@ const dragCellThreshold = 8;
 
 function getCellLocationByMouse(
   ctx: Context,
+  globalCache: GlobalCache,
   e: MouseEvent,
-  scrollbarX: HTMLDivElement,
-  scrollbarY: HTMLDivElement,
-  container: HTMLDivElement
+  container: HTMLDivElement,
+  clamp = false
 ) {
-  const rect = container.getBoundingClientRect();
-  const x = e.pageX - rect.left - ctx.rowHeaderWidth + scrollbarX.scrollLeft;
-  const y = e.pageY - rect.top - ctx.columnHeaderHeight + scrollbarY.scrollTop;
+  // past the grid's edge (auto-scrolling): the last visible row / column
+  const anchor = _.last(ctx.luckysheet_select_save);
+  const { x, y } = getGridPoint(
+    ctx,
+    globalCache.freezen?.[ctx.currentSheetId],
+    e,
+    container,
+    { clamp, anchorRow: anchor?.row_focus, anchorCol: anchor?.column_focus }
+  );
 
   return {
     row: rowLocation(y, ctx.visibledatarow),
@@ -525,7 +535,7 @@ export function onCellsMoveStart(
   let {
     row: [row_pre, row, row_index],
     column: [col_pre, col, col_index],
-  } = getCellLocationByMouse(ctx, e, scrollbarX, scrollbarY, container);
+  } = getCellLocationByMouse(ctx, globalCache, e, container);
 
   const range = _.last(ctx.luckysheet_select_save);
   if (range == null) return;
@@ -552,6 +562,92 @@ export function onCellsMoveStart(
   e.stopPropagation();
 }
 
+/** What a drag of the selection's border does on release (Excel). */
+export type CellsDragMode = "move" | "copy" | "insert" | "insertCopy";
+
+/** Ctrl (Cmd on Mac) copies, Shift inserts, both insert a copy. */
+export function cellsDragMode(e: {
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+}): CellsDragMode {
+  const copy = e.ctrlKey || e.metaKey;
+  if (e.shiftKey) return copy ? "insertCopy" : "insert";
+  return copy ? "copy" : "move";
+}
+
+type CellsDrop = {
+  /** where the block's top-left cell goes */
+  row: number;
+  column: number;
+  /** Shift: the cells at the target shift down or right to make room */
+  shift?: "down" | "right";
+};
+
+/**
+ * Where a drag of the selection's border drops the block. A plain move or
+ * copy keeps the block's offset to the grabbed cell; Shift inserts at the
+ * row or column boundary nearest the pointer (Excel's I-beam: a horizontal
+ * one shifts cells down, a vertical one shifts them right).
+ */
+function cellsDropTarget(
+  ctx: Context,
+  globalCache: GlobalCache,
+  e: MouseEvent,
+  container: HTMLDivElement,
+  insert: boolean
+): CellsDrop | null {
+  const last = _.last(ctx.luckysheet_select_save);
+  if (last == null) return null;
+  const {
+    row: [row_pre, row, row_index],
+    column: [col_pre, col, col_index],
+  } = getCellLocationByMouse(ctx, globalCache, e, container, true);
+  const { x, y } = getGridPoint(
+    ctx,
+    globalCache.freezen?.[ctx.currentSheetId],
+    e,
+    container,
+    { clamp: true, anchorRow: last.row_focus, anchorCol: last.column_focus }
+  );
+  const [row_original, col_original] = ctx.luckysheet_cell_selected_move_index;
+  const h = last.row[1] - last.row[0];
+  const w = last.column[1] - last.column[0];
+  const maxRow = ctx.visibledatarow.length - 1;
+  const maxCol = ctx.visibledatacolumn.length - 1;
+  const clampTo = (v: number, size: number, max: number) =>
+    Math.min(Math.max(v, 0), Math.max(0, max - size));
+  const moveRow = clampTo(last.row[0] - row_original + row_index, h, maxRow);
+  const moveCol = clampTo(last.column[0] - col_original + col_index, w, maxCol);
+  if (!insert) return { row: moveRow, column: moveCol };
+  const toTop = y - row_pre;
+  const toBottom = row - y;
+  const toLeft = x - col_pre;
+  const toRight = col - x;
+  if (Math.min(toTop, toBottom) <= Math.min(toLeft, toRight)) {
+    const boundary = toTop <= toBottom ? row_index : row_index + 1;
+    return {
+      row: Math.min(Math.max(boundary, 0), maxRow),
+      column: moveCol,
+      shift: "down",
+    };
+  }
+  const boundary = toLeft <= toRight ? col_index : col_index + 1;
+  return {
+    row: moveRow,
+    column: Math.min(Math.max(boundary, 0), maxCol),
+    shift: "right",
+  };
+}
+
+/** Hide the outline a drag of the selection's border shows. */
+function hideCellsMoveOutline() {
+  const ele = document.getElementById("fortune-cell-selected-move");
+  if (ele == null) return;
+  ele.style.display = "none";
+  delete ele.dataset.mode;
+}
+
 export function onCellsMove(
   ctx: Context,
   globalCache: GlobalCache,
@@ -569,81 +665,144 @@ export function onCellsMove(
     }
     globalCache.dragCellStartPos = undefined;
   }
-  const [x, y] = mousePosition(e.pageX, e.pageY, ctx);
-
-  const rect = container.getBoundingClientRect();
-  const winH = rect.height - 20 * ctx.zoomRatio;
-  const winW = rect.width - 60 * ctx.zoomRatio;
-
-  const { row: rowL, column } = getCellLocationByMouse(
+  const last = _.last(ctx.luckysheet_select_save);
+  if (last == null) return;
+  const mode = cellsDragMode(e);
+  const drop = cellsDropTarget(
     ctx,
+    globalCache,
     e,
-    scrollbarX,
-    scrollbarY,
-    container
+    container,
+    mode === "insert" || mode === "insertCopy"
   );
-  let [row_pre, row] = rowL;
-  let [col_pre, col] = column;
-  const row_index = rowL[2];
-  const col_index = column[2];
-
-  const row_index_original = ctx.luckysheet_cell_selected_move_index[0];
-  const col_index_original = ctx.luckysheet_cell_selected_move_index[1];
-  if (ctx.luckysheet_select_save == null) return;
-  let row_s =
-    ctx.luckysheet_select_save[0].row[0] - row_index_original + row_index;
-  let row_e =
-    ctx.luckysheet_select_save[0].row[1] - row_index_original + row_index;
-
-  let col_s =
-    ctx.luckysheet_select_save[0].column[0] - col_index_original + col_index;
-  let col_e =
-    ctx.luckysheet_select_save[0].column[1] - col_index_original + col_index;
-
-  if (row_s < 0 || y < 0) {
-    row_s = 0;
-    row_e =
-      ctx.luckysheet_select_save[0].row[1] -
-      ctx.luckysheet_select_save[0].row[0];
-  }
-
-  if (col_s < 0 || x < 0) {
-    col_s = 0;
-    col_e =
-      ctx.luckysheet_select_save[0].column[1] -
-      ctx.luckysheet_select_save[0].column[0];
-  }
-
-  if (row_e >= ctx.visibledatarow.length - 1 || y > winH) {
-    row_s =
-      ctx.visibledatarow.length -
-      1 -
-      ctx.luckysheet_select_save[0].row[1] +
-      ctx.luckysheet_select_save[0].row[0];
-    row_e = ctx.visibledatarow.length - 1;
-  }
-
-  if (col_e >= ctx.visibledatacolumn.length - 1 || x > winW) {
-    col_s =
-      ctx.visibledatacolumn.length -
-      1 -
-      ctx.luckysheet_select_save[0].column[1] +
-      ctx.luckysheet_select_save[0].column[0];
-    col_e = ctx.visibledatacolumn.length - 1;
-  }
-
-  col_pre = col_s - 1 === -1 ? 0 : ctx.visibledatacolumn[col_s - 1];
-  col = ctx.visibledatacolumn[col_e];
-  row_pre = row_s - 1 === -1 ? 0 : ctx.visibledatarow[row_s - 1];
-  row = ctx.visibledatarow[row_e];
+  if (drop == null) return;
+  const h = last.row[1] - last.row[0];
+  const w = last.column[1] - last.column[0];
+  // the sheet px where row / column `i` starts
+  const start = (edges: number[], i: number) =>
+    i <= 0 ? 0 : (edges[Math.min(i, edges.length) - 1] ?? 0);
+  const rows = ctx.visibledatarow;
+  const cols = ctx.visibledatacolumn;
 
   const ele = document.getElementById("fortune-cell-selected-move");
   if (ele == null) return;
-  ele.style.left = `${col_pre}px`;
-  ele.style.top = `${row_pre}px`;
-  ele.style.width = `${col - col_pre - 2}px`;
-  ele.style.height = `${row - row_pre - 2}px`;
+  ele.dataset.mode = mode;
+  let left = start(cols, drop.column);
+  let top = start(rows, drop.row);
+  let width = start(cols, drop.column + w + 1) - left - 2;
+  let height = start(rows, drop.row + h + 1) - top - 2;
+  // Shift: a line (Excel's I-beam) where the cells are inserted
+  if (drop.shift === "down") {
+    top -= 1;
+    height = 0;
+  } else if (drop.shift === "right") {
+    left -= 1;
+    width = 0;
+  }
+  ele.style.left = `${left}px`;
+  ele.style.top = `${top}px`;
+  ele.style.width = `${Math.max(0, width)}px`;
+  ele.style.height = `${Math.max(0, height)}px`;
   ele.style.display = "block";
+}
+
+/** Esc during a drag of the selection's border: nothing moves (Excel). */
+export function cancelCellsMove(ctx: Context, globalCache: GlobalCache) {
+  if (!ctx.luckysheet_cell_selected_move) return false;
+  ctx.luckysheet_cell_selected_move = false;
+  globalCache.dragCellStartPos = undefined;
+  hideCellsMoveOutline();
+  return true;
+}
+
+/** Copy `source` (formulas with adjusted references) to (row, column). */
+function copyCellRange(
+  ctx: Context,
+  source: Rect,
+  row: number,
+  column: number
+) {
+  const saved = ctx.luckysheet_copy_save;
+  const savedSelection = ctx.luckysheet_select_save;
+  ctx.luckysheet_copy_save = {
+    dataSheetId: ctx.currentSheetId,
+    copyRange: [{ row: [...source.row], column: [...source.column] }],
+    RowlChange: false,
+    HasMC: false,
+  };
+  ctx.luckysheet_select_save = [{ row: [row, row], column: [column, column] }];
+  try {
+    return pasteSpecial(ctx);
+  } finally {
+    ctx.luckysheet_copy_save = saved;
+    ctx.luckysheet_select_save = savedSelection;
+  }
+}
+
+/**
+ * Shift+drag: insert the block at `drop`, shifting the cells there down or
+ * right. A move also closes the gap it leaves when it stays in its own
+ * columns (shift down) or rows (shift right), like Excel's Insert Cut
+ * Cells. Returns where the block ends up, or null when nothing changed.
+ */
+function insertCellRange(
+  ctx: Context,
+  source: Rect,
+  drop: CellsDrop,
+  copy: boolean
+): Rect | null {
+  const h = source.row[1] - source.row[0] + 1;
+  const w = source.column[1] - source.column[0] + 1;
+  const down = drop.shift === "down";
+  const target: Rect = {
+    row: [drop.row, drop.row + h - 1],
+    column: [drop.column, drop.column + w - 1],
+  };
+  // the band the insert shifts (columns for down, rows for right)
+  const band = down ? "column" : "row";
+  const along = down ? "row" : "column";
+  const size = down ? h : w;
+  const at = down ? drop.row : drop.column;
+  const sameBand =
+    source[band][0] === target[band][0] && source[band][1] === target[band][1];
+  const bandsOverlap =
+    source[band][0] <= target[band][1] && target[band][0] <= source[band][1];
+  // the insert would split the block
+  if (bandsOverlap && !sameBand && source[along][1] >= at) return null;
+  // dropped onto itself
+  if (
+    !copy &&
+    sameBand &&
+    at >= source[along][0] &&
+    at <= source[along][1] + 1
+  ) {
+    return null;
+  }
+  if (!insertCells(ctx, target, down ? "down" : "right")) return null;
+  // the insert pushed the block itself when it lies past the boundary
+  const src: Rect = { row: [...source.row], column: [...source.column] };
+  if (sameBand && src[along][0] >= at) {
+    src[along] = [src[along][0] + size, src[along][1] + size];
+  }
+  if (copy) {
+    copyCellRange(ctx, src, target.row[0], target.column[0]);
+    return target;
+  }
+  moveCellRange(
+    ctx,
+    { sheetId: ctx.currentSheetId, range: src },
+    {
+      sheetId: ctx.currentSheetId,
+      row: target.row[0],
+      column: target.column[0],
+    }
+  );
+  if (!sameBand) return target;
+  deleteCells(ctx, src, down ? "up" : "left");
+  if (src[along][1] < at) {
+    target[along] = [target[along][0] - size, target[along][1] - size];
+  }
+  return target;
 }
 
 export function onCellsMoveEnd(
@@ -657,52 +816,33 @@ export function onCellsMoveEnd(
   // 改变选择框的位置并替换目标单元格
   if (!ctx.luckysheet_cell_selected_move) return;
   ctx.luckysheet_cell_selected_move = false;
-  const ele = document.getElementById("fortune-cell-selected-move");
-  if (ele != null) ele.style.display = "none";
+  hideCellsMoveOutline();
   if (globalCache.dragCellStartPos != null) {
     globalCache.dragCellStartPos = undefined;
     return;
   }
 
-  const [x, y] = mousePosition(e.pageX, e.pageY, ctx);
-
-  // if (
-  //   !checkProtectionLockedRangeList(
-  //     ctx.luckysheet_select_save,
-  //     ctx.currentSheetIndex
-  //   )
-  // ) {
-  //   return;
-  // }
-
-  const rect = container.getBoundingClientRect();
-  const winH = rect.height - 20 * ctx.zoomRatio;
-  const winW = rect.width - 60 * ctx.zoomRatio;
-
-  const {
-    row: [, , row_index],
-    column: [, , col_index],
-  } = getCellLocationByMouse(ctx, e, scrollbarX, scrollbarY, container);
+  // Excel reads the modifiers on release: Ctrl copies, Shift inserts
+  const mode = cellsDragMode(e);
+  const insert = mode === "insert" || mode === "insertCopy";
+  const copy = mode === "copy" || mode === "insertCopy";
+  // released past the grid's edge: the last visible row / column
+  const drop = cellsDropTarget(ctx, globalCache, e, container, insert);
+  const d = getFlowdata(ctx);
+  if (drop == null || d == null || ctx.luckysheet_select_save == null) return;
+  const last =
+    ctx.luckysheet_select_save[ctx.luckysheet_select_save.length - 1];
 
   const allowEdit = isAllowEdit(ctx, [
-    {
-      row: [row_index, row_index],
-      column: [col_index, col_index],
-    },
+    { row: [drop.row, drop.row], column: [drop.column, drop.column] },
   ]);
   if (!allowEdit) return;
 
-  const row_index_original = ctx.luckysheet_cell_selected_move_index[0];
-  const col_index_original = ctx.luckysheet_cell_selected_move_index[1];
-
-  if (row_index === row_index_original && col_index === col_index_original) {
+  const h = last.row[1] - last.row[0];
+  const w = last.column[1] - last.column[0];
+  if (!insert && drop.row === last.row[0] && drop.column === last.column[0]) {
     return;
   }
-
-  const d = getFlowdata(ctx);
-  if (d == null || ctx.luckysheet_select_save == null) return;
-  const last =
-    ctx.luckysheet_select_save[ctx.luckysheet_select_save.length - 1];
 
   const cfg = ctx.config;
   if (cfg.merge == null) {
@@ -724,109 +864,61 @@ export function onCellsMoveEnd(
       last.column[1]
     )
   ) {
-    // if (isEditMode()) {
-    //   alert(locale_drag.noMerge);
-    // } else {
-    // drag.info(
-    //   '<i class="fa fa-exclamation-triangle"></i>',
     throw new Error(locale_drag.noMerge);
-    // );
-    // }
-    // return;
   }
 
-  let row_s = last.row[0] - row_index_original + row_index;
-  let row_e = last.row[1] - row_index_original + row_index;
-  let col_s = last.column[0] - col_index_original + col_index;
-  let col_e = last.column[1] - col_index_original + col_index;
-
-  // if (
-  //   !checkProtectionLockedRangeList(
-  //     [{ row: [row_s, row_e], column: [col_s, col_e] }],
-  //     ctx.currentSheetIndex
-  //   )
-  // ) {
-  //   return;
-  // }
-
-  if (row_s < 0 || y < 0) {
-    row_s = 0;
-    row_e = last.row[1] - last.row[0];
-  }
-
-  if (col_s < 0 || x < 0) {
-    col_s = 0;
-    col_e = last.column[1] - last.column[0];
-  }
-
-  if (row_e >= ctx.visibledatarow.length - 1 || y > winH) {
-    row_s = ctx.visibledatarow.length - 1 - last.row[1] + last.row[0];
-    row_e = ctx.visibledatarow.length - 1;
-  }
-
-  if (col_e >= ctx.visibledatacolumn.length - 1 || x > winW) {
-    col_s = ctx.visibledatacolumn.length - 1 - last.column[1] + last.column[0];
-    col_e = ctx.visibledatacolumn.length - 1;
-  }
+  const source: Rect = {
+    row: [last.row[0], last.row[1]],
+    column: [last.column[0], last.column[1]],
+  };
+  let placed: Rect | null = {
+    row: [drop.row, drop.row + h],
+    column: [drop.column, drop.column + w],
+  };
 
   // 替换的位置包含部分单元格
-  if (hasPartMC(ctx, cfg, row_s, row_e, col_s, col_e)) {
-    // if (isEditMode()) {
-    //   alert(locale_drag.noMerge);
-    // } else {
-    // tooltip.info(
-    //   '<i class="fa fa-exclamation-triangle"></i>',
+  if (
+    !insert &&
+    hasPartMC(
+      ctx,
+      cfg,
+      placed.row[0],
+      placed.row[1],
+      placed.column[0],
+      placed.column[1]
+    )
+  ) {
     throw new Error(locale_drag.noMerge);
-    // );
-    // }
-    // return;
   }
 
-  // move cells, formats, merges, borders, validation, links and CF, and
-  // rewrite every reference to the moved cells (Excel semantics)
-  moveCellRange(
-    ctx,
-    {
-      sheetId: ctx.currentSheetId,
-      range: {
-        row: [last.row[0], last.row[1]],
-        column: [last.column[0], last.column[1]],
-      },
-    },
-    { sheetId: ctx.currentSheetId, row: row_s, column: col_s }
-  );
-
-  let rf;
-  if (
-    ctx.luckysheet_select_save[0].row_focus ===
-    ctx.luckysheet_select_save[0].row[0]
-  ) {
-    rf = row_s;
-  } else {
-    rf = row_e;
+  try {
+    if (insert) {
+      placed = insertCellRange(ctx, source, drop, copy);
+    } else if (copy) {
+      if (!copyCellRange(ctx, source, drop.row, drop.column)) placed = null;
+    } else {
+      // move cells, formats, merges, borders, validation, links and CF,
+      // and rewrite every reference to the moved cells (Excel semantics)
+      moveCellRange(
+        ctx,
+        { sheetId: ctx.currentSheetId, range: source },
+        { sheetId: ctx.currentSheetId, row: drop.row, column: drop.column }
+      );
+    }
+  } catch (err: any) {
+    if (err?.message === "partMC") throw new Error(locale_drag.noMerge);
+    throw err;
   }
+  if (placed == null) return;
 
-  let cf;
-  if (
-    ctx.luckysheet_select_save[0].column_focus ===
-    ctx.luckysheet_select_save[0].column[0]
-  ) {
-    cf = col_s;
-  } else {
-    cf = col_e;
-  }
+  const sel = ctx.luckysheet_select_save[0];
+  const rf = sel.row_focus === sel.row[0] ? placed.row[0] : placed.row[1];
+  const cf =
+    sel.column_focus === sel.column[0] ? placed.column[0] : placed.column[1];
 
-  last.row = [row_s, row_e];
-  last.column = [col_s, col_e];
+  last.row = placed.row;
+  last.column = placed.column;
   last.row_focus = rf;
   last.column_focus = cf;
   ctx.luckysheet_select_save = normalizeSelection(ctx, [last]);
-
-  // selectHightlightShow();
-
-  // $("#luckysheet-sheettable").css("cursor", "default");
-  // clearTimeout(ctx.countfuncTimeout);
-  // ctx.countfuncTimeout = setTimeout(function () {
-  //   countfunc();
-  // }, 500);
 }

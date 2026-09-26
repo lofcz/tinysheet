@@ -58,6 +58,8 @@ const FormulaHint: React.FC<Props> = ({ onSelectArgument, ...props }) => {
       {...props}
       id="luckysheet-formula-help-c"
       className="luckysheet-formula-help-c"
+      // the wheel scrolls the hint, not the sheet
+      data-fortune-popup=""
       onMouseDown={(e) => e.preventDefault()}
     >
       <div

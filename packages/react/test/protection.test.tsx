@@ -7,6 +7,7 @@ import {
 import React from "react";
 import { protectionLocale } from "@lofcz/tinysheet-core";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
+import { showRibbonItem } from "./ribbonHelpers";
 
 const t = protectionLocale({ lang: "en" });
 
@@ -31,16 +32,18 @@ const sheet = (extra: Record<string, any> = {}) => ({
   ...extra,
 });
 
-function openMenu(container: HTMLElement, testId: string) {
-  const item = container.querySelector(`[data-testid="${testId}"]`)!;
-  fireEvent.click(item.querySelector(".fortune-toolbar-combo-arrow")!);
+/** The button of ribbon command `id` (Review › Protect). */
+function ribbonButton(container: HTMLElement, id: string) {
+  return showRibbonItem(container, id)!.querySelector("button")!;
 }
 
 describe("protection UI", () => {
   it("protects the sheet from the Protection menu and refuses edits", async () => {
     const { container, ref, getByTestId, getByText } = renderBook([sheet()]);
-    openMenu(container, "toolbar-protection");
-    fireEvent.click(getByTestId("menu-protect-sheet"));
+    const protect = ribbonButton(container, "protection");
+    expect(protect.getAttribute("aria-label")).toBe("Protect Sheet");
+    expect(protect.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(protect);
     const dialog = getByTestId("protect-sheet-dialog");
     // Excel's list of allowed actions, selecting cells checked by default
     const boxes = dialog.querySelectorAll<HTMLInputElement>(
@@ -92,11 +95,11 @@ describe("protection UI", () => {
       // legacy hash of "test"
       sheet({ config: { authority: { sheet: 1, legacyHash: "CBEB" } } }),
     ]);
-    openMenu(container, "toolbar-protection");
-    expect(
-      getByTestId("menu-allow-edit-ranges").getAttribute("aria-disabled")
-    ).toBe("true");
-    fireEvent.click(getByTestId("menu-protect-sheet"));
+    expect(ribbonButton(container, "allow-edit-ranges").disabled).toBe(true);
+    const unprotect = ribbonButton(container, "protection");
+    expect(unprotect.getAttribute("aria-label")).toBe("Unprotect Sheet");
+    expect(unprotect.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(unprotect);
     const input = getByTestId("protection-password") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "nope" } });
     fireEvent.click(getByTestId("protection-ok"));
@@ -114,8 +117,7 @@ describe("protection UI", () => {
       sheet(),
       { name: "Sheet2", id: "s2", order: 1, celldata: [] },
     ]);
-    openMenu(container, "toolbar-protection");
-    fireEvent.click(getByTestId("menu-protect-workbook"));
+    fireEvent.click(ribbonButton(container, "protect-workbook"));
     getByTestId("protect-workbook-dialog");
     fireEvent.click(getByTestId("protection-ok"));
     await waitFor(() =>
@@ -137,11 +139,10 @@ describe("protection UI", () => {
     act(() => {
       ref.current!.setSelection([{ row: [1, 2], column: [1, 2] }]);
     });
-    openMenu(container, "toolbar-protection");
-    fireEvent.click(getByTestId("menu-allow-edit-ranges"));
+    fireEvent.click(ribbonButton(container, "allow-edit-ranges"));
     const dialog = getByTestId("allow-edit-ranges-dialog");
     fireEvent.click(
-      Array.from(dialog.querySelectorAll<HTMLElement>("[role=button]")).find(
+      Array.from(dialog.querySelectorAll<HTMLElement>("button")).find(
         (b) => b.textContent === t.newRange
       )!
     );
@@ -156,23 +157,22 @@ describe("protection UI", () => {
     );
   });
 
-  it("toggles gridlines and the formula bar from the View menu", async () => {
-    const { container, ref, getByTestId } = renderBook([sheet()]);
-    openMenu(container, "toolbar-view-options");
-    expect(getByTestId("menu-gridlines").getAttribute("aria-checked")).toBe(
-      "true"
-    );
-    fireEvent.click(getByTestId("menu-gridlines"));
+  it("toggles gridlines and the formula bar from View › Show", async () => {
+    const { container, ref } = renderBook([sheet()]);
+    const box = (id: string) =>
+      showRibbonItem(container, id)!.querySelector<HTMLInputElement>(
+        "input[type=checkbox]"
+      )!;
+    expect(box("show-gridlines").checked).toBe(true);
+    fireEvent.click(box("show-gridlines"));
     await waitFor(() => expect(ref.current!.getSheet().showGridLines).toBe(0));
-    openMenu(container, "toolbar-view-options");
-    fireEvent.click(getByTestId("menu-formula-bar"));
+    fireEvent.click(box("show-formula-bar"));
     await waitFor(() =>
       expect(
         container.querySelector(".fortune-fx-editor")!.parentElement!.hidden
       ).toBe(true)
     );
-    openMenu(container, "toolbar-view-options");
-    fireEvent.click(getByTestId("menu-headings"));
+    fireEvent.click(box("show-headings"));
     await waitFor(() =>
       expect(ref.current!.getSheet().showRowColHeaders).toBe(false)
     );
