@@ -21,5 +21,10 @@ export {
   defaultRibbon,
   useRibbonCommandHelpers,
   useRibbonText,
+  registerContextualTabs,
+  activateRibbonTab,
 } from "./components/Ribbon";
-export type { RibbonCommandHelpers } from "./components/Ribbon";
+export type {
+  RibbonCommandHelpers,
+  ContextualTabSet,
+} from "./components/Ribbon";

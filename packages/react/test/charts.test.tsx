@@ -88,9 +88,19 @@ describe("chart UI, round 2", () => {
       "copyAsImage",
       "exportPng",
       "exportSvg",
+      "resetStyle",
+      "changeType",
+      "selectData",
+      "moveChart",
+      "bringToFront",
+      "sendToBack",
       "edit",
       "delete",
     ]);
+    // Excel's wording: "Format Chart Area…"
+    expect(menu.querySelector('[data-key="edit"]')!.textContent).toContain(
+      "Format Chart Area"
+    );
     fireEvent.click(menu.querySelector('[data-key="edit"]')!);
     expect(container.querySelector(".fortune-chart-menu")).toBeNull();
     expect(container.querySelector(".fortune-chart-editor")).toBeTruthy();
@@ -162,6 +172,46 @@ describe("chart UI, round 2", () => {
         container.querySelector('.fortune-chart-svg [stroke-dasharray="2 3"]')
       ).toBeTruthy()
     );
+  });
+
+  it("a selected chart shows the Chart Design and Format tabs", async () => {
+    const { container } = renderBook();
+    const box = await waitFor(() => {
+      const el = container.querySelector(".fortune-chart-box");
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    const tabs = () =>
+      Array.from(container.querySelectorAll(".fortune-ribbon [role=tab]")).map(
+        (el) => el.getAttribute("data-tab")
+      );
+    expect(tabs()).not.toContain("chartDesign");
+    fireEvent.mouseDown(box, { button: 0 });
+    fireEvent.mouseUp(window, { button: 0 });
+    await waitFor(() =>
+      expect(tabs().slice(-2)).toEqual(["chartDesign", "chartFormat"])
+    );
+    const design = container.querySelector(
+      '.fortune-ribbon [role=tab][data-tab="chartDesign"]'
+    ) as HTMLElement;
+    expect(design.getAttribute("data-context")).toBe("chartTools");
+    fireEvent.click(design);
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-ribbon-group="chartLayouts"]')
+      ).toBeTruthy()
+    );
+    fireEvent.keyDown(
+      container.querySelector(".fortune-chart-box[role=figure]") as HTMLElement,
+      { key: "Escape", code: "Escape" }
+    );
+    await waitFor(() => expect(tabs()).not.toContain("chartDesign"));
+    // back to the tab shown before
+    expect(
+      container
+        .querySelector('.fortune-ribbon [role=tab][aria-selected="true"]')
+        ?.getAttribute("data-tab")
+    ).toBe("home");
   });
 
   it("hidden rows collapse a move-and-size chart", async () => {

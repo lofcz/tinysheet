@@ -38,6 +38,7 @@
   --ts-accent: #2563eb;
   --ts-accent-hover: #1d4ed8;
   --ts-accent-soft: rgba(37, 99, 235, 0.1);
+  --ts-on-accent: #ffffff;
   --ts-danger: #dc2626;
   --ts-success: #16a34a;
   --ts-warning: #d97706;
@@ -172,6 +173,7 @@
   --ts-accent: #60a5fa;
   --ts-accent-hover: #93c5fd;
   --ts-accent-soft: rgba(96, 165, 250, 0.16);
+  --ts-on-accent: #0b1220;
   --ts-danger: #f87171;
   --ts-success: #4ade80;
   --ts-warning: #fbbf24;

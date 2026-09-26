@@ -57,7 +57,7 @@ import FilterOptions from "../FilterOption";
 import { useAlert } from "../../hooks/useAlert";
 import ImgBoxs from "../ImgBoxs";
 import NotationBoxes from "../NotationBoxes";
-import { ChartEditor, ChartLayer } from "../Chart";
+import { ChartDialogs, ChartEditor, ChartLayer } from "../Chart";
 import RangeDialog from "../DataVerification/RangeDialog";
 import { useDialog } from "../../hooks/useDialog";
 import SVGIcon from "../SVGIcon";
@@ -1172,6 +1172,7 @@ const SheetOverlay: React.FC = () => {
         </div>
       </div>
       <ChartEditor />
+      <ChartDialogs />
       <div id="sr-selection" className="sr-only" role="alert">
         {!rangeText.includes("NaN")
           ? `${rangeText} ${computedCellValue}`

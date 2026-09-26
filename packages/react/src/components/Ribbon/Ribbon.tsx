@@ -8,7 +8,7 @@ import React, {
   useSyncExternalStore,
 } from "react";
 import { ChevronDown, ChevronUp, Pin } from "lucide-react";
-import { ribbonLocale } from "@lofcz/tinysheet-core";
+import { defaultSettings, ribbonLocale } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import {
   Icon,
@@ -29,7 +29,14 @@ import {
   getRibbonRegistryVersion,
   subscribeRibbonRegistry,
 } from "./registry";
-import type { RibbonColumn, RibbonGroup, RibbonItem } from "./types";
+import type { RibbonColumn, RibbonGroup, RibbonItem, RibbonTab } from "./types";
+import {
+  getContextualTabSets,
+  getContextualTabsVersion,
+  subscribeContextualTabs,
+  subscribeRibbonTabRequests,
+  takePendingRibbonTab,
+} from "./contextual";
 import { GroupState, useRibbonScaling } from "./useRibbonScaling";
 import { shortcutText } from "./commands/helpers";
 import "./index.css";
@@ -309,8 +316,70 @@ const Ribbon: React.FC = () => {
     ]
   );
 
+  // contextual tabs of the selected object (Chart Design, Format…)
+  const contextualVersion = useSyncExternalStore(
+    subscribeContextualTabs,
+    getContextualTabsVersion,
+    getContextualTabsVersion
+  );
+  const activeSets = getContextualTabSets().filter((set) => {
+    try {
+      return set.isActive(context);
+    } catch (e) {
+      return false;
+    }
+  });
+  const activeSetKey = activeSets.map((set) => set.id).join("|");
+  const contextualTabs = useMemo<RibbonTab[]>(
+    () =>
+      activeSets.flatMap((set) => {
+        const resolved = resolveRibbon({
+          ribbon: set.tabs(context),
+          toolbarItems: defaultSettings.toolbarItems,
+          customToolbarItems: 0,
+          t,
+        });
+        const label = set.label(context);
+        return resolved.tabs.map((tab) => ({
+          ...tab,
+          contextual: { id: set.id, label },
+        }));
+      }),
+    // the sets' tabs depend on the language only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeSetKey, context.lang, t, contextualVersion, registryVersion]
+  );
+  const allTabs = useMemo(
+    () => [...tabs, ...contextualTabs],
+    [tabs, contextualTabs]
+  );
+
   const [activeId, setActiveId] = useState<string>(() => tabs[0]?.id ?? "home");
-  const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
+  // the tab to go back to when a contextual tab goes away (Excel)
+  const lastNormalTab = useRef<string | undefined>(tabs[0]?.id);
+  const active =
+    allTabs.find((tab) => tab.id === activeId) ??
+    tabs.find((tab) => tab.id === lastNormalTab.current) ??
+    tabs[0];
+  useEffect(() => {
+    if (active && !active.contextual) lastNormalTab.current = active.id;
+    if (active && active.id !== activeId) setActiveId(active.id);
+  }, [active, activeId]);
+  // a requested tab (Chart Design after inserting a chart) shows as soon as
+  // it exists
+  const allTabsKey = allTabs.map((tab) => tab.id).join("|");
+  useEffect(() => {
+    const check = () => {
+      const ids = allTabsKey.split("|");
+      const id = takePendingRibbonTab((tabId) => ids.includes(tabId));
+      if (id) {
+        closeOpenToolbarPopup();
+        setActiveId(id);
+      }
+    };
+    check();
+    return subscribeRibbonTabRequests(check);
+  }, [allTabsKey]);
   const [collapsed, setCollapsed] = useState(false);
   const [peek, setPeek] = useState(false);
   const paneRef = useRef<HTMLDivElement>(null);
@@ -392,7 +461,11 @@ const Ribbon: React.FC = () => {
       <div className="fortune-ribbon-tabrow">
         <FileMenu />
         <Tabs
-          tabs={tabs.map((tab) => ({ id: tab.id, label: tab.label }))}
+          tabs={allTabs.map((tab) => ({
+            id: tab.id,
+            label: tab.label,
+            contextual: tab.contextual,
+          }))}
           value={showCommands && active ? active.id : null}
           onChange={selectTab}
           onActiveTabClick={() => {

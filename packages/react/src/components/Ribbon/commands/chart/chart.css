@@ -1,0 +1,165 @@
+/* Chart Design / Format commands (contextual tabs of a selected chart). */
+
+/* ---------- Chart Styles: the inline strip ---------- */
+
+.ts-chart-style-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 100%;
+}
+
+.ts-chart-style-strip-tiles {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 2px;
+}
+
+.ts-chart-style-strip-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 1px solid var(--ts-border);
+  border-radius: 6px;
+  background: var(--ts-pane);
+  cursor: pointer;
+  transition:
+    border-color var(--ts-fast),
+    box-shadow var(--ts-fast);
+}
+
+.ts-chart-style-strip-tile:hover {
+  border-color: var(--ts-ring);
+}
+
+.ts-chart-style-strip-tile[aria-selected="true"] {
+  border-color: var(--ts-accent);
+  box-shadow: 0 0 0 1px var(--ts-accent);
+}
+
+.ts-chart-style-strip-tile:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.ts-chart-style-strip-scroll {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+}
+
+.ts-chart-style-strip-arrow {
+  width: 22px;
+  height: 17px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ts-muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ts-chart-style-strip-arrow:hover:not(:disabled) {
+  background: var(--ts-hover);
+  color: var(--ts-text-strong);
+}
+
+.ts-chart-style-strip-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ts-chart-style-strip-scroll .ts-icon-btn {
+  width: 22px;
+  min-width: 22px;
+  height: 24px;
+}
+
+.ts-chart-thumb {
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 3px;
+  line-height: 0;
+}
+
+/* ---------- Change Colors ---------- */
+
+.ts-chart-palettes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 190px;
+  padding: 2px;
+}
+
+.ts-chart-palette-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ts-chart-palette-heading {
+  padding: 2px 6px 4px;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ts-chart-palette {
+  display: flex;
+  gap: 3px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ts-chart-palette:hover,
+.ts-chart-palette:focus-visible {
+  outline: none;
+  background: var(--ts-hover);
+}
+
+.ts-chart-palette[aria-selected="true"] {
+  box-shadow: inset 0 0 0 1px var(--ts-accent);
+}
+
+.ts-chart-palette-swatch {
+  width: 18px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+/* ---------- Format tab ---------- */
+
+.ts-chart-element-select {
+  display: flex;
+  align-items: center;
+}
+
+.ts-shape-style-tile {
+  display: block;
+  width: 34px;
+  height: 22px;
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  border-radius: 5px;
+}
+
+.ts-shape-style-tile--outline {
+  background: var(--ts-pane);
+}
+
+.ts-chart-size-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  color: var(--ts-muted);
+}

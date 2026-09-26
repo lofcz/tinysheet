@@ -13,6 +13,7 @@ import { registerInsertCommands } from "./insert";
 import { registerPageLayoutCommands } from "./pageLayout";
 import { registerViewCommands } from "./view";
 import { registerTabGroupIcons } from "./tabsCommon";
+import { registerChartCommands } from "./chart";
 
 let registered = false;
 
@@ -31,6 +32,8 @@ export function registerBuiltinRibbonCommands() {
   registerPageLayoutCommands();
   registerViewCommands();
   registerTabGroupIcons();
+  // Chart Design / Format (contextual tabs of a selected chart)
+  registerChartCommands();
 
   // File menu: New / Open / Save As show when the host handles them
   registerFileMenuItem({

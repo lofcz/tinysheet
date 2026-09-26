@@ -42,6 +42,7 @@ import ContentEditable from "../SheetOverlay/ContentEditable";
 import FormulaSearch from "../SheetOverlay/FormulaSearch";
 import FormulaHint from "../SheetOverlay/FormulaHint";
 import NameBox from "./NameBox";
+import { SeriesFormulaBar, useSelectedSeries } from "../Chart/SeriesFormulaBar";
 import usePrevious from "../../hooks/usePrevious";
 import { FxPictureChip } from "../CellImages";
 import {
@@ -444,6 +445,8 @@ const FxEditor: React.FC = () => {
     return () => container.removeEventListener("keydown", onKeyDown, true);
   }, [insertFunction, refs.workbookContainer]);
 
+  const selectedSeries = useSelectedSeries();
+
   // the buttons keep the caret in the formula being edited
   const keepFocus = (e: React.MouseEvent) => e.preventDefault();
   const toggleLabel = bar.expanded
@@ -533,6 +536,13 @@ const FxEditor: React.FC = () => {
             tabIndex={0}
             allowEdit={allowEdit}
           />
+          {/* a selected chart series shows its =SERIES() formula (Excel) */}
+          {selectedSeries && (
+            <SeriesFormulaBar
+              key={`${selectedSeries.chartId}:${selectedSeries.index}`}
+              {...selectedSeries}
+            />
+          )}
           {/* a placed picture shows as a chip until the bar is focused */}
           {!focused && <FxPictureChip />}
           {focused && (

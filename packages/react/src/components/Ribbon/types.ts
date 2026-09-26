@@ -43,4 +43,6 @@ export type RibbonTab = {
   id: string;
   label: string;
   groups: RibbonGroup[];
+  /** A contextual tab (shown while its object is selected). */
+  contextual?: { id: string; label: string };
 };

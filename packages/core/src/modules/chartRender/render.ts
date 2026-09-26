@@ -11,6 +11,9 @@ import {
   layoutCategoryFrame,
   layoutXYFrame,
   makeValueAxis,
+  SHADOW_ATTR,
+  SHADOW_DEFS,
+  tagged,
   CategoryFrame,
 } from "./frame";
 import {
@@ -68,6 +71,17 @@ type LegendKind = "box" | "line" | "lineMarker" | "marker" | "dotted";
 type LegendItem = { label: string; color: string; kind: LegendKind };
 
 const DOUGHNUT_HOLE = 0.5;
+
+/** Element id of a series (its index in the chart). */
+function seriesEl(s: ChartRenderSeries, fallback: number) {
+  return `series:${s.index ?? fallback}`;
+}
+
+/** ` stroke=…` of a series outline (none unless formatted). */
+function outlineAttr(s: ChartRenderSeries) {
+  if (!s.outline) return "";
+  return ` stroke="${escapeXml(s.outline)}" stroke-width="1"`;
+}
 
 const CATEGORY_TYPES: ChartType[] = ["column", "bar", "line", "area", "combo"];
 
@@ -246,6 +260,20 @@ function layoutLegend(
   const items = legendItems(model);
   if (position === "none" || items.length === 0) return area;
   const rowH = 16;
+  const format = model.formats?.legend;
+  const textFill = format?.text ?? theme.text;
+  const box = (r: Rect) => {
+    if (!format?.fill && !format?.line) return;
+    out.push(
+      rect(
+        r,
+        format.fill ?? "transparent",
+        format.line
+          ? ` stroke="${escapeXml(format.line)}" stroke-width="1"`
+          : ""
+      )
+    );
+  };
   if (position === "right" || position === "left") {
     const maxText = Math.max(
       ...items.map((it) => estimateTextWidth(it.label, LEGEND_SIZE))
@@ -260,6 +288,7 @@ function layoutLegend(
     const x0 =
       position === "right" ? area.x + area.width - legendW + 4 : area.x + 2;
     let y = area.y + Math.max(0, (area.height - totalH) / 2) + rowH / 2;
+    box({ x: x0 - 3, y: y - rowH / 2 - 2, width: legendW, height: totalH + 4 });
     shown.forEach((item) => {
       const swatch = renderLegendSwatch(item, x0, y);
       out.push(swatch.svg);
@@ -274,7 +303,7 @@ function layoutLegend(
           ),
           {
             size: LEGEND_SIZE,
-            fill: theme.text,
+            fill: textFill,
             baseline: "central",
             family: theme.fontFamily,
           }
@@ -313,6 +342,13 @@ function layoutLegend(
     position === "top"
       ? area.y + rowH / 2
       : area.y + area.height - legendH + rowH / 2 + 2;
+  const widest = Math.max(...shownRows.map((r) => r.width), 0);
+  box({
+    x: area.x + Math.max(0, (area.width - widest) / 2) - 3,
+    y: y - rowH / 2 - 1,
+    width: Math.min(widest, area.width) + 6,
+    height: shownRows.length * rowH + 2,
+  });
   shownRows.forEach((row) => {
     let x = area.x + Math.max(0, (area.width - row.width) / 2);
     row.items.forEach((item) => {
@@ -329,7 +365,7 @@ function layoutLegend(
           truncateText(item.label, w - swatch.width - 12, LEGEND_SIZE),
           {
             size: LEGEND_SIZE,
-            fill: theme.text,
+            fill: textFill,
             baseline: "central",
             family: theme.fontFamily,
           }
@@ -484,6 +520,21 @@ function renderCategory(
   const labels: string[] = [];
   for (let i = 0; i < count; i += 1) labels.push(categoryLabel(model, i));
   const allArea = groups.every((g) => g.kind === "area");
+  // Data table: a row of categories and a row per series under the plot
+  const table = model.dataTable && !horizontal ? model.dataTable : null;
+  const rowH = LABEL_SIZE + 6;
+  const keyW = table?.legendKeys ? 12 : 0;
+  const tableNameW = table
+    ? Math.min(
+        area.width * 0.3,
+        Math.max(
+          ...model.series.map((s) => estimateTextWidth(s.name, LABEL_SIZE)),
+          10
+        ) +
+          keyW +
+          10
+      )
+    : 0;
   const frame = layoutCategoryFrame(area, theme, {
     count,
     labels,
@@ -496,8 +547,30 @@ function renderCategory(
     secondaryTitle: model.secondaryValueAxisTitle,
     gridlines: model.gridlines,
     style,
+    hideValueAxis: model.hideValueAxis,
+    hideCategoryAxis: model.hideCategoryAxis,
+    categoryGridlines: model.categoryGridlines,
+    minorGridlines: model.minorGridlines,
+    minorCategoryGridlines: model.minorCategoryGridlines,
+    formats: model.formats,
+    ...(table
+      ? {
+          bottomReserve: rowH * (model.series.length + 1) + 4,
+          minLeft: tableNameW,
+        }
+      : {}),
   });
   out.push(...frame.pre);
+  if (table) {
+    out.push(
+      renderDataTable(model, frame, theme, area, {
+        rowH,
+        keyW,
+        count,
+        labels,
+      })
+    );
+  }
 
   const dataLabels: string[] = [];
   const overlays: string[] = [];
@@ -527,6 +600,7 @@ function renderCategory(
         const s = model.series[si];
         const spans = g.spans.get(si)!;
         const centers: (number | null)[] = [];
+        const marks: string[] = [];
         for (let i = 0; i < count; i += 1) {
           const span = spans[i];
           if (!span) {
@@ -557,7 +631,9 @@ function renderCategory(
                 width: barW,
                 height: Math.abs(p2 - p1),
               };
-          out.push(rect(r, color, fillExtra(style, style.barRadius)));
+          marks.push(
+            rect(r, color, fillExtra(style, style.barRadius) + outlineAttr(s))
+          );
           if (model.dataLabels) {
             const raw = s.values[i] as number;
             const place = barLabelPlace(
@@ -600,6 +676,7 @@ function renderCategory(
             },
             tc
           );
+        out.push(tagged(seriesEl(s, si), marks, s.shadow ? SHADOW_ATTR : ""));
       });
       return;
     }
@@ -611,6 +688,7 @@ function renderCategory(
       const s = model.series[si];
       const spans = g.spans.get(si)!;
       const xAt = (i: number) => frame.catCoord(i);
+      const marks: string[] = [];
       if (isArea) {
         const top: string[] = [];
         const bottom: string[] = [];
@@ -626,10 +704,10 @@ function renderCategory(
             ...style,
             fillOpacity: style.fillOpacity ?? 0.85,
           });
-          out.push(
+          marks.push(
             `<polygon points="${top.join(" ")} ${bottom.join(
               " "
-            )}" fill="${escapeXml(s.color)}"${extra}/>`
+            )}" fill="${escapeXml(s.color)}"${extra}${outlineAttr(s)}/>`
           );
         }
       } else {
@@ -638,35 +716,48 @@ function renderCategory(
         for (let i = 0; i < count; i += 1) {
           const span = spans[i];
           if (!span || (!stacked && !finite(s.values[i]))) {
-            pen = false;
+            // #N/A and "connect data points with line" pass over the gap
+            if (!s.connect?.[i]) pen = false;
             continue;
           }
           d += `${pen ? "L" : "M"}${n(xAt(i))} ${n(vPos(span[1]))} `;
           pen = true;
         }
         if (d) {
-          out.push(
+          marks.push(
             `<path d="${d.trim()}" fill="none" stroke="${escapeXml(
               s.color
             )}" stroke-width="${lineW}" stroke-linejoin="round" stroke-linecap="round"/>`
           );
         }
+        if (model.dropLines && !stacked) {
+          for (let i = 0; i < count; i += 1) {
+            const span = spans[i];
+            if (!span || !finite(s.values[i])) continue;
+            const [x1, y1] = frame.point(xAt(i), vPos(span[1]));
+            const [x2, y2] = frame.point(xAt(i), vPos(base));
+            overlays.push(line(x1, y1, x2, y2, theme.axisLine, 0.75));
+          }
+        }
         if (model.markers !== false) {
           for (let i = 0; i < count; i += 1) {
             const span = spans[i];
             if (!span || !finite(s.values[i])) continue;
-            out.push(
+            marks.push(
               circle(
                 xAt(i),
                 vPos(span[1]),
                 markerR,
                 s.color,
-                ` stroke="${escapeXml(theme.background)}" stroke-width="0.75"`
+                ` stroke="${escapeXml(
+                  s.outline ?? theme.background
+                )}" stroke-width="0.75"`
               )
             );
           }
         }
       }
+      out.push(tagged(seriesEl(s, si), marks, s.shadow ? SHADOW_ATTR : ""));
       if (model.dataLabels) {
         for (let i = 0; i < count; i += 1) {
           const span = spans[i];
@@ -698,10 +789,131 @@ function renderCategory(
     });
   });
 
+  // high-low lines and up / down bars join the line series per category
+  const lineSeries = model.series.filter(
+    (s) => seriesKind(model, s) === "line" && !onSecondary(model, s)
+  );
+  if ((model.hiLowLines || model.upDownBars) && lineSeries.length > 1) {
+    const vPos = (v: number) => frame.vPos(v, false);
+    for (let i = 0; i < count; i += 1) {
+      const vals = lineSeries
+        .map((s) => s.values[i])
+        .filter((v): v is number => finite(v));
+      if (vals.length < 2) continue;
+      const c = frame.catCoord(i);
+      if (model.hiLowLines) {
+        const [x1, y1] = frame.point(c, vPos(Math.max(...vals)));
+        const [x2, y2] = frame.point(c, vPos(Math.min(...vals)));
+        out.push(line(x1, y1, x2, y2, theme.axisLine, 1));
+      }
+      const first = lineSeries[0].values[i];
+      const last = lineSeries[lineSeries.length - 1].values[i];
+      if (model.upDownBars && finite(first) && finite(last)) {
+        const w = frame.band * 0.3;
+        const p1 = vPos(first);
+        const p2 = vPos(last);
+        const up = last >= first;
+        const r: Rect = horizontal
+          ? {
+              x: Math.min(p1, p2),
+              y: c - w / 2,
+              width: Math.abs(p2 - p1),
+              height: w,
+            }
+          : {
+              x: c - w / 2,
+              y: Math.min(p1, p2),
+              width: w,
+              height: Math.abs(p2 - p1),
+            };
+        out.push(
+          rect(
+            r,
+            up ? theme.background : theme.text,
+            ` stroke="${escapeXml(theme.text)}" stroke-width="0.75"`
+          )
+        );
+      }
+    }
+  }
+
   out.push(...overlays);
   out.push(...frame.post);
   drawTrendNotes(out, tc);
   out.push(...dataLabels);
+}
+
+/** The data table under a category chart's plot (Add Chart Element). */
+function renderDataTable(
+  model: ChartRenderModel,
+  frame: CategoryFrame,
+  theme: ChartTheme,
+  area: Rect,
+  o: { rowH: number; keyW: number; count: number; labels: string[] }
+) {
+  const { plot } = frame;
+  const { rowH, keyW, count } = o;
+  const family = theme.fontFamily;
+  const top = plot.y + plot.height;
+  const left = area.x;
+  const right = plot.x + plot.width;
+  const rows = model.series.length + 1;
+  const parts: string[] = [];
+  const border = theme.gridline;
+  // borders: rows, the name column and the category columns
+  for (let r = 0; r <= rows; r += 1) {
+    const y = top + r * rowH;
+    parts.push(line(r === 0 ? plot.x : left, y, right, y, border));
+  }
+  parts.push(line(left, top + rowH, left, top + rows * rowH, border));
+  for (let i = 0; i <= count; i += 1) {
+    const x = plot.x + i * frame.band;
+    parts.push(line(x, top, x, top + rows * rowH, border));
+  }
+  const cell = (x: number, y: number, text: string, anchor = "middle") =>
+    svgText(x, y + rowH / 2, truncateText(text, frame.band - 4, LABEL_SIZE), {
+      size: LABEL_SIZE,
+      fill: theme.mutedText,
+      anchor: anchor as "middle" | "start",
+      baseline: "central",
+      family,
+    });
+  for (let i = 0; i < count; i += 1) {
+    parts.push(cell(plot.x + (i + 0.5) * frame.band, top, o.labels[i] ?? ""));
+  }
+  model.series.forEach((s, si) => {
+    const y = top + (si + 1) * rowH;
+    if (keyW)
+      parts.push(
+        rect({ x: left + 3, y: y + rowH / 2 - 4, width: 8, height: 8 }, s.color)
+      );
+    parts.push(
+      svgText(
+        left + 3 + keyW,
+        y + rowH / 2,
+        truncateText(s.name, plot.x - left - keyW - 6, LABEL_SIZE),
+        {
+          size: LABEL_SIZE,
+          fill: theme.text,
+          baseline: "central",
+          family,
+        }
+      )
+    );
+    for (let i = 0; i < count; i += 1) {
+      const v = s.values[i];
+      if (!finite(v)) continue;
+      const label = s.labels?.[i];
+      parts.push(
+        cell(
+          plot.x + (i + 0.5) * frame.band,
+          y,
+          label != null && label !== "" ? label : formatChartNumber(v)
+        )
+      );
+    }
+  });
+  return tagged("dataTable", parts);
 }
 
 // ---------------------------------------------------------------------------
@@ -760,6 +972,12 @@ function renderXY(
     yTitle: model.valueAxisTitle,
     gridlines: model.gridlines,
     style,
+    hideXAxis: model.hideCategoryAxis,
+    hideYAxis: model.hideValueAxis,
+    xGridlines: model.categoryGridlines,
+    minorGridlines: model.minorGridlines,
+    minorXGridlines: model.minorCategoryGridlines,
+    formats: model.formats,
   });
   out.push(...frame.pre);
   const { plot, xPos, yPos } = frame;
@@ -779,7 +997,7 @@ function renderXY(
     Math.min(plot.width, plot.height) *
     0.125 *
     ((model.bubbleScale ?? 100) / 100);
-  model.series.forEach((s) => {
+  model.series.forEach((s, si) => {
     const xs = xsOf(s);
     const pts: [number, number, number][] = [];
     for (let i = 0; i < s.values.length; i += 1) {
@@ -787,12 +1005,13 @@ function renderXY(
       const y = s.values[i];
       if (finite(x) && finite(y)) pts.push([xPos(x), yPos(y), i]);
     }
+    const marks: string[] = [];
     if (bubble) {
       pts.forEach(([x, y, i]) => {
         const size = s.sizes?.[i];
         if (!finite(size) || size <= 0 || maxSize <= 0) return;
         const r = Math.max(1.5, rMax * Math.sqrt(size / maxSize));
-        out.push(
+        marks.push(
           circle(
             x,
             y,
@@ -808,7 +1027,7 @@ function renderXY(
       });
     } else {
       if (model.scatterLines && pts.length > 1) {
-        out.push(
+        marks.push(
           `<path d="${pts
             .map((p, i) => `${i ? "L" : "M"}${n(p[0])} ${n(p[1])}`)
             .join(" ")}" fill="none" stroke="${escapeXml(
@@ -818,10 +1037,13 @@ function renderXY(
       }
       if (model.markers !== false || !model.scatterLines) {
         pts.forEach(([x, y]) => {
-          out.push(circle(x, y, style.markerSize ?? 3.5, s.color));
+          marks.push(
+            circle(x, y, style.markerSize ?? 3.5, s.color, outlineAttr(s))
+          );
         });
       }
     }
+    out.push(tagged(seriesEl(s, si), marks, s.shadow ? SHADOW_ATTR : ""));
     if (model.dataLabels) {
       pts.forEach(([x, y, i]) => {
         const place = pointLabelPlace(
@@ -933,11 +1155,13 @@ function renderPie(
     });
     if (total <= 0) return;
     let angle = -Math.PI / 2;
+    const slices: string[] = [];
+    const sliceLine = s.outline === undefined ? outline : s.outline;
     s.values.forEach((v, i) => {
       if (!finite(v) || v === 0) return;
       const sweep = (Math.abs(v) / total) * Math.PI * 2;
       const color = pointColor(s, i);
-      out.push(
+      slices.push(
         `<path d="${arcPath(
           cx,
           cy,
@@ -946,7 +1170,7 @@ function renderPie(
           angle,
           angle + sweep
         )}" fill="${escapeXml(color)}" fill-rule="evenodd" stroke="${escapeXml(
-          outline
+          sliceLine ?? "none"
         )}" stroke-width="${outlineW}"/>`
       );
       if (model.dataLabels) {
@@ -977,6 +1201,7 @@ function renderPie(
       }
       angle += sweep;
     });
+    out.push(tagged(seriesEl(s, ri), slices, s.shadow ? SHADOW_ATTR : ""));
   });
   out.push(...labels);
 }
@@ -987,9 +1212,55 @@ export function hasChartData(model: ChartRenderModel) {
   return model.series.some((s) => s.values.some((v) => finite(v)));
 }
 
+/**
+ * The model without what is not plotted: filtered / hidden series and the
+ * points of hidden rows or filtered categories.
+ */
+function visibleModel(model: ChartRenderModel): ChartRenderModel {
+  let m = model;
+  if (m.series.some((s) => s.hidden)) {
+    m = { ...m, series: m.series.filter((s) => !s.hidden) };
+  }
+  const hidden = m.hiddenPoints;
+  if (!hidden || !hidden.some(Boolean)) return m;
+  const keep = <T>(arr: T[] | undefined): T[] | undefined =>
+    arr ? arr.filter((_, i) => !hidden[i]) : arr;
+  // waterfall totals follow their points
+  const newIndex: number[] = [];
+  let next = 0;
+  const count = categoryCount(m);
+  for (let i = 0; i < count; i += 1) {
+    newIndex[i] = hidden[i] ? -1 : next;
+    if (!hidden[i]) next += 1;
+  }
+  return {
+    ...m,
+    categories: keep(m.categories) ?? [],
+    waterfallTotals: m.waterfallTotals
+      ?.map((i) => newIndex[i])
+      .filter((i) => i != null && i >= 0),
+    series: m.series.map((s) => ({
+      ...s,
+      values: keep(s.values) ?? [],
+      labels: keep(s.labels),
+      xValues: keep(s.xValues),
+      pointColors: keep(s.pointColors),
+      sizes: keep(s.sizes),
+      connect: keep(s.connect),
+      errorBars: s.errorBars
+        ? {
+            ...s.errorBars,
+            plusValues: keep(s.errorBars.plusValues),
+            minusValues: keep(s.errorBars.minusValues),
+          }
+        : undefined,
+    })),
+  };
+}
+
 /** Render a chart model to a standalone SVG string. */
 export function renderChartSvg(
-  model: ChartRenderModel,
+  input: ChartRenderModel,
   width: number,
   height: number,
   theme: ChartTheme = chartThemes.light
@@ -997,11 +1268,24 @@ export function renderChartSvg(
   const w = Math.max(1, Math.round(width));
   const h = Math.max(1, Math.round(height));
   const out: string[] = [];
+  const model = visibleModel(input);
+  const formats = model.formats ?? {};
+  const chartArea = formats.chartArea;
+  let chartFill = theme.background;
+  if (chartArea?.fill !== undefined) chartFill = chartArea.fill ?? "none";
+  let chartLine: string | null = theme.border;
+  if (chartArea?.line !== undefined) chartLine = chartArea.line;
   out.push(
     rect(
       { x: 0.5, y: 0.5, width: w - 1, height: h - 1 },
-      theme.background,
-      ` stroke="${escapeXml(theme.border)}" stroke-width="1"`
+      chartFill === "none" ? "transparent" : chartFill,
+      `${
+        chartLine
+          ? ` stroke="${escapeXml(chartLine)}" stroke-width="${
+              chartArea?.lineWidth ?? 1
+            }"`
+          : ""
+      } data-chart-el="chartArea"`
     )
   );
   let area: Rect = {
@@ -1012,29 +1296,55 @@ export function renderChartSvg(
   };
   const title = model.title?.trim();
   if (title) {
-    out.push(
-      svgText(
-        w / 2,
-        PAD + TITLE_SIZE,
-        truncateText(title, w - PAD * 2, TITLE_SIZE),
-        {
-          size: TITLE_SIZE,
-          fill: theme.text,
-          anchor: "middle",
-          weight: model.style?.titleBold ? "700" : undefined,
-          family: theme.fontFamily,
-        }
+    const text = truncateText(title, w - PAD * 2, TITLE_SIZE);
+    const f = formats.title;
+    const tw = estimateTextWidth(text, TITLE_SIZE);
+    const box: Rect = {
+      x: w / 2 - tw / 2 - 4,
+      y: PAD - 1,
+      width: tw + 8,
+      height: TITLE_SIZE + 7,
+    };
+    const titleOut: string[] = [];
+    if (f?.fill || f?.line) {
+      titleOut.push(
+        rect(
+          box,
+          f.fill ?? "transparent",
+          f.line ? ` stroke="${escapeXml(f.line)}" stroke-width="1"` : ""
+        )
+      );
+    }
+    titleOut.push(
+      svgText(w / 2, PAD + TITLE_SIZE, text, {
+        size: TITLE_SIZE,
+        fill: f?.text ?? theme.text,
+        anchor: "middle",
+        weight: model.style?.titleBold ? "700" : undefined,
+        family: theme.fontFamily,
+      }).replace(
+        "<text ",
+        f?.textOutline
+          ? `<text stroke="${escapeXml(f.textOutline)}" stroke-width="0.6" `
+          : "<text "
       )
     );
-    area = {
-      ...area,
-      y: area.y + TITLE_SIZE + 10,
-      height: area.height - TITLE_SIZE - 10,
-    };
+    out.push(tagged("title", titleOut));
+    if (!model.titleOverlay) {
+      area = {
+        ...area,
+        y: area.y + TITLE_SIZE + 10,
+        height: area.height - TITLE_SIZE - 10,
+      };
+    }
   }
 
   if (area.width > 20 && area.height > 20 && model.series.length > 0) {
+    const legendStart = out.length;
     area = layoutLegend(model, area, theme, out);
+    if (out.length > legendStart) {
+      out.push(tagged("legend", out.splice(legendStart)));
+    }
     const { type } = model;
     if (isCategoryChart(type)) renderCategory(model, area, theme, out);
     else if (type === "scatter" || type === "bubble")
@@ -1048,6 +1358,7 @@ export function renderChartSvg(
     else renderPie(model, area, theme, out);
   }
 
+  if (out.some((part) => part.includes(SHADOW_ATTR))) out.unshift(SHADOW_DEFS);
   const label = escapeXml(title || model.type);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}">${out.join(
     ""

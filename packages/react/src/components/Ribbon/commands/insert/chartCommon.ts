@@ -3,6 +3,7 @@ import { useCallback, useContext } from "react";
 import { insertChart, locale } from "@lofcz/tinysheet-core";
 import type { ChartLocale } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../../../context";
+import { activateRibbonTab } from "../../contextual";
 import { useAlert } from "../../../../hooks/useAlert";
 import {
   applyChartTypeOption,
@@ -38,6 +39,8 @@ export function useInsertChart() {
         });
         if (chart) applyChartTypeOption(chart, option);
       });
+      // Excel shows the Chart Design tab of the new chart
+      activateRibbonTab("chartDesign");
     },
     [
       context.allowEdit,

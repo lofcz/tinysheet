@@ -184,17 +184,31 @@ export const InsertChartDialog: React.FC<{
   initialTab?: "recommended" | "all";
   initialKey?: string;
   onClose: () => void;
-}> = ({ initialTab = "recommended", initialKey, onClose }) => {
+  /**
+   * Change Chart Type: the dialog's title, the chart's data, the chart a
+   * variant would become (for the previews) and what OK does.
+   */
+  change?: {
+    title: string;
+    source: ChartRange | null;
+    previewFor: (key: string, width: number, height: number) => Chart;
+    onPick: (key: string) => void;
+  };
+}> = ({ initialTab = "recommended", initialKey, onClose, change }) => {
   const { context } = useContext(WorkbookContext);
   const tt = useTabsText().chartDialog;
   const tc = locale(context).chart;
   const insert = useInsertChart();
   // the data and the recommendations of the selection when the dialog opened
   const source = useMemo(
-    () => getChartSourceFromSelection(context),
+    () => (change ? change.source : getChartSourceFromSelection(context)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
+  const chartFor = (k: string, w: number, h: number) =>
+    change
+      ? change.previewFor(k, w, h)
+      : previewChart(context, k, source, w, h);
   const recommended = useMemo(
     () => recommendChartKeys(context, source),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,7 +228,7 @@ export const InsertChartDialog: React.FC<{
   const [family, setFamily] = useState(familyOf(key).id);
 
   const preview = useMemo(
-    () => previewChart(context, key, source, PREVIEW_W, PREVIEW_H),
+    () => chartFor(key, PREVIEW_W, PREVIEW_H),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [key, source]
   );
@@ -223,7 +237,7 @@ export const InsertChartDialog: React.FC<{
       recommended.map((k) => ({
         key: k,
         chart: {
-          ...previewChart(context, k, source, THUMB_W * 1.6, THUMB_H * 1.6),
+          ...chartFor(k, THUMB_W * 1.6, THUMB_H * 1.6),
           legend: "none" as const,
         },
       })),
@@ -233,8 +247,9 @@ export const InsertChartDialog: React.FC<{
 
   const confirm = useCallback(() => {
     onClose();
-    insert(optionByKey(key));
-  }, [insert, key, onClose]);
+    if (change) change.onPick(key);
+    else insert(optionByKey(key));
+  }, [change, insert, key, onClose]);
 
   const switchTab = (next: string) => {
     const id = next as "recommended" | "all";
@@ -278,7 +293,7 @@ export const InsertChartDialog: React.FC<{
 
   return (
     <DialogShell
-      title={tt.title}
+      title={change?.title ?? tt.title}
       onClose={onClose}
       onConfirm={confirm}
       width={760}

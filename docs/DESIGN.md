@@ -230,6 +230,35 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
   (`ZoomControl/ZoomDialog.tsx`, exported). Tests:
   `packages/react/test/ribbonHelpers.ts` (`showRibbonItem`), e2e
   `toolbarButton` / `ribbonItem` / `ribbonTab`.
+- **Contextual tabs**: `Ribbon/contextual.ts` —
+  `registerContextualTabs({ id, label(ctx), isActive(ctx), tabs(ctx) })`
+  adds tabs that show only while their object is selected, after the other
+  tabs, on an accent band with a small caps header (`Tabs` item
+  `contextual`; `.ts-tabs-context`, `.ts-tabs-context-caption`, an accent
+  pill). Selecting the object does not switch tabs; `activateRibbonTab(id)`
+  shows one as soon as it exists (Chart Design after inserting a chart);
+  when the object is deselected the ribbon returns to the tab shown before.
+  Reuse for Table Design, PivotTable Analyze, Shape / Picture Format.
+- **Chart tools** (Excel 365): Chart Design (Chart Layouts: Add Chart
+  Element, Quick Layout · Chart Styles: Change Colors, style strip · Data:
+  Switch Row/Column, Select Data · Type · Location) and Format (Current
+  Selection · Shape Styles · WordArt Styles · Arrange · Size) in
+  `Ribbon/commands/chart` + `Ribbon/tabs/chart.ts`; the element under a
+  click is `ctx.chartElement` (the renderer tags `data-chart-el`), the
+  Format pane (`format-chart`, `Chart/ChartEditor.tsx`) follows it. The
+  buttons outside a selected chart (Chart Elements, Chart Styles, Chart
+  Filters): `Chart/ChartButtons.tsx`. Data dialogs (Select Data Source,
+  Edit Series, Axis Labels, Hidden and Empty Cell Settings, Move Chart,
+  "Add … based on Series"): `Chart/dialogs` (`openChartDialog`), modeless
+  so cells are picked on any sheet (reference boxes: `RefEdit.tsx`,
+  collapse / expand); previews are not recorded, OK is one undo step,
+  Cancel restores. The data outlines on the sheet (names red, categories
+  purple, values blue, corner handles resize, edges move):
+  `Chart/ChartDataHighlight.tsx` (a sheet overlay). Model helpers: core
+  `modules/chartData.ts` (unions, literals, `=SERIES()`, data block,
+  elements, Quick Layouts). Tests: jest `core/test/chart/chartData.test.js`,
+  e2e `chartRibbon.spec.js`, `chartData.spec.js`, xlsx
+  `excel/test/chartData.test.mjs`.
 - **Formula bar**: `packages/react/src/components/FxEditor` — Name Box
   (`NameBox.tsx`, width drag `useNameBoxWidth.ts`), ✕ / ✓ / fx, the formula
   field, expand (Ctrl+Shift+U) and height drag (`useFormulaBarSize.ts`).

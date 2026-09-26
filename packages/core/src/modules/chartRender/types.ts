@@ -147,10 +147,53 @@ export type ChartValueAxisOptions = {
   majorUnit?: number;
 };
 
+/** Fill, outline and text colour of a chart element (the Format tab). */
+export type ChartElementFormat = {
+  /** Fill colour; null: No Fill. */
+  fill?: string | null;
+  /** Outline colour; null: No Outline. */
+  line?: string | null;
+  /** Outline width in px. */
+  lineWidth?: number;
+  /** Text fill (WordArt Styles › Text Fill). */
+  text?: string;
+  /** Text outline (WordArt Styles › Text Outline); null: none. */
+  textOutline?: string | null;
+  /** Shape Effects › Shadow (an outer shadow). */
+  shadow?: boolean;
+};
+
+/** Chart elements that carry a format (series format on the series). */
+export type ChartFormatKey =
+  | "chartArea"
+  | "plotArea"
+  | "title"
+  | "legend"
+  | "categoryAxis"
+  | "valueAxis"
+  | "categoryAxisTitle"
+  | "valueAxisTitle"
+  | "majorGridlines";
+
+export type ChartFormats = Partial<Record<ChartFormatKey, ChartElementFormat>>;
+
 /** One plottable series after its references have been resolved. */
 export type ChartRenderSeries = {
   name: string;
   color: string;
+  /** Index of the series in the chart (element ids, filtered series). */
+  index?: number;
+  /** Not plotted (Chart Filters): dropped before drawing. */
+  hidden?: boolean;
+  /** Outline of bars / slices / areas; null: none. */
+  outline?: string | null;
+  /** Shape Effects › Shadow. */
+  shadow?: boolean;
+  /**
+   * Missing points the line passes over instead of breaking (#N/A, and
+   * empty cells with "Connect data points with line").
+   */
+  connect?: boolean[];
   /** Y values; `null` is a blank cell (a gap in line charts). */
   values: (number | null)[];
   /** Display text of each value (cell text), used for data labels. */
@@ -219,6 +262,22 @@ export type ChartRenderModel = {
   labels?: Partial<ChartRenderLabels>;
   categories: string[];
   series: ChartRenderSeries[];
+  /** Points not plotted (hidden rows / columns, filtered categories). */
+  hiddenPoints?: boolean[];
+  /** The title floats over the plot instead of taking room above it. */
+  titleOverlay?: boolean;
+  hideCategoryAxis?: boolean;
+  hideValueAxis?: boolean;
+  /** Major gridlines of the category axis. */
+  categoryGridlines?: boolean;
+  minorGridlines?: boolean;
+  minorCategoryGridlines?: boolean;
+  /** A data table under the plot (category charts). */
+  dataTable?: { legendKeys?: boolean } | null;
+  dropLines?: boolean;
+  hiLowLines?: boolean;
+  upDownBars?: boolean;
+  formats?: ChartFormats;
 };
 
 /** Colours for chart chrome; series colours come from the model. */
