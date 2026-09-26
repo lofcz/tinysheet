@@ -256,9 +256,38 @@ shows the Excel cursor. Wheel over any popup scrolls that popup, never the grid.
   purple, values blue, corner handles resize, edges move):
   `Chart/ChartDataHighlight.tsx` (a sheet overlay). Model helpers: core
   `modules/chartData.ts` (unions, literals, `=SERIES()`, data block,
-  elements, Quick Layouts). Tests: jest `core/test/chart/chartData.test.js`,
-  e2e `chartRibbon.spec.js`, `chartData.spec.js`, xlsx
-  `excel/test/chartData.test.mjs`.
+  elements, Quick Layouts per chart type, several-area data ranges, Chart
+  Filters › Names sources). Tests: jest `core/test/chart/chartData.test.js`,
+  `chartGaps.test.js`, e2e `chartRibbon.spec.js`, `chartData.spec.js`,
+  `chartGaps.spec.js`, xlsx `excel/test/chartData.test.mjs`.
+- **Chart drawing and effects**: shapes drawn in a chart (Format › Insert
+  Shapes) live in `chart.shapes` in chart fractions (core
+  `modules/chartShapes.ts`, drawn by `Chart/ChartShapes.tsx`, xlsx
+  `c:userShapes` in `excel/src/chart/userShapes.ts`); Shape Effects / Text
+  Effects / WordArt presets and their SVG filters: core
+  `chartRender/effects.ts` (`effectsAttr`, `chartAreaCssFilter`), menus in
+  `Chart/ChartEffectsMenu.tsx`, xlsx `excel/src/chart/effectsXml.ts`.
+  Arrange (Align, Distribute, Group / Regroup / Ungroup, Rotate, Snap) over
+  charts and shapes selected together (Ctrl / Shift + click;
+  `ctx.selectedCharts` + `ctx.activeShapes`): core `modules/objects.ts`;
+  a multi-selection shows the Shape Format contextual tab. A selected
+  object hides the cell selection (`data-object-selected` on the
+  container, `objectSelected()` for the header highlight).
+- **Chart sheets** (Move Chart › New sheet): `sheet.chartSheet` holds one
+  chart and no cells (core `modules/chartSheet.ts`); the grid is hidden
+  (`data-chart-sheet`), the chart fills the window, cannot be moved, is
+  always selected; Object in moves it back and removes the sheet; prints as
+  one landscape page (`printRender.ts` "chart" pages); xlsx: a real
+  `xl/chartsheets/sheetN.xml` with an absolute-anchor drawing (export
+  `excel/src/chart/exportXlsx.ts`, import `ToFortuneSheet/FortuneFile.ts`).
+- **Axis number formats**: linked to source by default (`chartAxisFormats`
+  in core `chart.ts`: the first value / X cell's format); Format Axis ›
+  Number (`Chart/ChartNumberFormat.tsx`) sets an own code
+  (`valueAxis.numberFormat`, `sourceLinked: false`); xlsx `c:numFmt
+  sourceLinked`. Data labels use the same Number section in Format Chart
+  Area (linked: the cells' display text; else `dataLabelOptions.numberFormat`).
+  While a chart or shape is selected the formula bar is empty and read-only
+  (`objectSelected` in core `canvas.ts`).
 - **Formula bar**: `packages/react/src/components/FxEditor` — Name Box
   (`NameBox.tsx`, width drag `useNameBoxWidth.ts`), ✕ / ✓ / fx, the formula
   field, expand (Ctrl+Shift+U) and height drag (`useFormulaBarSize.ts`).

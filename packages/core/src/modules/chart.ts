@@ -7,6 +7,7 @@
  * Rendering is delegated to the pure SVG renderer in `./chartRender`.
  */
 import type { Context } from "../context";
+import type { ChartShape } from "./chartShapes";
 import { checkProtection } from "./protection";
 import type { Cell, CellMatrix, Sheet } from "../types";
 import { getSheetIndex, indexToColumnChar } from "../utils";
@@ -40,6 +41,9 @@ import {
   ChartTrendline,
   ChartType,
   ChartValueAxisOptions,
+  ChartAxisNumberFormat,
+  ChartEffects,
+  formatWithCode,
 } from "./chartRender";
 
 export * from "./chartAnchor";
@@ -116,8 +120,10 @@ export type ChartSeries = {
   color?: string;
   /** Outline of bars / slices / areas (Format › Shape Outline); null: none. */
   outline?: string | null;
-  /** Format › Shape Effects › Shadow. */
+  /** Format › Shape Effects › Shadow (old form; see `effects`). */
   shadow?: boolean;
+  /** Format › Shape Effects: shadow, glow, soft edges, bevel, 3-D. */
+  effects?: ChartEffects;
   /**
    * Hidden by the Chart Filters (or an unchecked Legend Entry in Select
    * Data): kept with its references, not plotted.
@@ -125,6 +131,11 @@ export type ChartSeries = {
   filtered?: boolean;
   /** Explicit per-point colours (pie slices, varied columns). */
   pointColors?: string[];
+  /**
+   * Per-point outlines (a formatted data point's Shape Outline), by point
+   * index; null: no outline (`<a:ln><a:noFill/>`).
+   */
+  pointOutlines?: Record<number, string | null>;
   /** Combo charts: column, line or area (default column). */
   type?: ChartSeriesType;
   /** Plot on the secondary value axis (combo, column, line, area). */
@@ -191,6 +202,11 @@ export type Chart = {
   scatterLines?: boolean;
   varyColors?: boolean;
   valueAxis?: ChartValueAxisOptions;
+  /**
+   * Format Axis › Number of the category (horizontal / X) axis; linked to
+   * the category cells' formats by default.
+   */
+  categoryAxisFormat?: ChartAxisNumberFormat;
   /** Chart Title › Centered Overlay: the title does not shrink the plot. */
   titleOverlay?: boolean;
   /** Add Chart Element › Axes: `false` hides an axis (c:delete). */
@@ -220,6 +236,12 @@ export type Chart = {
   hiddenCategories?: number[];
   /** Format tab: fill / outline / text of the chart's elements. */
   formats?: ChartFormats;
+  /** Format › Insert Shapes: shapes drawn in the chart (chartShapes.ts). */
+  shapes?: ChartShape[];
+  /** Arrange › Group: the group (charts and shapes) it belongs to. */
+  group?: string;
+  /** The group it was ungrouped from (Arrange › Group › Regroup). */
+  ungroupedFrom?: string;
   /** Position and size in sheet pixels at 100% zoom. */
   left: number;
   top: number;
@@ -522,6 +544,8 @@ export type ChartCell = {
   text: boolean;
   /** Date-formatted number (treated as a label for header detection). */
   date: boolean;
+  /** Number format code of a numeric cell (absent: General). */
+  format?: string;
 };
 
 const EMPTY_CELL: ChartCell = {
@@ -547,12 +571,15 @@ export function readChartCell(cell: Cell | null | undefined): ChartCell {
   }
   if (v == null || v === "") return EMPTY_CELL;
   const display = cell.m != null && cell.m !== "" ? String(cell.m) : String(v);
+  const fa = cell.ct?.fa;
+  const format = fa && fa !== "General" ? { format: fa } : {};
   if (typeof v === "number") {
     return {
       display,
       numeric: Number.isFinite(v) ? v : null,
       text: false,
       date: isDateFormat(cell),
+      ...format,
     };
   }
   if (typeof v === "boolean") {
@@ -566,6 +593,7 @@ export function readChartCell(cell: Cell | null | undefined): ChartCell {
         numeric: parsed,
         text: false,
         date: isDateFormat(cell),
+        ...format,
       };
     }
   }
@@ -1321,8 +1349,20 @@ export function resolveChartModel(
 ): ChartRenderModel {
   let categories: string[] = [];
   const categorySource = chart.series.find((s) => s.categories)?.categories;
+  const catFormat = chart.categoryAxisFormat;
+  const catCode =
+    catFormat?.sourceLinked === false ? catFormat.numberFormat : undefined;
+  let categoryCellFormat: string | undefined;
   if (categorySource) {
-    categories = readChartRange(ctx, categorySource).map((c) => c.display);
+    const cells = readChartRange(ctx, categorySource);
+    categoryCellFormat = cells.find((c) => c.numeric != null)?.format;
+    // Format Axis › Number, not linked to source: the category numbers
+    // (dates) in the axis' own format
+    categories = cells.map((c) =>
+      catCode && c.numeric != null
+        ? formatWithCode(catCode, c.numeric)
+        : c.display
+    );
   } else {
     const cached = chart.series.find((s) => s.cache?.categories)?.cache
       ?.categories;
@@ -1407,11 +1447,15 @@ export function resolveChartModel(
       ...(s.filtered || allHidden ? { hidden: true } : {}),
       ...(s.outline !== undefined ? { outline: s.outline } : {}),
       ...(s.shadow ? { shadow: true } : {}),
+      ...(s.effects ? { effects: s.effects } : {}),
       ...(connect ? { connect } : {}),
       values,
       ...(labels ? { labels } : {}),
       ...(xValues ? { xValues } : {}),
       ...(pointColors ? { pointColors } : {}),
+      ...(s.pointOutlines && Object.keys(s.pointOutlines).length
+        ? { pointOutlines: { ...s.pointOutlines } }
+        : {}),
       ...(s.type && chart.type === "combo" ? { type: s.type } : {}),
       ...(s.secondary && chartSupportsSecondaryAxis(chart.type)
         ? { secondary: true }
@@ -1445,6 +1489,7 @@ export function resolveChartModel(
     if (!hiddenPoints) hiddenPoints = [];
     hiddenPoints[p] = true;
   });
+  const axisFormats = chartAxisFormats(ctx, chart, categoryCellFormat);
   const themeName = ctx.theme === "dark" ? "dark" : "light";
   const style = chart.style ? getChartStyle(chart.style).spec(themeName) : {};
   const lang = ctx.lang || "en";
@@ -1494,7 +1539,65 @@ export function resolveChartModel(
     ...(chart.hiLowLines ? { hiLowLines: true } : {}),
     ...(chart.upDownBars ? { upDownBars: true } : {}),
     ...(chart.formats ? { formats: chart.formats } : {}),
+    ...(axisFormats ? { axisFormats } : {}),
   };
+}
+
+/** The number format a value axis shows: its own, or the source cells'. */
+function effectiveAxisFormat(
+  options: ChartAxisNumberFormat | undefined,
+  source: string | undefined
+) {
+  if (options?.sourceLinked === false) return options.numberFormat;
+  return source;
+}
+
+/**
+ * The number formats of a chart's axes (Format Axis › Number): each is
+ * "Linked to source" by default, i.e. the format of the first value (X
+ * value) cell of the first series plotted on it (Excel).
+ */
+export function chartAxisFormats(
+  ctx: Pick<Context, "luckysheetfile">,
+  chart: Chart,
+  categoryCellFormat?: string
+): ChartRenderModel["axisFormats"] {
+  // counts and bins, not the source values
+  if (chart.type === "histogram" || chart.type === "pareto") return undefined;
+  const firstFormat = (secondary: boolean) => {
+    const s = chart.series.find(
+      (x) =>
+        !x.filtered &&
+        x.values &&
+        !!x.secondary === secondary &&
+        (secondary ? chartSupportsSecondaryAxis(chart.type) : true)
+    );
+    return readChartRange(ctx, s?.values).find((c) => c.numeric != null)
+      ?.format;
+  };
+  const out: NonNullable<ChartRenderModel["axisFormats"]> = {};
+  const value = effectiveAxisFormat(chart.valueAxis, firstFormat(false));
+  if (value) out.value = value;
+  if (
+    chartSupportsSecondaryAxis(chart.type) &&
+    chart.series.some((s) => s.secondary)
+  ) {
+    const secondary = effectiveAxisFormat(
+      chart.secondaryValueAxis,
+      firstFormat(true)
+    );
+    if (secondary) out.secondary = secondary;
+  }
+  if (isXYType(chart.type)) {
+    let source = categoryCellFormat;
+    if (source === undefined) {
+      const xs = chart.series.find((s) => s.categories)?.categories;
+      source = readChartRange(ctx, xs).find((c) => c.numeric != null)?.format;
+    }
+    const category = effectiveAxisFormat(chart.categoryAxisFormat, source);
+    if (category) out.category = category;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** Chart chrome colours for a chart's style on a theme. */

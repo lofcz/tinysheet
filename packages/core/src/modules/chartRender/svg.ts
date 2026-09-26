@@ -179,6 +179,20 @@ export function renderLabels(model: ChartRenderModel): ChartRenderLabels {
  * Data label text: series name, category, value and percentage (in Excel's
  * order), joined by the separator.
  */
+/** Whether point `i` of a series carries a data label. */
+export function labelVisible(
+  model: ChartRenderModel,
+  series: ChartRenderSeries,
+  i: number
+) {
+  if (!model.dataLabelOptions?.lastPointOnly) return true;
+  let last = -1;
+  series.values.forEach((v, k) => {
+    if (v != null && Number.isFinite(v)) last = k;
+  });
+  return i === last;
+}
+
 export function dataLabelText(
   model: ChartRenderModel,
   series: ChartRenderSeries,

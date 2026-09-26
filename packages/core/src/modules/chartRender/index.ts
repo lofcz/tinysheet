@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./effects";
 export * from "./axis";
 export * from "./theme";
 export * from "./presets";
@@ -17,6 +18,7 @@ export {
   formatChartNumber,
 } from "./render";
 export { histogramBars } from "./special";
+export { formatWithCode } from "./svg";
 export {
   fitTrendline,
   computeErrorAmounts,

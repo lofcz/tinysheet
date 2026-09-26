@@ -19,6 +19,7 @@ import {
   resolveNameBoxInput,
   resolveNameRange,
   scrollToHighlightCell,
+  findChart,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
@@ -45,6 +46,11 @@ const NameBox: React.FC = () => {
   const size = useNameBoxWidth(boxRef);
 
   const rangeText = useMemo(() => {
+    // a selected chart shows its name, like Excel ("Chart 1")
+    if (context.activeChart) {
+      const found = findChart(context, context.activeChart);
+      if (found) return `Chart ${found.index + 1}`;
+    }
     const lastSelection = _.last(context.luckysheet_select_save);
     if (
       !(
@@ -71,6 +77,7 @@ const NameBox: React.FC = () => {
     return getRangetxt(context, context.currentSheetId, lastSelection);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    context.activeChart,
     context.currentSheetId,
     context.luckysheet_select_save,
     context.luckysheetfile,

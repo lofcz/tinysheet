@@ -8,6 +8,7 @@ import {
   ChartRange,
   ChartSeries,
   ChartSeriesType,
+  chartAxisFormats,
   chartColor,
   chartHasAxes,
   chartRangeToText,
@@ -31,6 +32,7 @@ import WorkbookContext from "../../context";
 import { Select } from "../ui";
 import { chartElementLabel, elementCaps, setElementFormat } from "./chartTools";
 import ColorField from "./ColorField";
+import ChartNumberFormat from "./ChartNumberFormat";
 import { openChartDialog } from "./dialogs/store";
 import SVGIcon from "../SVGIcon";
 import { SidePane } from "../SidePane";
@@ -287,6 +289,14 @@ const ChartEditor: React.FC = () => {
     }
     const axisKey =
       element === "categoryAxis" || element === "valueAxis" ? element : null;
+    const xyChart = chart.type === "scatter" || chart.type === "bubble";
+    // the source cells' formats (what "Linked to source" shows)
+    const sourceFormats =
+      chartAxisFormats(context, {
+        ...chart,
+        valueAxis: undefined,
+        categoryAxisFormat: undefined,
+      }) ?? {};
     return (
       <>
         {element === "title" && (
@@ -405,6 +415,37 @@ const ChartEditor: React.FC = () => {
               </div>
             )}
           </section>
+        )}
+        {axisKey && (axisKey === "valueAxis" || xyChart) && (
+          <ChartNumberFormat
+            context={context}
+            value={
+              axisKey === "valueAxis"
+                ? chart.valueAxis
+                : chart.categoryAxisFormat
+            }
+            source={
+              axisKey === "valueAxis"
+                ? sourceFormats.value
+                : sourceFormats.category
+            }
+            disabled={readonly}
+            onChange={(next) =>
+              update((_ctx, c) => {
+                if (axisKey === "valueAxis") {
+                  const { numberFormat, sourceLinked, ...rest } =
+                    c.valueAxis ?? {};
+                  const merged = { ...rest, ...next };
+                  if (Object.keys(merged).length) c.valueAxis = merged;
+                  else delete c.valueAxis;
+                } else if (Object.keys(next).length) {
+                  c.categoryAxisFormat = next;
+                } else {
+                  delete c.categoryAxisFormat;
+                }
+              })
+            }
+          />
         )}
         {element.endsWith("AxisTitle") && (
           <section className="fortune-chart-editor-section">
@@ -894,19 +935,34 @@ const ChartEditor: React.FC = () => {
                         }
                       />
                     )}
-                    <CommitField
-                      label={t.numberFormat}
-                      value={labelOpts.numberFormat ?? ""}
-                      placeholder="General"
-                      onCommit={(text) => {
+                    {/* Format Data Labels › Number: linked to the source
+                        cells unless a format code is set */}
+                    <ChartNumberFormat
+                      context={context}
+                      value={
+                        labelOpts.numberFormat
+                          ? {
+                              numberFormat: labelOpts.numberFormat,
+                              sourceLinked: false,
+                            }
+                          : undefined
+                      }
+                      source={
+                        chartAxisFormats(context, {
+                          ...chart,
+                          valueAxis: undefined,
+                        })?.value
+                      }
+                      disabled={readonly}
+                      onChange={(next) =>
                         update((_ctx, c) => {
-                          const next = { ...c.dataLabelOptions };
-                          if (text.trim()) next.numberFormat = text.trim();
-                          else delete next.numberFormat;
-                          c.dataLabelOptions = next;
-                        });
-                        return undefined;
-                      }}
+                          const opts = { ...c.dataLabelOptions };
+                          if (next.sourceLinked === false && next.numberFormat)
+                            opts.numberFormat = next.numberFormat;
+                          else delete opts.numberFormat;
+                          c.dataLabelOptions = opts;
+                        })
+                      }
                     />
                   </div>
                 )}

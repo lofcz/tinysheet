@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import {
   Chart,
+  ChartRange,
   chartRangeFromAreas,
   chartRangeToText,
   chartToolsLocale,
@@ -52,6 +53,7 @@ import {
   setSeriesName,
   setSeriesSizes,
   setSeriesValues,
+  stripChartParens,
   switchChartDataRowColumn,
   canSwitchChartRowColumn,
 } from "@lofcz/tinysheet-core";
@@ -83,6 +85,14 @@ export function assignChartData(ctx: Context, id: string, from: Chart) {
     if (value === undefined) delete target[key];
     else target[key] = _.cloneDeep(value);
   });
+}
+
+/**
+ * The Chart data range box's text: a union reads as its areas separated
+ * by commas, without the parentheses of a SERIES formula (Excel).
+ */
+function dataRangeText(ctx: Context, range: ChartRange) {
+  return stripChartParens(chartRangeToText(ctx, range));
 }
 
 /** The sheet's selection as a reference (`=Sheet1!$A$1:$B$5`). */
@@ -124,7 +134,12 @@ const isXY = (chart: Chart) =>
 export const SelectDataDialog: React.FC<{
   chartId: string;
   onDone: () => void;
-}> = ({ chartId, onDone }) => {
+  /**
+   * Open Edit Series for this series alone (the Chart Filters' pencil):
+   * OK applies it (one undo step), Cancel restores the chart.
+   */
+  editSeries?: number;
+}> = ({ chartId, onDone, editSeries }) => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const t = chartToolsLocale(context);
   const found = findChart(context, chartId);
@@ -137,11 +152,14 @@ export const SelectDataDialog: React.FC<{
   );
   const derived = draft ? getChartDataRange(draft) : null;
   const [rangeText, setRangeText] = useState(() =>
-    derived ? `=${chartRangeToText(context, derived)}` : ""
+    derived ? `=${dataRangeText(context, derived)}` : ""
   );
   const [rangeInvalid, setRangeInvalid] = useState(false);
   const [selected, setSelected] = useState(0);
-  const [sub, setSub] = useState<Sub>(null);
+  const editOnly = editSeries != null;
+  const [sub, setSub] = useState<Sub>(() =>
+    editOnly ? { kind: "series", index: editSeries } : null
+  );
   const [collapsed, setCollapsed] = useState(false);
   const [subCollapsed, setSubCollapsed] = useState(false);
   const rangeInput = useRef<HTMLInputElement | null>(null);
@@ -171,7 +189,7 @@ export const SelectDataDialog: React.FC<{
 
   const syncRange = (next: Chart) => {
     const r = getChartDataRange(next);
-    setRangeText(r ? `=${chartRangeToText(context, r)}` : "");
+    setRangeText(r ? `=${dataRangeText(context, r)}` : "");
     setRangeInvalid(false);
   };
 
@@ -346,10 +364,23 @@ export const SelectDataDialog: React.FC<{
   const hideMain = subCollapsed;
   const collapsedStyle = collapsedPosition(refs.cellArea.current);
 
+  /** Edit Series on its own: its OK is the chart's one change. */
+  const editDone = (next: Chart | null) => {
+    if (!next || !original) {
+      cancel();
+      return;
+    }
+    setContext((ctx) => assignChartData(ctx, chartId, original), {
+      noHistory: true,
+    });
+    setContext((ctx) => assignChartData(ctx, chartId, next));
+    finish();
+  };
+
   return (
     <>
       <Dialog
-        open
+        open={!editOnly}
         modal={false}
         title={t.selectData.title}
         onClose={cancel}
@@ -606,6 +637,10 @@ export const SelectDataDialog: React.FC<{
           preview={preview}
           onCollapsedChange={setSubCollapsed}
           onDone={(next) => {
+            if (editOnly) {
+              editDone(next);
+              return;
+            }
             setSub(null);
             setSubCollapsed(false);
             activateRange();

@@ -1,3 +1,4 @@
+import type { ChartEffects } from "./effects";
 /**
  * Types shared by the pure SVG chart renderers. Nothing in this folder touches
  * the workbook context, so both the sheet chart layer (core/react) and the
@@ -93,6 +94,11 @@ export type ChartDataLabelOptions = {
   numberFormat?: string;
   /** Between the parts (default ", "). */
   separator?: string;
+  /**
+   * Labels on the last point of each series only (Quick Layout 6: "Data
+   * Labels on Last Category"); in xlsx a c:dLbl for that point.
+   */
+  lastPointOnly?: boolean;
 };
 
 export type ChartHistogramBinning = {
@@ -145,7 +151,23 @@ export type ChartValueAxisOptions = {
   min?: number;
   max?: number;
   majorUnit?: number;
+  /**
+   * Format Axis › Number › Format Code, used when `sourceLinked` is false
+   * (c:numFmt formatCode).
+   */
+  numberFormat?: string;
+  /**
+   * Linked to source (default true): the tick labels take the number
+   * format of the source cells (c:numFmt sourceLinked="1").
+   */
+  sourceLinked?: boolean;
 };
+
+/** Number format of the category (X) axis: Format Axis › Number. */
+export type ChartAxisNumberFormat = Pick<
+  ChartValueAxisOptions,
+  "numberFormat" | "sourceLinked"
+>;
 
 /** Fill, outline and text colour of a chart element (the Format tab). */
 export type ChartElementFormat = {
@@ -159,8 +181,14 @@ export type ChartElementFormat = {
   text?: string;
   /** Text outline (WordArt Styles › Text Outline); null: none. */
   textOutline?: string | null;
-  /** Shape Effects › Shadow (an outer shadow). */
+  /** Shape Effects › Shadow (an outer shadow); see `effects`. */
   shadow?: boolean;
+  /** Shape Effects (shadow, glow, soft edges, bevel, 3-D rotation). */
+  effects?: ChartEffects;
+  /** WordArt Styles › Text Effects of the element's text. */
+  textEffects?: ChartEffects;
+  /** WordArt style preset applied (Format › WordArt Styles gallery). */
+  wordArt?: number;
 };
 
 /** Chart elements that carry a format (series format on the series). */
@@ -189,6 +217,8 @@ export type ChartRenderSeries = {
   outline?: string | null;
   /** Shape Effects › Shadow. */
   shadow?: boolean;
+  /** Shape Effects of the series. */
+  effects?: ChartEffects;
   /**
    * Missing points the line passes over instead of breaking (#N/A, and
    * empty cells with "Connect data points with line").
@@ -202,6 +232,8 @@ export type ChartRenderSeries = {
   xValues?: (number | null)[];
   /** Per-point colours (pie slices, varied column colours). */
   pointColors?: string[];
+  /** Per-point outlines by index; null: none. */
+  pointOutlines?: Record<number, string | null>;
   /** Combo charts: how this series is drawn (default: the chart type). */
   type?: ChartSeriesType;
   /** Plot on the secondary value axis. */
@@ -244,6 +276,11 @@ export type ChartRenderModel = {
   valueAxis?: ChartValueAxisOptions;
   /** Secondary value axis bounds (combo charts). */
   secondaryValueAxis?: ChartValueAxisOptions;
+  /**
+   * The number format codes the axes' tick labels use (the source cells'
+   * when linked to source); absent: General.
+   */
+  axisFormats?: { value?: string; secondary?: string; category?: string };
   secondaryValueAxisTitle?: string;
   dataLabelOptions?: ChartDataLabelOptions;
   /** Histogram and Pareto bins. */

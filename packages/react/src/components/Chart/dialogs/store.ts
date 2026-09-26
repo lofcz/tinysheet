@@ -8,7 +8,7 @@ import { useSyncExternalStore } from "react";
 import type { ChartElementName } from "@lofcz/tinysheet-core";
 
 export type ChartDialogRequest =
-  | { kind: "selectData"; chartId: string }
+  | { kind: "selectData"; chartId: string; editSeries?: number }
   | { kind: "moveChart"; chartId: string }
   | {
       kind: "seriesPicker";

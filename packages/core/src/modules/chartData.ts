@@ -609,6 +609,8 @@ export function applyChartDataBlock(chart: Chart, block: ChartDataBlock) {
     if (old) {
       if (old.color) s.color = old.color;
       if (old.outline !== undefined) s.outline = old.outline;
+      if (old.effects) s.effects = old.effects;
+      if (old.shadow) s.shadow = true;
       if (old.type) s.type = old.type;
       if (old.secondary) s.secondary = true;
       if (old.trendlines) s.trendlines = old.trendlines;
@@ -638,15 +640,159 @@ export function chartDataRangeOfBlock(
   return area(sheetId, seriesInRows, [p0, points[1]], [s0, series[1]]);
 }
 
+/** Runs of consecutive numbers (sorted, no repeats) as spans. */
+function toRuns(values: number[]): Span[] {
+  const sorted = Array.from(new Set(values)).sort((a, b) => a - b);
+  const out: Span[] = [];
+  sorted.forEach((v) => {
+    const last = out[out.length - 1];
+    if (last && v === last[1] + 1) last[1] = v;
+    else out.push([v, v]);
+  });
+  return out;
+}
+
+/**
+ * The areas of a chart whose series fit one rectangle except for whole
+ * rows or columns left out (Excel shows these as several areas, e.g.
+ * `=Sheet1!$A$1:$A$5,Sheet1!$C$1:$D$5`): every series one line (or the
+ * same pieces of it), names in one line before the points, categories in
+ * one line before the series. Null when irregular ("too complex").
+ */
+function chartDataUnion(chart: Chart): ChartRange | null {
+  const list = chart.series;
+  if (list.length === 0 || chart.type === "bubble") return null;
+  const firstValues = list[0].values;
+  if (!firstValues) return null;
+  const firstAreas = chartRangeAreas(firstValues);
+  const { sheetId } = firstAreas[0];
+  const colLines = firstAreas.every((a) => a.column[0] === a.column[1]);
+  const rowLines = firstAreas.every((a) => a.row[0] === a.row[1]);
+  let inRows: boolean;
+  if (colLines && rowLines) inRows = !!chart.seriesInRows;
+  else if (colLines) inRows = false;
+  else if (rowLines) inRows = true;
+  else return null;
+  const lineOf = (a: ChartRangeArea) => (inRows ? a.row : a.column);
+  const spanOf = (a: ChartRangeArea): Span => (inRows ? a.column : a.row);
+  const shape = (areas: ChartRangeArea[]) =>
+    areas.map((a) => spanOf(a).join(":")).join(",");
+  const key = shape(firstAreas);
+  /** The line of a one-line reference in the block's layout, else null. */
+  const oneLine = (r: ChartRange | null | undefined) => {
+    const areas = chartRangeAreas(r);
+    if (!areas.length || areas.some((a) => a.sheetId !== sheetId)) return null;
+    const line = lineOf(areas[0])[0];
+    if (areas.some((a) => lineOf(a)[0] !== line || lineOf(a)[1] !== line)) {
+      return null;
+    }
+    return { line, areas };
+  };
+  const lines: number[] = [];
+  let nameAt: number | null | undefined;
+  let categoryAt: number | null | undefined;
+  for (let i = 0; i < list.length; i += 1) {
+    const s = list[i];
+    const values = oneLine(s.values);
+    if (!values || shape(values.areas) !== key) return null;
+    if (lines.length && values.line <= lines[lines.length - 1]) return null;
+    lines.push(values.line);
+    let at: number | null = null;
+    if (s.nameRef && !s.name) {
+      const n = s.nameRef;
+      if (n.areas?.length || n.sheetId !== sheetId) return null;
+      if (n.row[0] !== n.row[1] || n.column[0] !== n.column[1]) return null;
+      if (lineOf(n)[0] !== values.line) return null;
+      [at] = spanOf(n);
+    }
+    if (nameAt === undefined) nameAt = at;
+    else if (nameAt !== at) return null;
+    let cat: number | null = null;
+    if (s.categories) {
+      const c = oneLine(s.categories);
+      if (!c || shape(c.areas) !== key) return null;
+      cat = c.line;
+    } else if (s.cache?.categories?.length) return null;
+    if (categoryAt === undefined) categoryAt = cat;
+    else if (categoryAt !== cat) return null;
+  }
+  const pointSpans = firstAreas.map(spanOf);
+  const firstPoint = Math.min(...pointSpans.map((p) => p[0]));
+  if (nameAt != null && nameAt >= firstPoint) return null;
+  if (categoryAt != null && categoryAt >= lines[0]) return null;
+  const points: number[] = [];
+  pointSpans.forEach(([a, b]) => {
+    for (let p = a; p <= b; p += 1) points.push(p);
+  });
+  if (nameAt != null) points.push(nameAt);
+  const lineRuns = toRuns(categoryAt != null ? [categoryAt, ...lines] : lines);
+  const pointRuns = toRuns(points);
+  const areas: ChartRangeArea[] = [];
+  lineRuns.forEach((lr) =>
+    pointRuns.forEach((pr) => areas.push(area(sheetId, inRows, pr, lr)))
+  );
+  const [first, ...rest] = areas;
+  return rest.length ? { ...first, areas: rest } : first;
+}
+
 /**
  * "Chart data range" of the Select Data Source dialog: the block's
- * rectangle, or null when the series cannot be described by one range
- * (Excel: "The data range is too complex to be displayed").
+ * rectangle, the areas of a block with whole rows / columns left out, or
+ * null when the series are irregular (Excel: "The data range is too
+ * complex to be displayed" — series of different lengths or places, names
+ * out of line, series out of order).
  */
 export function getChartDataRange(chart: Chart): ChartRange | null {
   const block = getChartDataBlock(chart);
-  if (block) return chartDataRangeOfBlock(block);
-  return null;
+  if (block) {
+    const range = chartDataRangeOfBlock(block);
+    if (range) return range;
+  }
+  return chartDataUnion(chart);
+}
+
+/** The part of `ref` inside `areas` (a union when in several), or null. */
+function clipToAreas(
+  ref: ChartRange | null | undefined,
+  areas: ChartRangeArea[]
+): ChartRange | null {
+  if (!ref) return null;
+  const pieces: ChartRangeArea[] = [];
+  chartRangeAreas(ref).forEach((r) =>
+    areas.forEach((a) => {
+      if (a.sheetId !== r.sheetId) return;
+      const r0 = Math.max(r.row[0], a.row[0]);
+      const r1 = Math.min(r.row[1], a.row[1]);
+      const c0 = Math.max(r.column[0], a.column[0]);
+      const c1 = Math.min(r.column[1], a.column[1]);
+      if (r0 > r1 || c0 > c1) return;
+      pieces.push({ sheetId: r.sheetId, row: [r0, r1], column: [c0, c1] });
+    })
+  );
+  if (!pieces.length) return null;
+  // reading order, and pieces of the same line joined
+  pieces.sort((x, y) => x.row[0] - y.row[0] || x.column[0] - y.column[0]);
+  const merged: ChartRangeArea[] = [];
+  pieces.forEach((p) => {
+    const last = merged[merged.length - 1];
+    if (
+      last &&
+      last.column[0] === p.column[0] &&
+      last.column[1] === p.column[1] &&
+      last.row[1] + 1 === p.row[0]
+    ) {
+      last.row = [last.row[0], p.row[1]];
+    } else if (
+      last &&
+      last.row[0] === p.row[0] &&
+      last.row[1] === p.row[1] &&
+      last.column[1] + 1 === p.column[0]
+    ) {
+      last.column = [last.column[0], p.column[1]];
+    } else merged.push({ ...p, row: [...p.row], column: [...p.column] });
+  });
+  const [first, ...rest] = merged;
+  return rest.length ? { ...first, areas: rest } : first;
 }
 
 /**
@@ -683,16 +829,26 @@ export function setChartDataRange(
     seriesInRows,
   });
   if (areas.length > 1 && sameSheet) {
-    const inside = (r: ChartRange | null | undefined) =>
-      !!r &&
-      areas.some(
-        (a) =>
-          r.row[0] >= a.row[0] &&
-          r.row[1] <= a.row[1] &&
-          r.column[0] >= a.column[0] &&
-          r.column[1] <= a.column[1]
-      );
-    detected.series = detected.series.filter((s) => inside(s.values));
+    // what the union covers: series in left-out lines go, the others keep
+    // the pieces of their references inside the areas
+    detected.series = detected.series
+      .map((s) => {
+        const values = clipToAreas(s.values, areas);
+        if (!values) return null;
+        const next: ChartSeries = { ...s, values };
+        if (s.nameRef) {
+          const nameRef = clipToAreas(s.nameRef, areas);
+          if (nameRef) next.nameRef = nameRef;
+          else delete next.nameRef;
+        }
+        if (s.categories) {
+          const categories = clipToAreas(s.categories, areas);
+          if (categories) next.categories = categories;
+          else delete next.categories;
+        }
+        return next;
+      })
+      .filter((s): s is ChartSeries => !!s);
   }
   detected.series.forEach((s, i) => {
     const old = chart.series[i];
@@ -746,6 +902,79 @@ export function newSeriesDefaults(chart: Chart): ChartSeries {
     ...(last?.categories ? { categories: last.categories } : {}),
     ...(chart.type === "combo" ? { type: "line" as const } : {}),
   };
+}
+
+/**
+ * Where the series names and the category labels come from (Chart Filters
+ * › Names): the row or column of the data block holding them (null: none)
+ * and the rows / columns before the data that could (Excel lists the
+ * header lines; "(None)" names the series Series1, Series2… and numbers
+ * the categories 1, 2, 3…). Null when the series do not form a block.
+ */
+export type ChartNameSource = {
+  /** Lines run as rows (the series are in columns) or columns. */
+  kind: "row" | "column";
+  current: number | null;
+  options: number[];
+};
+
+export function chartNameSources(
+  chart: Chart
+): { series: ChartNameSource; categories: ChartNameSource } | null {
+  const block = getChartDataBlock(chart);
+  if (!block) return null;
+  const before = (first: number, current: number | null) => {
+    const out: number[] = [];
+    for (let l = first - 1; l >= 0 && out.length < 4; l -= 1) out.push(l);
+    if (current != null && !out.includes(current)) out.push(current);
+    return out.sort((a, b) => a - b);
+  };
+  return {
+    // names lie in a line across the points (a row when series are columns)
+    series: {
+      kind: block.seriesInRows ? "column" : "row",
+      current: block.nameAt,
+      options: before(block.points[0], block.nameAt),
+    },
+    categories: {
+      kind: block.seriesInRows ? "row" : "column",
+      current: block.categoryAt,
+      options: before(block.series[0], block.categoryAt),
+    },
+  };
+}
+
+/**
+ * Take the series names (or category labels) from another row / column of
+ * the data, or from none (Chart Filters › Names). False when the chart's
+ * series do not form a block.
+ */
+export function setChartNameSource(
+  chart: Chart,
+  which: "series" | "categories",
+  line: number | null
+): boolean {
+  const block = getChartDataBlock(chart);
+  if (!block) return false;
+  const next: ChartDataBlock = { ...block };
+  if (which === "series") {
+    if (line != null && line >= block.points[0] && line <= block.points[1])
+      return false;
+    next.nameAt = line;
+  } else {
+    if (line != null && line >= block.series[0] && line <= block.series[1])
+      return false;
+    next.categoryAt = line;
+  }
+  applyChartDataBlock(chart, next);
+  if (which === "series" && line == null) {
+    // "(None)": Excel's default names
+    chart.series.forEach((s, i) => {
+      delete s.nameRef;
+      s.name = `Series${i + 1}`;
+    });
+  }
+  return true;
 }
 
 /** Move series `from` to `to` (Select Data's Move Up / Move Down). */
@@ -1101,9 +1330,14 @@ type LayoutSpec = {
   title?: boolean;
   legend?: Chart["legend"];
   labels?: ChartDataLabelPosition | "callout";
+  /** What the labels show (default: the value). */
+  labelParts?: { value?: boolean; category?: boolean; percent?: boolean };
+  /** Labels on the last category only (Layout 6). */
+  lastOnly?: boolean;
   valueAxis?: boolean;
   categoryAxis?: boolean;
   gridlines?: boolean;
+  minorGridlines?: boolean;
   categoryGridlines?: boolean;
   valueTitle?: boolean;
   categoryTitle?: boolean;
@@ -1111,13 +1345,34 @@ type LayoutSpec = {
 };
 
 /**
- * Excel's eleven Quick Layouts (for column / bar / line / area charts):
- * which elements each shows.
+ * Excel's eleven Quick Layouts of the charts with axes (column, bar, line,
+ * area, combo, scatter…), with the elements each shows as Excel's gallery
+ * describes them (thewindowsclub.com/how-to-change-layout-and-chart-style-
+ * in-excel, a clustered column chart):
+ *
+ * 1. Chart Title, Legend (Right), Horizontal Axis, Vertical Axis, Major
+ *    Gridlines.
+ * 2. Chart Title, Legend (Top), Data Labels (Outside End), Horizontal Axis.
+ * 3. Chart Title, Legend (Bottom), Horizontal Axis, Vertical Axis, Major
+ *    Gridlines.
+ * 4. Legend (Bottom), Data Labels (Outside End), Horizontal Axis, Vertical
+ *    Axis.
+ * 5. Chart Title, Data Table, Vertical Axis Title, Vertical Axis, Major
+ *    Gridlines.
+ * 6. Chart Title, Vertical Axis Title, Data Labels on Last Category
+ *    (Outside End), Horizontal Axis, Vertical Axis, Major Gridlines.
+ * 7. Legend (Right), Horizontal Axis Title, Vertical Axis Title, Vertical
+ *    Axis, Major Gridlines, Minor Gridlines.
+ * 8. Chart Title, Horizontal Axis Title, Vertical Axis Title, Horizontal
+ *    Axis, Vertical Axis.
+ * 9. Chart Title, Legend (Right), Horizontal Axis Title, Vertical Axis
+ *    Title, Horizontal Axis, Vertical Axis, Major Gridlines.
+ * 10. Chart Title, Legend (Right), Data Labels (Outside End), Horizontal
+ *    Axis, Vertical Axis, Major Gridlines.
+ * 11. Legend (Right), Horizontal Axis, Vertical Axis, Major Gridlines.
  */
 export const CHART_QUICK_LAYOUTS: LayoutSpec[] = [
-  // Layout 1: title, legend right, axes, major gridlines
   { title: true, legend: "right", gridlines: true },
-  // Layout 2: title, legend top, data labels outside end, no value axis
   {
     title: true,
     legend: "top",
@@ -1125,29 +1380,32 @@ export const CHART_QUICK_LAYOUTS: LayoutSpec[] = [
     valueAxis: false,
     gridlines: false,
   },
-  // Layout 3: title, legend bottom, axes, major gridlines
   { title: true, legend: "bottom", gridlines: true },
-  // Layout 4: legend bottom, data labels outside end, axes
   { legend: "bottom", labels: "outsideEnd", gridlines: false },
-  // Layout 5: title, data table with legend keys, value axis title
   {
     title: true,
     legend: "none",
     dataTable: true,
     valueTitle: true,
+    categoryAxis: false,
     gridlines: true,
   },
-  // Layout 6: title, value axis title, major gridlines
-  { title: true, legend: "right", valueTitle: true, gridlines: true },
-  // Layout 7: legend right, both axis titles, major gridlines both ways
+  {
+    title: true,
+    legend: "none",
+    valueTitle: true,
+    labels: "outsideEnd",
+    lastOnly: true,
+    gridlines: true,
+  },
   {
     legend: "right",
     valueTitle: true,
     categoryTitle: true,
+    categoryAxis: false,
     gridlines: true,
-    categoryGridlines: true,
+    minorGridlines: true,
   },
-  // Layout 8: title, both axis titles, no gridlines
   {
     title: true,
     legend: "none",
@@ -1155,7 +1413,6 @@ export const CHART_QUICK_LAYOUTS: LayoutSpec[] = [
     categoryTitle: true,
     gridlines: false,
   },
-  // Layout 9: title, legend right, both axis titles, major gridlines
   {
     title: true,
     legend: "right",
@@ -1163,31 +1420,88 @@ export const CHART_QUICK_LAYOUTS: LayoutSpec[] = [
     categoryTitle: true,
     gridlines: true,
   },
-  // Layout 10: title, legend right, data labels, major gridlines
-  { title: true, legend: "right", labels: "center", gridlines: true },
-  // Layout 11: legend right, axes, major gridlines, no title
+  { title: true, legend: "right", labels: "outsideEnd", gridlines: true },
   { legend: "right", gridlines: true },
 ];
 
+/**
+ * The seven Quick Layouts of pie and doughnut charts. Layouts 1 and 4
+ * label the slices with their category names, 2 and 6 with percentages
+ * only (ablebits.com/office-addins-blog/make-pie-chart-excel,
+ * exceldemy.com/excel-pie-chart-percentage); 3 and 7 have a legend and no
+ * labels, 5 the values.
+ */
+export const PIE_QUICK_LAYOUTS: LayoutSpec[] = [
+  {
+    title: true,
+    legend: "none",
+    labels: "bestFit",
+    labelParts: { category: true, percent: true },
+  },
+  {
+    title: true,
+    legend: "top",
+    labels: "bestFit",
+    labelParts: { percent: true },
+  },
+  { legend: "bottom" },
+  {
+    legend: "none",
+    labels: "outsideEnd",
+    labelParts: { category: true, value: true },
+  },
+  {
+    title: true,
+    legend: "right",
+    labels: "insideEnd",
+    labelParts: { value: true },
+  },
+  {
+    title: true,
+    legend: "right",
+    labels: "bestFit",
+    labelParts: { percent: true },
+  },
+  { legend: "right" },
+];
+
+/** The Quick Layouts Excel offers for a chart's type. */
+export function chartQuickLayouts(chart: Pick<Chart, "type">): LayoutSpec[] {
+  if (chart.type === "pie" || chart.type === "doughnut") {
+    return PIE_QUICK_LAYOUTS;
+  }
+  return CHART_QUICK_LAYOUTS;
+}
+
 /** The elements Quick Layout `n` (1-based) shows, for its screen tip. */
-export function chartQuickLayoutElements(n: number): string[] {
-  const l = CHART_QUICK_LAYOUTS[n - 1];
+export function chartQuickLayoutElements(
+  n: number,
+  chart: Pick<Chart, "type"> = { type: "column" }
+): string[] {
+  const l = chartQuickLayouts(chart)[n - 1];
   if (!l) return [];
+  const pie = chart.type === "pie" || chart.type === "doughnut";
   const out: string[] = [];
   if (l.title) out.push("chartTitle");
   if (l.legend && l.legend !== "none") out.push(`legend:${l.legend}`);
-  if (l.labels) out.push(`dataLabels:${l.labels}`);
+  if (l.labels) {
+    out.push(
+      l.lastOnly ? `dataLabelsLast:${l.labels}` : `dataLabels:${l.labels}`
+    );
+  }
   if (l.dataTable) out.push("dataTable");
+  if (pie) return out;
   if (l.categoryTitle) out.push("categoryAxisTitle");
   if (l.valueTitle) out.push("valueAxisTitle");
   if (l.categoryAxis !== false) out.push("categoryAxis");
   if (l.valueAxis !== false) out.push("valueAxis");
   if (l.gridlines) out.push("majorGridlines");
+  if (l.minorGridlines) out.push("minorGridlines");
   if (l.categoryGridlines) out.push("categoryGridlines");
   return out;
 }
 
-/** Apply Quick Layout `n` (1-based). */
+/** Apply Quick Layout `n` (1-based) of the chart's type. */
 export function applyChartQuickLayout(
   chart: Chart,
   n: number,
@@ -1196,7 +1510,7 @@ export function applyChartQuickLayout(
     axisTitle: "Axis Title",
   }
 ) {
-  const l = CHART_QUICK_LAYOUTS[n - 1];
+  const l = chartQuickLayouts(chart)[n - 1];
   if (!l) return;
   const axes = chartHasAxes(chart.type);
   if (l.title) chart.title = chart.title || labels.chartTitle;
@@ -1206,7 +1520,26 @@ export function applyChartQuickLayout(
   if (l.labels) {
     chart.dataLabels = true;
     applyChartElement(chart, "dataLabels", l.labels, labels);
-  } else chart.dataLabels = false;
+    const o = { ...chart.dataLabelOptions };
+    if (l.labelParts) {
+      o.showValue = !!l.labelParts.value;
+      o.showCategory = !!l.labelParts.category;
+      o.showPercent = !!l.labelParts.percent;
+    } else {
+      delete o.showCategory;
+      delete o.showPercent;
+      delete o.showValue;
+    }
+    if (l.lastOnly) o.lastPointOnly = true;
+    else delete o.lastPointOnly;
+    chart.dataLabelOptions = o;
+  } else {
+    chart.dataLabels = false;
+    if (chart.dataLabelOptions?.lastPointOnly) {
+      const { lastPointOnly, ...rest } = chart.dataLabelOptions;
+      chart.dataLabelOptions = rest;
+    }
+  }
   if (!axes) return;
   const axesVisible: Chart["axes"] = {};
   if (l.valueAxis === false) axesVisible.value = false;
@@ -1216,7 +1549,8 @@ export function applyChartQuickLayout(
   chart.gridlines = !!l.gridlines;
   if (l.categoryGridlines) chart.categoryGridlines = true;
   else delete chart.categoryGridlines;
-  delete chart.minorGridlines;
+  if (l.minorGridlines) chart.minorGridlines = true;
+  else delete chart.minorGridlines;
   delete chart.minorCategoryGridlines;
   if (l.valueTitle)
     chart.valueAxisTitle = chart.valueAxisTitle || labels.axisTitle;
@@ -1260,6 +1594,8 @@ export function chartSelectableElements(chart: Chart): string[] {
     if (!s.filtered) out.push(`series:${i}`);
   });
   out.push(...axisIds(v));
+  // shapes drawn in the chart, in their order (Excel lists them by name)
+  chart.shapes?.forEach((shape) => out.push(`shape:${shape.id}`));
   return out;
 }
 

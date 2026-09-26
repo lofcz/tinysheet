@@ -11,7 +11,19 @@
 import JSZip from "jszip";
 import { Chart, ChartAnchorPoint, Sheet } from "@lofcz/tinysheet-core";
 import { escapeXmlText as esc } from "./xml";
-import { chartToXml, NS_A, NS_C, NS_R, SheetsCtx } from "./chartXml";
+import {
+  chartToXml,
+  NS_A,
+  NS_C,
+  NS_R,
+  SheetsCtx,
+  USER_SHAPES_RID,
+} from "./chartXml";
+import {
+  chartUserShapesXml,
+  CT_CHART_SHAPES,
+  REL_USER_SHAPES,
+} from "./userShapes";
 import {
   chartExRequires,
   chartExToXml,
@@ -33,6 +45,10 @@ const REL_DRAWING =
 const CT_CHART =
   "application/vnd.openxmlformats-officedocument.drawingml.chart+xml";
 const CT_DRAWING = "application/vnd.openxmlformats-officedocument.drawing+xml";
+const REL_CHARTSHEET =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet";
+const CT_CHARTSHEET =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml";
 const EMU_PER_PX = 9525;
 const NS_MC = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 
@@ -150,6 +166,47 @@ function anchorXml(sheet: Sheet, chart: Chart, rid: string, shapeId: number) {
     )}</xdr:colOff><xdr:row>${r.index}</xdr:row><xdr:rowOff>${Math.round(
       r.offsetPx * EMU_PER_PX
     )}</xdr:rowOff></xdr:${tag}>`;
+  return `<xdr:twoCellAnchor editAs="${
+    EDIT_AS[chart.placement ?? "twoCell"]
+  }">${cell("from", a.from.col, a.from.row)}${cell(
+    "to",
+    a.to.col,
+    a.to.row
+  )}${chartFrameXml(chart, rid, shapeId)}<xdr:clientData/></xdr:twoCellAnchor>`;
+}
+
+/**
+ * The drawing of a chart sheet: its chart in one absolute anchor of the
+ * chart's page size (Excel's chartsheet drawing).
+ */
+function chartSheetDrawingXml(chart: Chart, rid: string) {
+  return (
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr xmlns:xdr="${NS_XDR}" xmlns:a="${NS_A}">` +
+    `<xdr:absoluteAnchor><xdr:pos x="0" y="0"/><xdr:ext cx="${Math.round(
+      chart.width * EMU_PER_PX
+    )}" cy="${Math.round(chart.height * EMU_PER_PX)}"/>${chartFrameXml(
+      chart,
+      rid,
+      2
+    )}<xdr:clientData/></xdr:absoluteAnchor></xdr:wsDr>`
+  );
+}
+
+/** A chart sheet part (xl/chartsheets/sheetN.xml). */
+function chartSheetXml(sheet: Sheet) {
+  const selected = sheet.status === 1 ? ' tabSelected="1"' : "";
+  const landscape = sheet.pageSetup?.orientation !== "portrait";
+  return (
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+    `<chartsheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${NS_R}">` +
+    `<sheetPr/><sheetViews><sheetView${selected} zoomToFit="1" workbookViewId="0"/></sheetViews>` +
+    `<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>` +
+    `<pageSetup orientation="${landscape ? "landscape" : "portrait"}"/>` +
+    `<drawing r:id="rId1"/></chartsheet>`
+  );
+}
+
+function chartFrameXml(chart: Chart, rid: string, shapeId: number) {
   const name = esc(chart.title?.trim() || `Chart ${shapeId}`);
   const ex = isChartExType(chart.type);
   const nv = `<xdr:nvGraphicFramePr><xdr:cNvPr id="${shapeId}" name="${name}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>`;
@@ -169,13 +226,7 @@ function anchorXml(sheet: Sheet, chart: Chart, rid: string, shapeId: number) {
       `<a:graphic><a:graphicData uri="${NS_C}"><c:chart xmlns:c="${NS_C}" xmlns:r="${NS_R}" r:id="${rid}"/></a:graphicData></a:graphic>` +
       `</xdr:graphicFrame>`;
   }
-  return `<xdr:twoCellAnchor editAs="${
-    EDIT_AS[chart.placement ?? "twoCell"]
-  }">${cell("from", a.from.col, a.from.row)}${cell(
-    "to",
-    a.to.col,
-    a.to.row
-  )}${frame}<xdr:clientData/></xdr:twoCellAnchor>`;
+  return frame;
 }
 // ---------------------------------------------------------------------------
 // Package plumbing
@@ -327,6 +378,10 @@ export async function addChartsToZip(
   let drawingNo = existing.filter((f) =>
     /^xl\/drawings\/drawing\d+\.xml$/.test(f)
   ).length;
+  let chartSheetNo = existing.filter((f) =>
+    /^xl\/chartsheets\/sheet\d+\.xml$/.test(f)
+  ).length;
+  let workbookRelsOut = workbookRels;
 
   const sheetTags = workbookXml.match(/<sheet\b[^>]*>/g) || [];
   // Parts are read and rewritten one sheet at a time on purpose: every
@@ -340,6 +395,61 @@ export async function addChartsToZip(
     const rel = wbRels.find((r) => r.id === rid);
     if (!sheet?.charts?.length || !rel) continue;
     const sheetPath = resolvePath("xl/workbook.xml", rel.target);
+    if (sheet.chartSheet) {
+      // a chart sheet: the worksheet exceljs wrote becomes a chartsheet
+      // part with a drawing holding the chart
+      const chart = sheet.charts[0];
+      chartNo += 1;
+      const file = `chart${chartNo}.xml`;
+      zip.file(`xl/charts/${file}`, chartToXml(ctx, chart));
+      types = addOverride(types, `xl/charts/${file}`, CT_CHART);
+      const userShapes = chartUserShapesXml(chart);
+      if (userShapes) {
+        drawingNo += 1;
+        const shapesPath = `xl/drawings/drawing${drawingNo}.xml`;
+        zip.file(shapesPath, userShapes);
+        types = addOverride(types, shapesPath, CT_CHART_SHAPES);
+        zip.file(
+          `xl/charts/_rels/${file}.rels`,
+          addRel(
+            null,
+            USER_SHAPES_RID,
+            REL_USER_SHAPES,
+            `../drawings/drawing${drawingNo}.xml`
+          )
+        );
+      }
+      drawingNo += 1;
+      const drawingPath = `xl/drawings/drawing${drawingNo}.xml`;
+      zip.file(drawingPath, chartSheetDrawingXml(chart, "rId1"));
+      zip.file(
+        relsPathFor(drawingPath),
+        addRel(null, "rId1", REL_CHART, `../charts/${file}`)
+      );
+      types = addOverride(types, drawingPath, CT_DRAWING);
+      chartSheetNo += 1;
+      const partPath = `xl/chartsheets/sheet${chartSheetNo}.xml`;
+      zip.file(partPath, chartSheetXml(sheet));
+      zip.file(
+        relsPathFor(partPath),
+        addRel(null, "rId1", REL_DRAWING, `../drawings/drawing${drawingNo}.xml`)
+      );
+      types = addOverride(types, partPath, CT_CHARTSHEET);
+      // the worksheet part goes
+      zip.remove(sheetPath);
+      zip.remove(relsPathFor(sheetPath));
+      types = types.replace(
+        new RegExp(
+          `<Override PartName="/${sheetPath.replace(/[.]/g, "\\.")}"[^>]*/>`
+        ),
+        ""
+      );
+      workbookRelsOut = workbookRelsOut.replace(
+        new RegExp(`<Relationship\\b[^>]*\\bId="${rid}"[^>]*/>`),
+        `<Relationship Id="${rid}" Type="${REL_CHARTSHEET}" Target="chartsheets/sheet${chartSheetNo}.xml"/>`
+      );
+      continue;
+    }
     const sheetRelsPath = relsPathFor(sheetPath);
     let sheetXml = await zip.file(sheetPath)?.async("string");
     if (!sheetXml) continue;
@@ -389,6 +499,23 @@ export async function addChartsToZip(
         file = `chart${chartNo}.xml`;
         zip.file(`xl/charts/${file}`, chartToXml(ctx, chart));
         types = addOverride(types, `xl/charts/${file}`, CT_CHART);
+        // shapes drawn in the chart: its own drawing part (c:userShapes)
+        const userShapes = chartUserShapesXml(chart);
+        if (userShapes) {
+          drawingNo += 1;
+          const shapesPath = `xl/drawings/drawing${drawingNo}.xml`;
+          zip.file(shapesPath, userShapes);
+          types = addOverride(types, shapesPath, CT_CHART_SHAPES);
+          zip.file(
+            `xl/charts/_rels/${file}.rels`,
+            addRel(
+              null,
+              USER_SHAPES_RID,
+              REL_USER_SHAPES,
+              `../drawings/drawing${drawingNo}.xml`
+            )
+          );
+        }
       }
       const chartRid = nextRid(drawingRels ?? "");
       drawingRels = addRel(
@@ -410,5 +537,8 @@ export async function addChartsToZip(
   }
   /* eslint-enable no-await-in-loop */
   zip.file("[Content_Types].xml", types);
+  if (workbookRelsOut !== workbookRels) {
+    zip.file("xl/_rels/workbook.xml.rels", workbookRelsOut);
+  }
   return true;
 }

@@ -501,3 +501,32 @@ html::-webkit-scrollbar-button {
   border: 0;
   white-space: nowrap;
 }
+
+/* A selected chart, shape, picture or slicer hides the cell selection and
+   the active cell (Excel); picking cells for a chart's Select Data dialog
+   shows them again. */
+.fortune-container[data-object-selected]:not(.fortune-chart-refedit)
+  .luckysheet-cell-selected,
+.fortune-container[data-object-selected]:not(.fortune-chart-refedit)
+  .luckysheet-cell-selected-focus {
+  visibility: hidden;
+}
+
+/* A chart sheet (Move Chart › New sheet): no grid, no scrolling; its
+   chart fills the window on the workbook's backdrop. */
+.fortune-container[data-chart-sheet] .fortune-sheet-canvas {
+  visibility: hidden;
+}
+
+.fortune-container[data-chart-sheet] .fortune-sheet-container {
+  background: var(--ts-surface-sunken, var(--ts-bg));
+}
+
+.fortune-container[data-chart-sheet] .luckysheet-scrollbars,
+.fortune-container[data-chart-sheet] .fortune-row-header,
+.fortune-container[data-chart-sheet] .fortune-col-header,
+.fortune-container[data-chart-sheet] .fortune-left-top,
+.fortune-container[data-chart-sheet] .luckysheet-cell-selected,
+.fortune-container[data-chart-sheet] .luckysheet-cell-selected-focus {
+  visibility: hidden;
+}

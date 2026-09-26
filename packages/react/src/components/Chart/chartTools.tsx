@@ -18,7 +18,11 @@ import {
   TrendingUp,
   Type,
 } from "lucide-react";
-import type { ChartElementFormat, ChartFormatKey } from "@lofcz/tinysheet-core";
+import type {
+  ChartEffects,
+  ChartElementFormat,
+  ChartFormatKey,
+} from "@lofcz/tinysheet-core";
 import {
   applyChartElement,
   Chart,
@@ -29,8 +33,11 @@ import {
   ChartElementName,
   ChartToolsLocale,
   chartToolsLocale,
+  chartShapeOf,
   Context,
   findChart,
+  hasEffects,
+  legacyShadowEffects,
   resolveChartModel,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
@@ -122,6 +129,8 @@ export function chartElementLabel(
     const name = model.series[Number(m[1])]?.name ?? "";
     return n.series.replace("{name}", name);
   }
+  const shape = chartShapeOf(chart, element);
+  if (shape) return shape.name ?? "Shape";
   switch (element) {
     case "title":
       return n.title;
@@ -451,6 +460,18 @@ const TEXT_KEYS: ChartFormatKey[] = [
 /** What the Format tab can change on an element. */
 export function elementCaps(element: string) {
   const series = /^series:\d+$/.test(element);
+  if (element.startsWith("shape:")) {
+    return {
+      series: false,
+      shape: true,
+      fill: true,
+      line: true,
+      text: true,
+      effects: true,
+      bevel: true,
+      preset: true,
+    };
+  }
   const lineOnly =
     element === "categoryAxis" ||
     element === "valueAxis" ||
@@ -463,8 +484,61 @@ export function elementCaps(element: string) {
     line: true,
     text:
       element === "chartArea" || TEXT_KEYS.includes(element as ChartFormatKey),
-    effects: element === "chartArea" || element === "plotArea" || series,
+    // Shape Effects: every element; presets and bevels need an area
+    // (Microsoft: "Preset, reflection, and bevel effects are not available
+    // for all chart elements")
+    effects: true,
+    bevel: !lineOnly,
+    preset:
+      series ||
+      element === "chartArea" ||
+      element === "plotArea" ||
+      element === "legend" ||
+      element === "title",
   };
+}
+
+/** The Shape Effects (or Text Effects) an element has now. */
+export function elementEffects(
+  c: Chart,
+  element: string,
+  text = false
+): ChartEffects | undefined {
+  const shape = chartShapeOf(c, element);
+  if (shape) return text ? undefined : shape.effects;
+  const m = /^series:(\d+)$/.exec(element);
+  if (m) {
+    const s = c.series[Number(m[1])];
+    if (text || !s) return undefined;
+    return s.effects ?? (s.shadow ? legacyShadowEffects() : undefined);
+  }
+  const key = (
+    text && element === "chartArea" ? "title" : element
+  ) as ChartFormatKey;
+  const f = c.formats?.[key];
+  if (!f) return undefined;
+  if (text) return f.textEffects;
+  return f.effects ?? (f.shadow ? legacyShadowEffects() : undefined);
+}
+
+/**
+ * Change an element's Shape Effects (or Text Effects): `recipe` gets a copy
+ * of the current effects; an empty result removes them.
+ */
+export function updateEffects(
+  c: Chart,
+  element: string,
+  text: boolean,
+  recipe: (e: ChartEffects) => ChartEffects | undefined
+) {
+  const current = { ...(elementEffects(c, element, text) ?? {}) };
+  const next = recipe(current);
+  const value = next && hasEffects(next) ? next : undefined;
+  if (text) {
+    setElementFormat(c, element, { textEffects: value });
+  } else {
+    setElementFormat(c, element, { effects: value, shadow: undefined });
+  }
 }
 
 /** Set part of an element's format (series: colour / outline). */
@@ -473,6 +547,36 @@ export function setElementFormat(
   element: string,
   patch: Partial<ChartElementFormat> & { shadow?: boolean }
 ) {
+  const shape = chartShapeOf(c, element);
+  if (shape) {
+    // a shape drawn in the chart keeps its own fill / outline / text
+    if ("fill" in patch) {
+      if (patch.fill === null) shape.fill = null;
+      else if (patch.fill) shape.fill = { color: patch.fill };
+      else delete shape.fill;
+    }
+    if ("line" in patch) {
+      if (patch.line === null) shape.line = null;
+      else if (patch.line)
+        shape.line = { ...(shape.line ?? { width: 1 }), color: patch.line };
+      else delete shape.line;
+    }
+    if ("effects" in patch) {
+      if (patch.effects) shape.effects = patch.effects;
+      else delete shape.effects;
+    }
+    if ("text" in patch && shape.text) {
+      shape.text = {
+        ...shape.text,
+        defaults: { ...shape.text.defaults, color: patch.text },
+        paragraphs: shape.text.paragraphs.map((p) => ({
+          ...p,
+          runs: p.runs.map((r) => ({ ...r, color: patch.text })),
+        })),
+      };
+    }
+    return;
+  }
   const m = /^series:(\d+)$/.exec(element);
   if (m) {
     const s = c.series[Number(m[1])];
@@ -490,12 +594,20 @@ export function setElementFormat(
       if (patch.shadow) s.shadow = true;
       else delete s.shadow;
     }
+    if ("effects" in patch) {
+      if (patch.effects) s.effects = patch.effects;
+      else delete s.effects;
+    }
     return;
   }
   if (!FORMAT_KEYS.includes(element as ChartFormatKey)) return;
   // text of the chart area: every text of the chart (Excel)
   const keys: ChartFormatKey[] =
-    element === "chartArea" && ("text" in patch || "textOutline" in patch)
+    element === "chartArea" &&
+    ("text" in patch ||
+      "textOutline" in patch ||
+      "textEffects" in patch ||
+      "wordArt" in patch)
       ? TEXT_KEYS
       : [element as ChartFormatKey];
   const formats = { ...(c.formats ?? {}) };

@@ -125,6 +125,8 @@ export type Shape = {
   text?: ShapeText;
   /** Group id: shapes with the same id form one group. */
   group?: string;
+  /** The group it was ungrouped from (Arrange › Group › Regroup). */
+  ungroupedFrom?: string;
 };
 
 /** A shape box in sheet pixels at 100% zoom (unrotated frame). */
@@ -499,11 +501,31 @@ export function selectShapes(ctx: Context, ids: string[], toggle = false) {
   if (ctx.editingShape && !ctx.activeShapes.includes(ctx.editingShape)) {
     ctx.editingShape = undefined;
   }
+  // charts grouped with the shapes come along; a chart selected before
+  // stays selected with Ctrl / Shift (modules/objects.ts)
+  const groups = new Set(
+    shapes
+      .filter((s) => picked.includes(s.id) && s.group)
+      .map((s) => s.group as string)
+  );
+  const groupCharts = (sheetOf(ctx)?.charts ?? [])
+    .filter((c) => c.group && groups.has(c.group))
+    .map((c) => c.id);
+  const charts = new Set<string>(toggle ? (ctx.selectedCharts ?? []) : []);
+  if (toggle && ctx.activeChart) charts.add(ctx.activeChart);
+  groupCharts.forEach((id) => charts.add(id));
+  ctx.selectedCharts = charts.size ? Array.from(charts) : undefined;
+  if (ctx.activeChart) {
+    ctx.activeChart = undefined;
+    ctx.chartElement = undefined;
+    ctx.chartEditorOpen = false;
+  }
 }
 
 export function clearShapeSelection(ctx: Context) {
   ctx.activeShapes = undefined;
   ctx.editingShape = undefined;
+  ctx.selectedCharts = undefined;
 }
 
 export type InsertShapeOptions = {

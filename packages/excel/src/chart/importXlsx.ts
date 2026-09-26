@@ -10,6 +10,8 @@
 import type {
   Chart,
   ChartDataLabelOptions,
+  ChartEffects,
+  ChartElementFormat,
   ChartErrorBars,
   ChartGrouping,
   ChartLegendPosition,
@@ -20,6 +22,7 @@ import type {
   ChartType,
 } from "@lofcz/tinysheet-core";
 import { child, children, find, findAll, parseXml, val, XmlNode } from "./xml";
+import { readEffects, readTextDecor } from "./effectsXml";
 
 export type ImportedChart = Omit<
   Chart,
@@ -241,6 +244,10 @@ type ReadSeries = ChartSeries & {
   lines?: boolean;
   showVal?: boolean;
   hiddenPoints?: number[];
+  /** The only labelled point (c:dLbl), when one is. */
+  lastLabel?: number;
+  /** Number of points (the values' cache). */
+  pointCount?: number;
 };
 
 /** Indices of the cells of `full` that `shown` (a union of parts) omits. */
@@ -296,20 +303,54 @@ function readSeries(
     const marker = shapeColor(child(ser, "marker", "spPr"), false);
     if (marker) series.color = marker;
   }
-  if (spPr && child(spPr, "ln", "noFill")) series.lines = false;
-  if (type === "column" || type === "bar" || type === "area") {
-    const outline = explicitColor(child(spPr, "ln", "solidFill"));
-    if (outline) series.outline = outline;
+  const lineLike = type === "line" || type === "scatter" || type === "radar";
+  if (lineLike && spPr && child(spPr, "ln", "noFill")) series.lines = false;
+  // outline of bars / slices / areas / bubbles: none (<a:ln><a:noFill/>)
+  // or an explicit colour; a theme colour keeps the default
+  const outlineOf = (sp: XmlNode | undefined) => {
+    if (!sp) return undefined;
+    if (child(sp, "ln", "noFill")) return null;
+    return explicitColor(child(sp, "ln", "solidFill"));
+  };
+  if (!lineLike && type !== "stock") {
+    const outline = outlineOf(spPr);
+    if (outline !== undefined) series.outline = outline;
   }
+  const effects = readEffects(spPr);
+  if (effects) series.effects = effects;
 
   const points: string[] = [];
+  const pointOutlines: Record<number, string | null> = {};
   children(ser, "dPt").forEach((dPt) => {
     const idx = parseInt(val(dPt, "idx") ?? "", 10);
+    if (!Number.isFinite(idx)) return;
     const c = shapeColor(child(dPt, "spPr"), false);
-    if (Number.isFinite(idx) && c) points[idx] = c;
+    if (c) points[idx] = c;
+    if (!lineLike) {
+      const line = outlineOf(child(dPt, "spPr"));
+      if (line !== undefined && line !== series.outline) {
+        pointOutlines[idx] = line;
+      }
+    }
   });
+  if (Object.keys(pointOutlines).length) series.pointOutlines = pointOutlines;
   if (points.length) {
     series.pointColors = Array.from(points, (p) => p ?? "");
+  }
+
+  // labels on one point only (Quick Layout 6: the last category)
+  const serLabels = child(ser, "dLbls");
+  const pointLabels = children(serLabels, "dLbl").filter(anyLabelShown);
+  if (pointLabels.length === 1 && !anyLabelShown(serLabels)) {
+    series.lastLabel = parseInt(val(pointLabels[0], "idx") ?? "-1", 10);
+    const values = child(ser, "val") ?? child(ser, "yVal");
+    const count = parseInt(
+      val(values, "numRef", "numCache", "ptCount") ??
+        val(values, "numLit", "ptCount") ??
+        "",
+      10
+    );
+    if (Number.isFinite(count)) series.pointCount = count;
   }
 
   const symbol = val(ser, "marker", "symbol");
@@ -378,15 +419,30 @@ function legendPosition(chart: XmlNode): ChartLegendPosition {
   }
 }
 
+/**
+ * Format Axis › Number: an own format code (sourceLinked="0"); linked to
+ * source (the default) keeps nothing, the cells' formats apply.
+ */
+function axisNumberFormat(axis: XmlNode | undefined) {
+  const fmt = child(axis, "numFmt");
+  const code = fmt?.attrs.formatCode;
+  if (!fmt || !code || fmt.attrs.sourceLinked !== "0") return undefined;
+  return { numberFormat: code, sourceLinked: false };
+}
+
 function axisBounds(axis: XmlNode | undefined) {
   const min = numberVal(axis, "scaling", "min");
   const max = numberVal(axis, "scaling", "max");
   const majorUnit = numberVal(axis, "majorUnit");
-  if (min == null && max == null && majorUnit == null) return undefined;
+  const format = axisNumberFormat(axis);
+  if (min == null && max == null && majorUnit == null && !format) {
+    return undefined;
+  }
   return {
     ...(min != null ? { min } : {}),
     ...(max != null ? { max } : {}),
     ...(majorUnit != null ? { majorUnit } : {}),
+    ...format,
   };
 }
 
@@ -516,7 +572,25 @@ export function importChartXml(
   }
 
   let showVal = used.some((g) => isTrue(val(g, "dLbls", "showVal"), false));
-  const groupLabels = used.map((g) => child(g, "dLbls")).find(anyLabelShown);
+  let groupLabels = used.map((g) => child(g, "dLbls")).find(anyLabelShown);
+  // every series labelled on its last point only
+  const lastOnly =
+    !showVal &&
+    !groupLabels &&
+    all.length > 0 &&
+    all.every(
+      (s) =>
+        s.lastLabel != null &&
+        s.lastLabel >= 0 &&
+        s.lastLabel === (s.pointCount ?? s.lastLabel + 1) - 1
+    );
+  if (lastOnly) {
+    const ser0 = used
+      .flatMap((g) => children(g, "ser"))
+      .map((x) => children(child(x, "dLbls"), "dLbl").find(anyLabelShown))
+      .find(Boolean);
+    groupLabels = ser0;
+  }
   let markersSeen = false;
   let anyMarker = false;
   let anyLines = false;
@@ -530,13 +604,20 @@ export function importChartXml(
     delete clean.lines;
     delete clean.showVal;
     delete clean.hiddenPoints;
+    delete clean.lastLabel;
+    delete clean.pointCount;
     out.series.push(clean);
   });
   const hiddenCats = all.find((s) => s.hiddenPoints?.length)?.hiddenPoints;
   if (hiddenCats) out.hiddenCategories = hiddenCats;
   if (showVal || groupLabels) out.dataLabels = true;
   const labelOptions = readLabelOptions(groupLabels);
-  if (labelOptions) out.dataLabelOptions = labelOptions;
+  if (labelOptions || lastOnly) {
+    out.dataLabelOptions = {
+      ...labelOptions,
+      ...(lastOnly ? { lastPointOnly: true } : {}),
+    };
+  }
 
   if (type === "line" || type === "combo") {
     const lineGroup = used.find((g) => g.name.startsWith("line")) ?? first;
@@ -598,6 +679,8 @@ export function importChartXml(
   const valTitle = axisTitle(valueAxis);
   if (catTitle) out.categoryAxisTitle = catTitle;
   if (valTitle) out.valueAxisTitle = valTitle;
+  const catFormat = axisNumberFormat(categoryAxis);
+  if (catFormat) out.categoryAxisFormat = catFormat;
   if (type !== "pie" && type !== "doughnut") {
     out.gridlines = !!child(valueAxis, "majorGridlines");
     const bounds = axisBounds(valueAxis);
@@ -621,6 +704,17 @@ export function importChartXml(
   return out;
 }
 
+/** Text outline and Text Effects of a `c:txPr` / title's first run. */
+function textDecor(node: XmlNode | undefined) {
+  if (!node) return {};
+  const props = [...findAll(node, "rPr"), ...findAll(node, "defRPr")];
+  for (const p of props) {
+    const decor = readTextDecor(p);
+    if (Object.keys(decor).length) return decor;
+  }
+  return {};
+}
+
 /** The text colour of a `c:txPr` / title run, if any. */
 function textColor(node: XmlNode | undefined) {
   if (!node) return undefined;
@@ -633,10 +727,16 @@ function textColor(node: XmlNode | undefined) {
   return undefined;
 }
 
-/** Fill / outline of a `c:spPr` (undefined when not set). */
+/** Fill / outline / effects of a `c:spPr` (undefined when not set). */
 function shapeFormat(spPr: XmlNode | undefined) {
   if (!spPr) return undefined;
-  const out: { fill?: string | null; line?: string | null } = {};
+  const out: {
+    fill?: string | null;
+    line?: string | null;
+    effects?: ChartEffects;
+  } = {};
+  const effects = readEffects(spPr);
+  if (effects) out.effects = effects;
   if (child(spPr, "noFill")) out.fill = null;
   else {
     const fill = explicitColor(child(spPr, "solidFill"));
@@ -694,7 +794,7 @@ function readElements(
   const formats: NonNullable<ImportedChart["formats"]> = {};
   const set = (
     key: keyof NonNullable<ImportedChart["formats"]>,
-    f: { fill?: string | null; line?: string | null; text?: string } | undefined
+    f: ChartElementFormat | undefined
   ) => {
     if (f && Object.keys(f).length) formats[key] = { ...formats[key], ...f };
   };
@@ -704,6 +804,7 @@ function readElements(
     set("title", {
       ...shapeFormat(child(titleNode, "spPr")),
       ...text(textColor(child(titleNode, "tx"))),
+      ...textDecor(child(titleNode, "tx")),
     });
   }
   const legend = child(chart, "legend");
@@ -711,6 +812,7 @@ function readElements(
     set("legend", {
       ...shapeFormat(child(legend, "spPr")),
       ...text(textColor(child(legend, "txPr"))),
+      ...textDecor(child(legend, "txPr")),
     });
   }
   (
@@ -720,16 +822,18 @@ function readElements(
     ] as const
   ).forEach(([key, axis]) => {
     if (!axis) return;
-    const line = shapeFormat(child(axis, "spPr"))?.line;
+    const shape = shapeFormat(child(axis, "spPr"));
     set(key, {
-      ...(line ? { line } : {}),
+      ...(shape?.line ? { line: shape.line } : {}),
+      ...(shape?.effects ? { effects: shape.effects } : {}),
       ...text(textColor(child(axis, "txPr"))),
+      ...textDecor(child(axis, "txPr")),
     });
-    const titleColor = textColor(child(axis, "title", "tx"));
-    if (titleColor)
-      set(key === "categoryAxis" ? "categoryAxisTitle" : "valueAxisTitle", {
-        text: titleColor,
-      });
+    const titleTx = child(axis, "title", "tx");
+    set(key === "categoryAxis" ? "categoryAxisTitle" : "valueAxisTitle", {
+      ...text(textColor(titleTx)),
+      ...textDecor(titleTx),
+    });
   });
   const gridLine = shapeFormat(
     child(valueAxis, "majorGridlines", "spPr")
@@ -749,5 +853,6 @@ function readChartAreaFormat(root: XmlNode) {
   if (!f) return undefined;
   if (f.fill === "#FFFFFF") delete f.fill;
   if (f.line === "#D9D9D9") delete f.line;
+  if (!f.effects) delete f.effects;
   return Object.keys(f).length ? f : undefined;
 }

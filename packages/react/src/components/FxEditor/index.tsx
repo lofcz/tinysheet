@@ -23,6 +23,8 @@ import {
   updateCell,
   setCaretOffset,
   getCaretOffset,
+  onChartSheet,
+  objectSelected,
 } from "@lofcz/tinysheet-core";
 import React, {
   useContext,
@@ -108,7 +110,11 @@ const FxEditor: React.FC = () => {
     }
     const d = getFlowdata(context);
     let value = "";
-    if (firstSelection) {
+    if (objectSelected(context)) {
+      // a selected chart or shape: Excel's formula bar shows no cell
+      refs.fxInput.current!.innerHTML = "";
+      setSpilledFormula(null);
+    } else if (firstSelection) {
       const r = firstSelection.row_focus;
       const c = firstSelection.column_focus;
       if (_.isNil(r) || _.isNil(c)) return;
@@ -140,6 +146,7 @@ const FxEditor: React.FC = () => {
     context.luckysheetfile,
     context.currentSheetId,
     context.luckysheet_select_save,
+    objectSelected(context),
     // a cancelled edit (Esc, ✕) shows the cell's content again
     context.luckysheetCellUpdate.length > 0,
   ]);
@@ -275,6 +282,10 @@ const FxEditor: React.FC = () => {
     if (context.allowEdit === false) {
       return false;
     }
+    // a chart sheet has no cells (only a selected series' formula)
+    if (onChartSheet(context) || objectSelected(context)) {
+      return false;
+    }
     if (isHidenRC) {
       return false;
     }
@@ -289,6 +300,7 @@ const FxEditor: React.FC = () => {
     context.luckysheetfile,
     context.currentSheetId,
     isHidenRC,
+    objectSelected(context),
   ]);
 
   const { showModal, hideModal } = useContext(ModalContext);

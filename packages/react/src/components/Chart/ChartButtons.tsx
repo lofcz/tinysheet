@@ -8,16 +8,19 @@
  *   and Names; Select Data… opens the Select Data Source dialog.
  */
 import React, { useContext, useMemo, useRef, useState } from "react";
-import { ChevronRight, Filter, Paintbrush, Plus } from "lucide-react";
+import { ChevronRight, Filter, Paintbrush, Pencil, Plus } from "lucide-react";
 import {
   Chart,
   CHART_STYLES,
   chartElementAvailable,
   chartElementShown,
   ChartElementName,
+  chartNameSources,
   chartToolsLocale,
   findChart,
+  indexToColumnChar,
   resolveChartModel,
+  setChartNameSource,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import {
@@ -393,6 +396,67 @@ const FiltersFlyout: React.FC<{
     });
   };
   const xy = chart.type === "scatter" || chart.type === "bubble";
+  const sources = chartNameSources(chart);
+  const lineLabel = (kind: "row" | "column", line: number) =>
+    kind === "row"
+      ? t.buttons.rowN.replace("{n}", String(line + 1))
+      : t.buttons.columnN.replace("{n}", indexToColumnChar(line));
+  /** Names tab: where the names come from ("Row 1", "(None)"). */
+  const sourcePicker = (which: "series" | "categories") => {
+    const source = sources?.[which];
+    if (!source) return null;
+    // a native list: it opens inside the flyout without closing it
+    return (
+      <select
+        className="fortune-chart-filters-source"
+        aria-label={
+          which === "series" ? t.buttons.seriesNames : t.buttons.categoryNames
+        }
+        disabled={readonly}
+        value={source.current == null ? "none" : String(source.current)}
+        onChange={(e) => {
+          const v = e.target.value;
+          setContext((ctx) => {
+            const f = findChart(ctx, chart.id);
+            if (f) {
+              setChartNameSource(
+                f.chart,
+                which,
+                v === "none" ? null : Number(v)
+              );
+            }
+          });
+        }}
+      >
+        {source.options.map((line) => (
+          <option key={line} value={String(line)}>
+            {lineLabel(source.kind, line)}
+          </option>
+        ))}
+        <option value="none">{t.buttons.none}</option>
+      </select>
+    );
+  };
+  /** The pencil of a series row (Excel: Edit Series on hover). */
+  const editButton = (i: number) =>
+    !readonly && (
+      <button
+        type="button"
+        className="fortune-chart-filters-edit"
+        aria-label={`${t.buttons.editSeries}: ${model.series[i]?.name ?? ""}`}
+        title={t.buttons.editSeries}
+        onClick={() => {
+          onDone();
+          openChartDialog({
+            kind: "selectData",
+            chartId: chart.id,
+            editSeries: i,
+          });
+        }}
+      >
+        <Pencil size={14} aria-hidden />
+      </button>
+    );
   return (
     <div className="fortune-chart-filters" data-testid="chart-filters">
       <Tabs
@@ -408,7 +472,10 @@ const FiltersFlyout: React.FC<{
       />
       <div className="fortune-chart-filters-body">
         <div className="fortune-chart-filters-section">
-          <div className="fortune-chart-flyout-title">{t.buttons.series}</div>
+          <div className="fortune-chart-flyout-title">
+            {t.buttons.series}
+            {tab === "names" && sourcePicker("series")}
+          </div>
           {tab === "values" && (
             <Checkbox
               checked={all(series)}
@@ -450,6 +517,7 @@ const FiltersFlyout: React.FC<{
                   {s.name}
                 </span>
               )}
+              {editButton(i)}
             </div>
           ))}
         </div>
@@ -457,6 +525,7 @@ const FiltersFlyout: React.FC<{
           <div className="fortune-chart-filters-section">
             <div className="fortune-chart-flyout-title">
               {t.buttons.categories}
+              {tab === "names" && sourcePicker("categories")}
             </div>
             {tab === "values" && (
               <Checkbox

@@ -1,4 +1,5 @@
-﻿import {
+﻿import { readChartUserShapes } from "../chart/userShapes";
+import {
   IfortuneImageBorder,
   IfortuneImageCrop,
   IfortuneImageDefault,
@@ -635,6 +636,53 @@ export class FortuneSheet extends FortuneSheetBase {
     }
   }
 
+  /**
+   * A chartsheet part (xl/chartsheets/sheetN.xml): its drawing's chart and
+   * the size of its absolute anchor (px), or null.
+   */
+  importChartSheet(
+    partFile: string
+  ): { chart: ImportedChart; width: number; height: number } | null {
+    const slash = partFile.lastIndexOf("/");
+    const relsFile = `${partFile.slice(0, slash)}/_rels/${partFile.slice(
+      slash + 1
+    )}.rels`;
+    const drawing = this.readXml.getElementsByTagName("drawing", partFile);
+    const drawingRid =
+      drawing && drawing.length > 0
+        ? getXmlAttibute(drawing[0].attributeList, "r:id", null)
+        : null;
+    const drawingRel = this.getRelationshipByRid(drawingRid, relsFile);
+    const drawingFile = drawingRel
+      ? this.normalizeRelationshipTarget(drawingRel.target)
+      : null;
+    if (!drawingFile) return null;
+    const drawingRelsFile = drawingFile.replace(/([^/]+)$/, "_rels/$1.rels");
+    const charts = this.readXml.getElementsByTagName("c:chart", drawingFile);
+    const chartRid =
+      charts && charts.length > 0
+        ? getXmlAttibute(charts[0].attributeList, "r:id", null)
+        : null;
+    const chartRel = this.getRelationshipByRid(chartRid, drawingRelsFile);
+    const chartFile = chartRel
+      ? this.normalizeRelationshipTarget(chartRel.target)
+      : null;
+    if (!chartFile) return null;
+    const chart = this.buildLiveChart(chartFile);
+    if (!chart) return null;
+    const ext = this.readXml.getElementsByTagName("xdr:ext", drawingFile);
+    const emu = (name: string, fallback: number) => {
+      const v = parseInt(
+        ext && ext.length > 0
+          ? getXmlAttibute(ext[0].attributeList, name, "")
+          : "",
+        10
+      );
+      return Number.isFinite(v) && v > 0 ? Math.round(v / 9525) : fallback;
+    };
+    return { chart, width: emu("cx", 864), height: emu("cy", 624) };
+  }
+
   /** Supported chart types become live chart objects (see chart/importXlsx). */
   private buildLiveChart(chartFile: string): ImportedChart | null {
     let spaces = this.readXml.getElementsByTagName("c:chartSpace", chartFile);
@@ -646,13 +694,43 @@ export class FortuneSheet extends FortuneSheetBase {
       id: String(this.sheetList[name]),
     }));
     try {
-      return importChartXml(spaces[0].elementString, {
+      const chart = importChartXml(spaces[0].elementString, {
         resolveRange: (ref) =>
           parseChartRange({ luckysheetfile: sheets as any }, ref, this.id),
       });
+      if (chart) {
+        // shapes drawn in the chart (its c:userShapes drawing part)
+        const shapes = this.readChartShapes(chartFile, spaces[0].elementString);
+        if (shapes.length) chart.shapes = shapes;
+      }
+      return chart;
     } catch (e) {
       return null;
     }
+  }
+
+  /** The chart drawing part of a chart (Format › Insert Shapes). */
+  private readChartShapes(chartFile: string, chartXml: string) {
+    const rid = /<c:userShapes\b[^>]*r:id="([^"]+)"/.exec(chartXml)?.[1];
+    if (!rid) return [];
+    const slash = chartFile.lastIndexOf("/");
+    const dir = chartFile.slice(0, slash);
+    const rels = this.readXml.getFileText(
+      `${dir}/_rels/${chartFile.slice(slash + 1)}.rels`
+    );
+    const tag = (rels?.match(/<Relationship\b[^>]*>/g) || []).find((t) =>
+      t.includes(`Id="${rid}"`)
+    );
+    const target = tag && /\bTarget="([^"]*)"/.exec(tag)?.[1];
+    if (!target) return [];
+    const parts = dir.split("/");
+    target.split("/").forEach((seg) => {
+      if (seg === "..") parts.pop();
+      else if (seg && seg !== ".") parts.push(seg);
+    });
+    const path = target.startsWith("/") ? target.slice(1) : parts.join("/");
+    const xml = this.readXml.getFileText(path);
+    return xml ? readChartUserShapes(xml) : [];
   }
 
   private addChartObject(anchor: Element, chart: ImportedChart) {

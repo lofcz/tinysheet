@@ -35,6 +35,7 @@ import {
   ungroupShapes,
   unionBox,
   updateShapes,
+  moveObjects,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import ShapeView from "./ShapeView";
@@ -97,7 +98,7 @@ const RUN_KEYS: Record<string, "b" | "i" | "u"> = {
 
 /** Clicks on these keep the shape selection. */
 const OUTSIDE_SELECTORS =
-  ".fortune-shape, .fortune-shape-frame, .fortune-shape-format, .fortune-shape-menu, .fortune-toolbar, .ts-popover, .fortune-side-slot";
+  ".fortune-shape, .fortune-shape-frame, .fortune-shape-format, .fortune-shape-menu, .fortune-toolbar, .fortune-ribbon, .fortune-chart-box, .ts-popover, .fortune-side-slot";
 
 /** Icons of the shape menu entries (ContextMenu/icons names). */
 const SHAPE_MENU_ICONS: Record<string, string> = {
@@ -448,6 +449,16 @@ const ShapeLayer: React.FC = () => {
             if (patch.box) boxes[id] = patch.box;
           });
           setShapeBoxes(ctx, boxes);
+          // charts selected with the shapes (or grouped with them) move too
+          const moved = Object.keys(boxes)[0];
+          if (d.mode === "move" && moved && ctx.selectedCharts?.length) {
+            moveObjects(
+              ctx,
+              ctx.selectedCharts.map((id) => ({ kind: "chart", id })),
+              boxes[moved].left - d.boxes[moved].left,
+              boxes[moved].top - d.boxes[moved].top
+            );
+          }
           Object.entries(done).forEach(([id, patch]) => {
             updateShapes(ctx, [id], (s) => {
               if (patch.rot != null) {

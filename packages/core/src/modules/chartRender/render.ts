@@ -11,8 +11,6 @@ import {
   layoutCategoryFrame,
   layoutXYFrame,
   makeValueAxis,
-  SHADOW_ATTR,
-  SHADOW_DEFS,
   tagged,
   CategoryFrame,
 } from "./frame";
@@ -55,9 +53,20 @@ import {
   svgText,
   TITLE_SIZE,
   truncateText,
+  labelVisible,
 } from "./svg";
 import { chartThemes } from "./theme";
+import {
+  ChartReflection,
+  chartAreaSvgEffects,
+  effectDefs,
+  effectsAttr,
+  legacyShadowEffects,
+} from "./effects";
 import type {
+  ChartElementFormat,
+  ChartFormatKey,
+  ChartFormats,
   ChartRenderModel,
   ChartRenderSeries,
   ChartSeriesType,
@@ -72,15 +81,106 @@ type LegendItem = { label: string; color: string; kind: LegendKind };
 
 const DOUGHNUT_HOLE = 0.5;
 
+/** The filter of a series' Shape Effects (the old shadow flag too). */
+function seriesFx(s: ChartRenderSeries) {
+  return effectsAttr(s.effects ?? (s.shadow ? legacyShadowEffects() : null));
+}
+
+/** Shape effects of a formatted element (the old shadow flag too). */
+function elementFx(f: ChartElementFormat | undefined) {
+  return effectsAttr(f?.effects ?? (f?.shadow ? legacyShadowEffects() : null));
+}
+
+/**
+ * The Format tab on the drawn elements: shape effects on each element's
+ * group, and its text outline and text effects on its texts.
+ */
+function decorateElements(body: string, formats: ChartFormats) {
+  let out = body;
+  (Object.keys(formats) as ChartFormatKey[]).forEach((key) => {
+    const f = formats[key];
+    if (!f) return;
+    if (key === "chartArea") {
+      const fx = effectsAttr(
+        chartAreaSvgEffects(
+          f.effects ?? (f.shadow ? legacyShadowEffects() : null)
+        )
+      );
+      if (fx) {
+        out = out.replace(
+          ' data-chart-el="chartArea"',
+          `${fx} data-chart-el="chartArea"`
+        );
+      }
+      return;
+    }
+    // the plot area's rect carries its effects (frame.ts)
+    if (key === "plotArea") return;
+    const groupFx = elementFx(f);
+    let textAttr = effectsAttr(f.textEffects);
+    if (f.textOutline) {
+      textAttr += ` stroke="${escapeXml(
+        f.textOutline
+      )}" stroke-width="0.75" paint-order="stroke"`;
+    }
+    const reflection = f.textEffects?.reflection;
+    if (!groupFx && !textAttr && !reflection) return;
+    const re = new RegExp(`<g data-chart-el="${key}"([^>]*)>([\\s\\S]*?)</g>`);
+    out = out.replace(re, (_m, attrs: string, inner: string) => {
+      let body = textAttr
+        ? inner.replace(/<text /g, `<text${textAttr} `)
+        : inner;
+      if (reflection) body += reflectTexts(body, reflection);
+      return `<g data-chart-el="${key}"${attrs}${groupFx}>${body}</g>`;
+    });
+  });
+  return out;
+}
+
+/**
+ * Text Effects › Reflection: a faded mirror image of each (unrotated) text
+ * below its baseline.
+ */
+function reflectTexts(body: string, r: ChartReflection) {
+  const out: string[] = [];
+  const dist = (r.dist ?? 0) * (96 / 72);
+  const opacity = 0.45 * (1 - (r.transparency ?? 0.5)) * (r.size ?? 0.5) * 2;
+  body.replace(/<text ([^>]*)>([^<]*)<\/text>/g, (m, attrs: string) => {
+    if (/transform=/.test(attrs)) return m;
+    const y = /\by="([\d.-]+)"/.exec(attrs);
+    if (!y) return m;
+    const base = Number(y[1]) + dist + 2;
+    out.push(
+      m.replace(
+        "<text ",
+        `<text transform="matrix(1 0 0 -1 0 ${
+          Math.round(base * 2 * 100) / 100
+        })" opacity="${Math.round(Math.min(0.6, opacity) * 100) / 100}" aria-hidden="true" `
+      )
+    );
+    return m;
+  });
+  return out.join("");
+}
+
 /** Element id of a series (its index in the chart). */
 function seriesEl(s: ChartRenderSeries, fallback: number) {
   return `series:${s.index ?? fallback}`;
 }
 
-/** ` stroke=…` of a series outline (none unless formatted). */
-function outlineAttr(s: ChartRenderSeries) {
-  if (!s.outline) return "";
-  return ` stroke="${escapeXml(s.outline)}" stroke-width="1"`;
+/** Outline of point `i` of a series: the point's own, else the series'. */
+function pointOutline(s: ChartRenderSeries, i?: number) {
+  if (i != null && s.pointOutlines && i in s.pointOutlines) {
+    return s.pointOutlines[i];
+  }
+  return s.outline;
+}
+
+/** ` stroke=…` of a series (point) outline (none unless formatted). */
+function outlineAttr(s: ChartRenderSeries, i?: number) {
+  const line = pointOutline(s, i);
+  if (!line) return "";
+  return ` stroke="${escapeXml(line)}" stroke-width="1"`;
 }
 
 const CATEGORY_TYPES: ChartType[] = ["column", "bar", "line", "area", "combo"];
@@ -508,13 +608,20 @@ function renderCategory(
   const hasSecondary = groups.some((g) => g.secondary);
   const fixExt = (e: number[]) => (Number.isFinite(e[0]) ? e : [0, 1]);
   const [pmin, pmax] = fixExt(ext.p);
-  const primary = makeValueAxis(pmin, pmax, model.valueAxis, percent);
+  const primary = makeValueAxis(
+    pmin,
+    pmax,
+    model.valueAxis,
+    percent,
+    model.axisFormats?.value
+  );
   const secondary = hasSecondary
     ? makeValueAxis(
         fixExt(ext.s)[0],
         fixExt(ext.s)[1],
         model.secondaryValueAxis,
-        percent
+        percent,
+        model.axisFormats?.secondary
       )
     : undefined;
   const labels: string[] = [];
@@ -632,9 +739,13 @@ function renderCategory(
                 height: Math.abs(p2 - p1),
               };
           marks.push(
-            rect(r, color, fillExtra(style, style.barRadius) + outlineAttr(s))
+            rect(
+              r,
+              color,
+              fillExtra(style, style.barRadius) + outlineAttr(s, i)
+            )
           );
-          if (model.dataLabels) {
+          if (model.dataLabels && labelVisible(model, s, i)) {
             const raw = s.values[i] as number;
             const place = barLabelPlace(
               r,
@@ -676,7 +787,7 @@ function renderCategory(
             },
             tc
           );
-        out.push(tagged(seriesEl(s, si), marks, s.shadow ? SHADOW_ATTR : ""));
+        out.push(tagged(seriesEl(s, si), marks, seriesFx(s)));
       });
       return;
     }
@@ -757,12 +868,12 @@ function renderCategory(
           }
         }
       }
-      out.push(tagged(seriesEl(s, si), marks, s.shadow ? SHADOW_ATTR : ""));
+      out.push(tagged(seriesEl(s, si), marks, seriesFx(s)));
       if (model.dataLabels) {
         for (let i = 0; i < count; i += 1) {
           const span = spans[i];
           const raw = s.values[i];
-          if (!span || !finite(raw)) continue;
+          if (!span || !finite(raw) || !labelVisible(model, s, i)) continue;
           const place = pointLabelPlace(xAt(i), vPos(span[1]), opts.position);
           dataLabels.push(
             svgText(place.x, place.y, dataLabelText(model, s, i, raw), {
@@ -966,8 +1077,14 @@ function renderXY(
     ymax = 1;
   }
   const frame = layoutXYFrame(area, theme, {
-    x: makeValueAxis(xmin, xmax),
-    y: makeValueAxis(ymin, ymax, model.valueAxis),
+    x: makeValueAxis(xmin, xmax, undefined, false, model.axisFormats?.category),
+    y: makeValueAxis(
+      ymin,
+      ymax,
+      model.valueAxis,
+      false,
+      model.axisFormats?.value
+    ),
     xTitle: model.categoryAxisTitle,
     yTitle: model.valueAxisTitle,
     gridlines: model.gridlines,
@@ -1043,9 +1160,10 @@ function renderXY(
         });
       }
     }
-    out.push(tagged(seriesEl(s, si), marks, s.shadow ? SHADOW_ATTR : ""));
+    out.push(tagged(seriesEl(s, si), marks, seriesFx(s)));
     if (model.dataLabels) {
       pts.forEach(([x, y, i]) => {
+        if (!labelVisible(model, s, i)) return;
         const place = pointLabelPlace(
           x,
           y,
@@ -1156,11 +1274,12 @@ function renderPie(
     if (total <= 0) return;
     let angle = -Math.PI / 2;
     const slices: string[] = [];
-    const sliceLine = s.outline === undefined ? outline : s.outline;
     s.values.forEach((v, i) => {
       if (!finite(v) || v === 0) return;
       const sweep = (Math.abs(v) / total) * Math.PI * 2;
       const color = pointColor(s, i);
+      const own = pointOutline(s, i);
+      const sliceLine = own === undefined ? outline : own;
       slices.push(
         `<path d="${arcPath(
           cx,
@@ -1173,7 +1292,7 @@ function renderPie(
           sliceLine ?? "none"
         )}" stroke-width="${outlineW}"/>`
       );
-      if (model.dataLabels) {
+      if (model.dataLabels && labelVisible(model, s, i)) {
         const mid = angle + sweep / 2;
         let lr = doughnut ? (r0 + r1) / 2 : radius * 0.65;
         if (!doughnut && opts.position === "center") lr = radius * 0.5;
@@ -1201,7 +1320,7 @@ function renderPie(
       }
       angle += sweep;
     });
-    out.push(tagged(seriesEl(s, ri), slices, s.shadow ? SHADOW_ATTR : ""));
+    out.push(tagged(seriesEl(s, ri), slices, seriesFx(s)));
   });
   out.push(...labels);
 }
@@ -1245,6 +1364,13 @@ function visibleModel(model: ChartRenderModel): ChartRenderModel {
       labels: keep(s.labels),
       xValues: keep(s.xValues),
       pointColors: keep(s.pointColors),
+      pointOutlines: s.pointOutlines
+        ? Object.fromEntries(
+            Object.entries(s.pointOutlines)
+              .map(([k, v]) => [newIndex[Number(k)], v] as const)
+              .filter(([k]) => k != null && k >= 0)
+          )
+        : undefined,
       sizes: keep(s.sizes),
       connect: keep(s.connect),
       errorBars: s.errorBars
@@ -1322,12 +1448,7 @@ export function renderChartSvg(
         anchor: "middle",
         weight: model.style?.titleBold ? "700" : undefined,
         family: theme.fontFamily,
-      }).replace(
-        "<text ",
-        f?.textOutline
-          ? `<text stroke="${escapeXml(f.textOutline)}" stroke-width="0.6" `
-          : "<text "
-      )
+      })
     );
     out.push(tagged("title", titleOut));
     if (!model.titleOverlay) {
@@ -1358,11 +1479,10 @@ export function renderChartSvg(
     else renderPie(model, area, theme, out);
   }
 
-  if (out.some((part) => part.includes(SHADOW_ATTR))) out.unshift(SHADOW_DEFS);
+  let body = decorateElements(out.join(""), formats);
+  body = effectDefs(body) + body;
   const label = escapeXml(title || model.type);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}">${out.join(
-    ""
-  )}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}">${body}</svg>`;
 }
 
 export type { CategoryFrame };
