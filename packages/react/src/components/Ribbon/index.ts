@@ -25,6 +25,8 @@ export type {
   FileMenuHelpers,
 } from "./registry";
 export { defaultRibbon, quickAccessItems } from "./tabs";
+export { registerContextualTabs, activateRibbonTab } from "./contextual";
+export type { ContextualTabSet } from "./contextual";
 export { resolveRibbon } from "./layout";
 export {
   useRibbonCommandHelpers,

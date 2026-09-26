@@ -59,6 +59,7 @@ export * from "./pivot";
 export * from "./tableFilter";
 export * from "./chart";
 export * from "./chartRender";
+export * from "./chartData";
 export * from "./sparkline";
 export * from "./sparklineRender";
 export * from "./shapes";

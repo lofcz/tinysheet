@@ -85,7 +85,9 @@ describe("chart ranges", () => {
     });
     expect(parseChartRange(ctx, "B:B", "s1").column).toEqual([1, 1]);
     expect(parseChartRange(ctx, "Nope!A1", "s1")).toBeNull();
-    expect(parseChartRange(ctx, "A1,B2", "s1")).toBeNull();
+    // unions (non-contiguous references) are supported
+    expect(parseChartRange(ctx, "A1,B2", "s1").areas).toHaveLength(1);
+    expect(parseChartRange(ctx, "A1,Nope!B2", "s1")).toBeNull();
     expect(
       chartRangeToText(ctx, { sheetId: "s2", row: [0, 3], column: [1, 1] })
     ).toBe("'My Data'!$B$1:$B$4");

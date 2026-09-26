@@ -15,6 +15,7 @@ import { registerProtectionFeatures } from "./components/Protection";
 import { registerPageLayoutFeature } from "./components/PageLayout";
 import { registerCellTools } from "./components/CellTools";
 import { registerBuiltinRibbonCommands } from "./components/Ribbon/commands";
+import { installChartUI } from "./components/Chart";
 
 let loaded = false;
 
@@ -31,4 +32,5 @@ export function loadBuiltinFeatures() {
   registerPageLayoutFeature();
   registerCellTools();
   registerBuiltinRibbonCommands();
+  installChartUI();
 }

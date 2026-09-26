@@ -5,6 +5,12 @@ export type TabItem = {
   id: string;
   label: React.ReactNode;
   disabled?: boolean;
+  /**
+   * A contextual tab (Excel's Chart Design / Format while a chart is
+   * selected): consecutive tabs of one context share an accented header
+   * band labelled `label`.
+   */
+  contextual?: { id: string; label: string };
 };
 
 export type TabsProps = {
@@ -45,9 +51,48 @@ export const Tabs: React.FC<TabsProps> = ({
   const trackRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const tabEls = useRef(new Map<string, HTMLButtonElement>());
+  const bandEls = useRef(new Map<string, HTMLDivElement>());
+  const captionEls = useRef(new Map<string, HTMLSpanElement>());
   const ready = useRef(false);
 
+  // contextual groups: runs of tabs with the same context id
+  const bands: { id: string; label: string; tabs: string[] }[] = [];
+  tabs.forEach((tab) => {
+    if (!tab.contextual) return;
+    const last = bands[bands.length - 1];
+    const prev = tabs[tabs.indexOf(tab) - 1];
+    if (last && prev?.contextual?.id === tab.contextual.id)
+      last.tabs.push(tab.id);
+    else
+      bands.push({
+        id: tab.contextual.id,
+        label: tab.contextual.label,
+        tabs: [tab.id],
+      });
+  });
+  const bandKey = bands.map((b) => `${b.id}:${b.tabs.join(",")}`).join("|");
+  const selectedContextual = tabs.find((t) => t.id === value)?.contextual;
+
   const syncPill = useCallback(() => {
+    // the accented band behind each contextual group
+    bandEls.current.forEach((band, key) => {
+      const ids = key.split(",");
+      const els = ids
+        .map((id) => tabEls.current.get(id))
+        .filter((el): el is HTMLButtonElement => !!el && el.offsetWidth > 0);
+      if (els.length === 0) {
+        band.style.opacity = "0";
+        return;
+      }
+      const caption = captionEls.current.get(key);
+      const left = caption ? caption.offsetLeft : els[0].offsetLeft;
+      const right =
+        els[els.length - 1].offsetLeft + els[els.length - 1].offsetWidth;
+      band.style.opacity = "1";
+      band.style.width = `${right - left}px`;
+      band.style.height = `${els[0].offsetHeight}px`;
+      band.style.transform = `translate3d(${left}px, ${els[0].offsetTop}px, 0)`;
+    });
     const pill = pillRef.current;
     if (!pill) return;
     const tab = value != null ? tabEls.current.get(value) : undefined;
@@ -59,7 +104,8 @@ export const Tabs: React.FC<TabsProps> = ({
     pill.style.width = `${tab.offsetWidth}px`;
     pill.style.height = `${tab.offsetHeight}px`;
     pill.style.transform = `translate3d(${tab.offsetLeft}px, ${tab.offsetTop}px, 0)`;
-  }, [value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, bandKey]);
 
   useLayoutEffect(() => {
     syncPill();
@@ -120,33 +166,74 @@ export const Tabs: React.FC<TabsProps> = ({
       aria-label={rest["aria-label"]}
       onKeyDown={onKeyDown}
     >
-      <div ref={pillRef} className="ts-tabs-pill" aria-hidden="true" />
+      {bands.map((band) => (
+        <div
+          key={`${band.id}:${band.tabs.join(",")}`}
+          ref={(el) => {
+            const key = band.tabs.join(",");
+            if (el) bandEls.current.set(key, el);
+            else bandEls.current.delete(key);
+          }}
+          className="ts-tabs-context"
+          data-context={band.id}
+          aria-hidden="true"
+        />
+      ))}
+      <div
+        ref={pillRef}
+        className={`ts-tabs-pill${
+          selectedContextual ? " ts-tabs-pill--contextual" : ""
+        }`}
+        aria-hidden="true"
+      />
       {tabs.map((tab) => {
         const selected = tab.id === value;
+        const band = bands.find((b) => b.tabs[0] === tab.id);
         return (
-          <button
-            key={tab.id}
-            ref={(el) => {
-              if (el) tabEls.current.set(tab.id, el);
-              else tabEls.current.delete(tab.id);
-            }}
-            type="button"
-            role="tab"
-            id={idPrefix ? `${idPrefix}-tab-${tab.id}` : undefined}
-            aria-controls={idPrefix ? `${idPrefix}-panel-${tab.id}` : undefined}
-            aria-selected={selected}
-            disabled={tab.disabled}
-            tabIndex={tab.id === focusable ? 0 : -1}
-            className={`ts-tab${selected ? " ts-tab--selected" : ""}`}
-            data-tab={tab.id}
-            onClick={() => {
-              if (selected) onActiveTabClick?.(tab.id);
-              else onChange(tab.id);
-            }}
-            onDoubleClick={() => onTabDoubleClick?.(tab.id)}
-          >
-            {tab.label}
-          </button>
+          <React.Fragment key={tab.id}>
+            {band && (
+              <span
+                ref={(el) => {
+                  const key = band.tabs.join(",");
+                  if (el) captionEls.current.set(key, el);
+                  else captionEls.current.delete(key);
+                }}
+                className="ts-tabs-context-caption"
+                data-context={band.id}
+                aria-hidden="true"
+              >
+                {band.label}
+              </span>
+            )}
+            <button
+              ref={(el) => {
+                if (el) tabEls.current.set(tab.id, el);
+                else tabEls.current.delete(tab.id);
+              }}
+              type="button"
+              role="tab"
+              id={idPrefix ? `${idPrefix}-tab-${tab.id}` : undefined}
+              aria-controls={
+                idPrefix ? `${idPrefix}-panel-${tab.id}` : undefined
+              }
+              aria-selected={selected}
+              disabled={tab.disabled}
+              tabIndex={tab.id === focusable ? 0 : -1}
+              className={`ts-tab${selected ? " ts-tab--selected" : ""}${
+                tab.contextual ? " ts-tab--contextual" : ""
+              }`}
+              data-tab={tab.id}
+              data-context={tab.contextual?.id}
+              title={tab.contextual?.label}
+              onClick={() => {
+                if (selected) onActiveTabClick?.(tab.id);
+                else onChange(tab.id);
+              }}
+              onDoubleClick={() => onTabDoubleClick?.(tab.id)}
+            >
+              {tab.label}
+            </button>
+          </React.Fragment>
         );
       })}
     </div>

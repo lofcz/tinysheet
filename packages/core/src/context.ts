@@ -62,6 +62,13 @@ export type Context = {
   activeChart?: string;
   /** Whether the chart editor panel is open for `activeChart`. */
   chartEditorOpen?: boolean;
+  /**
+   * The selected element of `activeChart` (Format tab › Current Selection):
+   * "chartArea" (default), "plotArea", "title", "legend", "categoryAxis",
+   * "valueAxis", "categoryAxisTitle", "valueAxisTitle", "majorGridlines" or
+   * "series:<index>".
+   */
+  chartElement?: string;
   /** Ids of the selected shapes on the current sheet (modules/shapes.ts). */
   activeShapes?: string[];
   /** Shape whose text is being edited. */

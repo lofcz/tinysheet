@@ -76,7 +76,8 @@ test.describe("charts", () => {
   }) => {
     await page.goto(storyUrl("charts--more-types-dark"));
     const box = page.locator(".fortune-chart-box[role=figure]").first();
-    await box.dblclick();
+    // the chart area (a double-click on a series formats the series)
+    await box.dblclick({ position: { x: 6, y: 6 } });
     const editor = page.locator(".fortune-chart-editor");
     await expect(editor).toBeVisible();
     await expect(editor.locator(".fortune-chart-style-tile")).toHaveCount(8);

@@ -98,6 +98,8 @@ export type { RibbonLocale } from "./ribbon";
 export { ribbonFormulasDataReviewLocale } from "./ribbonFormulasDataReview";
 export type { RibbonFormulasDataReviewLocale } from "./ribbonFormulasDataReview";
 export { ribbonTabsLocale } from "./ribbonTabs";
+export { chartToolsLocale } from "./chartTools";
+export type { ChartToolsLocale } from "./chartTools";
 export type { RibbonTabsLocale } from "./ribbonTabs";
 export type { CellToolsLocale } from "./cellTools";
 export { FUNCTION_CATEGORIES } from "./functions/types";

@@ -27,8 +27,10 @@ import {
   updateChart,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
-import SVGIcon from "../SVGIcon";
 import { getChartClipboard, setChartClipboard } from "./chartClipboard";
+import { useChartPreview } from "./chartPreview";
+import ChartButtons from "./ChartButtons";
+import { isChartRefEditActive } from "./dialogs/store";
 import ChartContextMenu, { ChartMenuState } from "./ChartContextMenu";
 import { trackPointerDrag } from "../../hooks/pointerDrag";
 import "./index.css";
@@ -121,6 +123,9 @@ type Pane = {
 
 type Span = { offset: number; clipStart: number; clipEnd: number };
 
+/** Room kept outside a clipped box for its handles and chart buttons. */
+const OUTSIDE = 48;
+
 /**
  * One axis of the frozen-pane split, like Excel: the part of an object that
  * lies in the frozen rows (columns) stays put, the rest scrolls and is hidden
@@ -180,14 +185,57 @@ function placeInPanes(ctx: Context, freeze: Freezen | undefined, box: Box) {
   return panes;
 }
 
-const TrashIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-    <path
-      fill="currentColor"
-      d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h2v-8h-2zm4 0v8h2v-8h-2z"
-    />
-  </svg>
-);
+/** The chart element under a pointer event ("chartArea" by default). */
+function elementAt(target: EventTarget | null) {
+  const el = (target as Element | null)?.closest?.("[data-chart-el]");
+  const id = el?.getAttribute("data-chart-el");
+  // gridlines and the data table are picked with the plot area
+  if (!id || id === "minorGridlines" || id === "dataTable") return "chartArea";
+  return id;
+}
+
+/**
+ * The outline of the selected chart element (title, legend, plot area,
+ * axis, series…), measured on the rendered SVG.
+ */
+const ElementOutline: React.FC<{
+  boxRef: React.RefObject<HTMLDivElement | null>;
+  element: string;
+  svg: string;
+}> = ({ boxRef, element, svg }) => {
+  const [rect, setRect] = useState<Box | null>(null);
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const el = box?.querySelector(
+      `.fortune-chart-svg [data-chart-el="${element}"]`
+    );
+    if (!box || !el) {
+      setRect(null);
+      return;
+    }
+    const b = box.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    setRect({
+      left: r.left - b.left - 2,
+      top: r.top - b.top - 2,
+      width: r.width + 4,
+      height: r.height + 4,
+    });
+  }, [boxRef, element, svg]);
+  if (!rect) return null;
+  return (
+    <div
+      className="fortune-chart-element-outline"
+      data-element={element}
+      style={rect}
+      aria-hidden="true"
+    >
+      {["lt", "rt", "lb", "rb"].map((c) => (
+        <span key={c} className={`fortune-chart-element-handle ${c}`} />
+      ))}
+    </div>
+  );
+};
 
 const ChartLayer: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -198,12 +246,14 @@ const ChartLayer: React.FC = () => {
   const charts = sheet?.charts;
   const hasCharts = !!charts && charts.length > 0;
   const files = useFrameThrottled(context.luckysheetfile, hasCharts);
-  const [preview, setPreview] = useState<(Box & { id: string }) | null>(null);
+  const [dragBox, setPreview] = useState<(Box & { id: string }) | null>(null);
   const drag = useRef<Drag | null>(null);
   const stopTracking = useRef<(() => void) | null>(null);
   const cache = useRef(new Map<string, SvgCacheEntry>());
   const boxRefs = useRef(new Map<string, HTMLDivElement>());
   const [menu, setMenu] = useState<ChartMenuState | null>(null);
+  const [focusSeries, setFocusSeries] = useState<number | null>(null);
+  const preview = useChartPreview();
   const zoom = context.zoomRatio || 1;
   const themeName = context.theme || "light";
   const lang = context.lang || "";
@@ -318,14 +368,18 @@ const ChartLayer: React.FC = () => {
       const target = e.target as Element | null;
       const container = refs.workbookContainer.current;
       if (!target || !container?.contains(target)) return;
+      // the ribbon (Chart Design / Format), menus, dialogs and panes act on
+      // the selected chart; the Select Data dialog picks cells with it
+      if (isChartRefEditActive()) return;
       if (
         target.closest?.(
-          ".fortune-chart-box, .fortune-chart-editor, .fortune-chart-menu, .fortune-toolbar, .ts-popover"
+          ".fortune-chart-box, .fortune-chart-editor, .fortune-chart-menu, .fortune-toolbar, .fortune-ribbon, .fortune-ribbon-pane, .fortune-side-slot, .fortune-series-formula, .ts-popover, .ts-dialog"
         )
       )
         return;
       setContext((ctx) => {
         ctx.activeChart = undefined;
+        ctx.chartElement = undefined;
       });
     };
     document.addEventListener("mousedown", onDown, true);
@@ -455,10 +509,20 @@ const ChartLayer: React.FC = () => {
       e.stopPropagation();
       e.preventDefault();
       boxRefs.current.get(chart.id)?.focus({ preventScroll: true });
-      if (context.activeChart !== chart.id) {
-        setContext((ctx) => {
-          ctx.activeChart = chart.id;
-        });
+      // a click picks the element under the pointer (Excel)
+      const element =
+        mode === "move" ? elementAt(e.target) : context.chartElement;
+      if (
+        context.activeChart !== chart.id ||
+        (mode === "move" && context.chartElement !== element)
+      ) {
+        setContext(
+          (ctx) => {
+            ctx.activeChart = chart.id;
+            ctx.chartElement = element ?? "chartArea";
+          },
+          { noHistory: true }
+        );
       }
       if (readonly) return;
       const orig = boxOf(chart);
@@ -482,6 +546,7 @@ const ChartLayer: React.FC = () => {
     [
       boxOf,
       context.activeChart,
+      context.chartElement,
       onDragCancel,
       onMouseMove,
       onMouseUp,
@@ -589,10 +654,10 @@ const ChartLayer: React.FC = () => {
   const boxes = useMemo(() => {
     if (!charts) return [];
     return charts.map((chart) => {
-      const box = preview?.id === chart.id ? preview : boxOf(chart);
+      const box = dragBox?.id === chart.id ? dragBox : boxOf(chart);
       return { chart, box };
     });
-  }, [boxOf, charts, preview]);
+  }, [boxOf, charts, dragBox]);
 
   if (!hasCharts) return null;
 
@@ -610,8 +675,10 @@ const ChartLayer: React.FC = () => {
         const panes = placeInPanes(context, freeze, zoomed);
         // a "move and size" chart whose rows or columns are all hidden
         if (panes.length === 0 || box.width < 1 || box.height < 1) return null;
+        // a gallery / dialog preview draws the chart as it would become
+        const shown = preview?.id === chart.id ? preview : chart;
         const svg = svgFor(
-          chart,
+          shown,
           Math.round(box.width),
           Math.round(box.height)
         );
@@ -631,8 +698,15 @@ const ChartLayer: React.FC = () => {
               }
               className={`fortune-chart-box${
                 active ? " fortune-chart-box-active" : ""
+              }${
+                shown.formats?.chartArea?.shadow
+                  ? " fortune-chart-box--shadow"
+                  : ""
               }`}
               data-chart-id={chart.id}
+              data-focus-series={
+                active && focusSeries != null ? focusSeries : undefined
+              }
               role={pane.primary ? "figure" : undefined}
               aria-label={pane.primary ? chart.title || t.chart : undefined}
               aria-hidden={pane.primary ? undefined : true}
@@ -642,17 +716,28 @@ const ChartLayer: React.FC = () => {
                 top: pane.top,
                 width: zoomed.width,
                 height: zoomed.height,
+                // the frozen band hides a part of the box; the sides that are
+                // not cut keep the handles and the chart buttons outside it
                 clipPath: clipped
-                  ? `inset(${pane.clip.map((v) => `${v}px`).join(" ")})`
+                  ? `inset(${pane.clip
+                      .map((v) => (v > 0 ? `${v}px` : `-${OUTSIDE}px`))
+                      .join(" ")})`
                   : undefined,
+                ["--ts-chart-clip-top" as string]: `${pane.clip[0]}px`,
               }}
               onMouseDown={(e) => startDrag(e, chart, "move")}
               onDoubleClick={(e) => {
                 e.stopPropagation();
-                setContext((ctx) => {
-                  ctx.activeChart = chart.id;
-                  ctx.chartEditorOpen = true;
-                });
+                // Format <Element> for the element double-clicked
+                const element = elementAt(e.target);
+                setContext(
+                  (ctx) => {
+                    ctx.activeChart = chart.id;
+                    ctx.chartElement = element;
+                    ctx.chartEditorOpen = true;
+                  },
+                  { noHistory: true }
+                );
               }}
               onContextMenu={(e) => {
                 e.stopPropagation();
@@ -685,36 +770,25 @@ const ChartLayer: React.FC = () => {
                         onMouseDown={(e) => startDrag(e, chart, side)}
                       />
                     ))}
+                  {active &&
+                    (context.chartElement ?? "chartArea") !== "chartArea" && (
+                      <ElementOutline
+                        boxRef={{
+                          current: boxRefs.current.get(chart.id) ?? null,
+                        }}
+                        element={context.chartElement!}
+                        svg={svg}
+                      />
+                    )}
                   {!readonly && (
                     <div
                       className="fortune-chart-actions"
                       onMouseDown={(e) => e.stopPropagation()}
                     >
-                      <button
-                        type="button"
-                        className="fortune-chart-action"
-                        title={t.editChart}
-                        aria-label={t.editChart}
-                        onClick={() =>
-                          setContext((ctx) => {
-                            ctx.chartEditorOpen = true;
-                          })
-                        }
-                      >
-                        <SVGIcon name="pencil" width={16} height={16} />
-                      </button>
-                      <button
-                        type="button"
-                        className="fortune-chart-action"
-                        title={t.deleteChart}
-                        aria-label={t.deleteChart}
-                        onClick={() => {
-                          setContext((ctx) => deleteChart(ctx, chart.id));
-                          refs.cellInput.current?.focus();
-                        }}
-                      >
-                        <TrashIcon />
-                      </button>
+                      <ChartButtons
+                        chartId={chart.id}
+                        onFocusSeries={setFocusSeries}
+                      />
                     </div>
                   )}
                 </>

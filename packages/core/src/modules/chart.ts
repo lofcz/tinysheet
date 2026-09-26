@@ -27,6 +27,7 @@ import {
   renderChartSvg,
   ChartDataLabelOptions,
   ChartErrorBars,
+  ChartFormats,
   ChartGrouping,
   ChartHistogramBinning,
   ChartLegendPosition,
@@ -44,11 +45,63 @@ import {
 export * from "./chartAnchor";
 
 /** A rectangular cell range on one sheet (0-based, inclusive). */
-export type ChartRange = {
+export type ChartRangeArea = {
   sheetId: string;
   row: [number, number];
   column: [number, number];
 };
+
+/**
+ * A chart reference: one rectangle, or a union of several (Excel's
+ * non-contiguous references, `(Sheet1!$B$2:$B$3,Sheet1!$B$5)`), whose
+ * first area is the range itself and the others follow in `areas`.
+ */
+export type ChartRange = ChartRangeArea & {
+  /** Further areas of a union reference, in order. */
+  areas?: ChartRangeArea[];
+};
+
+/** Every area of a (possibly union) reference, in order. */
+export function chartRangeAreas(
+  range: ChartRange | null | undefined
+): ChartRangeArea[] {
+  if (!range) return [];
+  const first: ChartRangeArea = {
+    sheetId: range.sheetId,
+    row: range.row,
+    column: range.column,
+  };
+  return range.areas?.length ? [first, ...range.areas] : [first];
+}
+
+/** A reference made of `areas` (null when there is none). */
+export function chartRangeFromAreas(
+  areas: ChartRangeArea[]
+): ChartRange | null {
+  if (areas.length === 0) return null;
+  const [first, ...rest] = areas;
+  const out: ChartRange = {
+    sheetId: first.sheetId,
+    row: [first.row[0], first.row[1]],
+    column: [first.column[0], first.column[1]],
+  };
+  if (rest.length) {
+    out.areas = rest.map((a) => ({
+      sheetId: a.sheetId,
+      row: [a.row[0], a.row[1]] as [number, number],
+      column: [a.column[0], a.column[1]] as [number, number],
+    }));
+  }
+  return out;
+}
+
+/** Number of cells of a reference (all its areas). */
+export function chartRangeSize(range: ChartRange | null | undefined) {
+  return chartRangeAreas(range).reduce(
+    (n, a) => n + (a.row[1] - a.row[0] + 1) * (a.column[1] - a.column[0] + 1),
+    0
+  );
+}
 
 export type ChartSeries = {
   /** Literal series name; wins over `nameRef`. */
@@ -61,6 +114,15 @@ export type ChartSeries = {
   categories?: ChartRange | null;
   /** Explicit series colour; defaults to the Office palette by index. */
   color?: string;
+  /** Outline of bars / slices / areas (Format › Shape Outline); null: none. */
+  outline?: string | null;
+  /** Format › Shape Effects › Shadow. */
+  shadow?: boolean;
+  /**
+   * Hidden by the Chart Filters (or an unchecked Legend Entry in Select
+   * Data): kept with its references, not plotted.
+   */
+  filtered?: boolean;
   /** Explicit per-point colours (pie slices, varied columns). */
   pointColors?: string[];
   /** Combo charts: column, line or area (default column). */
@@ -129,6 +191,35 @@ export type Chart = {
   scatterLines?: boolean;
   varyColors?: boolean;
   valueAxis?: ChartValueAxisOptions;
+  /** Chart Title › Centered Overlay: the title does not shrink the plot. */
+  titleOverlay?: boolean;
+  /** Add Chart Element › Axes: `false` hides an axis (c:delete). */
+  axes?: { category?: boolean; value?: boolean };
+  /** Major gridlines of the category axis (vertical in a column chart). */
+  categoryGridlines?: boolean;
+  /** Minor gridlines of the value / category axis. */
+  minorGridlines?: boolean;
+  minorCategoryGridlines?: boolean;
+  /** Data table under the plot area (c:dTable). */
+  dataTable?: { legendKeys?: boolean } | null;
+  /** Line and area charts: drop lines; line charts: high-low lines. */
+  dropLines?: boolean;
+  hiLowLines?: boolean;
+  /** Line charts with two or more series: up / down bars. */
+  upDownBars?: boolean;
+  /**
+   * Hidden and Empty Cell Settings: empty cells as gaps (default), zero or
+   * connected with a line (c:dispBlanksAs).
+   */
+  displayBlanksAs?: "gap" | "zero" | "span";
+  /** Plot only visible cells (default true; c:plotVisOnly). */
+  plotVisibleOnly?: boolean;
+  /** Show #N/A as an empty cell (default false; c16r3:dispNaAsBlank). */
+  displayNaAsBlank?: boolean;
+  /** Chart Filters: indices of the categories that are not plotted. */
+  hiddenCategories?: number[];
+  /** Format tab: fill / outline / text of the chart's elements. */
+  formats?: ChartFormats;
   /** Position and size in sheet pixels at 100% zoom. */
   left: number;
   top: number;
@@ -236,8 +327,65 @@ function sheetDims(sheet: Sheet | undefined) {
 }
 
 /**
+ * Split `a,b,(c,d)` at top-level commas (not inside quotes, parentheses,
+ * braces or strings).
+ */
+export function splitChartArgs(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  let start = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === quote) {
+        if (text[i + 1] === quote) i += 1;
+        else quote = null;
+      }
+    } else if (ch === "'" || ch === '"') quote = ch;
+    else if (ch === "(" || ch === "{") depth += 1;
+    else if (ch === ")" || ch === "}") depth -= 1;
+    else if (ch === "," && depth === 0) {
+      out.push(text.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(text.slice(start));
+  return out.map((p) => p.trim());
+}
+
+/** `(x)` without its enclosing parentheses (only when they pair up). */
+export function stripChartParens(text: string) {
+  let t = text.trim();
+  while (t.startsWith("(") && t.endsWith(")")) {
+    let depth = 0;
+    let quote: string | null = null;
+    let wraps = true;
+    for (let i = 0; i < t.length; i += 1) {
+      const ch = t[i];
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (ch === "'" || ch === '"') quote = ch;
+      else if (ch === "(") depth += 1;
+      else if (ch === ")") {
+        depth -= 1;
+        if (depth === 0 && i < t.length - 1) {
+          wraps = false;
+          break;
+        }
+      }
+    }
+    if (!wraps) break;
+    t = t.slice(1, -1).trim();
+  }
+  return t;
+}
+
+/**
  * Parse `Sheet1!$A$1:$B$4`, `'My sheet'!A1`, `A1:B4`, `A:B` or `1:3` into a
- * range. Returns null for anything else (unions, external references).
+ * range, and unions of them (`(Sheet1!$B$2:$B$3,Sheet1!$B$5)`, Excel's
+ * non-contiguous references). Returns null for anything else (external
+ * references, names).
  */
 export function parseChartRange(
   ctx: Pick<Context, "luckysheetfile">,
@@ -247,7 +395,31 @@ export function parseChartRange(
   if (text == null) return null;
   let t = String(text).trim();
   if (t.startsWith("=")) t = t.slice(1).trim();
-  if (t.startsWith("(") && t.endsWith(")")) t = t.slice(1, -1).trim();
+  t = stripChartParens(t);
+  if (!t) return null;
+  const parts = splitChartArgs(t);
+  if (parts.length > 1) {
+    const areas: ChartRangeArea[] = [];
+    for (let i = 0; i < parts.length; i += 1) {
+      const area = parseChartRangeArea(
+        ctx,
+        stripChartParens(parts[i]),
+        defaultSheetId
+      );
+      if (!area) return null;
+      areas.push(area);
+    }
+    return chartRangeFromAreas(areas);
+  }
+  return parseChartRangeArea(ctx, t, defaultSheetId);
+}
+
+function parseChartRangeArea(
+  ctx: Pick<Context, "luckysheetfile">,
+  text: string,
+  defaultSheetId: string
+): ChartRange | null {
+  let t = text;
   if (!t) return null;
   let sheetId = defaultSheetId;
   const bang = t.lastIndexOf("!");
@@ -311,13 +483,21 @@ export function parseChartRange(
   return null;
 }
 
-/** `Sheet1!$A$1:$B$4` (absolute, sheet-qualified, as Excel writes it). */
+/**
+ * `Sheet1!$A$1:$B$4` (absolute, sheet-qualified, as Excel writes it); a
+ * union as `(Sheet1!$B$2:$B$3,Sheet1!$B$5)`.
+ */
 export function chartRangeToText(
   ctx: Pick<Context, "luckysheetfile">,
   range: ChartRange | null | undefined,
   options: { absolute?: boolean; sheet?: boolean } = {}
-) {
+): string {
   if (!range) return "#REF!";
+  if (range.areas?.length) {
+    return `(${chartRangeAreas(range)
+      .map((a) => chartRangeToText(ctx, a, options))
+      .join(",")})`;
+  }
   const abs = options.absolute !== false ? "$" : "";
   const sheet = ctx.luckysheetfile.find((s) => s.id === range.sheetId);
   const a = `${abs}${indexToColumnChar(range.column[0])}${abs}${
@@ -396,12 +576,15 @@ function sheetById(ctx: Pick<Context, "luckysheetfile">, id: string) {
   return ctx.luckysheetfile.find((s) => s.id === id);
 }
 
-/** Cells of a range in row-major order. */
+/** Cells of a range in row-major order (a union: area after area). */
 export function readChartRange(
   ctx: Pick<Context, "luckysheetfile">,
   range: ChartRange | null | undefined
 ): ChartCell[] {
   if (!range) return [];
+  if (range.areas?.length) {
+    return chartRangeAreas(range).flatMap((a) => readChartRange(ctx, a));
+  }
   const data = sheetById(ctx, range.sheetId)?.data;
   const out: ChartCell[] = [];
   const r2 = Math.min(range.row[1], (data?.length ?? 0) - 1);
@@ -866,6 +1049,53 @@ export function deleteChart(ctx: Context, id?: string) {
   }
 }
 
+/**
+ * Move Chart › Object in: move a chart to another sheet (its references
+ * stay on their sheets), at `box` or at the same place.
+ */
+export function moveChartToSheet(
+  ctx: Context,
+  id: string,
+  sheetId: string,
+  box?: ChartBox
+): Chart | null {
+  if (!checkProtection(ctx, "editObjects")) return null;
+  const found = findChart(ctx, id);
+  const target = ctx.luckysheetfile.find((s) => s.id === sheetId);
+  if (!found || !target) return null;
+  const at = box ?? getChartBox(ctx, found.sheet.id!, found.chart);
+  if (found.sheet.id === sheetId) {
+    if (box) setChartBox(ctx, sheetId, found.chart, box);
+    return found.chart;
+  }
+  found.sheet.charts = found.sheet.charts!.filter((c) => c.id !== id);
+  const chart = found.chart;
+  delete chart.anchor;
+  target.charts = [...(target.charts ?? []), chart];
+  setChartBox(ctx, sheetId, chart, at);
+  return chart;
+}
+
+/** Bring Forward / Send Backward (to the front / back): chart z-order. */
+export function reorderChart(
+  ctx: Context,
+  id: string,
+  to: "forward" | "backward" | "front" | "back"
+) {
+  const found = findChart(ctx, id);
+  if (!found?.sheet.charts) return;
+  const list = [...found.sheet.charts];
+  const i = found.index;
+  const [c] = list.splice(i, 1);
+  let at = i;
+  if (to === "forward") at = Math.min(list.length, i + 1);
+  else if (to === "backward") at = Math.max(0, i - 1);
+  else if (to === "front") at = list.length;
+  else at = 0;
+  list.splice(at, 0, c);
+  found.sheet.charts = list;
+}
+
 /** Add a copy of `chart` (e.g. from the clipboard) to the current sheet. */
 export function pasteChart(
   ctx: Context,
@@ -1048,6 +1278,34 @@ function readNumbers(
   return readChartRange(ctx, range).map((c) => c.numeric);
 }
 
+/** Cells of a reference in reading order (area after area). */
+export function chartRangeCells(
+  range: ChartRange | null | undefined
+): { sheetId: string; r: number; c: number }[] {
+  const out: { sheetId: string; r: number; c: number }[] = [];
+  chartRangeAreas(range).forEach((a) => {
+    for (let r = a.row[0]; r <= a.row[1] && out.length < 100000; r += 1) {
+      for (let c = a.column[0]; c <= a.column[1]; c += 1) {
+        out.push({ sheetId: a.sheetId, r, c });
+      }
+    }
+  });
+  return out;
+}
+
+/** Whether each cell of `range` is in a hidden row or column. */
+function hiddenCellsOf(
+  ctx: Pick<Context, "luckysheetfile">,
+  range: ChartRange | null | undefined
+): boolean[] {
+  return chartRangeCells(range).map(({ sheetId, r, c }) => {
+    const config = sheetById(ctx, sheetId)?.config;
+    return (
+      config?.rowhidden?.[r] != null || config?.colhidden?.[c] != null || false
+    );
+  });
+}
+
 /** Colour of palette entry `index` for a chart. */
 export function chartColor(chart: Pick<Chart, "palette">, index: number) {
   return paletteColor(chart.palette, index);
@@ -1073,13 +1331,32 @@ export function resolveChartModel(
   const pie = chart.type === "pie" || chart.type === "doughnut";
   const vary = pie || !!chart.varyColors;
   const pick = (i: number) => chartColor(chart, i);
+  const blanks = chart.displayBlanksAs ?? "gap";
+  const visibleOnly = chart.plotVisibleOnly !== false;
+  // hidden rows / columns: a series whose cells are all hidden is not
+  // plotted, a point hidden in every plotted series is not either
+  const hiddenCells: (boolean[] | null)[] = chart.series.map((s) =>
+    visibleOnly && s.values ? hiddenCellsOf(ctx, s.values) : null
+  );
   const series: ChartRenderSeries[] = chart.series.map((s, i) => {
     let values: (number | null)[] = [];
     let labels: string[] | undefined;
+    let connect: boolean[] | undefined;
     if (s.values) {
       const cells = readChartRange(ctx, s.values);
       values = cells.map((c) => c.numeric);
       labels = cells.map((c) => (c.numeric != null ? c.display : ""));
+      // empty cells as zero / connected; #N/A is passed over (or treated
+      // as an empty cell with "Show #N/A as an empty cell")
+      cells.forEach((c, p) => {
+        const na = c.display === "#N/A";
+        const empty = c === EMPTY_CELL || (na && !!chart.displayNaAsBlank);
+        if (empty && blanks === "zero") values[p] = 0;
+        else if ((empty && blanks === "span") || (na && !empty)) {
+          if (!connect) connect = [];
+          connect[p] = true;
+        }
+      });
     } else if (s.cache?.values) {
       values = s.cache.values.slice();
     }
@@ -1120,9 +1397,17 @@ export function resolveChartModel(
         ...(minus ? { minusValues: readNumbers(ctx, minus) } : {}),
       };
     }
+    const cellsHidden = hiddenCells[i];
+    const allHidden =
+      !!cellsHidden && cellsHidden.length > 0 && cellsHidden.every(Boolean);
     return {
       name: resolveSeriesName(ctx, s, i),
       color,
+      index: i,
+      ...(s.filtered || allHidden ? { hidden: true } : {}),
+      ...(s.outline !== undefined ? { outline: s.outline } : {}),
+      ...(s.shadow ? { shadow: true } : {}),
+      ...(connect ? { connect } : {}),
       values,
       ...(labels ? { labels } : {}),
       ...(xValues ? { xValues } : {}),
@@ -1139,6 +1424,26 @@ export function resolveChartModel(
         ? { errorBars }
         : {}),
     };
+  });
+  // points in hidden rows / columns (in every plotted series), and the
+  // categories unchecked in the Chart Filters
+  let hiddenPoints: boolean[] | undefined;
+  const plotted = series.filter((s) => !s.hidden);
+  const masks = plotted
+    .map((s) => hiddenCells[s.index ?? 0])
+    .filter((m): m is boolean[] => !!m && m.length > 0);
+  if (masks.length && masks.length === plotted.length) {
+    const len = Math.max(...masks.map((m) => m.length));
+    for (let p = 0; p < len; p += 1) {
+      if (masks.every((m) => m[p])) {
+        if (!hiddenPoints) hiddenPoints = [];
+        hiddenPoints[p] = true;
+      }
+    }
+  }
+  chart.hiddenCategories?.forEach((p) => {
+    if (!hiddenPoints) hiddenPoints = [];
+    hiddenPoints[p] = true;
   });
   const themeName = ctx.theme === "dark" ? "dark" : "light";
   const style = chart.style ? getChartStyle(chart.style).spec(themeName) : {};
@@ -1177,6 +1482,18 @@ export function resolveChartModel(
     },
     categories,
     series,
+    ...(hiddenPoints ? { hiddenPoints } : {}),
+    ...(chart.titleOverlay ? { titleOverlay: true } : {}),
+    ...(chart.axes?.category === false ? { hideCategoryAxis: true } : {}),
+    ...(chart.axes?.value === false ? { hideValueAxis: true } : {}),
+    ...(chart.categoryGridlines ? { categoryGridlines: true } : {}),
+    ...(chart.minorGridlines ? { minorGridlines: true } : {}),
+    ...(chart.minorCategoryGridlines ? { minorCategoryGridlines: true } : {}),
+    ...(chart.dataTable ? { dataTable: chart.dataTable } : {}),
+    ...(chart.dropLines ? { dropLines: true } : {}),
+    ...(chart.hiLowLines ? { hiLowLines: true } : {}),
+    ...(chart.upDownBars ? { upDownBars: true } : {}),
+    ...(chart.formats ? { formats: chart.formats } : {}),
   };
 }
 
@@ -1215,7 +1532,7 @@ export function renderChartToSvg(
 export function getChartRanges(chart: Chart): ChartRange[] {
   const out: ChartRange[] = [];
   const add = (r: ChartRange | null | undefined) => {
-    if (r) out.push(r);
+    chartRangeAreas(r).forEach((a) => out.push(a));
   };
   chart.series.forEach((s) => {
     add(s.values);
@@ -1241,10 +1558,35 @@ export function getChartReferencedSheetIds(chart: Chart): string[] {
 
 type Axis = "row" | "column";
 
+/**
+ * Map every area of a reference; areas mapped to null are dropped (a union
+ * keeps its other areas, like Excel), null when none is left.
+ */
+export function mapChartRange(
+  range: ChartRange,
+  fn: (area: ChartRangeArea) => ChartRangeArea | null
+): ChartRange | null {
+  if (!range.areas?.length) {
+    const next = fn(range);
+    if (!next) return null;
+    if (next === range) return range;
+    return {
+      sheetId: next.sheetId,
+      row: next.row,
+      column: next.column,
+    };
+  }
+  const areas = chartRangeAreas(range);
+  const mapped = areas.map(fn);
+  if (mapped.every((a, i) => a === areas[i])) return range;
+  return chartRangeFromAreas(mapped.filter((a): a is ChartRangeArea => !!a));
+}
+
 function forEachChartRange(
   ctx: Pick<Context, "luckysheetfile">,
-  fn: (range: ChartRange) => ChartRange | null
+  area: (range: ChartRangeArea) => ChartRangeArea | null
 ) {
+  const fn = (range: ChartRange) => mapChartRange(range, area);
   ctx.luckysheetfile.forEach((sheet) => {
     sheet.charts?.forEach((chart) => {
       if (chart.source) chart.source = fn(chart.source);
@@ -1368,8 +1710,10 @@ export function remapDuplicatedCharts(
 ): Chart[] | undefined {
   if (!charts?.length) return charts;
   const remap = <T extends ChartRange | null | undefined>(range: T): T =>
-    range && range.sheetId === fromSheetId
-      ? ({ ...range, sheetId: toSheetId } as T)
+    range
+      ? (mapChartRange(range, (a) =>
+          a.sheetId === fromSheetId ? { ...a, sheetId: toSheetId } : a
+        ) as T)
       : range;
   return charts.map((chart) => ({
     ...chart,

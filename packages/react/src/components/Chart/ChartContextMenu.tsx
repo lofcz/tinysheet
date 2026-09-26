@@ -1,11 +1,14 @@
 import React, { useContext } from "react";
 import {
   Chart,
+  chartToolsLocale,
   deleteChart,
   findChart,
   getChartDisplayBox,
   locale,
   renderChartToSvg,
+  reorderChart,
+  resetChartElementFormat,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
@@ -13,6 +16,9 @@ import { setChartClipboard } from "./chartClipboard";
 import { copyChartImage, saveChartPng, saveChartSvg } from "./chartImage";
 import { ContextMenuPopup, MenuItem } from "../ui";
 import { menuIcon } from "../ContextMenu/icons";
+import { chartElementLabel } from "./chartTools";
+import { openChartDialog } from "./dialogs/store";
+import { useChangeChartTypeDialog } from "./dialogs";
 
 const CHART_MENU_ICONS: Record<string, string> = {
   cut: "cut",
@@ -23,6 +29,16 @@ const CHART_MENU_ICONS: Record<string, string> = {
   edit: "edit",
   delete: "delete",
 };
+
+// Excel's chart menu entries without an icon
+const NO_ICON = new Set([
+  "resetStyle",
+  "changeType",
+  "selectData",
+  "moveChart",
+  "bringToFront",
+  "sendToBack",
+]);
 
 const CHART_MENU_SHORTCUTS: Record<string, string | undefined> = {
   cut: "Ctrl+X",
@@ -41,13 +57,19 @@ type Props = {
 const ChartContextMenu: React.FC<Props> = ({ menu, onClose }) => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const { chart: t } = locale(context);
+  const tt = chartToolsLocale(context);
   const { showAlert } = useAlert();
+  const changeType = useChangeChartTypeDialog();
   const readonly = context.allowEdit === false;
   const found = findChart(context, menu.chartId);
 
   const container = refs.workbookContainer.current;
   if (!found || !container) return null;
   const { chart } = found;
+  const element =
+    context.activeChart === chart.id
+      ? (context.chartElement ?? "chartArea")
+      : "chartArea";
 
   const picture = (c: Chart) => {
     const box = getChartDisplayBox(context, c.id) ?? c;
@@ -109,13 +131,59 @@ const ChartContextMenu: React.FC<Props> = ({ menu, onClose }) => {
       run: () => saveChartSvg(picture(chart).svg, chart.title),
     },
     {
+      key: "resetStyle",
+      label: tt.format.resetToMatchStyle,
+      divider: true,
+      hidden: readonly,
+      run: () =>
+        setContext((ctx) => {
+          const f = findChart(ctx, chart.id);
+          if (f) resetChartElementFormat(f.chart, element);
+        }),
+    },
+    {
+      key: "changeType",
+      label: `${tt.design.changeChartType}…`,
+      hidden: readonly,
+      run: () => changeType(chart.id),
+    },
+    {
+      key: "selectData",
+      label: `${tt.design.selectData}…`,
+      hidden: readonly,
+      run: () => openChartDialog({ kind: "selectData", chartId: chart.id }),
+    },
+    {
+      key: "moveChart",
+      label: `${tt.design.moveChart}…`,
+      hidden: readonly,
+      run: () => openChartDialog({ kind: "moveChart", chartId: chart.id }),
+    },
+    {
+      key: "bringToFront",
+      label: tt.format.bringToFront,
+      divider: true,
+      hidden: readonly,
+      run: () => setContext((ctx) => reorderChart(ctx, chart.id, "front")),
+    },
+    {
+      key: "sendToBack",
+      label: tt.format.sendToBack,
+      hidden: readonly,
+      run: () => setContext((ctx) => reorderChart(ctx, chart.id, "back")),
+    },
+    {
       key: "edit",
-      label: t.editChart,
+      label: `${tt.names.format.replace(
+        "{element}",
+        chartElementLabel(context, chart, element, tt)
+      )}…`,
       divider: true,
       hidden: readonly,
       run: () =>
         setContext((ctx) => {
           ctx.activeChart = chart.id;
+          ctx.chartElement = element;
           ctx.chartEditorOpen = true;
         }),
     },
@@ -139,7 +207,9 @@ const ChartContextMenu: React.FC<Props> = ({ menu, onClose }) => {
     menuItems.push({
       id: it.key,
       label: it.label,
-      icon: menuIcon(CHART_MENU_ICONS[it.key]),
+      icon: NO_ICON.has(it.key)
+        ? undefined
+        : menuIcon(CHART_MENU_ICONS[it.key]),
       shortcut: CHART_MENU_SHORTCUTS[it.key],
       onSelect: it.run,
     });

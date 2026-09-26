@@ -83,6 +83,15 @@ function colorOf(fill: XmlNode | undefined): string | undefined {
   return undefined;
 }
 
+/**
+ * An explicit RGB colour (what the Format tab writes); theme colours with
+ * tints (Excel's default chart chrome) are left to the chart style.
+ */
+function explicitColor(fill: XmlNode | undefined): string | undefined {
+  const srgb = child(fill, "srgbClr")?.attrs.val;
+  return srgb ? `#${srgb.toUpperCase()}` : undefined;
+}
+
 /** Fill colour of a shape (area/bar fill, else its outline for lines). */
 function shapeColor(spPr: XmlNode | undefined, preferLine: boolean) {
   const fill = colorOf(child(spPr, "solidFill"));
@@ -113,6 +122,8 @@ function cachePoints(cache: XmlNode | undefined): string[] {
 
 type DataSource = {
   ref?: string;
+  /** c15:fullRef: the whole range of a reference the Chart Filters cut. */
+  fullRef?: string;
   cache: string[];
 };
 
@@ -122,7 +133,12 @@ function dataSource(node: XmlNode | undefined): DataSource | undefined {
   const ref = child(node, "numRef") ?? child(node, "strRef");
   if (ref) {
     const cache = child(ref, "numCache") ?? child(ref, "strCache");
-    return { ref: child(ref, "f")?.text.trim(), cache: cachePoints(cache) };
+    const full = find(child(ref, "extLst"), "sqref")?.text.trim();
+    return {
+      ref: child(ref, "f")?.text.trim(),
+      cache: cachePoints(cache),
+      ...(full ? { fullRef: full } : {}),
+    };
   }
   const multi = child(node, "multiLvlStrRef");
   if (multi) {
@@ -224,7 +240,30 @@ type ReadSeries = ChartSeries & {
   markers?: boolean;
   lines?: boolean;
   showVal?: boolean;
+  hiddenPoints?: number[];
 };
+
+/** Indices of the cells of `full` that `shown` (a union of parts) omits. */
+function hiddenPoints(full: ChartRange, shown: ChartRange): number[] {
+  const inShown = (r: number, c: number) =>
+    [shown, ...(shown.areas ?? [])].some(
+      (a) =>
+        a.sheetId === full.sheetId &&
+        r >= a.row[0] &&
+        r <= a.row[1] &&
+        c >= a.column[0] &&
+        c <= a.column[1]
+    );
+  const out: number[] = [];
+  let i = 0;
+  for (let r = full.row[0]; r <= full.row[1]; r += 1) {
+    for (let c = full.column[0]; c <= full.column[1]; c += 1) {
+      if (!inShown(r, c)) out.push(i);
+      i += 1;
+    }
+  }
+  return out;
+}
 
 function readSeries(
   ser: XmlNode,
@@ -258,6 +297,10 @@ function readSeries(
     if (marker) series.color = marker;
   }
   if (spPr && child(spPr, "ln", "noFill")) series.lines = false;
+  if (type === "column" || type === "bar" || type === "area") {
+    const outline = explicitColor(child(spPr, "ln", "solidFill"));
+    if (outline) series.outline = outline;
+  }
 
   const points: string[] = [];
   children(ser, "dPt").forEach((dPt) => {
@@ -283,21 +326,32 @@ function readSeries(
 
   const cat = dataSource(child(ser, "cat") ?? child(ser, "xVal"));
   const values = dataSource(child(ser, "val") ?? child(ser, "yVal"));
+  // a reference cut by the Chart Filters: the whole range, and the points
+  // left out become hidden categories
+  const whole = (src: DataSource) =>
+    src.fullRef ? opts.resolveRange(src.fullRef) : null;
   if (cat) {
-    const range = cat.ref ? opts.resolveRange(cat.ref) : null;
+    const full = whole(cat);
+    const range = full ?? (cat.ref ? opts.resolveRange(cat.ref) : null);
     if (range) series.categories = range;
-    if (cat.cache.length)
+    if (cat.cache.length && !full)
       series.cache = { ...series.cache, categories: cat.cache };
   }
   if (values) {
-    const range = values.ref ? opts.resolveRange(values.ref) : null;
-    series.values = range;
-    if (values.cache.length)
+    const full = whole(values);
+    const shown = values.ref ? opts.resolveRange(values.ref) : null;
+    series.values = full ?? shown;
+    if (full && shown) {
+      const hidden = hiddenPoints(full, shown);
+      if (hidden.length) series.hiddenPoints = hidden;
+    }
+    if (values.cache.length && !full)
       series.cache = { ...series.cache, values: values.cache.map(toNumber) };
   }
   const sizes = dataSource(child(ser, "bubbleSize"));
   if (sizes) {
-    const range = sizes.ref ? opts.resolveRange(sizes.ref) : null;
+    const range =
+      whole(sizes) ?? (sizes.ref ? opts.resolveRange(sizes.ref) : null);
     if (range) series.sizes = range;
     if (sizes.cache.length)
       series.cache = { ...series.cache, sizes: sizes.cache.map(toNumber) };
@@ -425,10 +479,18 @@ export function importChartXml(
 
   const used = combinable ? groups : [first];
   const all: ReadSeries[] = [];
+  const orders: number[] = [];
   used.forEach((g) => {
     const gType = combinable ? SUPPORTED[g.name] : type;
     const secondary = combinable && isSecondary(g);
-    children(g, "ser").forEach((ser) => {
+    // series hidden by the Chart Filters live in a c15 extension
+    const filtered = children(child(g, "extLst"), "ext").flatMap((ext) =>
+      ext.children
+        .filter((c) => /^filtered\w+Series$/.test(c.name))
+        .map((c) => child(c, "ser"))
+        .filter((s): s is XmlNode => !!s)
+    );
+    const read = (ser: XmlNode, hidden: boolean) => {
       const s = readSeries(
         ser,
         gType === "column" && horizontal ? "bar" : gType,
@@ -436,9 +498,22 @@ export function importChartXml(
       );
       if (combo) s.type = COMBINABLE[g.name];
       if (secondary) s.secondary = true;
+      if (hidden) s.filtered = true;
+      const order = parseInt(val(ser, "order") ?? "", 10);
+      orders.push(Number.isFinite(order) ? order : all.length);
       all.push(s);
-    });
+    };
+    children(g, "ser").forEach((ser) => read(ser, false));
+    filtered.forEach((ser) => read(ser, true));
   });
+  // plot order (filtered series were read after the others)
+  if (all.some((s) => s.filtered)) {
+    const sorted = all
+      .map((s, i) => ({ s, o: orders[i], i }))
+      .sort((a, b) => a.o - b.o || a.i - b.i)
+      .map((e) => e.s);
+    all.splice(0, all.length, ...sorted);
+  }
 
   let showVal = used.some((g) => isTrue(val(g, "dLbls", "showVal"), false));
   const groupLabels = used.map((g) => child(g, "dLbls")).find(anyLabelShown);
@@ -454,8 +529,11 @@ export function importChartXml(
     delete clean.markers;
     delete clean.lines;
     delete clean.showVal;
+    delete clean.hiddenPoints;
     out.series.push(clean);
   });
+  const hiddenCats = all.find((s) => s.hiddenPoints?.length)?.hiddenPoints;
+  if (hiddenCats) out.hiddenCategories = hiddenCats;
   if (showVal || groupLabels) out.dataLabels = true;
   const labelOptions = readLabelOptions(groupLabels);
   if (labelOptions) out.dataLabelOptions = labelOptions;
@@ -537,5 +615,139 @@ export function importChartXml(
     if (bounds) out.secondaryValueAxis = bounds;
   }
   out.legend = legendPosition(chart);
+  readElements(out, chart, plot, used, categoryAxis, valueAxis);
+  const chartArea = readChartAreaFormat(root);
+  if (chartArea) out.formats = { ...out.formats, chartArea };
   return out;
+}
+
+/** The text colour of a `c:txPr` / title run, if any. */
+function textColor(node: XmlNode | undefined) {
+  if (!node) return undefined;
+  // the first run / paragraph properties that give a colour
+  const props = [...findAll(node, "rPr"), ...findAll(node, "defRPr")];
+  for (const p of props) {
+    const color = explicitColor(child(p, "solidFill"));
+    if (color) return color;
+  }
+  return undefined;
+}
+
+/** Fill / outline of a `c:spPr` (undefined when not set). */
+function shapeFormat(spPr: XmlNode | undefined) {
+  if (!spPr) return undefined;
+  const out: { fill?: string | null; line?: string | null } = {};
+  if (child(spPr, "noFill")) out.fill = null;
+  else {
+    const fill = explicitColor(child(spPr, "solidFill"));
+    if (fill) out.fill = fill;
+  }
+  if (child(spPr, "ln", "noFill")) out.line = null;
+  else {
+    const line = explicitColor(child(spPr, "ln", "solidFill"));
+    if (line) out.line = line;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * Chart elements: axes shown, gridlines, data table, drop / high-low
+ * lines, up/down bars, title overlay, hidden and empty cell settings and
+ * the Format tab's fills, outlines and text colours.
+ */
+function readElements(
+  out: ImportedChart,
+  chart: XmlNode,
+  plot: XmlNode,
+  used: XmlNode[],
+  categoryAxis: XmlNode | undefined,
+  valueAxis: XmlNode | undefined
+) {
+  const deleted = (axis: XmlNode | undefined) =>
+    !!axis && isTrue(val(axis, "delete"), false);
+  const axes: NonNullable<ImportedChart["axes"]> = {};
+  if (deleted(categoryAxis)) axes.category = false;
+  if (deleted(valueAxis)) axes.value = false;
+  if (Object.keys(axes).length) out.axes = axes;
+  if (child(categoryAxis, "majorGridlines")) out.categoryGridlines = true;
+  if (child(categoryAxis, "minorGridlines")) out.minorCategoryGridlines = true;
+  if (child(valueAxis, "minorGridlines")) out.minorGridlines = true;
+  const dTable = child(plot, "dTable");
+  if (dTable) {
+    out.dataTable = { legendKeys: isTrue(val(dTable, "showKeys"), true) };
+  }
+  if (out.type !== "stock") {
+    const lineGroup = used.find((g) => g.name === "lineChart");
+    if (used.some((g) => child(g, "dropLines"))) out.dropLines = true;
+    if (lineGroup && child(lineGroup, "hiLowLines")) out.hiLowLines = true;
+    if (lineGroup && child(lineGroup, "upDownBars")) out.upDownBars = true;
+  }
+  const titleNode = child(chart, "title");
+  if (titleNode && isTrue(val(titleNode, "overlay"), false))
+    out.titleOverlay = true;
+  const blanks = val(chart, "dispBlanksAs");
+  if (blanks === "zero" || blanks === "span") out.displayBlanksAs = blanks;
+  if (val(chart, "plotVisOnly") === "0") out.plotVisibleOnly = false;
+  if (isTrue(val(find(child(chart, "extLst"), "dispNaAsBlank")), false))
+    out.displayNaAsBlank = true;
+
+  const formats: NonNullable<ImportedChart["formats"]> = {};
+  const set = (
+    key: keyof NonNullable<ImportedChart["formats"]>,
+    f: { fill?: string | null; line?: string | null; text?: string } | undefined
+  ) => {
+    if (f && Object.keys(f).length) formats[key] = { ...formats[key], ...f };
+  };
+  const text = (color: string | undefined) => (color ? { text: color } : {});
+  set("plotArea", shapeFormat(child(plot, "spPr")));
+  if (titleNode) {
+    set("title", {
+      ...shapeFormat(child(titleNode, "spPr")),
+      ...text(textColor(child(titleNode, "tx"))),
+    });
+  }
+  const legend = child(chart, "legend");
+  if (legend) {
+    set("legend", {
+      ...shapeFormat(child(legend, "spPr")),
+      ...text(textColor(child(legend, "txPr"))),
+    });
+  }
+  (
+    [
+      ["categoryAxis", categoryAxis],
+      ["valueAxis", valueAxis],
+    ] as const
+  ).forEach(([key, axis]) => {
+    if (!axis) return;
+    const line = shapeFormat(child(axis, "spPr"))?.line;
+    set(key, {
+      ...(line ? { line } : {}),
+      ...text(textColor(child(axis, "txPr"))),
+    });
+    const titleColor = textColor(child(axis, "title", "tx"));
+    if (titleColor)
+      set(key === "categoryAxis" ? "categoryAxisTitle" : "valueAxisTitle", {
+        text: titleColor,
+      });
+  });
+  const gridLine = shapeFormat(
+    child(valueAxis, "majorGridlines", "spPr")
+  )?.line;
+  if (gridLine) set("majorGridlines", { line: gridLine });
+  if (Object.keys(formats).length) out.formats = formats;
+}
+
+/**
+ * The chart area's fill and outline (c:chartSpace/c:spPr), unless they are
+ * the defaults TinySheet writes (white fill, light grey outline).
+ */
+function readChartAreaFormat(root: XmlNode) {
+  const space = find(root, "chartSpace");
+  const spPr = space?.children.find((c) => c.name === "spPr");
+  const f = shapeFormat(spPr);
+  if (!f) return undefined;
+  if (f.fill === "#FFFFFF") delete f.fill;
+  if (f.line === "#D9D9D9") delete f.line;
+  return Object.keys(f).length ? f : undefined;
 }

@@ -1,0 +1,268 @@
+/*
+ * Chart data dialogs (Select Data Source, Edit Series, Axis Labels, Hidden
+ * and Empty Cell Settings, Move Chart): Excel's layouts in the Fika look.
+ */
+
+.ts-chart-data-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ---------- Reference box ---------- */
+
+.ts-refedit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ts-refedit-label {
+  color: var(--ts-text);
+  font-size: var(--ts-font-size-sm);
+  font-weight: 500;
+}
+
+.ts-refedit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ts-refedit {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  padding: 0 3px 0 10px;
+  box-sizing: border-box;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: box-shadow var(--ts-fast);
+}
+
+.ts-refedit:focus-within {
+  box-shadow: inset 0 0 0 1px var(--ts-ring);
+}
+
+.ts-refedit--invalid,
+.ts-refedit--invalid:focus-within {
+  box-shadow: inset 0 0 0 1px var(--ts-danger);
+}
+
+.ts-refedit-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ts-text-strong);
+  font: inherit;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+}
+
+.ts-refedit-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ts-pane);
+  color: var(--ts-text);
+  box-shadow: var(--ts-pane-shadow);
+  cursor: pointer;
+}
+
+.ts-refedit-toggle:hover {
+  background: var(--ts-hover);
+  color: var(--ts-text-strong);
+}
+
+.ts-refedit-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ts-ring);
+}
+
+.ts-refedit-preview {
+  flex: 0 1 42%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* the collapsed dialog: title and one reference box */
+.ts-refedit-dialog--collapsed {
+  gap: 8px;
+  padding: 12px 14px;
+  box-shadow: var(--ts-shadow);
+}
+
+.ts-refedit-dialog--collapsed .ts-dialog-title {
+  font-size: var(--ts-font-size-sm);
+}
+
+/* ---------- Select Data Source ---------- */
+
+.ts-chart-data-note {
+  margin: -4px 0 0;
+  color: var(--ts-muted);
+  font-size: var(--ts-font-size-sm);
+  line-height: 1.4;
+}
+
+.ts-chart-data-error {
+  margin: 0;
+  color: var(--ts-danger);
+  font-size: var(--ts-font-size-sm);
+}
+
+.ts-chart-data-switch {
+  display: flex;
+  justify-content: center;
+}
+
+.ts-chart-data-lists {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ts-chart-data-list-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--ts-border);
+  border-radius: var(--ts-radius-cluster, 10px);
+}
+
+.ts-chart-data-list-title {
+  margin: 0;
+  color: var(--ts-text-strong);
+  font-size: var(--ts-font-size-sm);
+  font-weight: 600;
+}
+
+.ts-chart-data-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+}
+
+.ts-chart-data-toolbar-gap {
+  flex: 1 1 auto;
+}
+
+.ts-chart-data-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  height: 168px;
+  padding: 3px;
+  overflow-y: auto;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+}
+
+.ts-chart-data-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--ts-text);
+  cursor: default;
+  user-select: none;
+}
+
+.ts-chart-data-item:hover {
+  background: var(--ts-hover);
+}
+
+.ts-chart-data-item[aria-selected="true"] {
+  background: var(--ts-accent-soft);
+  color: var(--ts-text-strong);
+  box-shadow: inset 2px 0 0 var(--ts-accent);
+}
+
+.ts-chart-data-item:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--ts-ring);
+}
+
+.ts-chart-data-item-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Hidden and Empty Cell Settings ---------- */
+
+.ts-chart-hidden-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.ts-chart-hidden-empty-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ---------- Move Chart ---------- */
+
+.ts-move-chart-prompt {
+  margin: 0 0 4px;
+  color: var(--ts-text);
+}
+
+.ts-move-chart-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--ts-radius);
+  background: var(--ts-surface);
+}
+
+.ts-move-chart-row + .ts-move-chart-row {
+  margin-top: 8px;
+}
+
+.ts-move-chart-row input[type="text"] {
+  height: 30px;
+}
+
+/* ---------- The sheet while a reference is picked ---------- */
+
+.fortune-chart-refedit .fortune-ribbon-pane,
+.fortune-chart-refedit .fortune-side-slot,
+.fortune-chart-refedit .fortune-fx-editor-wrap {
+  pointer-events: none;
+  opacity: 0.55;
+  transition: opacity var(--ts-fast);
+}
