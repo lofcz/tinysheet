@@ -134,6 +134,8 @@ function setCellValueOnSheet(
   };
 
   if (value == null || value.toString().length === 0) {
+    const cell = data?.[row]?.[column];
+    if (cell && typeof cell === "object") delete cell.f;
     delFunctionGroup(ctx, row, column, sheet.id);
     setCellValueInternal(ctx, row, column, data, value);
   } else if (value instanceof Object) {
@@ -191,6 +193,8 @@ function setCellValueOnSheet(
     ) {
       updateCell(ctx, row, column, cellInput, value); // update formula value or convert inline string html to object
     } else {
+      const cell = data?.[row]?.[column];
+      if (cell && typeof cell === "object") delete cell.f;
       delFunctionGroup(ctx, row, column, sheet.id);
       setCellValueInternal(ctx, row, column, data, value);
     }

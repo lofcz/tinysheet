@@ -21,7 +21,8 @@ import {
   invalidateSpillAnchors,
   hasPendingRecalc,
   isValidFormatCode,
-  recalculateWorkbook,
+  execFunctionGroup,
+  groupValuesRefresh,
 } from "@lofcz/tinysheet-core";
 import { applyPatches } from "immer";
 import _ from "lodash";
@@ -45,11 +46,32 @@ export function generateAPIs(
   // through the API are final.
   const settled = () =>
     flushRecalcNow && hasPendingRecalc(context) ? flushRecalcNow() : context;
-  // Low-level value setters preserve formatting; recalculate dependents once
-  // after the complete API mutation, including references on other tabs.
-  const mutateValues = (ctx: Context, mutate: () => void) => {
+  // Recalculate only dependents of this mutation. The native engine queues
+  // these changes in manual mode, preserving Excel's F9 behavior.
+  const mutateValues = (
+    ctx: Context,
+    options: api.CommonOptions,
+    range: SingleRange,
+    mutate: () => void
+  ) => {
     mutate();
-    recalculateWorkbook(ctx);
+    const sheet = api.getSheet(ctx, options);
+    const cache = ctx.formulaCache;
+    cache.execFunctionGlobalData = {};
+    cache.execFunctionExist = [];
+    for (let r = range.row[0]; r <= range.row[1]; r++)
+      for (let c = range.column[0]; c <= range.column[1]; c++)
+        cache.execFunctionExist.push({ r, c, id: sheet.id });
+    execFunctionGroup(
+      ctx,
+      null as any,
+      null as any,
+      null,
+      sheet.id,
+      sheet.data
+    );
+    groupValuesRefresh(ctx);
+    cache.execFunctionGlobalData = null;
   };
   // Validate before scheduling React's state recipe: throwing from a deferred
   // recipe escapes the API caller and unmounts the workbook's error boundary.
@@ -195,15 +217,22 @@ export function generateAPIs(
       options: api.CommonOptions & { type?: keyof Cell } = {}
     ) =>
       setContext((draftCtx) =>
-        mutateValues(draftCtx, () =>
-          api.setCellValue(draftCtx, row, column, value, cellInput, options)
+        mutateValues(
+          draftCtx,
+          options,
+          { row: [row, row], column: [column, column] },
+          () =>
+            api.setCellValue(draftCtx, row, column, value, cellInput, options)
         )
       ),
 
     clearCell: (row: number, column: number, options: api.CommonOptions = {}) =>
       setContext((draftCtx) =>
-        mutateValues(draftCtx, () =>
-          api.clearCell(draftCtx, row, column, options)
+        mutateValues(
+          draftCtx,
+          options,
+          { row: [row, row], column: [column, column] },
+          () => api.clearCell(draftCtx, row, column, options)
         )
       ),
 
@@ -314,7 +343,7 @@ export function generateAPIs(
       options: api.CommonOptions = {}
     ) =>
       setContext((draftCtx) =>
-        mutateValues(draftCtx, () =>
+        mutateValues(draftCtx, options, range, () =>
           api.setCellValuesByRange(draftCtx, data, range, cellInput, options)
         )
       ),

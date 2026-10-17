@@ -48,6 +48,21 @@ test("numeric range edits recalculate existing formulas and other tabs", () => {
   expect(val(ctx, 0, 1, "summary")).toBe(1);
 });
 
+test("replacing or clearing a formula removes it and updates its dependents", () => {
+  const { ctx, workbook } = fixture();
+  workbook.setCellValue(0, 1, 99, { id: "data" });
+  expect(ctx.luckysheetfile[0].data[0][1].f).toBeUndefined();
+  expect(val(ctx, 0, 1, "summary")).toBe(100);
+  workbook.setCellValue(0, 1, "=A1*2", { id: "data" });
+  workbook.setCellValuesByRange(
+    [[null]],
+    { row: [0, 0], column: [1, 1] },
+    { id: "data" }
+  );
+  expect(ctx.luckysheetfile[0].data[0][1].f).toBeUndefined();
+  expect(val(ctx, 0, 1, "summary")).toBe(1);
+});
+
 test("formula writes target a nonactive tab without changing the active tab", () => {
   const { ctx, workbook } = fixture();
   workbook.setCellValue(0, 1, "=Data!A1*3", { id: "summary" });

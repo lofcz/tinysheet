@@ -4,7 +4,12 @@ import { getSheet } from "./common";
 import { Context } from "../context";
 import { CellMatrix, CellWithRowAndCol, Sheet, SingleRange } from "../types";
 import { getSheetIndex } from "../utils";
-import { api, execfunction, insertUpdateFunctionGroup } from "..";
+import {
+  api,
+  execfunction,
+  insertUpdateFunctionGroup,
+  setCellValue as storeComputedValue,
+} from "..";
 import { duplicateSheet, hideSheets } from "../modules/sheet";
 import { isChunkedMatrix, materializeMatrix } from "../modules/rowStore";
 
@@ -107,7 +112,7 @@ function calculateSheetFromula(ctx: Context, id: string, range?: SingleRange) {
         c,
         id
       );
-      api.setCellValue(ctx, r, c, result[1], null, { id });
+      storeComputedValue(ctx, r, c, ctx.luckysheetfile[index].data, result[1]);
       insertUpdateFunctionGroup(ctx, r, c, id);
     }
   }
