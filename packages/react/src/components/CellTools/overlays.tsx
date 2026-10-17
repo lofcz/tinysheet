@@ -6,7 +6,7 @@ import {
   formatLocaleText,
   hasDataTables,
 } from "@lofcz/tinysheet-core";
-import produce from "immer";
+import { produce } from "immer";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import WorkbookContext from "../../context";
 import { activateOnKey } from "../Toolbar/Button";

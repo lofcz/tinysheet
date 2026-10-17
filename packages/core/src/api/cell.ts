@@ -10,7 +10,7 @@ import {
   updateDropCell,
   updateFormatCell,
 } from "../modules";
-import { Cell, CellStyle, SingleRange } from "../types";
+import { Cell, CellStyle, Sheet, SingleRange } from "../types";
 import { CommonOptions, getSheet } from "./common";
 import { SHEET_NOT_FOUND } from "./errors";
 // @ts-ignore
@@ -88,6 +88,23 @@ export function setCellValue(
 
   const sheet = getSheet(ctx, options);
 
+  const activeSheetId = ctx.currentSheetId;
+  ctx.currentSheetId = sheet.id!;
+  try {
+    setCellValueOnSheet(ctx, row, column, value, cellInput, sheet);
+  } finally {
+    ctx.currentSheetId = activeSheetId;
+  }
+}
+
+function setCellValueOnSheet(
+  ctx: Context,
+  row: number,
+  column: number,
+  value: any,
+  cellInput: HTMLDivElement | null,
+  sheet: Sheet
+) {
   const { data } = sheet;
   // if (data.length === 0) {
   //   data = sheetmanage.buildGridData(file);
@@ -117,7 +134,7 @@ export function setCellValue(
   };
 
   if (value == null || value.toString().length === 0) {
-    delFunctionGroup(ctx, row, column);
+    delFunctionGroup(ctx, row, column, sheet.id);
     setCellValueInternal(ctx, row, column, data, value);
   } else if (value instanceof Object) {
     const curv: Cell = {};
@@ -146,7 +163,7 @@ export function setCellValue(
       if (value.m != null) {
         curv.m = value.m;
       }
-      delFunctionGroup(ctx, row, column);
+      delFunctionGroup(ctx, row, column, sheet.id);
       setCellValueInternal(ctx, row, column, data, curv); // update text value
     }
     _.forEach(value, (v, attr) => {
@@ -174,7 +191,7 @@ export function setCellValue(
     ) {
       updateCell(ctx, row, column, cellInput, value); // update formula value or convert inline string html to object
     } else {
-      delFunctionGroup(ctx, row, column);
+      delFunctionGroup(ctx, row, column, sheet.id);
       setCellValueInternal(ctx, row, column, data, value);
     }
   }

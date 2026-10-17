@@ -1,4 +1,9 @@
-import { api, Context, Sheet } from "@lofcz/tinysheet-core";
+import {
+  api,
+  Context,
+  Sheet,
+  recalculateWorkbook,
+} from "@lofcz/tinysheet-core";
 import {
   ChartCellResolver,
   ChartCellValue,
@@ -100,7 +105,7 @@ export function applyExcelImportHydration(
     }
   }
 
-  api.calculateFormula(ctx);
+  recalculateWorkbook(ctx);
 
   for (const sheet of ctx.luckysheetfile) {
     if (sheet.images == null || !Array.isArray(sheet.images)) {

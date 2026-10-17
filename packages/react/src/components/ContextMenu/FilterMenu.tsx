@@ -30,7 +30,7 @@ import React, {
   useState,
 } from "react";
 import _ from "lodash";
-import produce from "immer";
+import { produce } from "immer";
 import WorkbookContext from "../../context";
 import Divider from "./Divider";
 import Menu from "./Menu";

@@ -20,6 +20,8 @@ import {
   CellWithRowAndCol,
   invalidateSpillAnchors,
   hasPendingRecalc,
+  isValidFormatCode,
+  recalculateWorkbook,
 } from "@lofcz/tinysheet-core";
 import { applyPatches } from "immer";
 import _ from "lodash";
@@ -43,6 +45,26 @@ export function generateAPIs(
   // through the API are final.
   const settled = () =>
     flushRecalcNow && hasPendingRecalc(context) ? flushRecalcNow() : context;
+  // Low-level value setters preserve formatting; recalculate dependents once
+  // after the complete API mutation, including references on other tabs.
+  const mutateValues = (ctx: Context, mutate: () => void) => {
+    mutate();
+    recalculateWorkbook(ctx);
+  };
+  // Validate before scheduling React's state recipe: throwing from a deferred
+  // recipe escapes the API caller and unmounts the workbook's error boundary.
+  const validateFormat = (attr: keyof Cell, value: any) => {
+    if (
+      attr === "ct" &&
+      (!value ||
+        typeof value.fa !== "string" ||
+        value.t == null ||
+        !isValidFormatCode(value.fa))
+    )
+      throw new Error(
+        'Invalid Excel number format; quote currency literals, e.g. #,##0.00 "Kč".'
+      );
+  };
   type ApiCall = {
     name: string;
     args: any[];
@@ -173,11 +195,17 @@ export function generateAPIs(
       options: api.CommonOptions & { type?: keyof Cell } = {}
     ) =>
       setContext((draftCtx) =>
-        api.setCellValue(draftCtx, row, column, value, cellInput, options)
+        mutateValues(draftCtx, () =>
+          api.setCellValue(draftCtx, row, column, value, cellInput, options)
+        )
       ),
 
     clearCell: (row: number, column: number, options: api.CommonOptions = {}) =>
-      setContext((draftCtx) => api.clearCell(draftCtx, row, column, options)),
+      setContext((draftCtx) =>
+        mutateValues(draftCtx, () =>
+          api.clearCell(draftCtx, row, column, options)
+        )
+      ),
 
     setCellFormat: (
       row: number,
@@ -185,10 +213,12 @@ export function generateAPIs(
       attr: keyof Cell,
       value: any,
       options: api.CommonOptions = {}
-    ) =>
+    ) => {
+      validateFormat(attr, value);
       setContext((draftCtx) =>
         api.setCellFormat(draftCtx, row, column, attr, value, options)
-      ),
+      );
+    },
 
     autoFillCell: (
       copyRange: SingleRange,
@@ -284,7 +314,9 @@ export function generateAPIs(
       options: api.CommonOptions = {}
     ) =>
       setContext((draftCtx) =>
-        api.setCellValuesByRange(draftCtx, data, range, cellInput, options)
+        mutateValues(draftCtx, () =>
+          api.setCellValuesByRange(draftCtx, data, range, cellInput, options)
+        )
       ),
 
     setCellFormatByRange: (
@@ -292,10 +324,12 @@ export function generateAPIs(
       value: any,
       range: Range | SingleRange,
       options: api.CommonOptions = {}
-    ) =>
+    ) => {
+      validateFormat(attr, value);
       setContext((draftCtx) =>
         api.setCellFormatByRange(draftCtx, attr, value, range, options)
-      ),
+      );
+    },
 
     mergeCells: (
       ranges: Range,

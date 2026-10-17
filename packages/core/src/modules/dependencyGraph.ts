@@ -1,5 +1,5 @@
 /* eslint-disable max-classes-per-file */
-import produce from "immer";
+import { produce } from "immer";
 import type { Context } from "../context";
 import type {
   FormulaCellInfo,
