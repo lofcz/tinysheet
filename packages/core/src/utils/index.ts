@@ -271,6 +271,20 @@ export function isAllowEdit(
           return false;
         }
       }
+      if (cfg.cellReadOnly) {
+        for (const key of Object.keys(cfg.cellReadOnly)) {
+          if (!cfg.cellReadOnly[key]) continue;
+          const [r, c] = key.split("_").map(Number);
+          if (
+            r >= selection.row[0] &&
+            r <= selection.row[1] &&
+            c >= selection.column[0] &&
+            c <= selection.column[1]
+          ) {
+            return false;
+          }
+        }
+      }
 
       return true;
     }) &&

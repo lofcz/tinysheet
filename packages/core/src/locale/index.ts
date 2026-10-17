@@ -4,6 +4,7 @@ import es from "./es";
 import hi from "./hi";
 import ru from "./ru";
 import zh_tw from "./zh_tw";
+import cs from "./cs";
 import esFunctions from "./functions/es";
 import hiFunctions from "./functions/hi";
 import ruFunctions from "./functions/ru";
@@ -41,6 +42,8 @@ const baseLocaleObj: Record<string, Omit<Locale, "chart">> = {
   hi: withFunctionList(hi, hiFunctions),
   // @ts-ignore
   ru: withFunctionList(ru, ruFunctions),
+  // @ts-ignore partial: falls back to English key by key
+  cs,
 };
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>

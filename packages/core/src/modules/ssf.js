@@ -1929,15 +1929,36 @@ const make_ssf = function make_ssf(SSF) {
 
     if (typeof v === "number" && isFinite(v) && v !== 0)
       v = Number(v.toPrecision(15));
-    if (isgeneral(sfmt, 0)) return general_fmt(v, o);
+    if (isgeneral(sfmt, 0)) return localize_num(general_fmt(v, o), v);
     if (v instanceof Date) v = datenum_local(v, o.date1904);
     var f = choose_fmt(sfmt, v);
-    if (isgeneral(f[1])) return general_fmt(v, o);
+    if (isgeneral(f[1])) return localize_num(general_fmt(v, o), v);
     if (v === true) v = "TRUE";
     else if (v === false) v = "FALSE";
     else if (v === "" || v == null) return "";
-    return eval_fmt(f[1], v, o, f[0]);
+    var out = eval_fmt(f[1], v, o, f[0]);
+    return typeof v === "number" && !fmt_is_date(f[1]) ? localize_num(out, v) : out;
   }
+
+  /* Locale separators of formatted numbers (Excel uses the system's: "12 345,5" in cs-CZ).
+     Only the separators between digits of a number change; dates and text keep theirs. */
+  var separators = { decimal: ".", group: "," };
+  function localize_num(out, v) {
+    if (typeof v !== "number" || typeof out !== "string") return out;
+    if (separators.decimal === "." && separators.group === ",") return out;
+    return out.replace(/(^|\d)([.,])(?=\d)/g, function (m, d, sep) {
+      return d + (sep === "," ? separators.group : separators.decimal);
+    });
+  }
+  SSF.set_separators = function set_separators(opts) {
+    separators = {
+      decimal: (opts && opts.decimal) || ".",
+      group: opts && typeof opts.group === "string" ? opts.group : ",",
+    };
+  };
+  SSF.get_separators = function get_separators() {
+    return { decimal: separators.decimal, group: separators.group };
+  };
 
   function load_entry(fmt, idx) {
     if (typeof idx != "number") {

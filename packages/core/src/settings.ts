@@ -182,6 +182,8 @@ export type Settings = {
    * @default true
    */
   showStatsBar?: boolean;
+  /** The "Add N more rows at bottom" bar under the last row (default true). */
+  showAddRows?: boolean;
   data: Sheet[];
   config?: any;
   devicePixelRatio?: number;
@@ -323,6 +325,7 @@ export const defaultSettings: Required<Settings> = {
   showFormulaBar: true, // 是否显示公式栏
   showSheetTabs: true, // 是否显示底部表格名称区域
   showStatsBar: true, // 是否显示底部选区统计（关闭可显著降低拖拽选区时的开销）
+  showAddRows: true,
   data: [], // 客户端sheet数据[sheet1, sheet2, sheet3]
   config: {}, // 表格行高、列宽、合并单元格、公式等设置
   devicePixelRatio: 0, // 设备比例，比例越大表格分标率越高，0表示自动

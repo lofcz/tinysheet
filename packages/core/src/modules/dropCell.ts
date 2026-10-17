@@ -262,6 +262,7 @@ export function updateDropCell(ctx: Context) {
     return;
   }
   if (!checkProtection(ctx, "editCells", [dropCellCache.applyRange])) return;
+  if (!isAllowEdit(ctx, [dropCellCache.applyRange])) return;
 
   const index = getSheetIndex(ctx, ctx.currentSheetId);
   if (index == null) return;

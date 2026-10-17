@@ -318,6 +318,13 @@ export function moveCellRange(
   ) {
     return false;
   }
+  // read-only rows, columns and cells of the active sheet
+  if (
+    (source.sheetId === ctx.currentSheetId && !isAllowEdit(ctx, [range])) ||
+    (target.sheetId === ctx.currentSheetId && !isAllowEdit(ctx, [dest]))
+  ) {
+    return false;
+  }
 
   const srcCfg = liveSheetConfig(ctx, source.sheetId);
   const dstCfg = sameSheet ? srcCfg : liveSheetConfig(ctx, target.sheetId);

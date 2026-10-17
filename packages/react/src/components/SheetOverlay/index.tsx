@@ -1132,7 +1132,10 @@ const SheetOverlay: React.FC = () => {
                   tabIndex={0}
                   style={{
                     left: context.scrollLeft,
-                    display: context.allowEdit ? "block" : "none",
+                    display:
+                      context.allowEdit && settings.showAddRows !== false
+                        ? "block"
+                        : "none",
                   }}
                 >
                   <div

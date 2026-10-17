@@ -59,6 +59,14 @@ function pasteHandlerOfCutPaste(
     row: [src.row[0], src.row[1]],
     column: [src.column[0], src.column[1]],
   };
+  const dest: Rect = {
+    row: [anchor.r, anchor.r + range.row[1] - range.row[0]],
+    column: [anchor.c, anchor.c + range.column[1] - range.column[0]],
+  };
+  // a cut clears its source: both ends must be editable
+  if (!isAllowEdit(ctx, [dest])) return;
+  if (copyRange.dataSheetId === ctx.currentSheetId && !isAllowEdit(ctx, [range]))
+    return;
   try {
     moveCellRange(
       ctx,
@@ -82,6 +90,19 @@ function pasteHandlerOfCopyPaste(
   options: PasteSpecialOptions = {}
 ) {
   if (!isAllowEdit(ctx) || !copyRange) return;
+  const anchor = pasteAnchor(ctx);
+  const [src] = copyRange.copyRange ?? [];
+  if (
+    anchor &&
+    src &&
+    !isAllowEdit(ctx, [
+      {
+        row: [anchor.r, anchor.r + src.row[1] - src.row[0]],
+        column: [anchor.c, anchor.c + src.column[1] - src.column[0]],
+      },
+    ])
+  )
+    return;
   pasteSpecial(ctx, options);
 }
 
@@ -106,6 +127,8 @@ function pasteHandler(ctx: Context, parsed: ParsedClipboard) {
   };
   if (rangeCutsMerge(cfg.merge || {}, target)) return;
   if (!checkProtection(ctx, "editCells", [target])) return;
+  // the pasted block may reach read-only rows, columns or cells beyond the selection
+  if (!isAllowEdit(ctx, [target])) return;
 
   const addr = target.row[1] - d.length + 1;
   const addc = target.column[1] - (d[0]?.length ?? 0) + 1;
@@ -196,6 +219,8 @@ function pasteTextHandler(ctx: Context, rows: string[][]) {
   };
   if (rangeCutsMerge(cfg.merge || {}, target)) return;
   if (!checkProtection(ctx, "editCells", [target])) return;
+  // the pasted block may reach read-only rows, columns or cells beyond the selection
+  if (!isAllowEdit(ctx, [target])) return;
 
   const addr = target.row[1] - d.length + 1;
   const addc = target.column[1] - (d[0]?.length ?? 0) + 1;

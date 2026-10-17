@@ -1642,8 +1642,24 @@ const hi: DeepPartial<DataToolsLocale> = {
   },
 };
 
+const cs: DeepPartial<DataToolsLocale> = {
+  dataValidation: {
+    title: "Ověření dat",
+    ok: "OK",
+    cancel: "Zrušit",
+    invalidTitle: "Neplatná hodnota",
+    defaultError: "Hodnota neodpovídá pravidlům buňky.",
+    continueQuestion: "Pokračovat?",
+    retry: "Opakovat",
+    yes: "Ano",
+    no: "Ne",
+    close: "Zavřít",
+  },
+};
+
 const translations: Record<string, DeepPartial<DataToolsLocale>> = {
   en,
+  cs,
   zh,
   "zh-CN": zh,
   "zh-TW": zhTW,

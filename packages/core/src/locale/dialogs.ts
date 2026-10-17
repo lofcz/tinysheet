@@ -167,7 +167,15 @@ const es: DeepPartial<DialogsLocale> = {
   },
 };
 
+const cs: DeepPartial<DialogsLocale> = {
+  close: "Zavřít",
+  ok: "OK",
+  cancel: "Zrušit",
+  apply: "Použít",
+};
+
 const translations: Record<string, DeepPartial<DialogsLocale>> = {
+  cs,
   zh,
   "zh-CN": zh,
   es,

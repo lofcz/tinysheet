@@ -137,6 +137,8 @@ export type SheetConfig = {
   authority?: SheetProtection;
   rowReadOnly?: Record<number, number>;
   colReadOnly?: Record<number, number>;
+  /** Read-only single cells, keyed "row_column" (guards typing, paste, delete, fill and moves). */
+  cellReadOnly?: Record<string, number>;
   /**
    * Outline (Data › Group) level of each grouped row / column, 1–7; rows
    * and columns without an entry are level 0. See modules/outline.ts.

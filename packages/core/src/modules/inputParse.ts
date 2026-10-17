@@ -76,6 +76,41 @@ const WEEKDAYS_EN = [
 
 let extraMonthNames: string[][] = [];
 
+/** Locale separators of typed numbers (see format.ts setNumberSeparators). */
+let separators = { decimal: ".", group: "," };
+
+export function setInputSeparators(seps: { decimal: string; group: string }) {
+  separators = { decimal: seps.decimal || ".", group: seps.group ?? "," };
+}
+
+/** Currency words written after the number ("12 000 Kč"). */
+const CURRENCY_WORDS = /\s*(Kč|CZK|EUR|USD)$/i;
+
+/**
+ * Typed text in a comma-decimal locale → the en-US text the parser reads:
+ * "12 000,5" → "12000.5", "1.234,5" → "1234.5". Text that is not a number in
+ * that locale (dates such as "18.10.2026") is returned unchanged.
+ */
+function delocalize(s: string): string {
+  if (separators.decimal === "." && separators.group === ",") return s;
+  let t = s.trim();
+  let currency = "";
+  const word = CURRENCY_WORDS.exec(t);
+  if (word) {
+    currency = word[1];
+    t = t.slice(0, word.index).trim();
+  }
+  const body = /^([-+(]?)(.*?)([%)]?)$/.exec(t);
+  if (!body) return s;
+  let num = body[2].replace(/(\d)[ \u00a0\u202f'](?=\d{3}(?:\D|$))/g, "$1");
+  if (separators.decimal === ",") {
+    if (/^\d{1,3}(?:\.\d{3})+(?:,\d*)?$/.test(num)) num = num.replace(/\./g, "");
+    if (/^\d*,\d*$/.test(num) && num !== ",") num = num.replace(",", ".");
+  }
+  if (!/^(\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(num)) return s;
+  return `${body[1]}${num}${body[3]}${currency ? ` ${currency}` : ""}`;
+}
+
 /**
  * Register additional (localised) month names that typed input should
  * recognise, e.g. `[["janv.", "janvier"], ...]` (12 entries, any casing).
@@ -201,6 +236,8 @@ function parseUnsignedNumber(s: string): NumberParts | null {
 function currencyFormat(symbol: string, trailing: boolean, decimals: boolean) {
   const num = decimals ? "#,##0.00" : "#,##0";
   const quoted = `"${symbol}"`;
+  // currency words are written apart from the number ("12 000 Kč")
+  if (symbol.length > 1) return trailing ? `${num} ${quoted}` : `${quoted} ${num}`;
   return trailing ? `${num}${quoted}` : `${quoted}${num}`;
 }
 
@@ -239,6 +276,14 @@ function parseNumber(input: string): ParsedInput | null {
 
   // Sign and currency can appear in either order: -$3, $-3
   if (!takeSign() || !takeLeadingCurrency() || !takeSign()) return null;
+
+  // Trailing currency word: 12000 Kč
+  const word = CURRENCY_WORDS.exec(s);
+  if (word && !currency) {
+    currency = word[1];
+    currencyTrailing = true;
+    s = s.slice(0, word.index).trim();
+  }
 
   // Trailing currency symbol: 5€, 5 €
   const last = s[s.length - 1];
@@ -499,7 +544,7 @@ export function parseInput(
   if (upper === "FALSE") return { type: "boolean", v: false };
   if (ERROR_VALUES.includes(upper)) return { type: "error", v: upper };
 
-  const num = parseNumber(s);
+  const num = parseNumber(delocalize(s));
   if (num) return num;
 
   const frac = parseFraction(s);

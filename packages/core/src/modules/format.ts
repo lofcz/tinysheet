@@ -3,13 +3,14 @@ import _ from "lodash";
 import SSF from "./ssf";
 import { Cell, CellMatrix } from "../types";
 import { getCellValue } from "./cell";
-import { parseInput, setInputMonthNames } from "./inputParse";
+import { parseInput, setInputMonthNames, setInputSeparators } from "./inputParse";
 
 export {
   parseInput,
   resolveTypedInput,
   dateToSerial,
   setInputMonthNames,
+  setInputSeparators,
 } from "./inputParse";
 export type { ParsedInput, TypedCellValue } from "./inputParse";
 export * from "./numberFormat";
@@ -403,6 +404,31 @@ export function setFormatLocale(names: {
   setInputMonthNames(names.months);
 }
 
+/**
+ * Decimal and thousands separators of displayed and typed numbers, like
+ * Excel's system locale: `{ decimal: ",", group: "\u00a0" }` shows 12345.5
+ * as "12 345,5" and reads typed "12 000,5" (and "12 000 Kč") as 12000.5.
+ * Format codes keep Excel's notation (`#,##0.00`). Pass nothing to reset.
+ */
+export function setNumberSeparators(seps?: { decimal?: string; group?: string }) {
+  const next = { decimal: seps?.decimal || ".", group: seps?.group ?? "," };
+  SSF.set_separators(next);
+  setInputSeparators(next);
+}
+
+export function getNumberSeparators(): { decimal: string; group: string } {
+  return SSF.get_separators();
+}
+
+/** Separators of a BCP 47 locale ("cs-CZ" → "," and a no-break space). */
+export function numberSeparatorsForLocale(lang: string) {
+  const parts = new Intl.NumberFormat(lang).formatToParts(12345.6);
+  return {
+    decimal: parts.find((p) => p.type === "decimal")?.value ?? ".",
+    group: parts.find((p) => p.type === "group")?.value ?? ",",
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* Value shown while editing a cell                                    */
 /* ------------------------------------------------------------------ */
@@ -435,7 +461,10 @@ function fuzzynum(s: string | number) {
 /** Excel shows at most 15 significant digits in the formula bar. */
 function editNumber(v: any) {
   if (typeof v === "number" && Number.isFinite(v)) {
-    return Number(v.toPrecision(15));
+    const n = Number(v.toPrecision(15));
+    const { decimal } = SSF.get_separators();
+    // the editor shows the locale's decimal separator (no grouping), as Excel does
+    return decimal === "." ? n : String(n).replace(".", decimal);
   }
   return v;
 }
