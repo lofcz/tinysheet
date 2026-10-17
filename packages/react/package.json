@@ -1,6 +1,6 @@
 {
   "name": "@lofcz/tinysheet-react",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "keywords": [
     "collabration",
     "collabrative",
@@ -43,7 +43,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@lofcz/tinysheet-core": "^1.0.4",
+    "@lofcz/tinysheet-core": "^1.0.5",
     "@types/regenerator-runtime": "^0.13.6",
     "immer": "^9.0.12",
     "lodash": "^4.17.21",
