@@ -5,7 +5,6 @@ import { Context } from "../context";
 import { CellMatrix, CellWithRowAndCol, Sheet, SingleRange } from "../types";
 import { getSheetIndex } from "../utils";
 import {
-  api,
   execfunction,
   insertUpdateFunctionGroup,
   setCellValue as storeComputedValue,
