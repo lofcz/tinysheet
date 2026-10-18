@@ -477,23 +477,37 @@ test("date validation bounds are independent of timezone and daylight saving", a
     for (const timezone of ["UTC", "Europe/Prague", "America/New_York"]) {
       process.env.TZ = timezone;
       for (const date1904 of [false, true]) {
-        const result = await importWorkbook((wb) => {
-          wb.properties.date1904 = date1904;
-          const ws = wb.addWorksheet("Dates");
-          for (const [cell, month] of [
-            ["A1", 0],
-            ["B1", 6],
-          ]) {
-            ws.getCell(cell).dataValidation = {
-              type: "date",
-              operator: "between",
-              formulae: [
-                new Date(Date.UTC(2024, month, 1)),
-                new Date(Date.UTC(2024, month, 31)),
-              ],
-            };
-          }
-        });
+        const result = await importWorkbook(
+          (wb) => {
+            wb.properties.date1904 = date1904;
+            const ws = wb.addWorksheet("Dates");
+            for (const [cell, month] of [
+              ["A1", 0],
+              ["B1", 6],
+            ]) {
+              ws.getCell(cell).dataValidation = {
+                type: "date",
+                operator: "between",
+                formulae: [
+                  new Date(Date.UTC(2024, month, 1)).toISOString(),
+                  new Date(Date.UTC(2024, month, 31)).toISOString(),
+                ],
+              };
+            }
+          },
+          date1904
+            ? {
+                // ExcelJS serializes validation dates in the 1900 system even when
+                // date1904 is enabled. Encode a genuine 1904-system test fixture.
+                "xl/worksheets/sheet1.xml": (xml) =>
+                  xml.replace(
+                    /(<formula[12]>)(\d+)(<\/formula[12]>)/g,
+                    (_, open, value, close) =>
+                      `${open}${Number(value) - 1462}${close}`
+                  ),
+              }
+            : undefined
+        );
         const rules = sheetByName(result, "Dates").dataVerification;
         assert.equal(
           rules["0_0"].value1,
