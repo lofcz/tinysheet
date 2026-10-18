@@ -173,6 +173,12 @@ export type Settings = {
   addRows?: number;
   allowEdit?: boolean;
   showToolbar?: boolean;
+  /**
+   * Whether the ribbon commands start pinned below the tabs. False shows only
+   * the tab row until a tab is clicked. Users can still pin/unpin the ribbon;
+   * changes to this initial setting do not reset their choice. @default true
+   */
+  defaultRibbonPinned?: boolean;
   showFormulaBar?: boolean;
   showSheetTabs?: boolean;
   /**
@@ -333,6 +339,7 @@ export const defaultSettings: Required<Settings> = {
   row: 84, // 空表格默认的行数据量
   addRows: 50, // It will add the rows when we click on add row button
   showToolbar: true, // 是否显示工具栏
+  defaultRibbonPinned: true,
   showFormulaBar: true, // 是否显示公式栏
   showSheetTabs: true, // 是否显示底部表格名称区域
   showStatsBar: true, // 是否显示底部选区统计（关闭可显著降低拖拽选区时的开销）

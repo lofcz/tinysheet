@@ -36,6 +36,7 @@ The following are all supported setting parameters
 - Number of columns [column](#column)
 - Number of rows [row](#row)
 - Toolbar [showToolbar](#showtoolbar)
+- Initial ribbon pinning [defaultRibbonPinned](#defaultribbonpinned)
 - Customize Toolbar [toolbarItems](#toolbaritems)
 - Bottom sheet bar [showSheetTabs](#showsheettabs)
 - Ratio [devicePixelRatio](#devicepixelratio)
@@ -93,6 +94,20 @@ The following are all supported setting parameters
 - Type: Boolean
 - Default: true
 - Usage: Whether to show the toolbar
+
+---
+
+### defaultRibbonPinned
+
+- Type: Boolean
+- Default: true
+- Usage: Whether the ribbon's command row starts pinned. Set
+  `<Workbook defaultRibbonPinned={false} ... />` for an embedded workbook
+  that starts with just the ribbon tabs. Clicking a tab temporarily opens
+  its commands over the grid; clicking outside closes them. The pin button,
+  a tab double-click, or Ctrl+F1 can still pin/unpin the ribbon. This sets
+  the initial state only, so host rerenders do not reset the user's choice.
+  `showToolbar={false}` hides the ribbon entirely.
 
 ---
 

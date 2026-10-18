@@ -380,7 +380,9 @@ const Ribbon: React.FC = () => {
     check();
     return subscribeRibbonTabRequests(check);
   }, [allTabsKey]);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    settings.defaultRibbonPinned === false
+  );
   const [peek, setPeek] = useState(false);
   const paneRef = useRef<HTMLDivElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
