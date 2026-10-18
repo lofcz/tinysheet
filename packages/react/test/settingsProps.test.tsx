@@ -31,14 +31,14 @@ describe("Workbook settings", () => {
     const data = [{ name: "Sheet1" }];
     const { container, rerender } = render(<Workbook data={data} />);
     const undo = () =>
-      container.querySelector('[aria-label="Undo"], [aria-label="撤销"]');
+      container.querySelector('[aria-label="Undo"], [aria-label="Zpět"]');
     await waitFor(() =>
       expect(undo()?.getAttribute("aria-label")).toBe("Undo")
     );
 
-    rerender(<Workbook data={data} lang="zh" />);
+    rerender(<Workbook data={data} lang="cs" />);
     await waitFor(() =>
-      expect(undo()?.getAttribute("aria-label")).toBe("撤销")
+      expect(undo()?.getAttribute("aria-label")).toBe("Zpět")
     );
   });
 });

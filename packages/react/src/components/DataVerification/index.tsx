@@ -187,7 +187,7 @@ const DataVerification: React.FC<{ keepState?: boolean }> = ({ keepState }) => {
   const boundLabels = (() => {
     if (type === "date") return [t.startDate, t.endDate, t.date];
     if (type === "time") return [t.startTime, t.endTime, t.time];
-    if (type === "text_length") return [t.minimum, t.maximum, t.length];
+    if (type === "text_length") return [t.minimum, t.maximum, t.lengthLabel];
     return [t.minimum, t.maximum, t.value];
   })();
 

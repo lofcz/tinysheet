@@ -950,22 +950,13 @@ export function cancelPaintModel(ctx: Context) {
  * language without its own.
  */
 export function defaultCurrencySymbol(lang?: string | null) {
-  const l = (lang || "").toLowerCase();
-  if (l === "zh-tw" || l === "zh-hant") return "NT$";
   const byLang: Record<string, string> = {
     cs: "Kč",
     sk: "€",
     pl: "zł",
-    zh: "¥",
-    ja: "¥",
-    ru: "₽",
-    hi: "₹",
-    es: "€",
-    fr: "€",
-    de: "€",
-    it: "€",
+    en: "$",
   };
-  return byLang[l.split("-")[0]] ?? "$";
+  return byLang[(lang || "en").toLowerCase().split(/[-_]/)[0]] ?? "$";
 }
 
 /** Currency symbol of the workbook (settings.currency, else the locale's). */

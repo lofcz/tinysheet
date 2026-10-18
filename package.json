@@ -29,7 +29,9 @@
     "demo": "rsbuild dev -c demo/rsbuild.config.ts",
     "demo:build": "rsbuild build -c demo/rsbuild.config.ts",
     "docs": "rspress dev -c docs/rspress.config.ts",
-    "docs:build": "rspress build -c docs/rspress.config.ts"
+    "docs:build": "rspress build -c docs/rspress.config.ts",
+    "i18n": "bun --bun node_modules/typesafe-i18n/cli/typesafe-i18n.mjs",
+    "i18n:build": "bun scripts/generate-i18n.mjs"
   },
   "dependencies": {
     "react": "^19.3.0",
@@ -68,6 +70,7 @@
     "storybook-react-rsbuild": "^3.6.0",
     "terser": "5.37.0",
     "tsdown": "^0.22.14",
+    "typesafe-i18n": "npm:@lofcz/typesafe-i18n@5.27.4",
     "ws": "^8.11.0",
     "yorkie": "^2.0.0"
   },

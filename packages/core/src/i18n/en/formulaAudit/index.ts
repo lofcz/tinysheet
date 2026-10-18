@@ -1,0 +1,113 @@
+import type { BaseTranslation } from "typesafe-i18n";
+
+const en = {
+  auditing: {
+    menu: "Formula Auditing",
+    tracePrecedents: "Trace Precedents",
+    traceDependents: "Trace Dependents",
+    removeArrows: "Remove Arrows",
+    removePrecedentArrows: "Remove Precedent Arrows",
+    removeDependentArrows: "Remove Dependent Arrows",
+    showFormulas: "Show Formulas",
+    evaluateFormula: "Evaluate Formula",
+    watchWindow: "Watch Window",
+    addWatch: "Add Watch",
+    noFormula:
+      "The active cell does not contain a formula that refers to a valid reference.",
+    noDependents: "No formula refers to the active cell.",
+    otherSheet: "Reference to another worksheet",
+  },
+  calc: {
+    options: "Calculation Options",
+    automatic: "Automatic",
+    automaticExceptTables: "Automatic Except for Data Tables",
+    manual: "Manual",
+    calculateNow: "Calculate Now",
+    calculateSheet: "Calculate Sheet",
+    calculateFull: "Recalculate Everything",
+    iterativeSettings: "Iterative Calculation…",
+    workbookCalculation: "Workbook Calculation",
+    enableIterative: "Enable iterative calculation",
+    maxIterations: "Maximum Iterations:",
+    maxChange: "Maximum Change:",
+    calculate: "Calculate",
+    calculateHint: "Formulas are waiting to be calculated. Click or press F9.",
+    circularReferences: "Circular References",
+    circularWarning:
+      "There are one or more circular references where a formula refers to its own cell either directly or indirectly. This might cause them to calculate incorrectly. Try removing or changing these references, or moving the formulas to different cells.",
+    ok: "OK",
+    cancel: "Cancel",
+  },
+  evaluate: {
+    title: "Evaluate Formula",
+    reference: "Reference:",
+    evaluation: "Evaluation:",
+    evaluate: "Evaluate",
+    restart: "Restart",
+    stepIn: "Step In",
+    stepOut: "Step Out",
+    close: "Close",
+    hint: "To show the result of the underlined expression, click Evaluate. The most recent result appears italicized.",
+    noFormula: "The active cell does not contain a formula.",
+  },
+  watch: {
+    title: "Watch Window",
+    addWatch: "Add Watch…",
+    deleteWatch: "Delete Watch",
+    book: "Book",
+    sheet: "Sheet",
+    name: "Name",
+    cell: "Cell",
+    value: "Value",
+    formula: "Formula",
+    bookName: "Book1",
+    empty: "Select cells and click Add Watch to keep an eye on their values.",
+    close: "Close",
+  },
+  errors: {
+    checking: "Error Checking",
+    options: "Error Checking Options…",
+    tagLabel: "Error checking options",
+    enable: "Enable background error checking",
+    rulesTitle: "Error checking rules",
+    resetIgnored: "Reset Ignored Errors",
+    rules: {
+      evaluationError: "Cells containing formulas that result in an error",
+      inconsistentFormula:
+        "Formulas inconsistent with other formulas in the region",
+      omitsCells: "Formulas which omit cells in a region",
+      unlockedFormula: "Unlocked cells containing formulas",
+      emptyCellRef: "Formulas referring to empty cells",
+      numberAsText: "Numbers formatted as text or preceded by an apostrophe",
+    },
+    titles: {
+      evaluationError: "Error in Value",
+      inconsistentFormula: "Inconsistent Formula",
+      omitsCells: "Formula Omits Adjacent Cells",
+      unlockedFormula: "Unprotected Formula",
+      emptyCellRef: "Formula Refers to Empty Cells",
+      numberAsText: "Number Stored as Text",
+    },
+    details: {
+      evaluationError: "A value used in the formula is of the wrong type.",
+      inconsistentFormula:
+        "The formula in this cell differs from the formulas in this area of the spreadsheet.",
+      omitsCells:
+        "The formula in this cell refers to a range that has additional numbers adjacent to it.",
+      unlockedFormula:
+        "The formula in this cell is not locked to protect it from being changed inadvertently.",
+      emptyCellRef: "The formula in this cell refers to empty cells.",
+      numberAsText:
+        "The number in this cell is formatted as text or preceded by an apostrophe.",
+    },
+    convertToNumber: "Convert to Number",
+    copyFromAbove: "Copy Formula from Above",
+    copyFromLeft: "Copy Formula from Left",
+    includeCells: "Update Formula to Include Cells",
+    lockCell: "Lock Cell",
+    traceError: "Trace Error",
+    ignore: "Ignore Error",
+  },
+} as const satisfies BaseTranslation;
+
+export default en;

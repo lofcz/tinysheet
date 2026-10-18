@@ -363,8 +363,8 @@ describe("chart model", () => {
     expect(chartThemeFor({}, "dark")).toBe(chartThemes.dark);
     expect(renderChartToSvg(ctx, chart, "dark")).toContain('fill="#111214"');
     // localised legend labels
-    expect(resolveChartModel({ ...ctx, lang: "zh" }, wf).labels.increase).toBe(
-      "增加"
+    expect(resolveChartModel({ ...ctx, lang: "cs" }, wf).labels.increase).toBe(
+      "Zvýšení"
     );
   });
 });

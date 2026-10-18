@@ -22,8 +22,8 @@ describe("Home helpers", () => {
 
   it("uses the language's currency unless the host set one", () => {
     expect(currencySymbolFor({ lang: "en" } as any)).toBe("$");
-    expect(currencySymbolFor({ lang: "es" } as any)).toBe("€");
-    expect(currencySymbolFor({ lang: "zh-TW" } as any)).toBe("NT$");
+    expect(currencySymbolFor({ lang: "sk" } as any)).toBe("€");
+    expect(currencySymbolFor({ lang: "cs-CZ" } as any)).toBe("Kč");
     expect(currencySymbolFor({ lang: "en" } as any, "Kč")).toBe("Kč");
   });
 });

@@ -112,10 +112,12 @@ describe("Formulas, Data and Review tabs", () => {
   });
 
   it("translates the commands", () => {
-    const { container } = renderBook({ lang: "zh" });
+    const { container } = renderBook({ lang: "cs" });
     showRibbonTab(container, "data");
     const names = groups(container).flatMap(([, n]) => n as string[]);
-    expect(names).toEqual(expect.arrayContaining(["筛选", "分列", "组合"]));
+    expect(names).toEqual(
+      expect.arrayContaining(["Filtr", "Text do sloupců", "Seskupit"])
+    );
   });
 
   it("toggles reflect the state: Show Comments, Show Formulas", () => {

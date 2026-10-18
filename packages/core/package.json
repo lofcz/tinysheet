@@ -46,6 +46,7 @@
     "immer": "^9.0.12",
     "lodash": "^4.17.21",
     "numeral": "^2.0.6",
+    "typesafe-i18n": "npm:@lofcz/typesafe-i18n@5.27.4",
     "uuid": "^8.3.2"
   },
   "devDependencies": {

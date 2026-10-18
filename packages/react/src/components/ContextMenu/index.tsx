@@ -377,14 +377,6 @@ const ContextMenu: React.FC = () => {
             <Icon icon={menuIcon("insert")} />
           </span>
           <span className="ts-menu-label">
-            {_.startsWith(context.lang ?? "", "zh") && (
-              <>
-                {rightclick.to}
-                <span className={`luckysheet-cols-rows-shift-${dir}`}>
-                  {(rightclick as any)[dir]}
-                </span>
-              </>
-            )}
             {`${rightclick.insert}  `}
             <input
               onClick={(e) => e.stopPropagation()}
@@ -399,11 +391,9 @@ const ContextMenu: React.FC = () => {
             <span className="luckysheet-cols-rows-shift-word">
               {`${type === "row" ? rightclick.row : rightclick.column}  `}
             </span>
-            {!_.startsWith(context.lang ?? "", "zh") && (
-              <span className={`luckysheet-cols-rows-shift-${dir}`}>
-                {(rightclick as any)[dir]}
-              </span>
-            )}
+            <span className={`luckysheet-cols-rows-shift-${dir}`}>
+              {(rightclick as any)[dir]}
+            </span>
           </span>
         </div>
       ),

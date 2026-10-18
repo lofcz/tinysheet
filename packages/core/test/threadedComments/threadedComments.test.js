@@ -345,7 +345,7 @@ describe("navigation and UI state", () => {
     expect(formatCommentTime(ago(26 * 3600), "en", now)).toBe("yesterday");
     expect(formatCommentTime(ago(120), "es", now)).toBe("hace 2 minutos");
     expect(formatCommentTime("nonsense", "en", now)).toBe("");
-    expect(threadedCommentsLocale({ lang: "zh" }).post).toBe("发布");
+    expect(threadedCommentsLocale({ lang: "cs" }).post).toBe("Odeslat");
     expect(threadedCommentsLocale({ lang: "xx" }).post).toBe("Post");
   });
 

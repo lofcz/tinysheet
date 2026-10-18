@@ -78,8 +78,8 @@ describe("registration", () => {
   });
 
   test("locale falls back to English", () => {
-    expect(sparklineLocale({ lang: "zh" }).group).toBe("组合");
-    expect(sparklineLocale({ lang: "zh" }).errorData).toBe(
+    expect(sparklineLocale({ lang: "cs" }).group).toBe("Seskupit");
+    expect(sparklineLocale({ lang: "cs" }).errorData).toBe(
       "The data range is not valid."
     );
     expect(sparklineLocale({ lang: null }).line).toBe("Line");

@@ -3,7 +3,7 @@ import ExportIcon from "../icons/ExportIcon";
 import ImportIcon from "../icons/ImportIcon";
 
 export type ExcelToolbarItemOptions = {
-  /** UI language ("en", "zh", "zh-TW", "es", "ru", "hi"; English fallback). */
+  /** UI language ("en", "cs", "sk", "pl"; English fallback). */
   lang?: string | null;
 };
 

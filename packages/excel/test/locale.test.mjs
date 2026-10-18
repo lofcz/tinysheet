@@ -9,7 +9,7 @@ import {
   importToolBarItem,
 } from "../dist/index.js";
 
-const LANGS = ["en", "zh", "zh-TW", "es", "ru", "hi"];
+const LANGS = ["en", "cs", "sk", "pl"];
 
 test("every language has every string, with its placeholders", () => {
   const en = excelIoLocale("en");
@@ -30,10 +30,13 @@ test("every language has every string, with its placeholders", () => {
 });
 
 test("language lookup: regions, contexts and English fallback", () => {
-  assert.equal(excelIoLocale("es-MX").importTooltip, "Importar archivo");
-  assert.equal(excelIoLocale({ lang: "ru" }).exportTooltip, "Экспорт...");
-  assert.equal(excelIoLocale("zh-TW").importTooltip, "匯入檔案");
-  assert.equal(excelIoLocale("zh-CN").importTooltip, "导入文件");
+  assert.equal(excelIoLocale("cs-CZ").importTooltip, "Importovat soubor");
+  assert.equal(
+    excelIoLocale({ lang: "sk-SK" }).importTooltip,
+    "Importovať súbor"
+  );
+  assert.equal(excelIoLocale("PL_pl").importTooltip, "Importuj plik");
+  assert.equal(excelIoLocale("zh").importTooltip, "Import file");
   assert.equal(excelIoLocale("xx").importTooltip, "Import file");
   assert.equal(excelIoLocale(null).importTooltip, "Import file");
   assert.equal(excelIoLocale("constructor").importTooltip, "Import file");
@@ -41,11 +44,11 @@ test("language lookup: regions, contexts and English fallback", () => {
 
 test("toolbar items and import messages are localized", () => {
   assert.equal(importToolBarItem().tooltip, "Import file");
-  assert.equal(importToolBarItem({ lang: "hi" }).tooltip, "फ़ाइल आयात करें");
-  assert.equal(exportToolBarItem({ lang: "zh" }).tooltip, "导出...");
+  assert.equal(importToolBarItem({ lang: "sk" }).tooltip, "Importovať súbor");
+  assert.equal(exportToolBarItem({ lang: "cs" }).tooltip, "Exportovat…");
   assert.equal(
-    importErrorMessage(new ExcelImportError("not-a-zip", "x"), "a.xlsx", "es"),
-    "a.xlsx no es un archivo .xlsx."
+    importErrorMessage(new ExcelImportError("not-a-zip", "x"), "a.xlsx", "cs"),
+    "Soubor a.xlsx není ve formátu .xlsx."
   );
   assert.match(
     importErrorMessage(
@@ -55,7 +58,7 @@ test("toolbar items and import messages are localized", () => {
     /^old\.xls is a legacy \.xls file/
   );
   assert.equal(
-    importErrorMessage(new Error("boom"), "b.xlsx", "ru"),
-    "Не удалось импортировать b.xlsx."
+    importErrorMessage(new Error("boom"), "b.xlsx", "pl"),
+    "Nie udało się zaimportować pliku b.xlsx."
   );
 });

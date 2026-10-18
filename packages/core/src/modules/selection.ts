@@ -2341,7 +2341,7 @@ export function fixColumnStyleOverflowInFreeze(
   return ret;
 }
 
-export function calcSelectionInfo(ctx: Context, lang?: string | null) {
+export function calcSelectionInfo(ctx: Context, _lang?: string | null) {
   const selection = ctx.luckysheet_select_save!;
   let numberC = 0;
   let count = 0;
@@ -2373,8 +2373,7 @@ export function calcSelectionInfo(ctx: Context, lang?: string | null) {
       }
     }
   }
-  const formatString =
-    lang && !["zh", "zh_tw"].includes(lang) ? "0.00" : "w0.00";
+  const formatString = "0.00";
   const average: string = SSF.format(formatString, sum / numberC);
   sum = SSF.format(formatString, sum);
   max = SSF.format(formatString, max);

@@ -6,7 +6,7 @@ import {
 } from "../../src/modules/numberFormat";
 import { getCellStyles } from "../../src/modules/formatCells";
 
-const LANGS = ["en", "zh", "zh-TW", "es", "hi", "ru"];
+const LANGS = ["en", "cs", "sk", "pl"];
 const KEYS = ["formatCells", "numberFormatMenu", "cellStyles"];
 
 /** Every leaf path of an object, e.g. "tabs.number". */

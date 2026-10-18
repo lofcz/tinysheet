@@ -1136,8 +1136,6 @@ export class Canvas {
       let { c } = item;
       let startY: number;
       let startX: number;
-      let endY: number;
-      let endX: number;
 
       const cell = flowdata[r][c];
       if (!cell) continue;
@@ -1170,9 +1168,9 @@ export class Canvas {
         startY = this.sheetCtx.visibledatarow[r - 1] - scrollHeight - 1;
       }
 
-      endY =
+      const endY =
         this.sheetCtx.visibledatarow[r + mainCell.mc.rs - 1] - scrollHeight;
-      endX =
+      const endX =
         this.sheetCtx.visibledatacolumn[c + mainCell.mc.cs - 1] - scrollWidth;
 
       if (_.isNil(value) || value.toString().length === 0) {

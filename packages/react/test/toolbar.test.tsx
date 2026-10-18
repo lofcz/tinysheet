@@ -44,11 +44,9 @@ const withAliases = (id: string) => [
 
 describe("translated chrome", () => {
   it.each([
-    ["zh", "就绪", "名称管理器"],
-    ["zh-TW", "就緒", "名稱管理員"],
-    ["es", "Listo", "Administrador de nombres"],
-    ["ru", "Готово", "Диспетчер имён"],
-    ["hi", "तैयार", "नाम प्रबंधक"],
+    ["cs", "Připraveno", "Správce názvů"],
+    ["sk", "Pripravené", "Správca názvov"],
+    ["pl", "Gotowe", "Menedżer nazw"],
   ])("%s: mode indicator and Name Manager button", (lang, ready, names) => {
     const { container } = render(
       <Workbook lang={lang} data={[{ name: "Sheet1" }]} />
@@ -64,19 +62,19 @@ describe("translated chrome", () => {
 
   it("translates the ribbon tabs", () => {
     const { container } = render(
-      <Workbook lang="zh" data={[{ name: "Sheet1" }]} />
+      <Workbook lang="cs" data={[{ name: "Sheet1" }]} />
     );
     const labels = Array.from(
       container.querySelectorAll(".fortune-ribbon [role=tab]")
     ).map((t) => t.textContent);
     expect(labels).toEqual([
-      "开始",
-      "插入",
-      "页面布局",
-      "公式",
-      "数据",
-      "审阅",
-      "视图",
+      "Domů",
+      "Vložit",
+      "Rozložení stránky",
+      "Vzorce",
+      "Data",
+      "Revize",
+      "Zobrazení",
     ]);
   });
 });
@@ -149,7 +147,7 @@ describe("default toolbar items", () => {
     expect(missing).toEqual([]);
   });
 
-  it.each(["en", "zh", "es", "ru", "hi", "zh-TW"])(
+  it.each(["en", "cs", "sk", "pl"])(
     "gives every button an accessible name and tooltip (%s)",
     (lang) => {
       const unnamed: string[] = [];

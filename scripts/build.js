@@ -1,5 +1,8 @@
 import { spawnSync } from "node:child_process";
 
+const generated = spawnSync("bun", ["run", "i18n:build"], { stdio: "inherit" });
+if (generated.status !== 0) process.exit(generated.status ?? 1);
+
 const result = spawnSync("bunx", ["tsdown"], {
   stdio: "inherit",
   shell: true,

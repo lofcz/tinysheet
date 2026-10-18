@@ -71,14 +71,10 @@ describe("default currency", () => {
     expect(defaultCurrencySymbol("en")).toBe("$");
     expect(defaultCurrencySymbol("en-GB")).toBe("$");
     expect(defaultCurrencySymbol(null)).toBe("$");
-    expect(defaultCurrencySymbol("zh-CN")).toBe("¥");
-    // Taiwan: the New Taiwan dollar, as Excel shows it
-    expect(defaultCurrencySymbol("zh-TW")).toBe("NT$");
-    expect(defaultCurrencySymbol("ja")).toBe("¥");
-    expect(defaultCurrencySymbol("de-DE")).toBe("€");
-    expect(defaultCurrencySymbol("ru")).toBe("₽");
-    expect(defaultCurrencySymbol("hi")).toBe("₹");
-    expect(defaultCurrencySymbol("es")).toBe("€");
+    expect(defaultCurrencySymbol("cs-CZ")).toBe("Kč");
+    expect(defaultCurrencySymbol("sk_SK")).toBe("€");
+    expect(defaultCurrencySymbol("pl-PL")).toBe("zł");
+    expect(defaultCurrencySymbol("zh")).toBe("$");
     expect(defaultSettings.currency).toBe("");
     expect(defaultContext({}).currency).toBe("");
     expect(currencySymbol({ currency: "", lang: "en" })).toBe("$");

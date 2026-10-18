@@ -9,7 +9,7 @@ Below is a simple configuration example:
 const settings = {
      data: [{ name: 'Sheet1', celldata: [{ r: 0, c: 0, v: null }] }], // sheet data
      onChange: (data) => {}, // onChange event
-     lang:'zh' // set language
+     lang:'cs' // set language
      // More other settings...
 }
 
@@ -51,8 +51,8 @@ The following are all supported setting parameters
 ### lang
 
 - Type: String
-- Default: "zh"
-- Usage: Internationalization settings, allow to set the language of the table, support simplified Chinese ("zh"), English ("en") and traditional Chinese ("zh_tw") and Spanish ("es")
+- Default: "en"
+- Usage: UI language: Czech ("cs"), Slovak ("sk"), Polish ("pl"), or English ("en"). Regional tags such as "cs-CZ" are accepted. Unsupported languages use English.
 
 ---
 

@@ -5,7 +5,7 @@ import { WORKBOOK_FUNCTION_NAMES } from "../../src/modules/formulaFunctions";
 import { LEGACY_FUNCTION_NAMES } from "../../src/locale/functions/legacy";
 import { mergeFunctionList } from "../../src/locale/functions/merge";
 
-const LANGS = ["en", "zh", "zh-TW", "es", "hi", "ru"];
+const LANGS = ["en", "cs", "sk", "pl"];
 const PARAM_TYPES = [
   "range",
   "rangeall",

@@ -36,6 +36,19 @@ import "@lofcz/tinysheet-react/dist/index.css";
 </div>;
 ```
 
+## Localization
+
+`<Workbook lang={userLocale} />` follows the host language, including changes after mount.
+Supported UI languages are Czech (`cs`), Slovak (`sk`), Polish (`pl`), and English (`en`).
+Regional tags such as `cs-CZ` and `sk_SK` are accepted; unsupported languages use English.
+Excel function names and formula syntax remain standard Excel identifiers.
+
+Catalogs live in `packages/core/src/i18n/{locale}/{namespace}/index.ts`, using
+`typesafe-i18n` aliased to the same `@lofcz/typesafe-i18n@5.27.4` fork as ScioBot and Fika.
+Run `bun run i18n:build` after editing the English catalog; package builds also run codegen.
+Use `getLL(locale)` from core for typed interpolation. Existing string-based locale
+accessors share the generated catalogs through a cached compatibility view.
+
 ## Packages
 
 | Package | |

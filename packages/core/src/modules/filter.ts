@@ -443,8 +443,7 @@ export function getFilterColumnValues(
 
   let cell: Cell | null;
   const { filter } = locale(ctx);
-  // Excel's date tree: "2024" › "January" › "15" (Chinese keeps 年/月)
-  const zhDates = (ctx.lang || "").startsWith("zh");
+  // Date tree: year, localized month name, day.
   const monthNames = dataToolsLocale(ctx).filter.months;
   for (let r = startRow + 1; r <= endRow; r += 1) {
     if (r in otherHiddenRows) {
@@ -473,7 +472,7 @@ export function getFilterColumnValues(
           key: y,
           type: "year",
           value: y,
-          text: zhDates ? y + filter.filiterYearText : y,
+          text: y,
           children: [],
           rows: [],
           dateValues: [],
@@ -488,9 +487,7 @@ export function getFilterColumnValues(
           key: `${y}-${m}`,
           type: "month",
           value: m,
-          text: zhDates
-            ? m + filter.filiterMonthText
-            : (monthNames[Number(m) - 1] ?? m),
+          text: monthNames[Number(m) - 1] ?? m,
           children: [],
           rows: [],
           dateValues: [],

@@ -1,0 +1,93 @@
+import type { NamespaceOutlineTranslation } from "../../i18n-types";
+
+const pl = {
+  toolbar: {
+    outline: "Group & Outline",
+  },
+  menu: {
+    group: "Grupuj",
+    ungroup: "Rozgrupuj",
+    showDetail: "Show Detail",
+    hideDetail: "Hide Detail",
+    autoOutline: "Auto Outline",
+    clearOutline: "Clear Outline",
+    subtotal: "Subtotal…",
+    settings: "Outline Settings…",
+  },
+  groupDialog: {
+    group: "Grupuj",
+    ungroup: "Rozgrupuj",
+    rows: "Wiersze",
+    columns: "Kolumny",
+  },
+  errors: {
+    maxLevel: "Cannot group: an outline has at most 8 levels.",
+    notGrouped: "Cannot ungroup: the selection is not grouped.",
+    noAutoOutline:
+      "Cannot create an outline: no summary formulas (such as SUM or SUBTOTAL) refer to adjacent rows or columns.",
+    noDetail: "The selection is not in a group.",
+  },
+  subtotal: {
+    title: "Subtotal",
+    atEachChange: "At each change in:",
+    useFunction: "Use function:",
+    addTo: "Add subtotal to:",
+    replace: "Replace current subtotals",
+    pageBreaks: "Page break between groups",
+    summaryBelow: "Summary below data",
+    removeAll: "Remove All",
+    ok: "OK",
+    cancel: "Anuluj",
+    column: "Column {name}",
+    noData:
+      "Select a list with a header row and at least one data row, then try again.",
+    noColumns: "Choose at least one column to add a subtotal to.",
+    tooManyLevels: "Cannot add subtotals: an outline has at most 8 levels.",
+    tooManyRows: "Cannot add subtotals: the sheet would have too many rows.",
+    functions: {
+      sum: "Suma",
+      count: "Licznik",
+      average: "Średnia",
+      max: "Maksimum",
+      min: "Minimum",
+      product: "Produkt",
+      countNums: "Count Numbers",
+      stdDev: "StdDev",
+      stdDevp: "StdDevp",
+      var: "Var",
+      varp: "Varp",
+    },
+    labels: {
+      sum: "Total",
+      count: "Licznik",
+      average: "Średnia",
+      max: "Maksimum",
+      min: "Minimum",
+      product: "Produkt",
+      countNums: "Licznik",
+      stdDev: "StdDev",
+      stdDevp: "StdDevp",
+      var: "Var",
+      varp: "Varp",
+    },
+    groupLabel: "{value} {label}",
+    grandLabel: "Grand {label}",
+  },
+  settings: {
+    title: "Outline Settings",
+    direction: "Direction",
+    summaryBelow: "Summary rows below detail",
+    summaryRight: "Summary columns to right of detail",
+    ok: "OK",
+    cancel: "Anuluj",
+  },
+  gutter: {
+    level: "Show outline level {level}",
+    expand: "Expand group (rows {from}–{to})",
+    collapse: "Collapse group (rows {from}–{to})",
+    expandColumns: "Expand group (columns {from}–{to})",
+    collapseColumns: "Collapse group (columns {from}–{to})",
+  },
+} as const satisfies NamespaceOutlineTranslation;
+
+export default pl;

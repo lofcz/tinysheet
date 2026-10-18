@@ -558,17 +558,17 @@ describe("helpers", () => {
   });
 
   test("locale strings fall back to English per key", () => {
-    expect(dataToolsLocale({ lang: "zh" }).dataValidation.title).toBe(
-      "数据验证"
+    expect(dataToolsLocale({ lang: "cs" }).dataValidation.title).toBe(
+      "Ověření dat"
     );
-    expect(dataToolsLocale({ lang: "es" }).dataValidation.title).toBe(
-      "Validación de datos"
+    expect(dataToolsLocale({ lang: "pl" }).dataValidation.title).toBe(
+      "Poprawność danych"
     );
     // a language without the key uses the English text
     expect(dataToolsLocale({ lang: "fr" }).dataValidation.title).toBe(
       "Data Validation"
     );
-    expect(dataToolsLocale({ lang: "zh-CN" }).filter.months[0]).toBe("一月");
+    expect(dataToolsLocale({ lang: "cs-CZ" }).filter.months[0]).toBe("leden");
   });
 });
 

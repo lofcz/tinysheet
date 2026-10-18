@@ -13,10 +13,10 @@ export default {
       control: { type: "inline-radio" },
       options: ["light", "dark", "auto"],
     },
-    // UI language (also settable from the URL, e.g. &args=lang:zh-TW)
+    // UI language (also settable from the URL, e.g. &args=lang:cs)
     lang: {
       control: { type: "select" },
-      options: ["en", "zh", "zh-TW", "es", "ru", "hi"],
+      options: ["en", "cs", "sk", "pl"],
     },
   },
 } as Meta<typeof Workbook>;
