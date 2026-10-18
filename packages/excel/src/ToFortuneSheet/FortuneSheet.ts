@@ -59,7 +59,6 @@ import {
 import { ImageList } from "./FortuneImage";
 import { scanElements, scanRows } from "./xmlScan";
 import { readSheetConditionalFormats } from "./FortuneConditionFormat";
-import dayjs from "dayjs";
 import {
   FortuneChartSpec,
   FortuneChartSeriesSpec,
@@ -2411,9 +2410,12 @@ export class FortuneSheet extends FortuneSheetBase {
           let serial = Number(value);
           if (value === "" || !isFinite(serial)) return value;
           if (this.workbookInfo.date1904) serial += 1462;
-          return dayjs(new Date(Date.UTC(1899, 11, 30) + serial * 86400000))
-            .add(new Date().getTimezoneOffset(), "minute")
-            .format("YYYY-MM-DD");
+          // Excel dates have no timezone. Using today's timezone offset here
+          // shifts winter bounds by a day when imported during summer time.
+          const date = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+          return Number.isFinite(date.getTime())
+            ? date.toISOString().slice(0, 10)
+            : value;
         };
         _value1 = toDate(_value1);
         _value2 = toDate(_value2);

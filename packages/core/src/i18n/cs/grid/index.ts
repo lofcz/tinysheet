@@ -2666,7 +2666,7 @@ const cs = {
     support: "The current browser does not support WebSocket",
   },
   numberFormatLabels: [
-    "Automaticky",
+    "Automatický",
     "Prostý text",
     "",
     "Číslo",

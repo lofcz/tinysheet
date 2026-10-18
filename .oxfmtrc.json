@@ -4,6 +4,7 @@
   "ignorePatterns": [
     "**/dist/**",
     "storybook-static/**",
+    "packages/core/src/i18n/i18n-*.ts",
     "**/*.md",
     "bun.lock",
     "docs/**/node_modules/**",

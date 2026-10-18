@@ -562,7 +562,7 @@ describe("helpers", () => {
       "Ověření dat"
     );
     expect(dataToolsLocale({ lang: "pl" }).dataValidation.title).toBe(
-      "Poprawność danych"
+      "Sprawdzanie poprawności danych"
     );
     // a language without the key uses the English text
     expect(dataToolsLocale({ lang: "fr" }).dataValidation.title).toBe(

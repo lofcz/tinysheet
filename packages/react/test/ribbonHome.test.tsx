@@ -114,7 +114,7 @@ describe("Home commands", () => {
     const { container } = render(
       <Workbook
         ref={ref}
-        lang="es"
+        lang="sk-SK"
         data={[
           {
             name: "Sheet1",

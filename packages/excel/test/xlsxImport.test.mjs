@@ -470,3 +470,43 @@ test("freeze panes and data validation", async () => {
   assert.equal(dv["0_4"].type, "custom");
   assert.equal(dv["0_4"].value1, "LEN(E1)>2");
 });
+
+test("date validation bounds are independent of timezone and daylight saving", async () => {
+  const previousTimezone = process.env.TZ;
+  try {
+    for (const timezone of ["UTC", "Europe/Prague", "America/New_York"]) {
+      process.env.TZ = timezone;
+      for (const date1904 of [false, true]) {
+        const result = await importWorkbook((wb) => {
+          wb.properties.date1904 = date1904;
+          const ws = wb.addWorksheet("Dates");
+          for (const [cell, month] of [
+            ["A1", 0],
+            ["B1", 6],
+          ]) {
+            ws.getCell(cell).dataValidation = {
+              type: "date",
+              operator: "between",
+              formulae: [
+                new Date(Date.UTC(2024, month, 1)),
+                new Date(Date.UTC(2024, month, 31)),
+              ],
+            };
+          }
+        });
+        const rules = sheetByName(result, "Dates").dataVerification;
+        assert.equal(
+          rules["0_0"].value1,
+          "2024-01-01",
+          `${timezone}, 1904=${date1904}`
+        );
+        assert.equal(rules["0_0"].value2, "2024-01-31");
+        assert.equal(rules["0_1"].value1, "2024-07-01");
+        assert.equal(rules["0_1"].value2, "2024-07-31");
+      }
+    }
+  } finally {
+    if (previousTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTimezone;
+  }
+});
