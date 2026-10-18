@@ -1,6 +1,6 @@
 {
   "name": "@lofcz/tinysheet-formula-parser",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Formula parser",
   "keywords": [
     "excel",
