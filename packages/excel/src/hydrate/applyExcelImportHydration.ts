@@ -3,6 +3,7 @@ import {
   Context,
   Sheet,
   recalculateWorkbook,
+  expandCellData,
 } from "@lofcz/tinysheet-core";
 import {
   ChartCellResolver,
@@ -96,6 +97,20 @@ export function applyExcelImportHydration(
   ctx: Context,
   result: ExcelImportResult
 ): void {
+  // Nonactive tabs are normally expanded during idle time. Formula hydration
+  // must see their source cells and formula chains before evaluating readers
+  // on the active tab; otherwise cross-sheet SUMIFS sees an empty range.
+  for (const sheet of ctx.luckysheetfile) {
+    if (!sheet.data?.length && sheet.celldata) {
+      sheet.data = expandCellData(
+        sheet,
+        ctx.defaultrowNum,
+        ctx.defaultcolumnNum,
+        { mutable: true }
+      );
+      delete sheet.celldata;
+    }
+  }
   for (const size of result.sizing) {
     if (size.columnlen && Object.keys(size.columnlen).length > 0) {
       api.setColumnWidth(ctx, size.columnlen, { id: size.id });

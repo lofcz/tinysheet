@@ -1,3 +1,5 @@
+import { centralEuropeanUi } from "./centralEuropean";
+
 /**
  * Strings of the excel package's UI (import / export toolbar items, the
  * export menu and import messages). Kept in their own file, like
@@ -111,6 +113,9 @@ const hi: Partial<ExcelIoLocale> = {
 
 const translations: Record<string, Partial<ExcelIoLocale>> = {
   en,
+  cs: centralEuropeanUi(en, "cs"),
+  sk: centralEuropeanUi(en, "sk"),
+  pl: centralEuropeanUi(en, "pl"),
   zh,
   "zh-CN": zh,
   "zh-TW": zhTW,

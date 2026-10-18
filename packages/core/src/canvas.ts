@@ -989,7 +989,7 @@ export class Canvas {
       rowEnd
     );
 
-    const mcArr: typeof cellupdate = [];
+    const mcArr: { r: number; c: number }[] = [];
 
     for (let cud = 0; cud < cellupdate.length; cud += 1) {
       const item = cellupdate[cud];
@@ -1106,15 +1106,38 @@ export class Canvas {
       }
     }
 
+    // XLSX/native snapshots may only store the merge anchor, with null
+    // followers. Keep a merge whenever its rectangle intersects this draw
+    // area, even if its anchor row/column has scrolled out of view.
+    const drawnMerges = new Set(
+      mcArr.map(({ r, c }) => {
+        const mc = flowdata[r]?.[c]?.mc;
+        return `${mc?.r}_${mc?.c}`;
+      })
+    );
+    for (const merge of Object.values(this.sheetCtx.config?.merge ?? {})) {
+      const { r, c, rs, cs } = merge;
+      if (
+        r > rowEnd ||
+        r + rs - 1 < rowStart ||
+        c > colEnd ||
+        c + cs - 1 < colStart ||
+        drawnMerges.has(`${r}_${c}`) ||
+        !flowdata[r]?.[c]?.mc
+      )
+        continue;
+      mcArr.push({ r, c });
+    }
+
     // 合并单元格再处理
     for (let m = 0; m < mcArr.length; m += 1) {
       const item = mcArr[m];
       let { r } = item;
       let { c } = item;
-      let { startY } = item;
-      let { startX } = item;
-      let endY = item.endY - 1;
-      let endX = item.endX - 1;
+      let startY: number;
+      let startX: number;
+      let endY: number;
+      let endX: number;
 
       const cell = flowdata[r][c];
       if (!cell) continue;

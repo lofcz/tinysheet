@@ -1,3 +1,5 @@
+import { centralEuropeanUi } from "./centralEuropean";
+
 /*
  * Strings of the cell controls and data tools (checkboxes, Flash Fill,
  * Goal Seek, Data Tables, Advanced Filter). A language without a
@@ -198,6 +200,9 @@ const es: DeepPartial<CellToolsLocale> = {
 };
 
 const translations: Record<string, DeepPartial<CellToolsLocale>> = {
+  cs: centralEuropeanUi(en, "cs"),
+  sk: centralEuropeanUi(en, "sk"),
+  pl: centralEuropeanUi(en, "pl"),
   zh,
   "zh-CN": zh,
   es,

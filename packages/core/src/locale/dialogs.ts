@@ -1,3 +1,5 @@
+import { centralEuropeanUi } from "./centralEuropean";
+
 /*
  * Strings of the dialog frames and side panes (titles, section headings
  * and buttons that the dialogs did not have before they were drawn as
@@ -175,7 +177,9 @@ const cs: DeepPartial<DialogsLocale> = {
 };
 
 const translations: Record<string, DeepPartial<DialogsLocale>> = {
-  cs,
+  cs: { ...centralEuropeanUi(en, "cs"), ...cs },
+  sk: centralEuropeanUi(en, "sk"),
+  pl: centralEuropeanUi(en, "pl"),
   zh,
   "zh-CN": zh,
   es,

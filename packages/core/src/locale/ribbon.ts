@@ -1,3 +1,5 @@
+import { centralEuropeanUi } from "./centralEuropean";
+
 /*
  * Strings of the ribbon (tabs, group labels, File menu, ribbon-native
  * commands). Kept in their own file, like cellTools.ts, so features do not
@@ -207,6 +209,9 @@ const es: DeepPartial<RibbonLocale> = {
 };
 
 const translations: Record<string, DeepPartial<RibbonLocale>> = {
+  cs: centralEuropeanUi(en, "cs"),
+  sk: centralEuropeanUi(en, "sk"),
+  pl: centralEuropeanUi(en, "pl"),
   zh,
   "zh-CN": zh,
   es,

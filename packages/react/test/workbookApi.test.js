@@ -1,4 +1,5 @@
 import { generateAPIs } from "../src/components/Workbook/api";
+import { produce } from "immer";
 import { api, defaultSettings } from "@lofcz/tinysheet-core";
 import { applyExcelImportHydration } from "../../excel/src/hydrate/applyExcelImportHydration";
 import {
@@ -106,4 +107,47 @@ test("XLSX hydration calculates references topologically without overwriting sou
   expect(val(ctx, 0, 1, "data")).toBe(20);
   expect(val(ctx, 0, 1, "summary")).toBe(21);
   expect(val(ctx, 0, 0, "summary")).toBe("Preserved header");
+});
+
+test("first XLSX hydration expands sparse inactive tabs before cross-sheet SUMIFS and totals", () => {
+  const summary = makeSheet("Summary", "summary", 4, 3);
+  putValue(summary, 0, 0, "MŠMT");
+  putFormula(
+    summary,
+    0,
+    1,
+    "=SUMIFS('Podrobný rozpočet'!B1:B3,'Podrobný rozpočet'!A1:A3,A1)",
+    0
+  );
+  putFormula(summary, 1, 1, "='Podrobný rozpočet'!B4", 0);
+  const detail = {
+    id: "detail",
+    name: "Podrobný rozpočet",
+    order: 1,
+    row: 4,
+    column: 3,
+    celldata: [
+      { r: 0, c: 0, v: { v: "MŠMT" } },
+      { r: 0, c: 1, v: { v: 120 } },
+      { r: 1, c: 0, v: { v: "Zřizovatel" } },
+      { r: 1, c: 1, v: { v: 50 } },
+      { r: 2, c: 0, v: { v: "MŠMT" } },
+      { r: 2, c: 1, v: { v: 80 } },
+      { r: 3, c: 1, v: { f: "=SUM(B1:B3)" } },
+    ],
+    calcChain: [{ r: 3, c: 1, id: "detail" }],
+  };
+  const ctx = makeCtx([summary, detail]);
+  ctx.defaultrowNum = 4;
+  ctx.defaultcolumnNum = 3;
+  const hydrated = produce(ctx, (draft) => {
+    applyExcelImportHydration(draft, {
+      sheets: draft.luckysheetfile,
+      sizing: [],
+    });
+  });
+  expect(val(hydrated, 0, 1, "summary")).toBe(200);
+  expect(val(hydrated, 1, 1, "summary")).toBe(250);
+  expect(val(hydrated, 3, 1, "detail")).toBe(250);
+  expect(hydrated.luckysheetfile[1].celldata).toBeUndefined();
 });

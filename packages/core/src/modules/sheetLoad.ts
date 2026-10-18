@@ -1,4 +1,5 @@
 import type { CellMatrix, Sheet } from "../types";
+import _ from "lodash";
 import { peek } from "./dependencyGraph";
 import { createChunkedMatrix, getChunkedRowThreshold } from "./rowStore";
 
@@ -16,7 +17,8 @@ import { createChunkedMatrix, getChunkedRowThreshold } from "./rowStore";
 export function expandCellData(
   sheet: Sheet,
   defaultRows: number,
-  defaultCols: number
+  defaultCols: number,
+  options: { mutable?: boolean } = {}
 ): CellMatrix {
   const s = peek(sheet);
   const celldata = peek(s.celldata) as Sheet["celldata"];
@@ -45,8 +47,15 @@ export function expandCellData(
   }
   for (let i = 0; i < count; i += 1) {
     const d = peek(celldata![i]);
-    if (d && d.r >= 0 && d.c >= 0) data[d.r][d.c] = peek(d.v) as any;
+    if (d && d.r >= 0 && d.c >= 0)
+      data[d.r][d.c] = options.mutable
+        ? (_.cloneDeep(peek(d.v)) as any)
+        : (peek(d.v) as any);
   }
+  // A fresh matrix assigned inside the current Immer recipe is not drafted
+  // until the next recipe. Import hydration calculates into it immediately;
+  // give that caller owned cells/rows, then let the host freeze/chunk on commit.
+  if (options.mutable) return data;
   for (let r = 0; r < rows; r += 1) Object.freeze(data[r]);
   // large sheets keep their rows in chunks (see rowStore.ts)
   if (rows >= getChunkedRowThreshold()) return createChunkedMatrix(data);

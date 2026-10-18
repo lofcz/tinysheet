@@ -2,6 +2,15 @@ import produce from "immer";
 import { expandCellData } from "../../src/modules/sheetLoad";
 
 describe("expandCellData", () => {
+  test("mutable expansion owns its cells and can calculate before an Immer commit", () => {
+    const cell = Object.freeze({ f: "=1+2", v: 0 });
+    const sheet = { celldata: [{ r: 0, c: 0, v: cell }] };
+    const data = expandCellData(sheet, 2, 2, { mutable: true });
+    data[0][0].v = 3;
+    data[1][0] = { v: 4 };
+    expect(data[0][0].v).toBe(3);
+    expect(cell.v).toBe(0);
+  });
   test("places cells and sizes the matrix like the legacy loader", () => {
     const sheet = {
       celldata: [

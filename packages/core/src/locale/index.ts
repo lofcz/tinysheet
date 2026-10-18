@@ -5,6 +5,7 @@ import hi from "./hi";
 import ru from "./ru";
 import zh_tw from "./zh_tw";
 import cs from "./cs";
+import { centralEuropeanUi } from "./centralEuropean";
 import esFunctions from "./functions/es";
 import hiFunctions from "./functions/hi";
 import ruFunctions from "./functions/ru";
@@ -30,20 +31,20 @@ function withFunctionList<T extends object>(
   };
 }
 
-const baseLocaleObj: Record<string, Omit<Locale, "chart">> = {
-  // @ts-ignore
+// Partial catalogs are completed recursively from English below.
+const baseLocaleObj: Record<string, object> = {
   en,
   zh: withFunctionList(zh, zhFunctions),
-  // @ts-ignore
   es: withFunctionList(es, esFunctions),
-  // @ts-ignore
   "zh-TW": withFunctionList(zh_tw, zhTwFunctions),
-  // @ts-ignore
   hi: withFunctionList(hi, hiFunctions),
-  // @ts-ignore
   ru: withFunctionList(ru, ruFunctions),
-  // @ts-ignore partial: falls back to English key by key
-  cs,
+  cs: centralEuropeanUi(
+    { ...en, ...cs, info: { ...en.info, ...cs.info } },
+    "cs"
+  ),
+  sk: centralEuropeanUi(en, "sk"),
+  pl: centralEuropeanUi(en, "pl"),
 };
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>

@@ -953,6 +953,9 @@ export function defaultCurrencySymbol(lang?: string | null) {
   const l = (lang || "").toLowerCase();
   if (l === "zh-tw" || l === "zh-hant") return "NT$";
   const byLang: Record<string, string> = {
+    cs: "Kč",
+    sk: "€",
+    pl: "zł",
     zh: "¥",
     ja: "¥",
     ru: "₽",
