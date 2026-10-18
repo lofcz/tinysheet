@@ -89,6 +89,47 @@ function regionSheet(tableExtra = {}, sheetExtra = {}) {
   });
 }
 
+test("table snapshots preserve falsy formula caches and structured references", async () => {
+  const original = sheet(
+    "Caches",
+    {
+      "0_0": text("Qty"),
+      "0_1": text("Zero"),
+      "0_2": text("False"),
+      "0_3": text("Empty"),
+      "0_4": text("Double"),
+      "1_0": num(2),
+      "1_1": { v: 0, f: "=[@Qty]-2" },
+      "1_2": { v: false, f: "=[@Qty]>2" },
+      "1_3": { v: "", f: '=""' },
+      "1_4": { v: 4, f: "=[@Qty]*2" },
+    },
+    {
+      tables: [
+        {
+          name: "Cached",
+          range: { row: [0, 1], column: [0, 4] },
+          headerRow: true,
+          columns: ["Qty", "Zero", "False", "Empty", "Double"].map((name) => ({
+            name,
+          })),
+        },
+      ],
+    }
+  );
+  const { bytes } = await roundTrip([original]);
+  const wb = await readWithExcelJS(bytes);
+  const ws = wb.getWorksheet("Caches");
+  assert.equal(ws.getCell("B2").result, 0);
+  assert.equal(ws.getCell("C2").result, false);
+  assert.equal(ws.getCell("E2").result, 4);
+  assert.equal(ws.getCell("B2").formula, "Cached[[#This Row],[Qty]]-2");
+  // Empty caches are serialized as a present string value; ExcelJS's reader
+  // normalizes an empty XML value to undefined, so check the actual file.
+  const xml = await zipText(bytes, "xl/worksheets/sheet1.xml");
+  assert.match(xml, /<c r="D2"[^>]*t="str"[^>]*><f>[^<]*<\/f><v><\/v><\/c>/);
+});
+
 test("table filters, calculated columns and custom totals are written", async () => {
   const { bytes, result } = await roundTrip([regionSheet()]);
   const part = await zipText(bytes, "xl/tables/table1.xml");

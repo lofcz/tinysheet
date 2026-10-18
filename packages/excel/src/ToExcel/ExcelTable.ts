@@ -94,7 +94,15 @@ function snapshot(worksheet: ExcelJS.Worksheet, table: any) {
   for (let r = r1; r <= r2; r += 1) {
     const row: ExcelJS.CellValue[] = [];
     for (let c = c1; c <= c2; c += 1) {
-      row.push(worksheet.getCell(r + 1, c + 1).value);
+      const cell = worksheet.getCell(r + 1, c + 1);
+      const value = cell.value;
+      // ExcelJS's value getter omits falsy formula results. Restoring the
+      // snapshot after addTable must retain zero, false and empty-string caches.
+      row.push(
+        value && typeof value === "object" && "formula" in value
+          ? { ...value, result: cell.result }
+          : value
+      );
     }
     values.push(row);
   }
