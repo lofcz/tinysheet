@@ -84,6 +84,10 @@ const SPILL_RANGE = <SpillRange />;
 
 const SheetOverlay: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
+  // `selectionOnLoad: false`: no active-cell frame until the user clicks or types in the grid.
+  const [showSelection, setShowSelection] = useState(
+    settings.selectionOnLoad !== false
+  );
   const { info, rightclick } = locale(context);
   const { showDialog } = useDialog();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -751,6 +755,9 @@ const SheetOverlay: React.FC = () => {
     <main
       className="fortune-sheet-overlay"
       ref={containerRef}
+      onKeyDownCapture={() => {
+        if (!showSelection) setShowSelection(true);
+      }}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -786,7 +793,10 @@ const SheetOverlay: React.FC = () => {
         <div
           ref={refs.cellArea}
           className="fortune-cell-area"
-          onMouseDown={cellAreaMouseDown}
+          onMouseDown={(e) => {
+            if (!showSelection) setShowSelection(true);
+            cellAreaMouseDown(e);
+          }}
           onDoubleClick={cellAreaDoubleClick}
           onContextMenu={cellAreaContextMenu}
           onScroll={onCellAreaScroll}
@@ -878,7 +888,9 @@ const SheetOverlay: React.FC = () => {
           <div
             className="luckysheet-cell-selected-focus"
             data-multi={multiSelection || undefined}
-            style={focusStyle}
+            style={
+              showSelection ? focusStyle : { ...focusStyle, display: "none" }
+            }
             onMouseDown={(e) => e.preventDefault()}
           />
           <TrackedScope>{SPILL_RANGE}</TrackedScope>
@@ -931,7 +943,7 @@ const SheetOverlay: React.FC = () => {
             onMouseDown={(e) => e.preventDefault()}
           />
           {(context.luckysheet_select_save?.length ?? 0) > 0 && (
-            <div id="luckysheet-cell-selected-boxs">
+            <div id="luckysheet-cell-selected-boxs" hidden={!showSelection}>
               {context.luckysheet_select_save!.map((selection, index) => (
                 <div
                   key={index}

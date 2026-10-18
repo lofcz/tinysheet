@@ -102,6 +102,28 @@ describe("geometry", () => {
     }
   });
 
+  test("scrollPastEnd: false fits the scroll area to the data", () => {
+    const make = (scrollPastEnd) => ({
+      defaultrowlen: 19,
+      defaultcollen: 73,
+      zoomRatio: 1,
+      config: { columnlen: { 0: 200 } },
+      luckysheetfile: [{ id: "s", data: [] }],
+      currentSheetId: "s",
+      luckysheet_select_save: [],
+      scrollPastEnd,
+    });
+    const data = [new Array(3).fill(null), new Array(3).fill(null)];
+    const fitted = make(false);
+    updateContextWithSheetData(fitted, data);
+    expect(fitted.ch_width).toBe(fitted.visibledatacolumn[2]);
+    expect(fitted.rh_height).toBe(fitted.visibledatarow[1]);
+    const excel = make(undefined);
+    updateContextWithSheetData(excel, data);
+    expect(excel.ch_width).toBe(fitted.ch_width + 120);
+    expect(excel.rh_height).toBe(fitted.rh_height + 80);
+  });
+
   test("a million rows lay out and scroll without O(rows) work per notch", () => {
     const ctx = {
       defaultrowlen: 19,

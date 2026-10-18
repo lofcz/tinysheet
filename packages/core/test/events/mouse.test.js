@@ -79,4 +79,20 @@ describe("mouse", () => {
     handleCellAreaDoubleClick(ctx, cache, settings, mouseEvent, container);
     expect(ctx.luckysheetCellUpdate).toEqual([3, 4]);
   });
+
+  test("double click on a pick-only list opens the list, not the editor", async () => {
+    const settings = { allowEdit: true };
+    const ctx = getContext();
+    const sheet = ctx.luckysheetfile.find((s) => s.id === ctx.currentSheetId);
+    sheet.dataVerification = {
+      "3_4": { type: "dropdown", value1: "a,b", prohibitInput: true },
+    };
+    const mouseEvent = new MouseEvent("dblclick", { button: 0 });
+    mouseEvent.pageX = 369;
+    mouseEvent.pageY = 79;
+    ctx.luckysheet_select_save = selectionFactory([0, 4], [0, 4], 3, 4);
+    handleCellAreaDoubleClick(ctx, cache, settings, mouseEvent, container);
+    expect(ctx.luckysheetCellUpdate).not.toEqual([3, 4]);
+    expect(ctx.dataVerificationDropDownList).toBe(true);
+  });
 });

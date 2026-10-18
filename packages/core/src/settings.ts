@@ -184,6 +184,17 @@ export type Settings = {
   showStatsBar?: boolean;
   /** The "Add N more rows at bottom" bar under the last row (default true). */
   showAddRows?: boolean;
+  /**
+   * Draw the active-cell frame right after load (default true). When false the
+   * grid opens without a selection frame until the user clicks or types in it.
+   */
+  selectionOnLoad?: boolean;
+  /**
+   * Blank room after the last row and column to scroll into, like Excel
+   * (default true). False fits the scroll area to the data: a sheet that fits
+   * its frame has no scrollbars.
+   */
+  scrollPastEnd?: boolean;
   data: Sheet[];
   config?: any;
   devicePixelRatio?: number;
@@ -326,6 +337,8 @@ export const defaultSettings: Required<Settings> = {
   showSheetTabs: true, // 是否显示底部表格名称区域
   showStatsBar: true, // 是否显示底部选区统计（关闭可显著降低拖拽选区时的开销）
   showAddRows: true,
+  selectionOnLoad: true,
+  scrollPastEnd: true,
   data: [], // 客户端sheet数据[sheet1, sheet2, sheet3]
   config: {}, // 表格行高、列宽、合并单元格、公式等设置
   devicePixelRatio: 0, // 设备比例，比例越大表格分标率越高，0表示自动

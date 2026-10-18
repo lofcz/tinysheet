@@ -351,6 +351,9 @@ const InputBox: React.FC = () => {
                 "left"
               ),
               zIndex: _.isEmpty(context.luckysheetCellUpdate) ? -1 : 19,
+              // the idle editor waits (focused) under the active cell; its frame
+              // must not show through a transparent canvas
+              opacity: _.isEmpty(context.luckysheetCellUpdate) ? 0 : 1,
               display: "block",
             }
           : { left: -10000, top: -10000, display: "block" }

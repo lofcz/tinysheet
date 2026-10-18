@@ -1202,6 +1202,11 @@ export function handleCellAreaDoubleClick(
   if (dataVerification) {
     const item = dataVerification[`${row_index}_${col_index}`];
     if (item && item.type === "checkbox") return;
+    // A list that only accepts its items opens the list instead of the text editor.
+    if (item && item.type === "dropdown" && item.prohibitInput) {
+      ctx.dataVerificationDropDownList = true;
+      return;
+    }
   }
 
   const margeset = mergeBorder(ctx, flowdata, row_index, col_index);

@@ -363,6 +363,8 @@ export type Context = {
    * Numeric `ff` values keep indexing the locale's font list.
    */
   defaultFontFamily: string;
+  /** Blank room after the last row / column to scroll into (`settings.scrollPastEnd`). */
+  scrollPastEnd?: boolean;
 
   luckysheetPaintModelOn: boolean;
   luckysheetPaintSingle: boolean;
@@ -742,7 +744,7 @@ function calcRowColSize(ctx: Context, rowCount: number, colCount: number) {
   ctx.visibledatarow = Object.freeze(rows.positions) as number[];
 
   // 如果增加行和回到顶部按钮隐藏，则减少底部空白区域，但是预留足够空间给单元格下拉按钮
-  ctx.rh_height = rows.total + 80; // 最底部增加空白
+  ctx.rh_height = rows.total + (ctx.scrollPastEnd === false ? 0 : 80); // 最底部增加空白
 
   const maxColumnlen = 120;
 
@@ -768,7 +770,7 @@ function calcRowColSize(ctx: Context, rowCount: number, colCount: number) {
     ctx.zoomRatio
   );
   ctx.visibledatacolumn = Object.freeze(cols.positions) as number[];
-  ctx.ch_width = cols.total + maxColumnlen;
+  ctx.ch_width = cols.total + (ctx.scrollPastEnd === false ? 0 : maxColumnlen);
 }
 
 export function ensureSheetIndex(data: Sheet[], generateSheetId: () => string) {

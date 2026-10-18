@@ -483,6 +483,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           }
           draftCtx.lang = mergedSettings.lang;
           draftCtx.allowEdit = mergedSettings.allowEdit;
+          draftCtx.scrollPastEnd = mergedSettings.scrollPastEnd !== false;
           // hooks synced in a dedicated effect — avoid re-init on hooks identity churn
           draftCtx.hooks = hooksRef.current;
           // draftCtx.fontList = mergedSettings.fontList;

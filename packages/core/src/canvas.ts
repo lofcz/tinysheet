@@ -19,6 +19,7 @@ import {
   checkCF,
   drawCellPlaceholder,
   drawDataVerificationMarks,
+  drawDropdownArrow,
   getComputeMap,
 } from "./modules";
 import { cfTextCell, drawCFDecorations } from "./modules/cfDraw";
@@ -456,7 +457,8 @@ export class Canvas {
     }
 
     // 2px accent edge on the side facing the cells, over the separators
-    if (edges.length > 0) {
+    // (none when the headers are hidden: it would bleed onto the first column)
+    if (edges.length > 0 && rowHeaderWidth > 3) {
       renderCtx.fillStyle = theme.accent;
       edges.forEach(([y, h]) => {
         renderCtx.fillRect(rowHeaderWidth - 3, y, 2, h);
@@ -661,7 +663,8 @@ export class Canvas {
     }
 
     // 2px accent edge on the side facing the cells, over the separators
-    if (edges.length > 0) {
+    // (none when the headers are hidden: it would bleed onto the first row)
+    if (edges.length > 0 && columnHeaderHeight > 3) {
       renderCtx.fillStyle = theme.accent;
       edges.forEach(([x, w]) => {
         renderCtx.fillRect(x, columnHeaderHeight - 3, w, 2);
@@ -2014,6 +2017,14 @@ export class Canvas {
         dvRect,
         theme.commentMarker
       );
+      drawDropdownArrow(
+        this.sheetCtx,
+        renderCtx,
+        r,
+        c,
+        dvRect,
+        theme.headerText
+      );
     }
 
     // 若单元格有批注
@@ -2219,6 +2230,19 @@ export class Canvas {
           h: endY - startY,
         },
         getCanvasTheme(this.sheetCtx).commentMarker
+      );
+      drawDropdownArrow(
+        this.sheetCtx,
+        renderCtx,
+        r,
+        c,
+        {
+          x: startX + offsetLeft,
+          y: startY + offsetTop,
+          w: endX - startX,
+          h: endY - startY,
+        },
+        getCanvasTheme(this.sheetCtx).headerText
       );
     }
 

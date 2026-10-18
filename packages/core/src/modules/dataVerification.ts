@@ -82,6 +82,11 @@ export type DataVerificationItem = {
   ignoreBlank?: boolean;
   /** list: show the dropdown arrow (default true) */
   showDropdown?: boolean;
+  /**
+   * list: draw the arrow in every cell of the rule, not only in the active
+   * one, so the cells read as choices before they are clicked (default false)
+   */
+  arrowAlways?: boolean;
   /** grey text drawn while the cell is empty */
   placeholder?: string;
   /** top-left cell of the range the rule was applied to */
@@ -665,6 +670,44 @@ export function drawDataVerificationMarks(
   );
   renderCtx.stroke();
   renderCtx.closePath();
+  renderCtx.restore();
+}
+
+/**
+ * Canvas hook: the chevron of a list cell whose rule has `arrowAlways`, so every
+ * cell offering a choice looks like one (the active cell also gets the button).
+ */
+export function drawDropdownArrow(
+  ctx: Context,
+  renderCtx: CanvasRenderingContext2D,
+  r: number,
+  c: number,
+  rect: { x: number; y: number; w: number; h: number },
+  color: string
+) {
+  const item = getDataVerificationItem(ctx, r, c);
+  if (
+    !item ||
+    item.type !== "dropdown" ||
+    !item.arrowAlways ||
+    item.showDropdown === false
+  )
+    return;
+  const zoom = ctx.zoomRatio || 1;
+  const half = 3.5 * zoom;
+  if (rect.w < half * 6) return;
+  const cx = rect.x + rect.w - 9 * zoom;
+  const cy = rect.y + rect.h / 2;
+  renderCtx.save();
+  renderCtx.beginPath();
+  renderCtx.moveTo(cx - half, cy - half / 2);
+  renderCtx.lineTo(cx, cy + half / 2);
+  renderCtx.lineTo(cx + half, cy - half / 2);
+  renderCtx.lineWidth = Math.max(1, 1.25 * zoom);
+  renderCtx.lineCap = "round";
+  renderCtx.lineJoin = "round";
+  renderCtx.strokeStyle = color;
+  renderCtx.stroke();
   renderCtx.restore();
 }
 
