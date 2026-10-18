@@ -1937,7 +1937,9 @@ const make_ssf = function make_ssf(SSF) {
     else if (v === false) v = "FALSE";
     else if (v === "" || v == null) return "";
     var out = eval_fmt(f[1], v, o, f[0]);
-    return typeof v === "number" && !fmt_is_date(f[1]) ? localize_num(out, v) : out;
+    return typeof v === "number" && !fmt_is_date(f[1])
+      ? localize_num(out, v)
+      : out;
   }
 
   /* Locale separators of formatted numbers (Excel uses the system's: "12 345,5" in cs-CZ).

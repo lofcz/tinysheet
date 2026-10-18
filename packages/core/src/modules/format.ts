@@ -3,7 +3,11 @@ import _ from "lodash";
 import SSF from "./ssf";
 import { Cell, CellMatrix } from "../types";
 import { getCellValue } from "./cell";
-import { parseInput, setInputMonthNames, setInputSeparators } from "./inputParse";
+import {
+  parseInput,
+  setInputMonthNames,
+  setInputSeparators,
+} from "./inputParse";
 
 export {
   parseInput,
@@ -410,7 +414,10 @@ export function setFormatLocale(names: {
  * as "12 345,5" and reads typed "12 000,5" (and "12 000 Kč") as 12000.5.
  * Format codes keep Excel's notation (`#,##0.00`). Pass nothing to reset.
  */
-export function setNumberSeparators(seps?: { decimal?: string; group?: string }) {
+export function setNumberSeparators(seps?: {
+  decimal?: string;
+  group?: string;
+}) {
   const next = { decimal: seps?.decimal || ".", group: seps?.group ?? "," };
   SSF.set_separators(next);
   setInputSeparators(next);

@@ -65,7 +65,10 @@ function pasteHandlerOfCutPaste(
   };
   // a cut clears its source: both ends must be editable
   if (!isAllowEdit(ctx, [dest])) return;
-  if (copyRange.dataSheetId === ctx.currentSheetId && !isAllowEdit(ctx, [range]))
+  if (
+    copyRange.dataSheetId === ctx.currentSheetId &&
+    !isAllowEdit(ctx, [range])
+  )
     return;
   try {
     moveCellRange(

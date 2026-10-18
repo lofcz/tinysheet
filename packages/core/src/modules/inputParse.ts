@@ -104,7 +104,8 @@ function delocalize(s: string): string {
   if (!body) return s;
   let num = body[2].replace(/(\d)[ \u00a0\u202f'](?=\d{3}(?:\D|$))/g, "$1");
   if (separators.decimal === ",") {
-    if (/^\d{1,3}(?:\.\d{3})+(?:,\d*)?$/.test(num)) num = num.replace(/\./g, "");
+    if (/^\d{1,3}(?:\.\d{3})+(?:,\d*)?$/.test(num))
+      num = num.replace(/\./g, "");
     if (/^\d*,\d*$/.test(num) && num !== ",") num = num.replace(",", ".");
   }
   if (!/^(\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(num)) return s;
@@ -237,7 +238,8 @@ function currencyFormat(symbol: string, trailing: boolean, decimals: boolean) {
   const num = decimals ? "#,##0.00" : "#,##0";
   const quoted = `"${symbol}"`;
   // currency words are written apart from the number ("12 000 Kč")
-  if (symbol.length > 1) return trailing ? `${num} ${quoted}` : `${quoted} ${num}`;
+  if (symbol.length > 1)
+    return trailing ? `${num} ${quoted}` : `${quoted} ${num}`;
   return trailing ? `${num}${quoted}` : `${quoted}${num}`;
 }
 

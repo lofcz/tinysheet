@@ -18,14 +18,14 @@ export default {
     backTop: "Zpět nahoru",
     sheetIsFocused: "Zaměření na list zapnuto.",
     sheetNotFocused: "Zaměření na list vypnuto.",
-    sheetSrIntro:
-      "Zaměření na list přepnete klávesami Shift, Control, F.",
+    sheetSrIntro: "Zaměření na list přepnete klávesami Shift, Control, F.",
     currentCellInput: "Obsah buňky",
     Dropdown: "Rozbalovací seznam",
     toggleSheetFocusShortcut: "Zaměření na list: Shift, Control, F.",
     selectRangeShortcut: "Výběr oblasti: Shift a šipky.",
     autoFillDownShortcut: "Vyplnit dolů z první buňky: Control nebo Meta, D.",
-    autoFillRightShortcut: "Vyplnit doprava z první buňky: Control nebo Meta, R.",
+    autoFillRightShortcut:
+      "Vyplnit doprava z první buňky: Control nebo Meta, R.",
     boldTextShortcut: "Tučné písmo: Control nebo Meta, B.",
     copyShortcut: "Kopírovat: Control nebo Meta, C.",
     pasteShortcut: "Vložit: Control nebo Meta, V.",

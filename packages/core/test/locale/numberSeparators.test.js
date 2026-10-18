@@ -1,4 +1,10 @@
-import { formatValue, parseInput, resolveTypedInput, setNumberSeparators, numberSeparatorsForLocale } from "../../src/modules/format";
+import {
+  formatValue,
+  parseInput,
+  resolveTypedInput,
+  setNumberSeparators,
+  numberSeparatorsForLocale,
+} from "../../src/modules/format";
 
 const NBSP = " ";
 
@@ -20,23 +26,39 @@ describe("Czech number separators", () => {
   });
 
   test("reads Czech typed numbers", () => {
-    expect(parseInput("12 000,5")).toMatchObject({ type: "number", v: 12000.5 });
-    expect(parseInput(`12${NBSP}000`)).toMatchObject({ type: "number", v: 12000 });
+    expect(parseInput("12 000,5")).toMatchObject({
+      type: "number",
+      v: 12000.5,
+    });
+    expect(parseInput(`12${NBSP}000`)).toMatchObject({
+      type: "number",
+      v: 12000,
+    });
     expect(parseInput("1.234,5")).toMatchObject({ type: "number", v: 1234.5 });
     expect(parseInput("0,25")).toMatchObject({ type: "number", v: 0.25 });
     expect(parseInput("-3,5")).toMatchObject({ type: "number", v: -3.5 });
-    expect(parseInput("12 000 Kč")).toMatchObject({ type: "number", v: 12000, fa: '#,##0 "Kč"' });
+    expect(parseInput("12 000 Kč")).toMatchObject({
+      type: "number",
+      v: 12000,
+      fa: '#,##0 "Kč"',
+    });
     expect(parseInput("Lektor").type).toBe("text");
   });
 
   test("keeps a money format when a number is typed into it", () => {
-    expect(resolveTypedInput("1 500", '#,##0 "Kč"')).toMatchObject({ v: 1500, fa: '#,##0 "Kč"' });
+    expect(resolveTypedInput("1 500", '#,##0 "Kč"')).toMatchObject({
+      v: 1500,
+      fa: '#,##0 "Kč"',
+    });
   });
 
   test("derives separators from a locale", () => {
     const cs = numberSeparatorsForLocale("cs-CZ");
     expect(cs.decimal).toBe(",");
-    expect(numberSeparatorsForLocale("en-US")).toEqual({ decimal: ".", group: "," });
+    expect(numberSeparatorsForLocale("en-US")).toEqual({
+      decimal: ".",
+      group: ",",
+    });
   });
 });
 
