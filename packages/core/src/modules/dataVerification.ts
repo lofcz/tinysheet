@@ -1164,7 +1164,11 @@ export function cellFocus(
   c: number,
   clickMode: boolean
 ) {
-  const allowEdit = isAllowEdit(ctx);
+  // The cell that gets the focus decides, not the selection it replaces: after a click on a
+  // read-only cell the next list cell still gets its arrow.
+  const allowEdit = isAllowEdit(ctx, [
+    { row: [r, r], column: [c, c], row_focus: r, column_focus: c },
+  ]);
   if (!allowEdit) return;
   const showHintBox = document.getElementById(
     "luckysheet-dataVerification-showHintBox"
@@ -1249,6 +1253,35 @@ export function cellFocus(
       );
     }
   }
+}
+
+/**
+ * A primary-button press at `x` on the chevron of a list cell (its last 20px) opens the
+ * list at once, like Excel's arrow; the invalid-value hint of the focus gives way to the list.
+ * `colRight` is the cell's right edge in the same coordinates as `x`.
+ */
+export function dropdownArrowPressed(
+  ctx: Context,
+  r: number,
+  c: number,
+  x: number,
+  colRight: number
+): boolean {
+  const item = getDataVerificationItem(ctx, r, c);
+  if (!item || item.type !== "dropdown" || item.showDropdown === false)
+    return false;
+  if (
+    !isAllowEdit(ctx, [
+      { row: [r, r], column: [c, c], row_focus: r, column_focus: c },
+    ])
+  )
+    return false;
+  if (x < colRight - 20 * (ctx.zoomRatio || 1)) return false;
+  const showHintBox = document.getElementById(
+    "luckysheet-dataVerification-showHintBox"
+  );
+  if (showHintBox) showHintBox.style.display = "none";
+  return true;
 }
 
 // 设置下拉列表的值

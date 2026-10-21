@@ -14,7 +14,6 @@ import React, {
   useState,
 } from "react";
 import WorkbookContext from "../../context";
-import { useOutsideClick } from "../../hooks/useOutsideClick";
 import SVGIcon from "../SVGIcon";
 
 import "./index.css";
@@ -170,7 +169,26 @@ const DropDownList: React.FC = () => {
     });
   }, [setContext]);
 
-  useOutsideClick(containerRef, close, [close]);
+  // Listening from the next tick: the press that opened the list (the cell's chevron on mouse
+  // down) is still bubbling to the document when the list mounts and must not close it.
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as HTMLElement)
+      ) {
+        close();
+      }
+    };
+    const timer = window.setTimeout(
+      () => document.addEventListener("mousedown", onMouseDown),
+      0
+    );
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("mousedown", onMouseDown);
+    };
+  }, [close]);
 
   // 初始化
   useEffect(() => {
