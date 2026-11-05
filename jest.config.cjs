@@ -6,6 +6,19 @@ const pkgList = readdirSync(join(__dirname, "./packages")).filter(
 );
 
 const moduleNameMapper = {
+  "^file-saver$": require.resolve("file-saver", {
+    paths: [join(__dirname, "packages/excel")],
+  }),
+  "^@lofcz/ts-xlsx$": require.resolve("@lofcz/ts-xlsx", {
+    paths: [join(__dirname, "packages/excel")],
+  }),
+  "^@lofcz/ts-xlsx/(.*)$": join(
+    realpathSync(join(__dirname, "packages/excel/node_modules/@lofcz/ts-xlsx")),
+    "dist/entries/$1.js"
+  ),
+  "^jszip$": require.resolve("jszip", {
+    paths: [join(__dirname, "packages/excel")],
+  }),
   "\\.(css|less|sass|scss)$": require.resolve("identity-obj-proxy"),
   // Bun uses an isolated node_modules layout, so resolve from the package that depends on it.
   "^uuid$": require.resolve("uuid", {
@@ -33,7 +46,7 @@ pkgList.forEach((shortName) => {
 
 module.exports = {
   collectCoverageFrom: ["packages/**/src/**/*.{ts,tsx}"],
-  testEnvironment: "jsdom",
+  testEnvironment: "./tests/environment.cjs",
   moduleNameMapper,
   moduleFileExtensions: ["js", "jsx", "ts", "tsx"],
   transform: {
@@ -41,7 +54,7 @@ module.exports = {
   },
   // chevrotain (and its lodash-es / @chevrotain deps) ship ESM only.
   transformIgnorePatterns: [
-    "/node_modules/(?!.*(chevrotain|lodash-es|@formulajs|regexp-to-ast))",
+    "/node_modules/(?!.*(chevrotain|lodash-es|@formulajs|regexp-to-ast|ts-xlsx))",
   ],
   // Legacy preview test targets a removed dist/main.js bundle.
   testPathIgnorePatterns: [

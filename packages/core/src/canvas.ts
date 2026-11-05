@@ -1720,7 +1720,7 @@ export class Canvas {
         const cell = data[r][c];
 
         // cheapest test first: only overflow-mode (tb "1") cells matter
-        if (!cell || cell.tb !== "1") {
+        if (!cell || cell.tb !== "1" || cell.img) {
           continue;
         }
 

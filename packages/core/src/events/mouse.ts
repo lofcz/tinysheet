@@ -448,7 +448,10 @@ export function handleCellAreaMouseDown(
   // //数据验证 单元格聚焦
   cellFocus(ctx, row_index, col_index, true);
   // A press on the chevron of a list cell opens its list with this click.
-  if (e.button === 0 && dropdownArrowPressed(ctx, row_index, col_index, x, col)) {
+  if (
+    e.button === 0 &&
+    dropdownArrowPressed(ctx, row_index, col_index, x, col)
+  ) {
     ctx.dataVerificationDropDownList = true;
   }
 

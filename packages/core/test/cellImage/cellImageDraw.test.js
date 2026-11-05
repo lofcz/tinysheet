@@ -1,3 +1,4 @@
+import "../../src";
 import {
   cellImageRect,
   cellImageDecorator,
@@ -12,6 +13,8 @@ import {
   drawCellContentDecorators,
   hasCellDecorators,
 } from "../../src/modules/extensions";
+import { Canvas } from "../../src/canvas";
+import { contextFactory } from "../factories/context";
 
 const box = { x: 10, y: 20, w: 104, h: 54 };
 const SCRIPT_URL = ["javascript", "alert(1)"].join(":");
@@ -19,6 +22,23 @@ const flush = () =>
   new Promise((resolve) => {
     setTimeout(resolve, 0);
   });
+
+test("imported picture alt text cannot replace the picture through text overflow", () => {
+  const text = "A long picture description that exceeds the narrow cell width";
+  const cell = { v: text, m: text, tb: "1", ct: { fa: "General", t: "g" } };
+  const ctx = contextFactory({
+    visibledatacolumn: [20, 40, 60, 80],
+    luckysheetfile: [{ id: "id_1", data: [[cell, null, null, null]] }],
+  });
+  const canvas = new Canvas(document.createElement("canvas"), ctx);
+  const g = canvas.canvasElement.getContext("2d");
+  expect(
+    Object.keys(canvas.getCellOverflowMap(g, 0, 3, 0, 0))
+  ).not.toHaveLength(0);
+  canvas.cellOverflowMapCache = {};
+  cell.img = { src: "data:image/png;base64,eA==", alt: text };
+  expect(canvas.getCellOverflowMap(g, 0, 3, 0, 0)).toEqual({});
+});
 
 describe("cellImageRect", () => {
   test("fit keeps the aspect ratio and centres the picture", () => {

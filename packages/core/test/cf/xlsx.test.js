@@ -1,11 +1,9 @@
-// Bun installs packages per workspace: the excel package's own copies.
 // eslint-disable-next-line import/no-relative-packages
-import ExcelJS from "../../../excel/node_modules/@protobi/exceljs";
+import { Workbook, writeXlsx } from "@lofcz/ts-xlsx";
 // eslint-disable-next-line import/no-relative-packages
-import JSZip from "../../../excel/node_modules/jszip";
+import JSZip from "jszip";
 import {
   setConditionalFormatting,
-  finalizeConditionalFormatting,
   cfRuleToExcel,
 } from "../../../excel/src/ToExcel/ExcelConditionFormat";
 import {
@@ -134,14 +132,11 @@ function workbookWithData() {
 }
 
 async function roundTrip(list) {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   const ws = wb.addWorksheet("Sheet1");
   ws.getCell("A1").value = 1;
   setConditionalFormatting({ luckysheet_conditionformat_save: list }, ws);
-  const buffer = await finalizeConditionalFormatting(
-    wb,
-    await wb.xlsx.writeBuffer()
-  );
+  const buffer = writeXlsx(wb);
   const zip = await JSZip.loadAsync(buffer);
   const sheetXml = await zip.file("xl/worksheets/sheet1.xml").async("string");
   const stylesXml = await zip.file("xl/styles.xml").async("string");
@@ -162,7 +157,9 @@ describe("xlsx export and import (T24)", () => {
       /x14:dataBar[^>]*gradient="0"[^>]*axisPosition="middle"/
     );
     expect(sheetXml).toContain('<dataBar showValue="0">');
-    expect(sheetXml).toMatch(/<cfvo gte="0" type="num" val="6"\/>/);
+    expect(sheetXml).toMatch(
+      /<cfvo\b(?=[^>]*gte="0")(?=[^>]*type="num")(?=[^>]*val="6")[^>]*\/>/
+    );
     expect(back).toHaveLength(ALL_RULES.length);
     // same order (priority) and types
     expect(back.map((r) => r.type)).toEqual(ALL_RULES.map((r) => r.type));
@@ -305,15 +302,12 @@ describe("xlsx export and import (T24)", () => {
   });
 
   test("parseExcel imports the rules of each sheet", async () => {
-    const wb = new ExcelJS.Workbook();
+    const wb = new Workbook();
     const ws = wb.addWorksheet("Data");
     ws.getCell("A1").value = 1;
     const list = [ALL_RULES[0], ALL_RULES[21], ALL_RULES[24]];
     setConditionalFormatting({ luckysheet_conditionformat_save: list }, ws);
-    const buffer = await finalizeConditionalFormatting(
-      wb,
-      await wb.xlsx.writeBuffer()
-    );
+    const buffer = writeXlsx(wb);
     const { sheets } = await parseExcel(buffer, "cf.xlsx");
     const imported = sheets[0].luckysheet_conditionformat_save;
     expect(imported.map((r) => r.type)).toEqual([

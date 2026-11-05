@@ -1,8 +1,7 @@
-// bun's isolated node_modules: resolve the excel package's dependencies
 // eslint-disable-next-line import/no-relative-packages
-import ExcelJS from "../../../excel/node_modules/@protobi/exceljs";
+import { Workbook, writeXlsx } from "@lofcz/ts-xlsx";
 // eslint-disable-next-line import/no-relative-packages
-import JSZip from "../../../excel/node_modules/jszip";
+import JSZip from "jszip";
 // eslint-disable-next-line import/no-relative-packages
 import { FortuneFile } from "../../../excel/src/ToFortuneSheet/FortuneFile";
 // eslint-disable-next-line import/no-relative-packages
@@ -86,7 +85,7 @@ describe("defined names in xlsx", () => {
     ]);
   });
 
-  test("round trip through an ExcelJS workbook", async () => {
+  test("round trip through the native workbook writer", async () => {
     const sheets = [
       {
         name: "Data",
@@ -100,11 +99,11 @@ describe("defined names in xlsx", () => {
         definedNames: [{ name: "Local", refersTo: "=Calc!$A$1", local: true }],
       },
     ];
-    const workbook = new ExcelJS.Workbook();
+    const workbook = new Workbook();
     workbook.addWorksheet("Data").getCell("A1").value = 1;
     workbook.addWorksheet("Calc").getCell("A1").value = 2;
     setDefinedNames(workbook, sheets);
-    const buffer = await workbook.xlsx.writeBuffer();
+    const buffer = writeXlsx(workbook);
     const zip = await JSZip.loadAsync(buffer);
     const xml = await zip.file("xl/workbook.xml").async("string");
     const back = importDefinedNames(readDefinedNamesXml(xml), ["Data", "Calc"]);

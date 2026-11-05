@@ -2,12 +2,12 @@
  * xlsx chart import/export (packages/excel/src/chart). Lives with the chart
  * tests so it runs under the root jest config.
  */
-// jszip and exceljs are dependencies of the excel package only; the root
-// jest config cannot resolve them from here, so import them by path.
 // eslint-disable-next-line import/no-relative-packages
-import JSZip from "../../../excel/node_modules/jszip";
+import JSZip from "jszip";
 // eslint-disable-next-line import/no-relative-packages
-import ExcelJS from "../../../excel/node_modules/@protobi/exceljs";
+import ExcelJS from "@protobi/exceljs";
+import { saveAs } from "file-saver";
+jest.mock("file-saver", () => ({ saveAs: jest.fn() }));
 import { importChartXml } from "../../../excel/src/chart/importXlsx";
 import {
   addChartsToXlsx,
@@ -209,6 +209,40 @@ describe("chart XML export", () => {
 });
 
 describe("xlsx round trip", () => {
+  test("macro-enabled imports download with the xlsm extension after Blob normalizes MIME casing", async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet("Data").getCell("A1").value = 1;
+    const zip = await JSZip.loadAsync(await workbook.xlsx.writeBuffer());
+    const types = await zip.file("[Content_Types].xml").async("string");
+    zip.file(
+      "[Content_Types].xml",
+      types.replace(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+        "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
+      )
+    );
+    const imported = await parseExcel(
+      await zip.generateAsync({ type: "arraybuffer" }),
+      "Data.xlsm"
+    );
+    expect(imported.preservation.macroEnabled).toBe(true);
+    const blob = await exportSheetExcel(
+      {
+        current: {
+          getAllSheets: () => imported.sheets,
+          getSheet: () => imported.sheets[0],
+          getWorkbookMetadata: () => ({
+            xlsxPreservation: imported.preservation,
+          }),
+        },
+      },
+      IFileType.XLSX,
+      true
+    );
+    expect(blob.type).toBe("application/vnd.ms-excel.sheet.macroenabled.12");
+    expect(saveAs).toHaveBeenCalledWith(blob, "Data.xlsm");
+  });
+
   test("exported charts import as live chart objects", async () => {
     const sheet = makeSheet();
     sheet.charts = [

@@ -5,9 +5,9 @@
  * and the anchoring mode.
  */
 // eslint-disable-next-line import/no-relative-packages
-import JSZip from "../../../excel/node_modules/jszip";
+import JSZip from "jszip";
 // eslint-disable-next-line import/no-relative-packages
-import ExcelJS from "../../../excel/node_modules/@protobi/exceljs";
+import ExcelJS from "@protobi/exceljs";
 import { importChartXml } from "../../../excel/src/chart/importXlsx";
 import {
   addChartsToXlsx,
@@ -256,7 +256,7 @@ describe("chartex parts", () => {
         binning: { mode: "width", width: 10, overflow: 140 },
       })
     );
-    expect(hist.xml).toContain('<cx:binSize val="10"/>');
+    expect(hist.xml).toContain("<cx:binSize>10</cx:binSize>");
     expect(hist.back.type).toBe("histogram");
     expect(hist.back.binning).toEqual({
       mode: "width",

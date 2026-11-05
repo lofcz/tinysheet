@@ -44,7 +44,7 @@ export async function exportSheetExcel(
   if (download) {
     const name = options.fileName ?? current?.name ?? "workbook";
     const extension =
-      fileData.type === "application/vnd.ms-excel.sheet.macroEnabled.12"
+      fileData.type === "application/vnd.ms-excel.sheet.macroenabled.12"
         ? "xlsm"
         : fileType;
     fileSaver.saveAs(fileData, `${name}.${extension}`);
