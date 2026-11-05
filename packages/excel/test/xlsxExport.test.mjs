@@ -145,7 +145,7 @@ test("hyperlinks: external targets and internal locations", async () => {
 
   const sheetXml = await zipText(bytes, "xl/worksheets/sheet1.xml");
   const internal = /<hyperlink [^>]*ref="D2"[^>]*\/>/.exec(sheetXml)[0];
-  assert.match(internal, /location="'Other Sheet'!B2"/);
+  assert.match(internal.replace(/&apos;/g, "'"), /location="'Other Sheet'!B2"/);
   assert.doesNotMatch(internal, /r:id=/);
   const rels = await zipText(bytes, "xl/worksheets/_rels/sheet1.xml.rels");
   assert.doesNotMatch(rels, /Target="#/);

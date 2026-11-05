@@ -1,7 +1,8 @@
+import { cellAddress } from "./formulaText";
 import { columeHeader_word, columeHeader_word_index } from "./constant";
 import { IfortuneSheetSelection } from "../ToFortuneSheet/IFortune";
 import { IattributeList, stringToNum } from "./ICommon";
-import ExcelJS from "@protobi/exceljs";
+import type * as Xlsx from "@lofcz/ts-xlsx/core";
 
 export function getRangetxt(range: IfortuneSheetSelection, sheettxt: string) {
   let row0 = range["row"][0],
@@ -1199,16 +1200,13 @@ export function getMultiFormulaValue(value: string): string[] {
   return retArr;
 }
 
-export var setMerge = function (luckyMerge = {}, worksheet: ExcelJS.Worksheet) {
+export var setMerge = function (luckyMerge = {}, worksheet: Xlsx.Worksheet) {
   const mergearr = Object.values(luckyMerge);
   mergearr.forEach(function (elem: any) {
     // elem格式：{r: 0, c: 0, rs: 1, cs: 2}
     // 按开始行，开始列，结束行，结束列合并（相当于 K10:M12）
     worksheet.mergeCells(
-      elem.r + 1,
-      elem.c + 1,
-      elem.r + elem.rs,
-      elem.c + elem.cs
+      `${cellAddress(elem.r, elem.c)}:${cellAddress(elem.r + elem.rs - 1, elem.c + elem.cs - 1)}`
     );
   });
 };

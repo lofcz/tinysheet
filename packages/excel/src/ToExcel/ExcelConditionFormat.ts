@@ -13,7 +13,7 @@ import type {
 } from "@lofcz/tinysheet-core";
 
 /*
- * Conditional formatting to xlsx (through ExcelJS's addConditionalFormatting).
+ * Conditional formatting to xlsx (through ts-xlsx's addConditionalFormatting).
  *
  * TinySheet stores rules in ascending priority (the last one wins); Excel's
  * priority 1 is the highest, so priority = rules.length - index.
@@ -160,7 +160,7 @@ export function cfRuleToExcel(raw: CFRule): any | null {
     const db = rule.dataBar;
     const same = !!db.sameNegativeColor;
     const axis = {
-      automatic: "auto",
+      automatic: "automatic",
       midpoint: "middle",
       none: "none",
     } as const;
@@ -200,7 +200,7 @@ export function cfRuleToExcel(raw: CFRule): any | null {
       cfvo: stops.map((s, i) =>
         cfvo(s, ranges, i === stops.length - 1 ? "max" : "min")
       ),
-      color: stops.map((s) => argb(s.color)),
+      colors: stops.map((s) => argb(s.color)),
     };
   }
   if (rule.type === "icons" && rule.iconSet) {
@@ -350,7 +350,7 @@ interface XmlFix {
 
 const pendingFixes = new WeakMap<object, XmlFix[]>();
 
-/** Add a sheet's conditional formatting to an ExcelJS worksheet. */
+/** Add a sheet's conditional formatting to a ts-xlsx worksheet. */
 export function setConditionalFormatting(table: any, worksheet: any) {
   const rules: CFRule[] = table?.luckysheet_conditionformat_save ?? [];
   const n = rules.length;
@@ -397,7 +397,7 @@ function patchCfvos(xml: string, tag: string, gte: boolean[]) {
   });
 }
 
-/** Apply what ExcelJS cannot write to one worksheet XML. */
+/** Apply what the workbook model cannot write to one worksheet XML. */
 export function patchConditionalFormattingXml(xml: string, fixes: XmlFix[]) {
   let out = xml;
   fixes.forEach((fix) => {
@@ -465,7 +465,7 @@ export async function finalizeConditionalFormattingZip(
 }
 
 /**
- * Post-process a workbook written by ExcelJS: gradient data bars with the
+ * Post-process a workbook written by ts-xlsx: gradient data bars with the
  * Excel 2010 extension, "show bar only", and ">" icon thresholds.
  */
 export async function finalizeConditionalFormatting(

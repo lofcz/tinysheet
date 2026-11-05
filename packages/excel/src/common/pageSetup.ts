@@ -6,11 +6,10 @@
  * `<colBreaks>`. Workbook part: the built-in defined names
  * `_xlnm.Print_Area` and `_xlnm.Print_Titles` (sheet-scoped).
  *
- * Export goes through ExcelJS where it models the element; what it cannot
- * write (column breaks, "as displayed" notes, header/footer scaling and
- * alignment flags) is patched into the sheet XML afterwards, and the print
- * names are added to the defined names ExcelJS writes.
+ * Export uses the workbook model for layout and print names; extra page
+ * and header/footer attributes are patched into the sheet XML afterwards.
  */
+import { setTagAttr } from "../ToExcel/xlsxParts";
 import {
   PageSetup,
   PrintRange,
@@ -268,22 +267,22 @@ export function readPrintNames(ctx: WorkbookImportContext) {
 // Export.
 
 const hf = (text?: { left?: string; center?: string; right?: string }) =>
-  headerFooterToXlsx(text) || null;
+  headerFooterToXlsx(text) || undefined;
 
 /** Sheet export feature: sheet.pageSetup -> the worksheet's page layout. */
 export function writePageSetup(ctx: SheetExportContext) {
   const setup: PageSetup | undefined = ctx.sheet?.pageSetup;
   if (!setup) return;
-  const ws: any = ctx.worksheet;
+  const ws = ctx.worksheet;
   const m = setup.margins ?? {};
-  ws.pageSetup.margins = {
+  Object.assign(ws.pageMargins, {
     left: m.left ?? 0.7,
     right: m.right ?? 0.7,
     top: m.top ?? 0.75,
     bottom: m.bottom ?? 0.75,
     header: m.header ?? 0.3,
     footer: m.footer ?? 0.3,
-  };
+  });
   Object.assign(ws.pageSetup, {
     orientation: setup.orientation === "landscape" ? "landscape" : "portrait",
     paperSize: setup.paperSize
@@ -293,73 +292,72 @@ export function writePageSetup(ctx: SheetExportContext) {
     fitToPage: !!setup.fitToPage,
     fitToWidth: setup.fitToPage ? (setup.fitToWidth ?? 1) : undefined,
     fitToHeight: setup.fitToPage ? (setup.fitToHeight ?? 1) : undefined,
-    firstPageNumber: setup.firstPageNumber,
     pageOrder: setup.pageOrder ?? "downThenOver",
-    blackAndWhite: !!setup.blackAndWhite,
-    draft: !!setup.draft,
-    cellComments: setup.comments === "atEnd" ? "atEnd" : "None",
-    errors: setup.cellErrors ?? "displayed",
-    showGridLines: !!setup.gridLines,
-    showRowColHeaders: !!setup.headings,
+  });
+  Object.assign(ws.printOptions, {
+    gridLines: !!setup.gridLines,
+    headings: !!setup.headings,
     horizontalCentered: !!setup.centerHorizontally,
     verticalCentered: !!setup.centerVertically,
   });
-  if (setup.printQuality) {
-    ws.pageSetup.horizontalDpi = setup.printQuality;
-    ws.pageSetup.verticalDpi = setup.printQuality;
-  }
-  ws.headerFooter = {
-    differentFirst: !!setup.differentFirst,
-    differentOddEven: !!setup.differentOddEven,
+  Object.assign(ws.headerFooter, {
     oddHeader: hf(setup.header),
     oddFooter: hf(setup.footer),
     evenHeader: hf(setup.evenHeader),
     evenFooter: hf(setup.evenFooter),
     firstHeader: hf(setup.firstHeader),
     firstFooter: hf(setup.firstFooter),
-  };
+  });
   (setup.rowBreaks ?? []).forEach((id) => {
-    if (id > 0) ws.rowBreaks.push({ id, max: 16383, man: 1 });
+    if (id > 0) ws.rowBreaks.push({ id, max: 16383, man: true });
   });
 
-  // what ExcelJS cannot write
+  (setup.colBreaks ?? []).forEach((id) => {
+    if (id > 0) ws.columnBreaks.push({ id, max: 1048575, man: true });
+  });
+
+  // Preserve page attributes that the workbook model does not expose.
   const fixups: ((xml: string) => string)[] = [];
-  const cols = (setup.colBreaks ?? []).filter((id) => id > 0);
-  if (cols.length) {
-    const block =
-      `<colBreaks count="${cols.length}" manualBreakCount="${cols.length}">` +
-      `${cols
-        .map((id) => `<brk id="${id}" max="1048575" man="1"/>`)
-        .join("")}` +
-      `</colBreaks>`;
-    fixups.push((xml) => insertAfterPageElements(xml, block));
-  }
-  if (setup.comments === "asDisplayed") {
-    fixups.push((xml) =>
-      xml.replace(
-        /<pageSetup\b([^>]*?)\/>/,
-        (tag, rest: string) =>
-          `<pageSetup${rest.replace(
-            /\s*cellComments="[^"]*"/,
-            ""
-          )} cellComments="asDisplayed"/>`
+  const pageAttrs: Record<string, string | undefined> = {
+    firstPageNumber:
+      setup.firstPageNumber == null ? undefined : String(setup.firstPageNumber),
+    useFirstPageNumber: setup.firstPageNumber == null ? undefined : "1",
+    horizontalDpi: setup.printQuality ? String(setup.printQuality) : undefined,
+    verticalDpi: setup.printQuality ? String(setup.printQuality) : undefined,
+    blackAndWhite: setup.blackAndWhite ? "1" : undefined,
+    draft: setup.draft ? "1" : undefined,
+    cellComments:
+      setup.comments === "atEnd" || setup.comments === "asDisplayed"
+        ? setup.comments
+        : undefined,
+    errors: setup.cellErrors,
+  };
+  fixups.push((xml) =>
+    xml.replace(/<pageSetup\b[^>]*\/>/, (tag) =>
+      Object.entries(pageAttrs).reduce(
+        (out, [key, value]) =>
+          value == null ? out : setTagAttr(out, key, value),
+        tag
       )
-    );
-  }
-  const hfAttrs: string[] = [];
-  if (setup.scaleWithDoc === false) hfAttrs.push('scaleWithDoc="0"');
-  if (setup.alignWithMargins === false) hfAttrs.push('alignWithMargins="0"');
-  if (hfAttrs.length) {
-    fixups.push((xml) =>
-      /<headerFooter\b/.test(xml)
-        ? xml.replace(/<headerFooter\b/, `<headerFooter ${hfAttrs.join(" ")}`)
-        : insertAfterPageElements(
-            xml,
-            `<headerFooter ${hfAttrs.join(" ")}/>`,
-            true
-          )
-    );
-  }
+    )
+  );
+  const hfAttrs: Record<string, string | undefined> = {
+    differentFirst: setup.differentFirst ? "1" : "0",
+    differentOddEven: setup.differentOddEven ? "1" : "0",
+    scaleWithDoc: setup.scaleWithDoc === false ? "0" : undefined,
+    alignWithMargins: setup.alignWithMargins === false ? "0" : undefined,
+  };
+  fixups.push((xml) => {
+    const apply = (tag: string) =>
+      Object.entries(hfAttrs).reduce(
+        (out, [key, value]) =>
+          value == null ? out : setTagAttr(out, key, value),
+        tag
+      );
+    return /<headerFooter\b/.test(xml)
+      ? xml.replace(/<headerFooter\b[^>]*>/, apply)
+      : insertAfterPageElements(xml, apply("<headerFooter/>"), true);
+  });
   if (fixups.length) {
     const post = ctx.post as any;
     post.sheetXmlFixups = post.sheetXmlFixups ?? {};
@@ -447,17 +445,11 @@ export function writePrintNames(ctx: WorkbookExportContext) {
     names.push(...printNamesFor(sheet.pageSetup, ws.name, index));
   });
   if (names.length === 0) return;
-  const wb: any = ctx.workbook;
-  // eslint-disable-next-line no-underscore-dangle
-  const original = wb._definedNames;
-  if (!original) return;
-  // eslint-disable-next-line no-underscore-dangle
-  wb._definedNames = Object.create(original, {
-    model: {
-      get: () => [...(original.model ?? []), ...names],
-      set: (value: any) => {
-        original.model = value;
-      },
-    },
-  });
+  names.forEach((entry) =>
+    ctx.workbook.defineName({
+      name: entry.name,
+      refersTo: entry.ranges.join(","),
+      scope: written[entry.localSheetId].name,
+    })
+  );
 }

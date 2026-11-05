@@ -197,11 +197,7 @@ export function exportDefinedNames(
   return out;
 }
 
-/**
- * Adds the defined names of `sheets` to an ExcelJS workbook. ExcelJS only
- * models names that are cell ranges, so the model it writes is extended
- * instead (its xform writes the text verbatim, XML-escaped).
- */
+/** Add ranges, formulas and constants through the workbook's public name API. */
 export function setDefinedNames(
   workbook: any,
   sheets: { name: string; definedNames?: DefinedNameModel[] }[]
@@ -211,15 +207,13 @@ export function setDefinedNames(
     (workbook.worksheets ?? []).map((ws: any) => ws.name)
   );
   if (names.length === 0) return;
-  const original = workbook._definedNames;
-  if (!original) return;
-  // eslint-disable-next-line no-underscore-dangle
-  workbook._definedNames = Object.create(original, {
-    model: {
-      get: () => [...(original.model ?? []), ...names],
-      set: (value: any) => {
-        original.model = value;
-      },
-    },
-  });
+  names.forEach((entry) =>
+    workbook.defineName({
+      name: entry.name,
+      refersTo: entry.ranges.join(","),
+      ...(entry.localSheetId != null
+        ? { scope: workbook.worksheets[entry.localSheetId].name }
+        : {}),
+    })
+  );
 }

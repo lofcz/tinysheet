@@ -52,6 +52,9 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Check spreadsheet export
+        run: bun run typecheck && bun run test:excel
+
       - name: Bump package versions
         id: version
         env:
@@ -117,6 +120,9 @@ jobs:
           );
           EOF
 
+      - name: Update release lockfile
+        run: bun install --lockfile-only --ignore-scripts
+
       - name: Commit release version and create tag
         run: |
           git config --local user.email "action@github.com"
@@ -125,7 +131,8 @@ jobs:
             packages/formula-parser/package.json \
             packages/core/package.json \
             packages/react/package.json \
-            packages/excel/package.json
+            packages/excel/package.json \
+            bun.lock
           git commit -m "chore: release v${{ steps.version.outputs.version }}"
           git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
 

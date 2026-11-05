@@ -44,6 +44,7 @@
     "@babel/preset-flow": "^8.0.1",
     "@babel/preset-react": "^7.22.5",
     "@babel/preset-typescript": "^7.22.5",
+    "@protobi/exceljs": "4.4.0-protobi.10",
     "@rsbuild/core": "^2.2.9",
     "@rsbuild/plugin-react": "^2.1.0",
     "@rspress/core": "^2.0.22",

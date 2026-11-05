@@ -1,8 +1,9 @@
+import { setTagAttr } from "./xlsxParts";
 /**
  * Sheet-structure writers: column widths, row heights, hidden rows and
  * columns, merges and sheet views (freeze panes, gridlines, zoom).
  */
-import type ExcelJS from "@protobi/exceljs";
+import type * as Xlsx from "@lofcz/ts-xlsx/core";
 import type { SheetExportContext } from "./buildWorkbook";
 import { pxToExcelWidth, pxToPoints } from "../common/units";
 import { cellAddress } from "../common/formulaText";
@@ -47,7 +48,9 @@ export function writeMerges(ctx: SheetExportContext) {
     if (!m || m.rs == null || m.cs == null) return;
     if (m.rs <= 1 && m.cs <= 1) return;
     try {
-      ctx.worksheet.mergeCells(m.r + 1, m.c + 1, m.r + m.rs, m.c + m.cs);
+      ctx.worksheet.mergeCells(
+        `${cellAddress(m.r, m.c)}:${cellAddress(m.r + m.rs - 1, m.c + m.cs - 1)}`
+      );
     } catch (e) {
       // Overlapping merges are invalid in Excel: keep the first one.
     }
@@ -81,7 +84,7 @@ export function frozenSplit(frozen: any): { xSplit: number; ySplit: number } {
 
 export function writeSheetViews(ctx: SheetExportContext) {
   const { sheet, worksheet } = ctx;
-  const view: Partial<ExcelJS.WorksheetView> & Record<string, any> = {};
+  const view: Partial<Xlsx.SheetView> & Record<string, any> = {};
   const { xSplit, ySplit } = frozenSplit(sheet.frozen);
   if (xSplit > 0 || ySplit > 0) {
     Object.assign(view, {
@@ -106,5 +109,32 @@ export function writeSheetViews(ctx: SheetExportContext) {
   if (sel?.row?.length && sel?.column?.length) {
     view.activeCell = cellAddress(sel.row[0], sel.column[0]);
   }
-  worksheet.views = [view as ExcelJS.WorksheetView];
+  Object.assign(worksheet.view, view);
+  const extra: Record<string, string> = {};
+  if (view.showRowColHeaders === false) extra.showRowColHeaders = "0";
+  if (view.rightToLeft) extra.rightToLeft = "1";
+  if (view.zoomScale) extra.zoomScale = String(view.zoomScale);
+  if (view.tabSelected) extra.tabSelected = "1";
+  const fixups = (ctx.post.sheetXmlFixups ||= {});
+  (fixups[worksheet.id] ||= []).push((xml) => {
+    let out = xml.replace(/<sheetView\b[^>]*>/, (tag) =>
+      Object.entries(extra).reduce(
+        (text, [key, value]) => setTagAttr(text, key, value),
+        tag
+      )
+    );
+    if (view.activeCell) {
+      const selection = `<selection activeCell="${view.activeCell}" sqref="${view.activeCell}"/>`;
+      out = /<selection\b/.test(out)
+        ? out.replace(/<selection\b[^>]*\/>/g, (tag) =>
+            setTagAttr(
+              setTagAttr(tag, "activeCell", view.activeCell),
+              "sqref",
+              view.activeCell
+            )
+          )
+        : out.replace("</sheetView>", selection + "</sheetView>");
+    }
+    return out;
+  });
 }

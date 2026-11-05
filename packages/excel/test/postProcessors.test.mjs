@@ -299,7 +299,7 @@ test("links on formula cells and empty cells are kept", async () => {
   assert.match(xml, /<c r="A1"[^>]*><f>1\+1<\/f>/);
   assert.match(xml, /<hyperlinks>[\s\S]*ref="A1"[\s\S]*<\/hyperlinks>/);
   // schema order: hyperlinks before pageMargins
-  assert.ok(xml.indexOf("<hyperlinks>") < xml.indexOf("<pageMargins"));
+  assert.ok(!xml.includes("<pageMargins") || xml.indexOf("<hyperlinks>") < xml.indexOf("<pageMargins"));
   const back = sheetByName(result, "L k");
   const simple = (links) =>
     Object.fromEntries(

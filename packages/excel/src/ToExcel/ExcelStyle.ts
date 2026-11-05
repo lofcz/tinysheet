@@ -2,7 +2,7 @@
  * Cell writers: values, formulas, number formats, fonts, fills, alignment,
  * rich text, hyperlinks and notes.
  */
-import type ExcelJS from "@protobi/exceljs";
+import type * as Xlsx from "@lofcz/ts-xlsx/core";
 import {
   alignmentConvert,
   fillConvert,
@@ -45,9 +45,9 @@ const clampText = (s: string) =>
   s.length > MAX_CELL_TEXT ? s.slice(0, MAX_CELL_TEXT) : s;
 
 /** Rich-text runs cut to MAX_CELL_TEXT characters in total. */
-function clampRuns(runs: ExcelJS.RichText[]) {
+function clampRuns(runs: Xlsx.RichTextRun[]) {
   let left = MAX_CELL_TEXT;
-  const out: ExcelJS.RichText[] = [];
+  const out: Xlsx.RichTextRun[] = [];
   runs.forEach((run) => {
     if (left <= 0) return;
     const text = run.text.length > left ? run.text.slice(0, left) : run.text;
@@ -83,13 +83,13 @@ function toBoolean(v: any): boolean | null {
   return null;
 }
 
-function errorValue(v: any): ExcelJS.CellErrorValue | null {
+function errorValue(v: any): Xlsx.ErrorValue | null {
   const s = String(v ?? "").toUpperCase();
-  return ERROR_VALUES.has(s) ? ({ error: s } as ExcelJS.CellErrorValue) : null;
+  return ERROR_VALUES.has(s) ? ({ error: s } as Xlsx.ErrorValue) : null;
 }
 
 /** The plain (non-formula) value of a cell as ExcelJS understands it. */
-export function plainCellValue(cell: any): ExcelJS.CellValue {
+export function plainCellValue(cell: any): Xlsx.CellValue {
   if (isInlineString(cell)) return inlineText(cell);
   const { v } = cell;
   const t = cell.ct?.t;
@@ -111,13 +111,13 @@ export function plainCellValue(cell: any): ExcelJS.CellValue {
   return String(v);
 }
 
-function richText(cell: any): ExcelJS.RichText[] | null {
+function richText(cell: any): Xlsx.RichTextRun[] | null {
   const runs = (cell.ct.s as any[]).filter((run) => run && run.v != null);
   if (runs.length === 0) return null;
   const styled = runs.some((run) => fontConvert(run));
   if (!styled) return null;
   return runs.map((run) => {
-    const text: ExcelJS.RichText = {
+    const text: { text: string; font?: Xlsx.Font } = {
       text: String(run.v).replace(/\r\n/g, "\n"),
     };
     const font = fontConvert(run);
@@ -137,7 +137,7 @@ function quoteSheet(name: string) {
 }
 
 /**
- * Hyperlink target for ExcelJS. Internal targets start with "#" and are
+ * Hyperlink target for Xlsx. Internal targets start with "#" and are
  * turned into `location` attributes by postProcessXlsx.
  */
 export function hyperlinkTarget(link: any, sheetName: string): string | null {
@@ -172,7 +172,7 @@ function formulaValue(
   cell: any,
   r: number,
   c: number
-): ExcelJS.CellFormulaValue {
+): Xlsx.FormulaValue | Xlsx.ArrayFormulaValue {
   const { formula, dynamic } = toExcelFormula(String(cell.f));
   let result: any = plainCellValue(cell);
   if (typeof result === "string") result = clampText(result);
@@ -192,14 +192,14 @@ function formulaValue(
 
 function writeCell(ctx: SheetExportContext, cell: any, r: number, c: number) {
   const { worksheet, sheet } = ctx;
-  const target = worksheet.getCell(r + 1, c + 1);
+  const target = worksheet.getCell(cellAddress(r, c));
 
   const font = fontConvert(cell);
-  if (font) target.font = font as ExcelJS.Font;
+  if (font) target.font = font as Xlsx.Font;
   const fill = fillConvert(cell.bg);
   if (fill) target.fill = fill;
   const alignment = alignmentConvert(cell);
-  if (alignment) target.alignment = alignment as ExcelJS.Alignment;
+  if (alignment) target.alignment = alignment as Xlsx.Alignment;
   const fa = cell.ct?.fa;
   if (!isGeneral(fa)) target.numFmt = String(fa);
   const protection = protectionConvert(cell);
@@ -218,18 +218,21 @@ function writeCell(ctx: SheetExportContext, cell: any, r: number, c: number) {
   const target_ = link ? hyperlinkTarget(link, worksheet.name) : null;
   if (target_) {
     const text = plainCellValue(cell);
-    target.value = {
-      text: clampText(text == null ? String(link.linkAddress) : String(text)),
-      hyperlink: target_,
+    target.value = clampText(
+      text == null ? String(link.linkAddress) : String(text)
+    );
+    worksheet.addHyperlink({
+      ref: target.address,
+      target: target_,
       ...(link.linkTooltip ? { tooltip: String(link.linkTooltip) } : {}),
-    } as ExcelJS.CellHyperlinkValue;
+    });
     return;
   }
 
   if (isInlineString(cell)) {
     const rich = richText(cell);
     target.value = rich
-      ? ({ richText: clampRuns(rich) } as ExcelJS.CellRichTextValue)
+      ? ({ richText: clampRuns(rich) } as Xlsx.RichTextValue)
       : clampText(inlineText(cell).replace(/\r\n/g, "\n"));
     return;
   }
@@ -364,7 +367,7 @@ export function writeNotes(ctx: SheetExportContext) {
     for (let c = 0; c < row.length; c += 1) {
       const note = row[c]?.ps;
       if (note?.value == null || String(note.value) === "") continue;
-      worksheet.getCell(r + 1, c + 1).note = String(note.value);
+      worksheet.getCell(cellAddress(r, c)).note = String(note.value);
       if (note.isShow) {
         const shown = (post.visibleNotes ||= {});
         (shown[worksheet.id] ||= []).push({ r, c });

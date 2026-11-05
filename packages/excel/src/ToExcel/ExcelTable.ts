@@ -1,18 +1,9 @@
 /**
- * Tables (TinySheet `sheet.tables`, "Format as Table") -> Excel table parts.
- *
- * ExcelJS's `addTable` writes the header, data and total cells itself, so
- * the cells written by the cell writer are saved first and put back
- * afterwards: the table part only describes the table (range, columns,
- * total functions, style options). Structured references are written the
- * way Excel stores them: qualified with the table name, `[@Col]` as
- * `Table1[[#This Row],[Col]]`.
- *
- * What ExcelJS cannot write (filter state, calculated column formulas,
- * custom total formulas, slicers) is collected here and added to the zip
- * afterwards (ExcelTableZip.ts).
+ * TinySheet tables -> native workbook tables. Cell formulas and cached values
+ * remain owned by TinySheet; the table describes their range, columns and style.
+ * Filters, slicers and richer table metadata are applied by ExcelTableZip.ts.
  */
-import type ExcelJS from "@protobi/exceljs";
+import type * as Xlsx from "@lofcz/ts-xlsx/core";
 import { cellAddress } from "../common/formulaText";
 import { qualifyStructuredReferences } from "../common/structuredRefs";
 import type { SheetExportContext } from "./buildWorkbook";
@@ -87,22 +78,16 @@ function cellText(cell: any) {
   return v == null ? "" : String(v);
 }
 
-function snapshot(worksheet: ExcelJS.Worksheet, table: any) {
+function snapshot(worksheet: Xlsx.Worksheet, table: any) {
   const [r1, r2] = table.range.row;
   const [c1, c2] = table.range.column;
-  const values: ExcelJS.CellValue[][] = [];
+  const values: Xlsx.CellValue[][] = [];
   for (let r = r1; r <= r2; r += 1) {
-    const row: ExcelJS.CellValue[] = [];
+    const row: Xlsx.CellValue[] = [];
     for (let c = c1; c <= c2; c += 1) {
-      const cell = worksheet.getCell(r + 1, c + 1);
+      const cell = worksheet.getCell(cellAddress(r, c));
       const value = cell.value;
-      // ExcelJS's value getter omits falsy formula results. Restoring the
-      // snapshot after addTable must retain zero, false and empty-string caches.
-      row.push(
-        value && typeof value === "object" && "formula" in value
-          ? { ...value, result: cell.result }
-          : value
-      );
+      row.push(value);
     }
     values.push(row);
   }
@@ -142,14 +127,13 @@ export function writeTables(ctx: SheetExportContext) {
       return f === "custom" && !col?.totalFormula ? "none" : f;
     };
     const buttons = headerRow && table.filterButton !== false;
-    const added: any = worksheet.addTable({
+    worksheet.addTable({
       name: table.name,
-      displayName: table.name,
       ref: cellAddress(r1, c1),
       headerRow,
       totalsRow,
       style: {
-        theme: (table.style || "TableStyleMedium2") as any,
+        name: (table.style || "TableStyleMedium2") as any,
         showFirstColumn: !!table.firstColumn,
         showLastColumn: !!table.lastColumn,
         showRowStripes: !!table.bandedRows,
@@ -157,25 +141,18 @@ export function writeTables(ctx: SheetExportContext) {
       },
       columns: columns.map((col, j) => ({
         name: String(col?.name ?? `Column${j + 1}`),
-        filterButton: buttons,
-        totalsRowFunction: j === 0 ? undefined : fn(col),
+        totalsRowFunction: fn(col),
         totalsRowLabel: col?.totalLabel || undefined,
       })) as any,
-      rows: saved
-        .slice(dataStart - r1, dataEnd - r1 + 1)
-        .map((row) => row.map((v) => v ?? null)),
+      rowCount: dataEnd - dataStart + 1,
+      autoFilter: buttons,
     });
-    // ExcelJS gives the first column a "Total" label instead of a function
-    const first = added?.table?.columns?.[0];
-    if (first && totalsRow) {
-      const f = fn(columns[0]);
-      if (f !== "none") {
-        first.totalsRowFunction = f;
-        delete first.totalsRowLabel;
-      } else {
-        first.totalsRowLabel = columns[0]?.totalLabel || undefined;
-      }
-    }
+    if (headerRow)
+      columns.forEach((col, j) => {
+        worksheet.getCell(cellAddress(r1, c1 + j)).value = String(
+          col?.name ?? `Column${j + 1}`
+        );
+      });
 
     if (insertRow) {
       const features = (ctx.post.features ||= {});
@@ -183,12 +160,12 @@ export function writeTables(ctx: SheetExportContext) {
       tablesInfo.insertRow.push(String(table.name));
     }
 
-    // put the cells back (the header keeps the column names ExcelJS wrote),
+    // Keep the original cells and authoritative table header names,
     // with the structured references Excel expects
     saved.forEach((row, i) => {
       if ((headerRow && i === 0) || (insertRow && i > 0)) return;
       row.forEach((value, j) => {
-        const cell = worksheet.getCell(r1 + i + 1, c1 + j + 1);
+        const cell = worksheet.getCell(cellAddress(r1 + i, c1 + j));
         let v: any = value;
         if (v && typeof v === "object" && typeof v.formula === "string") {
           v = {

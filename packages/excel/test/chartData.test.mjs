@@ -366,9 +366,9 @@ test("shapes drawn in a chart round-trip as its c:userShapes", async () => {
   const rels = await zipText(bytes, "xl/charts/_rels/chart1.xml.rels");
   assert.match(
     rels,
-    /relationships\/chartUserShapes" Target="..\/drawings\/drawing\d+\.xml"/
+    /relationships\/chartUserShapes" Target="..\/drawings\/[^/"]+\.xml"/
   );
-  const target = /Target="..\/drawings\/(drawing\d+\.xml)"/.exec(rels)[1];
+  const target = /Target="..\/drawings\/([^/"]+\.xml)"/.exec(rels)[1];
   const drawing = await zipText(bytes, `xl/drawings/${target}`);
   assert.match(
     drawing,

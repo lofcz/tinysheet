@@ -1,8 +1,8 @@
 /**
  * Zip post-processor registry: the stable extension hook for everything
- * ExcelJS cannot write.
+ * the workbook model cannot write.
  *
- * `exportToXlsx` lets ExcelJS serialise the workbook, opens the package once
+ * `exportToXlsx` lets ts-xlsx serialise the workbook, opens the package once
  * and runs every registered post-processor on it, in order, then zips it
  * once. A post-processor receives an `XlsxPostProcessContext` (the JSZip
  * package, the exported sheets and their worksheet parts, the info feature
@@ -33,7 +33,7 @@
  *   appends, so parts written by different features do not collide.
  */
 import JSZip from "jszip";
-import type ExcelJS from "@protobi/exceljs";
+import type * as Xlsx from "@lofcz/ts-xlsx/core";
 import type { XlsxExportOptions } from "./buildWorkbook";
 import type { XlsxPostProcessInfo } from "./postProcess";
 import {
@@ -63,7 +63,7 @@ import { addCellHyperlinks } from "./ExcelStyle";
 
 /** A worksheet part of the written package. */
 export type XlsxWorksheetPart = {
-  /** ExcelJS worksheet id (the N of xl/worksheets/sheetN.xml). */
+  /** Worksheet id (the N of xl/worksheets/sheetN.xml). */
   id: number;
   /** Sheet name as written (made valid for Excel). */
   name: string;
@@ -79,8 +79,8 @@ export type XlsxPostProcessContext = {
   sheets: any[];
   /** Worksheet parts of the exported sheets (skipped sheets excluded). */
   worksheets: XlsxWorksheetPart[];
-  /** The ExcelJS workbook that was serialised (null for raw buffers). */
-  workbook: ExcelJS.Workbook | null;
+  /** The ts-xlsx workbook that was serialised (null for raw buffers). */
+  workbook: Xlsx.Workbook | null;
   /** Info collected by the sheet writers. */
   post: XlsxPostProcessInfo;
   options: XlsxExportOptions;
@@ -152,7 +152,7 @@ export const xlsxPostProcessors: XlsxPostProcessor[] = [
     name: "protection",
     process: (ctx) => applyProtectionToZip(ctx.zip, ctx.post),
   },
-  // links on formula cells and empty cells (ExcelJS only writes link values)
+  // links on formula cells and empty cells
   { name: "cell-hyperlinks", process: addCellHyperlinks },
   // list validation "show in-cell dropdown" off (showDropDown="1")
   { name: "data-validation", process: markHiddenDropdowns },
@@ -170,7 +170,8 @@ export const xlsxPostProcessors: XlsxPostProcessor[] = [
       await addChartsToZip(
         ctx.zip,
         ctx.sheets,
-        (name) => ctx.worksheets.find((ws) => ws.name === name)?.sheet
+        (name) => ctx.worksheets.find((ws) => ws.name === name)?.sheet,
+        !!ctx.post.features?.["native-charts"]
       );
     },
   },
@@ -236,7 +237,7 @@ export function registerXlsxPostProcessor(
 export type RunXlsxPostProcessorsInput = {
   sheets?: any[];
   worksheets?: XlsxWorksheetPart[];
-  workbook?: ExcelJS.Workbook | null;
+  workbook?: Xlsx.Workbook | null;
   post?: XlsxPostProcessInfo;
   options?: XlsxExportOptions;
   /** Run only these processors (default: all registered ones). */

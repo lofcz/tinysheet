@@ -1,10 +1,10 @@
-import type ExcelJS from "@protobi/exceljs";
+import type * as Xlsx from "@lofcz/ts-xlsx/core";
 import { colorToArgb } from "../common/units";
 
 /** TinySheet's legacy numeric font ids (locale fontarray, English). */
 const NUMERIC_FONTS = ["Times New Roman", "Arial", "Tahoma", "Verdana"];
 
-const UNDERLINE: Record<number, ExcelJS.Font["underline"]> = {
+const UNDERLINE: Record<number, Xlsx.Font["underline"]> = {
   1: "single",
   2: "double",
   3: "singleAccounting",
@@ -26,9 +26,9 @@ export function fontName(ff: any): string | undefined {
 }
 
 /** Font of a cell or of a rich-text run; undefined when nothing is set. */
-export function fontConvert(style: any): Partial<ExcelJS.Font> | undefined {
+export function fontConvert(style: any): Partial<Xlsx.Font> | undefined {
   if (!style) return undefined;
-  const font: Partial<ExcelJS.Font> = {};
+  const font: { -readonly [K in keyof Xlsx.Font]?: Xlsx.Font[K] } = {};
   const name = fontName(style.ff);
   if (name) font.name = name;
   if (style.fs != null && style.fs !== "" && !Number.isNaN(Number(style.fs))) {
@@ -45,30 +45,30 @@ export function fontConvert(style: any): Partial<ExcelJS.Font> | undefined {
   return Object.keys(font).length ? font : undefined;
 }
 
-export function fillConvert(bg: string | undefined): ExcelJS.Fill | undefined {
+export function fillConvert(bg: string | undefined): Xlsx.Fill | undefined {
   const argb = colorToArgb(bg);
   if (!argb) return undefined;
   return { type: "pattern", pattern: "solid", fgColor: { argb } };
 }
 
-const HORIZONTAL: Record<string, ExcelJS.Alignment["horizontal"]> = {
+const HORIZONTAL: Record<string, Xlsx.Alignment["horizontal"]> = {
   "0": "center",
   "1": "left",
   "2": "right",
 };
 
-const VERTICAL: Record<string, ExcelJS.Alignment["vertical"]> = {
-  "0": "middle",
+const VERTICAL: Record<string, Xlsx.Alignment["vertical"]> = {
+  "0": "center",
   "1": "top",
   "2": "bottom",
 };
 
-const ROTATION: Record<string, number | "vertical"> = {
+const ROTATION: Record<string, number> = {
   "1": 45,
-  "2": -45,
-  "3": "vertical",
+  "2": 135,
+  "3": 255,
   "4": 90,
-  "5": -90,
+  "5": 180,
 };
 
 /**
@@ -78,8 +78,10 @@ const ROTATION: Record<string, number | "vertical"> = {
  */
 export function alignmentConvert(
   cell: any
-): Partial<ExcelJS.Alignment> | undefined {
-  const alignment: Partial<ExcelJS.Alignment> = {};
+): Partial<Xlsx.Alignment> | undefined {
+  const alignment: {
+    -readonly [K in keyof Xlsx.Alignment]?: Xlsx.Alignment[K];
+  } = {};
   if (cell.ht != null && HORIZONTAL[String(cell.ht)]) {
     alignment.horizontal = HORIZONTAL[String(cell.ht)];
   }
@@ -97,14 +99,14 @@ export function alignmentConvert(
     alignment.indent = Math.min(indent, 250);
   }
   if (String(cell.tr) === "3") {
-    alignment.textRotation = "vertical";
+    alignment.textRotation = 255;
   } else if (
     cell.rt != null &&
     !Number.isNaN(Number(cell.rt)) &&
     Number(cell.rt)
   ) {
     const rt = Number(cell.rt);
-    alignment.textRotation = rt > 90 ? 90 - rt : rt;
+    alignment.textRotation = rt;
   } else if (cell.tr != null && ROTATION[String(cell.tr)] != null) {
     alignment.textRotation = ROTATION[String(cell.tr)];
   }
@@ -117,7 +119,7 @@ export function alignmentConvert(
  */
 export function protectionConvert(
   cell: any
-): Partial<ExcelJS.Protection> | undefined {
+): Partial<Xlsx.Protection> | undefined {
   const unlocked = cell.lo != null && Number(cell.lo) === 0;
   const hidden = isOn(cell.hi);
   if (!unlocked && !hidden) return undefined;

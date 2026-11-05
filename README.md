@@ -17,6 +17,8 @@
 - Light/dark themes, 1M+ rows
 - Collaboration through `onOp` / `applyOp`
 
+The Excel adapter uses [`@lofcz/ts-xlsx`](https://github.com/lofcz/ts-xlsx) for workbook export and native chart packaging. `parseExcel`, `exportToXlsx`, and the download helpers retain their signatures. `buildExcelWorkbook` and feature contexts now expose the ts-xlsx workbook model; use `writeXlsx(workbook)` instead of `workbook.xlsx.writeBuffer()`. ExcelJS remains a development-only interoperability reader for the regression suite.
+
 ## Install
 
 ```sh

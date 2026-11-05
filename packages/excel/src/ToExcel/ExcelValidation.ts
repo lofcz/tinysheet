@@ -18,7 +18,7 @@
  * arrow (`showDropdown: false`) gets Excel's inverted `showDropDown="1"`
  * from the "data-validation" zip post-processor (ExcelJS drops it).
  */
-import type ExcelJS from "@protobi/exceljs";
+import type * as Xlsx from "@lofcz/ts-xlsx/core";
 import { cellAddress, shiftFormula } from "../common/formulaText";
 import type { XlsxPostProcessInfo } from "./postProcess";
 import type { XlsxPostProcessContext } from "./postProcessors";
@@ -76,7 +76,7 @@ export function getExcelValidation(
   r: number,
   c: number,
   shift: [number, number] = [0, 0]
-): ExcelJS.DataValidation | null {
+): Xlsx.DataValidation | null {
   if (!item?.type) return null;
   const moved = (text: string) =>
     shift[0] || shift[1] ? shiftFormula(text, shift[0], shift[1]) : text;
@@ -122,7 +122,7 @@ export function getExcelValidation(
     case "number_decimal":
     case "number_integer":
     case "text_length": {
-      const types: Record<string, ExcelJS.DataValidation["type"]> = {
+      const types: Record<string, Xlsx.DataValidation["type"]> = {
         number_integer: "whole",
         text_length: "textLength",
       };
@@ -188,7 +188,7 @@ export function cellRectangles(cells: [number, number][]): Rect[] {
 
 export function setDataValidations(
   sheet: any,
-  worksheet: ExcelJS.Worksheet,
+  worksheet: Xlsx.Worksheet,
   post?: XlsxPostProcessInfo
 ) {
   const rules = sheet?.dataVerification;
@@ -222,16 +222,10 @@ export function setDataValidations(
           .hiddenDropdowns as Record<number, string[]>;
         (hidden[worksheet.id] ||= []).push(cellAddress(rect.r1, rect.c1));
       }
-      const single = rect.r1 === rect.r2 && rect.c1 === rect.c2;
-      if (single) {
-        worksheet.getCell(rect.r1 + 1, rect.c1 + 1).dataValidation = dv;
-      } else {
-        // (not in ExcelJS's typings) a range key is written as one rule
-        (worksheet as any).dataValidations.add(
-          `${cellAddress(rect.r1, rect.c1)}:${cellAddress(rect.r2, rect.c2)}`,
-          dv
-        );
-      }
+      worksheet.addDataValidation(
+        `${cellAddress(rect.r1, rect.c1)}:${cellAddress(rect.r2, rect.c2)}`,
+        { ...dv, suppressDropDown: !!(dv as any).showDropDown }
+      );
     });
   });
 }

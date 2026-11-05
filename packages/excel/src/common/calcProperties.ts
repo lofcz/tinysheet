@@ -86,10 +86,7 @@ export function exportCalcProperties(ctx: WorkbookExportContext) {
     | undefined;
   if (!settings) return;
   if (settings.fullCalcOnLoad) {
-    (ctx.workbook as any).calcProperties = {
-      ...((ctx.workbook as any).calcProperties ?? {}),
-      fullCalcOnLoad: true,
-    };
+    ctx.workbook.fullCalcOnLoad = true;
   }
   ctx.post.fixups = [
     ...(ctx.post.fixups ?? []),

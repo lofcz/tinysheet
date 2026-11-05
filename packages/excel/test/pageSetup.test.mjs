@@ -74,7 +74,8 @@ test("a full Page Setup survives export -> import", async () => {
   const xml = await zipText(bytes, "xl/worksheets/sheet1.xml");
   assert.match(xml, /<colBreaks count="1" manualBreakCount="1"><brk id="4"/);
   assert.match(xml, /cellComments="asDisplayed"/);
-  assert.match(xml, /<headerFooter scaleWithDoc="0" alignWithMargins="0"/);
+  assert.match(xml, /<headerFooter\b[^>]*scaleWithDoc="0"/);
+  assert.match(xml, /<headerFooter\b[^>]*alignWithMargins="0"/);
   // schema order: headerFooter, rowBreaks, colBreaks, then drawings/tables
   assert.ok(xml.indexOf("<rowBreaks") < xml.indexOf("<colBreaks"));
   assert.ok(xml.indexOf("</headerFooter>") < xml.indexOf("<rowBreaks"));

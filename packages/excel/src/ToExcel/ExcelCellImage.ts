@@ -48,14 +48,11 @@ export function writeCellImages(ctx: SheetExportContext) {
       if (mc && (mc.r !== r || mc.c !== c)) continue;
       if (cell!.f != null && String(cell!.f).trim() !== "") {
         // Excel draws IMAGE() results once it recalculates
-        (ctx.workbook as any).calcProperties = {
-          ...((ctx.workbook as any).calcProperties || {}),
-          fullCalcOnLoad: true,
-        };
+        ctx.workbook.fullCalcOnLoad = true;
         continue;
       }
       const alt = img.alt == null ? "" : String(img.alt);
-      const target = worksheet.getCell(r + 1, c + 1);
+      const target = worksheet.getCell(cellAddress(r, c));
       if (DATA_IMAGE_RE.test(img.src)) {
         target.value = { error: "#VALUE!" } as any;
         const list = ((post as any).cellImages ||= {}) as CellImagePostInfo;
@@ -74,10 +71,7 @@ export function writeCellImages(ctx: SheetExportContext) {
         }
         const { formula } = toExcelFormula(`=IMAGE(${args.join(",")})`);
         target.value = { formula, result: alt } as any;
-        (ctx.workbook as any).calcProperties = {
-          ...((ctx.workbook as any).calcProperties || {}),
-          fullCalcOnLoad: true,
-        };
+        ctx.workbook.fullCalcOnLoad = true;
       }
     }
   }

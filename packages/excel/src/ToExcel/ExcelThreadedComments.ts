@@ -1,3 +1,4 @@
+import { cellAddress } from "../common/formulaText";
 /**
  * Threaded comments -> xlsx.
  *
@@ -196,7 +197,7 @@ export function writeThreadedComments(ctx: SheetExportContext) {
       };
     });
     out.push({ ref, resolved: !!thread.resolved, posts });
-    ctx.worksheet.getCell(thread.r + 1, thread.c + 1).note =
+    ctx.worksheet.getCell(cellAddress(thread.r, thread.c)).note =
       legacyThreadText(thread);
   });
   info.usedIds = [...used];

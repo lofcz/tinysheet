@@ -1,12 +1,7 @@
 /**
- * Write TinySheet chart objects into an xlsx package as native DrawingML
- * charts (xl/charts/chartN.xml + drawing anchors).
- *
- * exceljs (including the @protobi fork) has no API for creating charts; it
- * only round-trips chart parts it read from a file. So the workbook is first
- * written by exceljs and the chart parts are then added to the zip:
- * chart XML, a drawing (or extra anchors in the drawing exceljs wrote for
- * images), the relationships and the content-type overrides.
+ * Standalone chart package export, and the chart-sheet / Office 2016 extension
+ * writers used after workbook serialization. Standard charts in exportToXlsx
+ * are registered with ts-xlsx by ToExcel/ExcelChart.ts.
  */
 import JSZip from "jszip";
 import { Chart, ChartAnchorPoint, Sheet } from "@lofcz/tinysheet-core";
@@ -356,7 +351,8 @@ export async function addChartsToXlsx(
 export async function addChartsToZip(
   zip: JSZip,
   sheets: Sheet[],
-  sheetForName?: (name: string) => Sheet | undefined
+  sheetForName?: (name: string) => Sheet | undefined,
+  onlyExtensions = false
 ): Promise<boolean> {
   if (!sheets.some((s) => s.charts?.length)) return false;
   const ctx: SheetsCtx = { luckysheetfile: sheets };
@@ -394,9 +390,15 @@ export async function addChartsToZip(
     const sheet = sheetForName?.(name) ?? sheets.find((x) => x.name === name);
     const rel = wbRels.find((r) => r.id === rid);
     if (!sheet?.charts?.length || !rel) continue;
+    if (
+      onlyExtensions &&
+      !sheet.chartSheet &&
+      !sheet.charts.some((chart) => isChartExType(chart.type))
+    )
+      continue;
     const sheetPath = resolvePath("xl/workbook.xml", rel.target);
     if (sheet.chartSheet) {
-      // a chart sheet: the worksheet exceljs wrote becomes a chartsheet
+      // a chart sheet: the worksheet the workbook writer created becomes a chartsheet
       // part with a drawing holding the chart
       const chart = sheet.charts[0];
       chartNo += 1;
@@ -455,7 +457,7 @@ export async function addChartsToZip(
     if (!sheetXml) continue;
     let sheetRels = (await zip.file(sheetRelsPath)?.async("string")) ?? null;
 
-    // Reuse the drawing exceljs wrote for images, or create one.
+    // Reuse the drawing the workbook writer created for images, or create one.
     let drawingPath: string | undefined;
     const drawingTag = sheetXml.match(/<drawing\b[^>]*>/);
     if (drawingTag && sheetRels) {
@@ -488,6 +490,7 @@ export async function addChartsToZip(
     for (let i = 0; i < sheet.charts.length; i += 1) {
       const chart = sheet.charts[i];
       const ex = isChartExType(chart.type);
+      if (onlyExtensions && !ex) continue;
       let file: string;
       if (ex) {
         chartExNo += 1;

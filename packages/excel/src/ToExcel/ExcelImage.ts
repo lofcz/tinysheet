@@ -47,7 +47,9 @@ var setImages = function (table: any, worksheet: any, workbook: any) {
     );
     if (item?.chartSpec || !mime) continue;
     const imageId = workbook.addImage({
-      base64: myBase64Image,
+      buffer: Uint8Array.from(atob(myBase64Image.slice(mime[0].length)), (ch) =>
+        ch.charCodeAt(0)
+      ),
       extension: mime[1].toLowerCase().replace("jpg", "jpeg") as any,
     });
 

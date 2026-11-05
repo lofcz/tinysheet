@@ -11,10 +11,8 @@
  * columns are written and read by the sheet-structure code already.
  */
 import { getOutlineGroups } from "@lofcz/tinysheet-core";
-import type ExcelJS from "@protobi/exceljs";
 import type { SheetExportContext } from "../ToExcel/buildWorkbook";
 import type { SheetImportContext } from "../ToFortuneSheet/importFeatures";
-import { pxToExcelWidth, pxToPoints } from "./units";
 
 const MAX_LEVEL = 7;
 
@@ -29,11 +27,6 @@ function keysOf(...maps: (Record<string, number> | undefined)[]) {
   return [...keys].sort((a, b) => a - b);
 }
 
-/** Replace an ExcelJS getter on one instance (its class computes it wrong). */
-function defineGetter(target: object, name: string, get: () => unknown) {
-  Object.defineProperty(target, name, { get, configurable: true });
-}
-
 /** Sheet export feature: outline levels, collapsed flags, summary position. */
 export function writeOutline(ctx: SheetExportContext) {
   const { sheet, worksheet } = ctx;
@@ -42,8 +35,6 @@ export function writeOutline(ctx: SheetExportContext) {
   const colLevels: Record<string, number> = cfg.colOutlineLevel || {};
   const rowFlags: Record<string, number> = cfg.rowOutlineCollapsed || {};
   const colFlags: Record<string, number> = cfg.colOutlineCollapsed || {};
-  let maxRow = 0;
-  let maxCol = 0;
 
   keysOf(rowLevels, rowFlags).forEach((r) => {
     if (r >= 1048576) return;
@@ -52,16 +43,7 @@ export function writeOutline(ctx: SheetExportContext) {
     if (!level && !collapsed) return;
     const row = worksheet.getRow(r + 1);
     row.outlineLevel = level;
-    maxRow = Math.max(maxRow, level);
-    // ExcelJS derives `collapsed` from the level; Excel means "the group
-    // summarised by this row is collapsed"
-    defineGetter(row, "collapsed", () => collapsed);
-    // ExcelJS drops rows without cells or a height
-    if (!row.height && row.cellCount === 0) {
-      const px =
-        Number(cfg.rowlen?.[r]) || Number(sheet.defaultRowHeight) || 19;
-      row.height = pxToPoints(px);
-    }
+    row.collapsed = collapsed;
   });
 
   keysOf(colLevels, colFlags).forEach((c) => {
@@ -69,41 +51,13 @@ export function writeOutline(ctx: SheetExportContext) {
     const level = Math.min(MAX_LEVEL, Math.max(0, colLevels[c] || 0));
     const collapsed = !!colFlags[c];
     if (!level && !collapsed) return;
-    const column = worksheet.getColumn(c + 1) as ExcelJS.Column & {
-      isDefault: boolean;
-      equivalentTo: (other: any) => boolean;
-    };
+    const column = worksheet.getColumn(c + 1);
     column.outlineLevel = level;
-    maxCol = Math.max(maxCol, level);
-    defineGetter(column, "collapsed", () => collapsed);
-    if (collapsed) {
-      // written even with the default width, and never merged into a
-      // neighbouring <col> run that is not collapsed
-      defineGetter(column, "isDefault", () => false);
-      if (column.width == null) {
-        column.width = pxToExcelWidth(ctx.options.defaultColumnWidth ?? 73);
-      }
-    }
-    const proto = Object.getPrototypeOf(column);
-    Object.defineProperty(column, "equivalentTo", {
-      configurable: true,
-      value: (other: any) =>
-        proto.equivalentTo.call(column, other) &&
-        !!other?.collapsed === collapsed,
-    });
+    column.collapsed = collapsed;
   });
 
-  const props = worksheet.properties as ExcelJS.WorksheetProperties & {
-    outlineProperties?: { summaryBelow?: boolean; summaryRight?: boolean };
-  };
-  if (maxRow > 0) props.outlineLevelRow = maxRow;
-  if (maxCol > 0) props.outlineLevelCol = maxCol;
-  if (cfg.outlineSummaryBelow === false || cfg.outlineSummaryRight === false) {
-    props.outlineProperties = {
-      summaryBelow: cfg.outlineSummaryBelow !== false,
-      summaryRight: cfg.outlineSummaryRight !== false,
-    };
-  }
+  if (cfg.outlineSummaryBelow === false) worksheet.outline.summaryBelow = false;
+  if (cfg.outlineSummaryRight === false) worksheet.outline.summaryRight = false;
 }
 
 const attr = (tag: string, name: string) =>

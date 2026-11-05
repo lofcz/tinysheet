@@ -1,4 +1,5 @@
-import ExcelJS from "@protobi/exceljs";
+import { cellAddress } from "../common/formulaText";
+import type * as Xlsx from "@lofcz/ts-xlsx/core";
 import {
   IBorderInfo,
   IBorderInfoCompute,
@@ -7,10 +8,10 @@ import {
 import { getObjType, rgb2hex } from "../common/method";
 import { colorToArgb } from "../common/units";
 
-var setBorder = function (lucksheetfile: any, worksheet: ExcelJS.Worksheet) {
+var setBorder = function (lucksheetfile: any, worksheet: Xlsx.Worksheet) {
   if (!lucksheetfile) return;
   const luckyToExcel: {
-    style: { [key: number]: ExcelJS.BorderStyle | "none" };
+    style: { [key: number]: Xlsx.BorderStyle | "none" };
   } = {
     style: {
       0: "none",
@@ -32,7 +33,7 @@ var setBorder = function (lucksheetfile: any, worksheet: ExcelJS.Worksheet) {
   //获取所有的单元格边框的信息
   const borderInfoCompute: IBorderInfoCompute = getBorderInfo(lucksheetfile);
   for (let x in borderInfoCompute) {
-    let border: Partial<ExcelJS.Borders> | any = {};
+    let border: Partial<Xlsx.Border> | any = {};
     let info = borderInfoCompute[x];
     let row = parseInt(x.substr(0, x.indexOf("_")));
     let column = parseInt(x.substr(x.indexOf("_") + 1));
@@ -68,7 +69,7 @@ var setBorder = function (lucksheetfile: any, worksheet: ExcelJS.Worksheet) {
         color: { argb: colorToArgb(lcolor) ?? "FF000000" },
       };
     }
-    worksheet.getCell(row + 1, column + 1).border = border;
+    worksheet.getCell(cellAddress(row, column)).border = border;
   }
 };
 

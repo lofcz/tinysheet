@@ -2,9 +2,9 @@
  * TinySheet -> xlsx export pipeline.
  *
  * `buildExcelWorkbook` turns TinySheet sheets (with `data` or `celldata`)
- * into an ExcelJS workbook by running a list of feature writers per sheet,
+ * into a ts-xlsx workbook by running a list of feature writers per sheet,
  * then per workbook. `exportToXlsx` serialises it and runs the registered
- * zip post-processors on the package for what ExcelJS cannot express (see
+ * zip post-processors on the package for what the workbook model cannot express (see
  * postProcessors.ts, `registerXlsxPostProcessor`).
  *
  * Extending: other feature owners (defined names, conditional formatting,
@@ -15,7 +15,9 @@
  * -> merges ->
  * borders -> images -> data validation -> views.
  */
-import ExcelJS from "@protobi/exceljs";
+import * as Xlsx from "@lofcz/ts-xlsx/core";
+import { writeXlsx } from "@lofcz/ts-xlsx/xlsx";
+import { writeCharts } from "./ExcelChart";
 import JSZip from "jszip";
 import type { XlsxPostProcessInfo } from "./postProcess";
 import type { XlsxWorksheetPart } from "./postProcessors";
@@ -58,8 +60,8 @@ export type ExportCell = Record<string, any>;
 export type ExportCellMatrix = (ExportCell | null)[][];
 
 export type SheetExportContext = {
-  workbook: ExcelJS.Workbook;
-  worksheet: ExcelJS.Worksheet;
+  workbook: Xlsx.Workbook;
+  worksheet: Xlsx.Worksheet;
   /** The TinySheet sheet being exported. */
   sheet: any;
   /** Cell matrix of the sheet (built from celldata when data is absent). */
@@ -72,10 +74,10 @@ export type SheetExportContext = {
 };
 
 export type WorkbookExportContext = {
-  workbook: ExcelJS.Workbook;
+  workbook: Xlsx.Workbook;
   sheets: any[];
   /** Worksheet per exported sheet, in the same order as `sheets`. */
-  worksheets: (ExcelJS.Worksheet | null)[];
+  worksheets: (Xlsx.Worksheet | null)[];
   options: XlsxExportOptions;
   post: XlsxPostProcessInfo;
 };
@@ -137,7 +139,7 @@ export const sheetExportFeatures: SheetExportFeature[] = [
   { name: "protection", write: writeSheetProtection },
   // cell checkboxes: marked here, written by the "checkboxes" post-processor
   { name: "checkboxes", write: collectCheckboxes },
-  // Charts are added to the written zip (the "charts" post-processor).
+  { name: "charts", write: writeCharts },
 ];
 
 /** Workbook-level writers (run after every sheet was written). */
@@ -217,7 +219,7 @@ function excelSheetName(name: string, used: Set<string>) {
 }
 
 export type BuiltWorkbook = {
-  workbook: ExcelJS.Workbook;
+  workbook: Xlsx.Workbook;
   post: XlsxPostProcessInfo;
   /** Exported sheets in workbook order. */
   sheets: any[];
@@ -226,16 +228,16 @@ export type BuiltWorkbook = {
 };
 
 /**
- * Build an ExcelJS workbook from TinySheet sheets. Returns the workbook and
+ * Build a ts-xlsx workbook from TinySheet sheets. Returns the workbook and
  * the post-processing info `postProcessXlsx` needs.
  */
 export function buildExcelWorkbookWithInfo(
   sheets: any[],
   options: XlsxExportOptions = {}
 ): BuiltWorkbook {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = options.creator ?? "TinySheet";
-  workbook.created = new Date();
+  const workbook = new Xlsx.Workbook();
+  workbook.properties.creator = options.creator ?? "TinySheet";
+  workbook.properties.created = new Date();
   const post: XlsxPostProcessInfo = {
     dynamicArrayCells: {},
     worksheetIds: [],
@@ -245,7 +247,7 @@ export function buildExcelWorkbookWithInfo(
   const parts: XlsxWorksheetPart[] = [];
   const ordered = sortedSheets(sheets || []);
   const used = new Set<string>();
-  const worksheets: (ExcelJS.Worksheet | null)[] = [];
+  const worksheets: (Xlsx.Worksheet | null)[] = [];
 
   ordered.forEach((sheet) => {
     if (options.skipHiddenSheets && sheet?.hide === 1) {
@@ -254,9 +256,9 @@ export function buildExcelWorkbookWithInfo(
     }
     const tab = colorToArgb(sheet?.color);
     const worksheet = workbook.addWorksheet(excelSheetName(sheet?.name, used), {
-      properties: tab ? ({ tabColor: { argb: tab } } as any) : undefined,
       state: sheet?.hide === 1 ? "hidden" : "visible",
     });
+    if (tab) worksheet.tabColor = { argb: tab };
     worksheets.push(worksheet);
     post.worksheetIds.push(worksheet.id);
     parts.push({
@@ -298,7 +300,7 @@ export function buildExcelWorkbookWithInfo(
 export function buildExcelWorkbook(
   sheets: any[],
   options: XlsxExportOptions = {}
-): ExcelJS.Workbook {
+): Xlsx.Workbook {
   return buildExcelWorkbookWithInfo(sheets, options).workbook;
 }
 
@@ -308,11 +310,11 @@ export async function exportToXlsx(
   options: XlsxExportOptions = {}
 ): Promise<Uint8Array> {
   const built = buildExcelWorkbookWithInfo(sheets, options);
-  const buffer = await built.workbook.xlsx.writeBuffer();
-  // what ExcelJS cannot write: CF details, dynamic arrays, internal links,
+  const buffer = writeXlsx(built.workbook);
+  // what the workbook model cannot write: CF details, dynamic arrays, internal links,
   // shown notes, hidden dropdowns, empty tables, charts, and every
   // post-processor other features registered
-  return runXlsxPostProcessors(buffer as ArrayBuffer, {
+  return runXlsxPostProcessors(buffer, {
     sheets: built.sheets,
     worksheets: built.worksheets,
     workbook: built.workbook,
