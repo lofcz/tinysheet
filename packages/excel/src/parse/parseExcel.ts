@@ -3,6 +3,8 @@ import { HandleZip } from "../ToFortuneSheet/HandleZip";
 import { CsvParseOptions, parseCsv } from "../csv";
 import type { ExcelImportResult, ExcelImportSizing } from "./types";
 import { workBookFile } from "../common/constant";
+import { encodeWorkbookBytes } from "../preservation";
+import { exportToXlsx } from "../ToExcel/buildWorkbook";
 
 /** Why a file could not be imported (`code`), with a readable message. */
 export class ExcelImportError extends Error {
@@ -16,6 +18,8 @@ export class ExcelImportError extends Error {
 }
 
 export type ParseExcelOptions = {
+  /** Keep the original package and an editor baseline for loss-aware export. Defaults to true. */
+  preserve?: boolean;
   /** Options for .csv / .tsv / .txt input (delimiter, encoding, locale). */
   csv?: CsvParseOptions;
 };
@@ -118,5 +122,24 @@ export async function parseExcel(
   fortuneFile.Parse();
   const serialized = fortuneFile.serialize();
   const sheets = serialized.sheets as unknown as ExcelImportResult["sheets"];
-  return { sheets, sizing: sizingOf(sheets) };
+  if (options.preserve === false) return { sheets, sizing: sizingOf(sheets) };
+  const baseline = await exportToXlsx(sheets, {
+    timestamp: new Date("2000-01-01T00:00:00.000Z"),
+  });
+  return {
+    sheets,
+    sizing: sizingOf(sheets),
+    preservation: {
+      version: 1,
+      source: encodeWorkbookBytes(new Uint8Array(buffer)),
+      baseline: encodeWorkbookBytes(baseline),
+      sheets: sheets.map((sheet) => ({
+        id: String(sheet.id),
+        name: sheet.name,
+      })),
+      macroEnabled: /macroEnabled\.main\+xml/i.test(
+        files["[Content_Types].xml"] || ""
+      ),
+    },
+  };
 }

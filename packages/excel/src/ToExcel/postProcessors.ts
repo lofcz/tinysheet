@@ -40,14 +40,8 @@ import {
   addWorksheetExts,
   applySheetXmlFixups,
   fixInternalHyperlinks,
-  markDynamicArrays,
   showNotes,
 } from "./postProcess";
-import { writeCellImageParts } from "./ExcelCellImage";
-import { writeThreadedCommentParts } from "./ExcelThreadedComments";
-import { finalizeConditionalFormattingZip } from "./ExcelConditionFormat";
-import { addChartsToZip } from "../chart/exportXlsx";
-import { addShapesToZip } from "../shapes/exportXlsx";
 import { addPivotTablesToZip } from "../common/pivotTables";
 import {
   addContentTypeOverride,
@@ -58,7 +52,6 @@ import { markHiddenDropdowns } from "./ExcelValidation";
 import { markEmptyTables } from "./ExcelTable";
 import { writeTableExtras } from "./ExcelTableZip";
 import { applyProtectionToZip } from "./ExcelProtection";
-import { writeCheckboxParts } from "./ExcelCheckbox";
 import { addCellHyperlinks } from "./ExcelStyle";
 
 /** A worksheet part of the written package. */
@@ -113,36 +106,15 @@ export type XlsxPostProcessor = {
 /** Registered post-processors, in the order they run. */
 export const xlsxPostProcessors: XlsxPostProcessor[] = [
   {
-    // gradient data bars, "show bar only", ">" icon thresholds
-    name: "conditional-formatting",
-    process: (ctx) =>
-      ctx.workbook
-        ? finalizeConditionalFormattingZip(ctx.workbook, ctx.zip)
-        : undefined,
-  },
-  {
-    name: "dynamic-arrays",
-    process: (ctx) => markDynamicArrays(ctx.zip, ctx.post),
-  },
-  // after the dynamic arrays: shares xl/metadata.xml with them
-  {
-    name: "cell-images",
-    process: (ctx) => writeCellImageParts(ctx.zip, ctx.post),
-  },
-  {
     name: "internal-hyperlinks",
     process: (ctx) => fixInternalHyperlinks(ctx.zip),
   },
   { name: "visible-notes", process: (ctx) => showNotes(ctx.zip, ctx.post) },
   {
-    name: "threaded-comments",
-    process: (ctx) => writeThreadedCommentParts(ctx.zip, ctx.post),
-  },
-  {
     name: "sheet-xml-fixups",
     process: (ctx) => applySheetXmlFixups(ctx.zip, ctx.post),
   },
-  // <ext> elements queued by sheet writers (sparkline groups, ...)
+  // Extension elements queued by registered feature writers.
   {
     name: "worksheet-exts",
     process: (ctx) => addWorksheetExts(ctx.zip, ctx.post),
@@ -163,29 +135,10 @@ export const xlsxPostProcessors: XlsxPostProcessor[] = [
     name: "table-extras",
     process: (ctx) => writeTableExtras(ctx.zip, ctx.post),
   },
-  // native chart parts for `sheet.charts`
-  {
-    name: "charts",
-    process: async (ctx) => {
-      await addChartsToZip(
-        ctx.zip,
-        ctx.sheets,
-        (name) => ctx.worksheets.find((ws) => ws.name === name)?.sheet,
-        !!ctx.post.features?.["native-charts"]
-      );
-    },
-  },
-  // shapes and text boxes join the drawing part of pictures and charts
-  { name: "shapes", process: (ctx) => addShapesToZip(ctx.zip, ctx.sheets) },
   // pivot caches, records and table definitions
   {
     name: "pivot-tables",
     process: (ctx) => addPivotTablesToZip(ctx.zip, ctx.sheets),
-  },
-  // checkbox cell formats (feature property bags in styles.xml)
-  {
-    name: "checkboxes",
-    process: (ctx) => writeCheckboxParts(ctx.zip, ctx.post),
   },
   {
     // zip edits sheet/workbook writers queued in `post.fixups` (run last)
@@ -262,7 +215,6 @@ export function createPostProcessContext(
     worksheets: input.worksheets ?? [],
     workbook: input.workbook ?? null,
     post: input.post ?? {
-      dynamicArrayCells: {},
       worksheetIds: [],
       visibleNotes: {},
       features: {},
@@ -308,6 +260,10 @@ export async function runXlsxPostProcessors(
     // eslint-disable-next-line no-await-in-loop
     await processor.process(ctx);
   }
+  if (ctx.options.timestamp)
+    zip.forEach((_path, entry) => {
+      entry.date = ctx.options.timestamp!;
+    });
   return zip.generateAsync({
     type: "uint8array",
     compression: "DEFLATE",

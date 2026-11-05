@@ -41,6 +41,8 @@ type RefValues = {
 };
 
 export type Context = {
+  /** Serializable integration metadata that belongs to the whole workbook. */
+  workbookMetadata?: Record<string, unknown>;
   luckysheetfile: Sheet[];
   defaultcolumnNum: number;
   defaultrowNum: number;

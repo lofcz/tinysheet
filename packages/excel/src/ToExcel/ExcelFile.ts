@@ -29,14 +29,25 @@ export async function exportSheetExcel(
       ...options.csv,
     });
   } else {
-    const bytes = await exportToXlsx(api.getAllSheets(), options);
+    const preservation =
+      options.preservation ?? api.getWorkbookMetadata?.().xlsxPreservation;
+    const bytes = await exportToXlsx(api.getAllSheets(), {
+      ...options,
+      preservation,
+    });
     fileData = new Blob([bytes as Uint8Array<ArrayBuffer>], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      type: preservation?.macroEnabled
+        ? "application/vnd.ms-excel.sheet.macroEnabled.12"
+        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
   }
   if (download) {
     const name = options.fileName ?? current?.name ?? "workbook";
-    fileSaver.saveAs(fileData, `${name}.${fileType}`);
+    const extension =
+      fileData.type === "application/vnd.ms-excel.sheet.macroEnabled.12"
+        ? "xlsm"
+        : fileType;
+    fileSaver.saveAs(fileData, `${name}.${extension}`);
   }
   return fileData;
 }

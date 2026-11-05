@@ -1,4 +1,5 @@
 import type { Sheet } from "@lofcz/tinysheet-core";
+import type { XlsxPreservation } from "../preservation";
 
 export type ExcelImportSizing = {
   id: string;
@@ -9,4 +10,5 @@ export type ExcelImportSizing = {
 export type ExcelImportResult = {
   sheets: Sheet[];
   sizing: ExcelImportSizing[];
+  preservation?: XlsxPreservation;
 };

@@ -67,9 +67,9 @@ function binningXml(b: ChartHistogramBinning | undefined) {
     v != null && Number.isFinite(v) ? ` ${name}="${v}"` : "";
   let inner = "";
   if (b?.mode === "width" && b.width && b.width > 0)
-    inner = `<cx:binSize val="${b.width}"/>`;
+    inner = `<cx:binSize>${b.width}</cx:binSize>`;
   else if (b?.mode === "count" && b.count && b.count > 0)
-    inner = `<cx:binCount val="${Math.round(b.count)}"/>`;
+    inner = `<cx:binCount>${Math.round(b.count)}</cx:binCount>`;
   return `<cx:binning intervalClosed="r"${attr(
     "underflow",
     b?.underflow
@@ -208,14 +208,14 @@ export function chartExToXml(ctx: SheetsCtx, chart: Chart): string {
     )}" formatIdx="0">${tx}<cx:spPr>${solidFill(
       color
     )}</cx:spPr>${labels}<cx:dataId val="0"/><cx:layoutPr>${layout}</cx:layoutPr>${
-      type === "pareto" ? '<cx:axisId val="1"/>' : ""
+      type === "pareto" ? "<cx:axisId>1</cx:axisId>" : ""
     }</cx:series>`;
     if (type === "pareto") {
       series += `<cx:series layoutId="paretoLine" ownerIdx="0" uniqueId="${uid(
         2
       )}" formatIdx="1"><cx:spPr><a:ln w="28575">${solidFill(
         hex(chartColor(chart, 1), "ED7D31")
-      )}</a:ln></cx:spPr><cx:axisId val="2"/></cx:series>`;
+      )}</a:ln></cx:spPr><cx:axisId>2</cx:axisId></cx:series>`;
     }
     axes = catAxis(0) + valAxis(1);
     if (type === "pareto")
@@ -369,8 +369,12 @@ export function importChartExXml(
   const binning = child(layoutPr, "binning");
   if (binning) {
     const b: ChartHistogramBinning = {};
-    const size = num(child(binning, "binSize")?.attrs.val);
-    const cnt = num(child(binning, "binCount")?.attrs.val);
+    const size = num(
+      child(binning, "binSize")?.text || child(binning, "binSize")?.attrs.val
+    );
+    const cnt = num(
+      child(binning, "binCount")?.text || child(binning, "binCount")?.attrs.val
+    );
     if (size != null) {
       b.mode = "width";
       b.width = size;

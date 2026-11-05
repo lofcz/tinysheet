@@ -424,29 +424,29 @@ test("a chart sheet is written as a chartsheet part and read back", async () => 
     charts: [{ ...chart, left: 0, top: 0, width: 864, height: 624 }],
   };
   const { bytes, result } = await roundTrip([data, chartSheet]);
-  const part = await zipText(bytes, "xl/chartsheets/sheet1.xml");
+  const part = await zipText(bytes, "xl/chartsheets/sheet2.xml");
   assert.match(
     part,
-    /^<\?xml[^]*<chartsheet [^>]*>[^]*<drawing r:id="rId1"\/><\/chartsheet>$/
+    /^<\?xml[^]*<chartsheet [^>]*>[^]*<drawing [^>]*r:id="rId1"[^>]*\/><\/chartsheet>$/
   );
   assert.match(part, /<pageSetup orientation="landscape"\/>/);
   const wbRels = await zipText(bytes, "xl/_rels/workbook.xml.rels");
   assert.match(
     wbRels,
-    /Type="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships\/chartsheet" Target="chartsheets\/sheet1\.xml"/
+    /Type="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships\/chartsheet" Target="chartsheets\/sheet2\.xml"/
   );
   const types = await zipText(bytes, "[Content_Types].xml");
   assert.match(
     types,
-    /PartName="\/xl\/chartsheets\/sheet1\.xml" ContentType="application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.chartsheet\+xml"/
+    /PartName="\/xl\/chartsheets\/sheet2\.xml" ContentType="application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.chartsheet\+xml"/
   );
   // the drawing: one absolute anchor of the page size
-  const rels = await zipText(bytes, "xl/chartsheets/_rels/sheet1.xml.rels");
+  const rels = await zipText(bytes, "xl/chartsheets/_rels/sheet2.xml.rels");
   const drawing = /Target="..\/drawings\/(drawing\d+\.xml)"/.exec(rels)[1];
   const drawingXml = await zipText(bytes, `xl/drawings/${drawing}`);
   assert.match(
     drawingXml,
-    /<xdr:absoluteAnchor><xdr:pos x="0" y="0"\/><xdr:ext cx="8229600" cy="5943600"\/>/
+    /<xdr:absoluteAnchor\b[^>]*><xdr:pos x="0" y="0"\/><xdr:ext cx="8229600" cy="5943600"\/>/
   );
 
   assert.equal(result.sheets.length, 2);

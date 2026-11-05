@@ -371,6 +371,7 @@ export function generateAPIs(
       setContext((draftCtx) => api.cancelMerge(draftCtx, ranges, options)),
 
     getAllSheets: () => api.getAllSheets(context),
+    getWorkbookMetadata: () => structuredClone(context.workbookMetadata ?? {}),
 
     getSheet: (options: api.CommonOptions = {}) =>
       api.getSheetWithLatestCelldata(context, options),

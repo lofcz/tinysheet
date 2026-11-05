@@ -97,6 +97,10 @@ export function applyExcelImportHydration(
   ctx: Context,
   result: ExcelImportResult
 ): void {
+  ctx.workbookMetadata = {
+    ...ctx.workbookMetadata,
+    xlsxPreservation: result.preservation,
+  };
   // Nonactive tabs are normally expanded during idle time. Formula hydration
   // must see their source cells and formula chains before evaluating readers
   // on the active tab; otherwise cross-sheet SUMIFS sees an empty range.

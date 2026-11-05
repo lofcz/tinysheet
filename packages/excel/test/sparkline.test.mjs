@@ -117,9 +117,12 @@ test("sparkline groups survive export -> import with every option", async () => 
   );
   assert.match(
     xml,
-    /<x14:sparklineGroup lineWeight="1.5" displayEmptyCellsAs="gap" markers="1" high="1" low="1" first="1" last="1" negative="1" displayXAxis="1">/
+    /<x14:sparklineGroup(?=[^>]*lineWeight="1.5")(?=[^>]*displayEmptyCellsAs="gap")(?=[^>]*markers="1")(?=[^>]*high="1")(?=[^>]*low="1")(?=[^>]*first="1")(?=[^>]*last="1")(?=[^>]*negative="1")(?=[^>]*displayXAxis="1")[^>]*>/
   );
-  assert.match(xml, /type="stacked" dateAxis="1"/);
+  assert.match(
+    xml,
+    /<x14:sparklineGroup(?=[^>]*type="stacked")(?=[^>]*dateAxis="1")/
+  );
   assert.match(xml, /<x14:colorSeries rgb="FF112233"\/>/);
   assert.match(
     xml,

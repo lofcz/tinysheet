@@ -4,7 +4,6 @@ import {
   parseCFColor,
   formatCFRange,
 } from "@lofcz/tinysheet-core";
-import JSZip from "jszip";
 import type {
   CFRule,
   CFStyle,
@@ -18,7 +17,7 @@ import type {
  * TinySheet stores rules in ascending priority (the last one wins); Excel's
  * priority 1 is the highest, so priority = rules.length - index.
  *
- * Rule types ExcelJS cannot write correctly (not-contains, blanks, errors,
+ * Editor-specific rule types (not-contains, blanks, errors,
  * duplicate/unique, average with "equal" or standard deviations, explicit
  * date ranges) are written as equivalent formula rules.
  */
@@ -34,7 +33,7 @@ function argb(color: string | null | undefined) {
   };
 }
 
-/** ExcelJS differential style (dxf) of a highlight rule. */
+/** Workbook differential style (dxf) of a highlight rule. */
 export function cfStyleToDxf(format: CFStyle | undefined) {
   const f = format ?? {};
   const style: any = {};
@@ -95,12 +94,11 @@ function cfvo(
   fallback: string
 ) {
   const type = vo?.type ?? fallback;
-  const all = ranges.map(absRange).join(",");
   switch (type) {
     case "autoMin":
-      return { type: "formula", value: `MIN(0,MIN(${all}))` };
+      return { type: "autoMin" };
     case "autoMax":
-      return { type: "formula", value: `MAX(0,MAX(${all}))` };
+      return { type: "autoMax" };
     case "min":
     case "max":
       return { type };
@@ -147,7 +145,7 @@ function dateSerialToExcel(text: string) {
   return m ? `DATE(${m[1]},${Number(m[2])},${Number(m[3])})` : null;
 }
 
-/** The ExcelJS rule for one TinySheet rule (without priority), or null. */
+/** The workbook rule for one TinySheet rule (without priority), or null. */
 export function cfRuleToExcel(raw: CFRule): any | null {
   const rule = normalizeRule(raw);
   const ranges = rule.cellrange ?? [];
@@ -168,11 +166,7 @@ export function cfRuleToExcel(raw: CFRule): any | null {
       type: "dataBar",
       cfvo: [cfvo(db.min, ranges, "autoMin"), cfvo(db.max, ranges, "autoMax")],
       color: argb(db.color),
-      // ExcelJS only writes the Excel 2010 extension (negative bars, axis,
-      // border) for solid bars; finalizeConditionalFormatting restores the
-      // gradient afterwards.
-      gradient: false,
-      tsGradient: !!db.gradient,
+      gradient: !!db.gradient,
       border: !!(db.border ?? db.gradient),
       borderColor: argb(db.borderColor ?? db.color),
       negativeFillColor: argb(
@@ -212,7 +206,10 @@ export function cfRuleToExcel(raw: CFRule): any | null {
       showValue: set.showValue !== false,
       cfvo: [
         { type: "percent", value: 0 },
-        ...set.thresholds.map((t) => cfvo(t, ranges, "percent")),
+        ...set.thresholds.map((t) => ({
+          ...cfvo(t, ranges, "percent"),
+          gte: t.gte !== false,
+        })),
       ],
     };
   }
@@ -340,143 +337,15 @@ export function cfRuleToExcel(raw: CFRule): any | null {
   }
 }
 
-interface XmlFix {
-  priority: number;
-  gradient?: boolean;
-  barShowValue?: boolean;
-  /** icon sets: ">=" (true) or ">" (false) per threshold */
-  gte?: boolean[];
-}
-
-const pendingFixes = new WeakMap<object, XmlFix[]>();
-
-/** Add a sheet's conditional formatting to a ts-xlsx worksheet. */
+/** Add rules directly; ts-xlsx owns both classic and extension records. */
 export function setConditionalFormatting(table: any, worksheet: any) {
   const rules: CFRule[] = table?.luckysheet_conditionformat_save ?? [];
-  const n = rules.length;
-  const fixes: XmlFix[] = [];
   rules.forEach((rule, i) => {
-    let model: any;
-    try {
-      model = cfRuleToExcel(rule);
-    } catch (e) {
-      model = null;
-    }
+    const model = cfRuleToExcel(rule);
     if (!model) return;
-    const priority = n - i;
-    const { tsGradient, ...excelModel } = model;
     worksheet.addConditionalFormatting({
       ref: formatSqref(normalizeRule(rule).cellrange, " "),
-      rules: [{ ...excelModel, priority }],
+      rules: [{ ...model, priority: rules.length - i }],
     });
-    const norm = normalizeRule(rule);
-    if (model.type === "dataBar") {
-      fixes.push({
-        priority,
-        gradient: !!tsGradient,
-        barShowValue: norm.dataBar?.showValue !== false,
-      });
-    } else if (model.type === "iconSet") {
-      const gte = (norm.iconSet?.thresholds ?? []).map((t) => t.gte !== false);
-      if (gte.some((g) => !g)) fixes.push({ priority, gte });
-    }
   });
-  if (fixes.length) pendingFixes.set(worksheet, fixes);
-}
-
-function escapeRe(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** Set gte="0" on the cfvo tags (after the first) that need ">". */
-function patchCfvos(xml: string, tag: string, gte: boolean[]) {
-  let k = -1;
-  return xml.replace(new RegExp(`<${escapeRe(tag)}\\b`, "g"), (m) => {
-    k += 1;
-    return k > 0 && gte[k - 1] === false ? `${m} gte="0"` : m;
-  });
-}
-
-/** Apply what the workbook model cannot write to one worksheet XML. */
-export function patchConditionalFormattingXml(xml: string, fixes: XmlFix[]) {
-  let out = xml;
-  fixes.forEach((fix) => {
-    const main = new RegExp(
-      `<cfRule type="(dataBar|iconSet)" priority="${fix.priority}"[^>]*>[\\s\\S]*?</cfRule>`
-    );
-    const m = main.exec(out);
-    if (m) {
-      let rule = m[0];
-      if (m[1] === "dataBar" && fix.barShowValue === false) {
-        rule = rule.replace("<dataBar>", '<dataBar showValue="0">');
-      }
-      if (m[1] === "iconSet" && fix.gte)
-        rule = patchCfvos(rule, "cfvo", fix.gte);
-      out = out.slice(0, m.index) + rule + out.slice(m.index + m[0].length);
-      const id = /<x14:id>([^<]+)<\/x14:id>/.exec(rule)?.[1];
-      if (m[1] === "dataBar" && id && fix.gradient) {
-        const ext = new RegExp(
-          `(<x14:cfRule type="dataBar" id="${escapeRe(
-            id
-          )}"[^>]*>\\s*<x14:dataBar\\b[^>]*?) gradient="0"`
-        );
-        out = out.replace(ext, "$1");
-      }
-    }
-    if (fix.gte) {
-      const ext = new RegExp(
-        `<x14:cfRule type="iconSet" priority="${fix.priority}"[^>]*>[\\s\\S]*?</x14:cfRule>`
-      );
-      const e = ext.exec(out);
-      if (e) {
-        out =
-          out.slice(0, e.index) +
-          patchCfvos(e[0], "x14:cfvo", fix.gte) +
-          out.slice(e.index + e[0].length);
-      }
-    }
-  });
-  return out;
-}
-
-/**
- * Patch the worksheet parts of an opened package (the "conditional-formatting"
- * zip post-processor): gradient data bars with the Excel 2010 extension,
- * "show bar only", and ">" icon thresholds.
- */
-export async function finalizeConditionalFormattingZip(
-  workbook: any,
-  zip: JSZip
-): Promise<void> {
-  const sheets = (workbook?.worksheets ?? []).filter((ws: any) =>
-    pendingFixes.has(ws)
-  );
-  for (let i = 0; i < sheets.length; i += 1) {
-    const ws = sheets[i];
-    const path = `xl/worksheets/sheet${ws.id}.xml`;
-    const file = zip.file(path);
-    if (file) {
-      // eslint-disable-next-line no-await-in-loop
-      const xml = await file.async("string");
-      zip.file(path, patchConditionalFormattingXml(xml, pendingFixes.get(ws)!));
-    }
-    pendingFixes.delete(ws);
-  }
-}
-
-/**
- * Post-process a workbook written by ts-xlsx: gradient data bars with the
- * Excel 2010 extension, "show bar only", and ">" icon thresholds.
- */
-export async function finalizeConditionalFormatting(
-  workbook: any,
-  buffer: ArrayBuffer | Uint8Array
-): Promise<ArrayBuffer | Uint8Array> {
-  const pending = (workbook?.worksheets ?? []).some((ws: any) =>
-    pendingFixes.has(ws)
-  );
-  if (!pending) return buffer;
-  const zip = await JSZip.loadAsync(buffer);
-  await finalizeConditionalFormattingZip(workbook, zip);
-  return zip.generateAsync({ type: "arraybuffer" });
 }

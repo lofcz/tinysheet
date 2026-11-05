@@ -115,7 +115,7 @@ test("shapes are written as DrawingML in one drawing part", async () => {
   assert.match(drawing, /<a:outerShdw/);
   assert.match(drawing, /<a:alpha val="75000"\/>/);
   const sheetXml = await zipText(bytes, "xl/worksheets/sheet1.xml");
-  assert.match(sheetXml, /<drawing r:id="rId\d+"\/>/);
+  assert.match(sheetXml, /<drawing\b[^>]*r:id="rId\d+"\/>/);
   const types = await zipText(bytes, "[Content_Types].xml");
   assert.match(types, /PartName="\/xl\/drawings\/drawing1.xml"/);
   // exceljs (what Excel-compatible readers see) still opens the file

@@ -165,3 +165,5 @@ export * from "./common/ToolbarItem";
 export * from "./common/FortuneExcelHelper";
 export { importErrorMessage } from "./ToFortuneSheet/ImportHelper";
 export type { ImportErrorHandler } from "./ToFortuneSheet/ImportHelper";
+export { captureExcelWorkbook } from "./preservation";
+export type { XlsxPreservation, XlsxFidelityDiagnostic } from "./preservation";

@@ -46,14 +46,25 @@ import { writeOutline } from "../common/outline";
 import { setConditionalFormatting } from "./ExcelConditionFormat";
 import { writeSparklines } from "./ExcelSparkline";
 import { collectCheckboxes } from "./ExcelCheckbox";
+import { shapesToAnchorsXml } from "../shapes/exportXlsx";
+import {
+  preserveWorkbookEdits,
+  type XlsxPreservation,
+  type XlsxFidelityDiagnostic,
+} from "../preservation";
 
 export type XlsxExportOptions = {
+  preservation?: XlsxPreservation;
+  /** Called for each retained cache or feature requiring review after a structural edit. */
+  onDiagnostic?: (diagnostic: XlsxFidelityDiagnostic) => void;
   /** Skip sheets with hide=1 instead of exporting them as hidden. */
   skipHiddenSheets?: boolean;
   /** Column width (px) used for columns without an explicit width. */
   defaultColumnWidth?: number;
   /** Workbook creator metadata. */
   creator?: string;
+  /** Fixed document and ZIP timestamp for reproducible exports. */
+  timestamp?: Date;
 };
 
 export type ExportCell = Record<string, any>;
@@ -133,13 +144,18 @@ export const sheetExportFeatures: SheetExportFeature[] = [
   },
   { name: "views", write: writeSheetViews },
   { name: "page-setup", write: writePageSetup },
-  // queued for the zip pass (the "worksheet-exts" post-processor)
   { name: "sparklines", write: writeSparklines },
   // sheetProtection / protectedRanges (the "protection" post-processor)
   { name: "protection", write: writeSheetProtection },
-  // cell checkboxes: marked here, written by the "checkboxes" post-processor
   { name: "checkboxes", write: collectCheckboxes },
   { name: "charts", write: writeCharts },
+  {
+    name: "shapes",
+    write: (ctx) => {
+      if (ctx.sheet.shapes?.length)
+        ctx.worksheet.addDrawingXml(shapesToAnchorsXml(ctx.sheet, 1));
+    },
+  },
 ];
 
 /** Workbook-level writers (run after every sheet was written). */
@@ -173,19 +189,11 @@ export function sheetCellMatrix(sheet: any): ExportCellMatrix {
   if (Array.isArray(sheet?.data) && sheet.data.length > 0) return sheet.data;
   const matrix: ExportCellMatrix = [];
   const celldata: any[] = sheet?.celldata || [];
-  let cols = 0;
   celldata.forEach((cell) => {
     if (cell?.v == null) return;
     if (!matrix[cell.r]) matrix[cell.r] = [];
     matrix[cell.r][cell.c] = cell.v;
-    cols = Math.max(cols, cell.c + 1);
   });
-  for (let r = 0; r < matrix.length; r += 1) {
-    if (!matrix[r]) matrix[r] = [];
-    for (let c = 0; c < cols; c += 1) {
-      if (matrix[r][c] === undefined) matrix[r][c] = null;
-    }
-  }
   return matrix;
 }
 
@@ -237,9 +245,8 @@ export function buildExcelWorkbookWithInfo(
 ): BuiltWorkbook {
   const workbook = new Xlsx.Workbook();
   workbook.properties.creator = options.creator ?? "TinySheet";
-  workbook.properties.created = new Date();
+  workbook.properties.created = options.timestamp ?? new Date();
   const post: XlsxPostProcessInfo = {
-    dynamicArrayCells: {},
     worksheetIds: [],
     visibleNotes: {},
     features: {},
@@ -311,14 +318,22 @@ export async function exportToXlsx(
 ): Promise<Uint8Array> {
   const built = buildExcelWorkbookWithInfo(sheets, options);
   const buffer = writeXlsx(built.workbook);
-  // what the workbook model cannot write: CF details, dynamic arrays, internal links,
-  // shown notes, hidden dropdowns, empty tables, charts, and every
-  // post-processor other features registered
-  return runXlsxPostProcessors(buffer, {
+  // Registered post-processors handle the remaining editor-specific extensions.
+  const bytes = await runXlsxPostProcessors(buffer, {
     sheets: built.sheets,
     worksheets: built.worksheets,
     workbook: built.workbook,
     post: built.post,
     options,
   });
+  if (!options.preservation) return bytes;
+  const result = preserveWorkbookEdits(
+    options.preservation,
+    built.worksheets.map((part) => ({ ...part.sheet, name: part.name })),
+    bytes
+  );
+  result.diagnostics.forEach((diagnostic) =>
+    options.onDiagnostic?.(diagnostic)
+  );
+  return result.data;
 }

@@ -58,8 +58,11 @@ function sheets() {
 test("placed pictures are written as rich values in cells", async () => {
   const { bytes } = await roundTrip(sheets());
   const sheetXml = await zipText(bytes, "xl/worksheets/sheet1.xml");
-  assert.match(sheetXml, /<c r="A1" vm="1"[^>]*t="e"[^>]*><v>#VALUE!<\/v>/);
-  assert.match(sheetXml, /<c r="A2" vm="2"/);
+  assert.match(
+    sheetXml,
+    /<c(?=[^>]*r="A1")(?=[^>]*vm="1")(?=[^>]*t="e")[^>]*><v>#VALUE!<\/v>/
+  );
+  assert.match(sheetXml, /<c(?=[^>]*r="A2")(?=[^>]*vm="2")/);
   // the dynamic array keeps its cell metadata
   assert.match(sheetXml, /<c r="C1" cm="1"/);
 
@@ -77,7 +80,7 @@ test("placed pictures are written as rich values in cells", async () => {
   const values = await zipText(bytes, "xl/richData/rdrichvalue.xml");
   // the same picture is stored once; alt text goes in the Text key
   assert.match(values, /<rv s="1"><v>0<\/v><v>5<\/v><v>Dot<\/v><\/rv>/);
-  assert.match(values, /<rv s="0"><v>0<\/v><v>5<\/v><\/rv>/);
+  assert.match(values, /<rv s="1"><v>1<\/v><v>5<\/v><v><\/v><\/rv>/);
   const structures = await zipText(
     bytes,
     "xl/richData/rdrichvaluestructure.xml"
@@ -87,8 +90,8 @@ test("placed pictures are written as rich values in cells", async () => {
     /<s t="_localImage"><k n="_rvRel:LocalImageIdentifier"/
   );
   const rels = await zipText(bytes, "xl/richData/_rels/richValueRel.xml.rels");
-  assert.match(rels, /Target="\.\.\/media\/cellimage1\.png"/);
-  assert.ok(await zipText(bytes, "xl/media/cellimage1.png"));
+  assert.match(rels, /Target="\.\.\/media\/image1\.png"/);
+  assert.ok(await zipText(bytes, "xl/media/image1.png"));
   assert.ok(await zipText(bytes, "xl/richData/rdRichValueTypes.xml"));
 
   const wbRels = await zipText(bytes, "xl/_rels/workbook.xml.rels");

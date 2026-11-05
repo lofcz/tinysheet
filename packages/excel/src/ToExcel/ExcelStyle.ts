@@ -184,8 +184,7 @@ function formulaValue(
   if (ref || dynamic || cell.spill) {
     value.shareType = "array";
     value.ref = ref ?? cellAddress(r, c);
-    const { id } = ctx.worksheet;
-    (ctx.post.dynamicArrayCells[id] ||= []).push(cellAddress(r, c));
+    value.dynamic = true;
   }
   return value;
 }

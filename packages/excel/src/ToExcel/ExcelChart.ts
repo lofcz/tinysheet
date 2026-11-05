@@ -1,7 +1,7 @@
 import type { Chart } from "@lofcz/tinysheet-core";
 import { anchorFor } from "../chart/exportXlsx";
 import { chartToXml, USER_SHAPES_RID } from "../chart/chartXml";
-import { isChartExType } from "../chart/chartEx";
+import { isChartExType, chartExToXml } from "../chart/chartEx";
 import {
   chartUserShapesXml,
   CT_CHART_SHAPES,
@@ -11,11 +11,12 @@ import type { SheetExportContext } from "./buildWorkbook";
 
 /** Keep TinySheet's complete chart model while the workbook writer owns its package graph. */
 export function writeCharts(ctx: SheetExportContext) {
-  if (ctx.sheet.chartSheet) return;
+  if (ctx.sheet.chartSheet) {
+    ctx.worksheet.kind = "chartsheet";
+    ctx.worksheet.pageSetup.orientation ??= "landscape";
+  }
   const charts: Chart[] = ctx.sheet.charts ?? [];
   for (const chart of charts) {
-    // Office 2016 chart extensions and chart sheets still use their existing writers.
-    if (isChartExType(chart.type)) continue;
     (ctx.post.features ||= {})["native-charts"] = true;
     const geometry = anchorFor(ctx.sheet, chart);
     const point = (p: typeof geometry.from) => ({
@@ -27,8 +28,10 @@ export function writeCharts(ctx: SheetExportContext) {
     const shapes = chartUserShapesXml(chart);
     ctx.worksheet.addChartPart(
       {
-        xml: chartToXml({ luckysheetfile: ctx.sheets }, chart),
-        name: chart.title || "Chart",
+        xml: isChartExType(chart.type)
+          ? chartExToXml({ luckysheetfile: ctx.sheets }, chart)
+          : chartToXml({ luckysheetfile: ctx.sheets }, chart),
+        name: chart.id || chart.title || "Chart",
         ...(shapes
           ? {
               relatedParts: [
@@ -42,11 +45,19 @@ export function writeCharts(ctx: SheetExportContext) {
             }
           : {}),
       },
-      {
-        from: point(geometry.from),
-        to: point(geometry.to),
-        editAs: chart.placement ?? "twoCell",
-      }
+      ctx.sheet.chartSheet
+        ? {
+            from: { col: 0, row: 0 },
+            ext: {
+              cx: Math.round(chart.width * 9525),
+              cy: Math.round(chart.height * 9525),
+            },
+          }
+        : {
+            from: point(geometry.from),
+            to: point(geometry.to),
+            editAs: chart.placement ?? "twoCell",
+          }
     );
   }
 }

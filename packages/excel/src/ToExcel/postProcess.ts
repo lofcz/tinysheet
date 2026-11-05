@@ -1,44 +1,14 @@
-/**
- * Zip-level fixups for what ExcelJS cannot write:
- *
- * - Dynamic-array formulas: ExcelJS writes `<f t="array" ref="...">`, which
- *   Excel shows as a legacy CSE array formula. Excel 365 marks spilling
- *   formulas with `cm="1"` pointing at an XLDAPR cell-metadata record in
- *   xl/metadata.xml; we add both.
- * - Internal hyperlinks: ExcelJS stores every link as an external
- *   relationship. Links whose target starts with "#" are rewritten to a
- *   `location` attribute and their relationship is removed.
- * - Shown notes: ExcelJS writes every note hidden. Notes TinySheet shows
- *   permanently (`ps.isShow`) get `<x:Visible/>` and a visible shape.
- * - Threaded comments: their thread and person parts
- *   (ExcelThreadedComments.ts).
- * - Pictures placed in cells: richData parts and `vm` metadata
- *   (ExcelCellImage.ts).
- * - Worksheet extensions (`worksheetExts`): `<ext>` elements features queue
- *   while writing (sparkline groups, ...) are added to the worksheet's
- *   `extLst`, after the ones ExcelJS wrote.
- */
 import JSZip from "jszip";
-import type { ThreadedCommentExportInfo } from "./ExcelThreadedComments";
-import { writeThreadedCommentParts } from "./ExcelThreadedComments";
-import { writeCellImageParts } from "./ExcelCellImage";
-import type { CellImagePostInfo } from "./ExcelCellImage";
 
 export type XlsxPostProcessInfo = {
-  /** Worksheet id -> addresses of dynamic-array formula cells. */
-  dynamicArrayCells: Record<number, string[]>;
   worksheetIds: number[];
   /** Worksheet id -> cells (0-based) whose note is always shown. */
   visibleNotes?: Record<number, { r: number; c: number }[]>;
-  /** Threads and persons to write (writeThreadedComments). */
-  threadedComments?: ThreadedCommentExportInfo;
   /**
    * Worksheet id -> edits of the written worksheet XML, for elements or
    * attributes ExcelJS cannot write (feature writers push them).
    */
   sheetXmlFixups?: Record<number, ((xml: string) => string)[]>;
-  /** Worksheet id -> pictures placed in cells (rich values). */
-  cellImages?: CellImagePostInfo;
   /** Further zip edits registered by export features (run last). */
   fixups?: ((zip: JSZip) => Promise<void> | void)[];
   /**
@@ -50,23 +20,6 @@ export type XlsxPostProcessInfo = {
   worksheetExts?: Record<number, string[]>;
 };
 
-const METADATA_XML =
-  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-  '<metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
-  'xmlns:xda="http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray">' +
-  '<metadataTypes count="1"><metadataType name="XLDAPR" minSupportedVersion="120000" ' +
-  'copy="1" pasteAll="1" pasteValues="1" merge="1" splitFirst="1" rowColShift="1" ' +
-  'clearFormats="1" clearComments="1" assign="1" coerce="1" cellMeta="1"/></metadataTypes>' +
-  '<futureMetadata name="XLDAPR" count="1"><bk><extLst>' +
-  '<ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}">' +
-  '<xda:dynamicArrayProperties fDynamic="1" fCollapsed="0"/></ext></extLst></bk>' +
-  "</futureMetadata>" +
-  '<cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata></metadata>';
-
-const METADATA_CONTENT_TYPE =
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml";
-const METADATA_REL_TYPE =
-  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
 const HYPERLINK_REL_TYPE =
   "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
 
@@ -89,55 +42,6 @@ export function xmlEscape(s: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function escapeRegExp(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export async function markDynamicArrays(zip: JSZip, info: XlsxPostProcessInfo) {
-  const entries = Object.entries(info.dynamicArrayCells).filter(
-    ([, cells]) => cells.length > 0
-  );
-  if (entries.length === 0) return;
-
-  await Promise.all(
-    entries.map(async ([id, cells]) => {
-      const path = `xl/worksheets/sheet${id}.xml`;
-      const file = zip.file(path);
-      if (!file) return;
-      let xml = await file.async("string");
-      cells.forEach((address) => {
-        const re = new RegExp(`<c r="${escapeRegExp(address)}"(?=[ >/])`);
-        xml = xml.replace(re, `<c r="${address}" cm="1"`);
-      });
-      zip.file(path, xml);
-    })
-  );
-
-  zip.file("xl/metadata.xml", METADATA_XML);
-
-  const typesPath = "[Content_Types].xml";
-  let types = await zip.file(typesPath)!.async("string");
-  if (!types.includes("/xl/metadata.xml")) {
-    types = types.replace(
-      "</Types>",
-      `<Override PartName="/xl/metadata.xml" ContentType="${METADATA_CONTENT_TYPE}"/></Types>`
-    );
-    zip.file(typesPath, types);
-  }
-
-  const relsPath = "xl/_rels/workbook.xml.rels";
-  let rels = await zip.file(relsPath)!.async("string");
-  if (!rels.includes(METADATA_REL_TYPE)) {
-    let n = 1;
-    while (rels.includes(`Id="rIdMeta${n}"`)) n += 1;
-    rels = rels.replace(
-      "</Relationships>",
-      `<Relationship Id="rIdMeta${n}" Type="${METADATA_REL_TYPE}" Target="metadata.xml"/></Relationships>`
-    );
-    zip.file(relsPath, rels);
-  }
 }
 
 async function fixSheetLinks(zip: JSZip, relFile: JSZip.JSZipObject) {
@@ -278,12 +182,9 @@ export async function postProcessXlsx(
   info: XlsxPostProcessInfo
 ): Promise<Uint8Array> {
   const zip = await JSZip.loadAsync(buffer);
-  await markDynamicArrays(zip, info);
   // after the dynamic arrays: shares xl/metadata.xml with them
-  await writeCellImageParts(zip, info);
   await fixInternalHyperlinks(zip);
   await showNotes(zip, info);
-  await writeThreadedCommentParts(zip, info);
   await applySheetXmlFixups(zip, info);
   for (const fixup of info.fixups ?? []) {
     // eslint-disable-next-line no-await-in-loop
