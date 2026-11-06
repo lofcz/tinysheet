@@ -13,6 +13,7 @@ import type { Cell, CellMatrix, Selection } from "../types";
 import { getSheetIndex } from "../utils";
 import { cellFocus } from "./dataVerification";
 import { normalizeSelection, scrollToHighlightCell } from "./selection";
+import { getViewportFrozenCells } from "./freeze";
 
 export type NavDirection = "up" | "down" | "left" | "right";
 
@@ -322,19 +323,9 @@ export function getSheetNavInfo(ctx: Context): SheetNavInfo | null {
     return cellHasValue(cell);
   };
 
-  let frozenRows = 0;
-  let frozenCols = 0;
-  const frozen = sheet?.frozen;
-  if (frozen) {
-    const rf = frozen.range?.row_focus ?? 0;
-    const cf = frozen.range?.column_focus ?? 0;
-    if (["row", "both", "rangeRow", "rangeBoth"].includes(frozen.type)) {
-      frozenRows = rf + 1;
-    }
-    if (["column", "both", "rangeColumn", "rangeBoth"].includes(frozen.type)) {
-      frozenCols = cf + 1;
-    }
-  }
+  const panes = getViewportFrozenCells(ctx, sheet);
+  const frozenRows = panes.rows > 0 ? panes.top + panes.rows : 0;
+  const frozenCols = panes.columns > 0 ? panes.left + panes.columns : 0;
 
   return {
     data,

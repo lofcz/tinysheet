@@ -9,6 +9,7 @@ import {
   fixRowStyleOverflowInFreeze,
   handleRowFreezeHandleMouseDown,
   getSheetIndex,
+  getFrozenHandleTop,
   getGridPoint,
   borderIndexAt,
   isHiddenAt,
@@ -23,7 +24,6 @@ import React, {
   useRef,
   useCallback,
   useEffect,
-  useMemo,
 } from "react";
 import WorkbookContext from "../../context";
 
@@ -46,24 +46,7 @@ const RowHeader: React.FC = () => {
   const [selectedLocation, setSelectedLocation] = useState<
     { row: number; row_pre: number; r1: number; r2: number }[]
   >([]);
-  const sheetIndex = getSheetIndex(context, context.currentSheetId);
-  const sheet = sheetIndex == null ? null : context.luckysheetfile[sheetIndex];
-  const freezeHandleTop = useMemo(() => {
-    if (
-      sheet?.frozen?.type === "row" ||
-      sheet?.frozen?.type === "rangeRow" ||
-      sheet?.frozen?.type === "rangeBoth" ||
-      sheet?.frozen?.type === "both"
-    ) {
-      return (
-        rowLocationByIndex(
-          sheet?.frozen?.range?.row_focus || 0,
-          context.visibledatarow
-        )[1] + context.scrollTop
-      );
-    }
-    return context.scrollTop;
-  }, [context.visibledatarow, sheet?.frozen, context.scrollTop]);
+  const freezeHandleTop = getFrozenHandleTop(context);
 
   const onMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {

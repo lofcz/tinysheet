@@ -27,7 +27,7 @@ import {
   replaceHtml,
 } from "../utils";
 import { hasPartMC } from "./validation";
-import { getFrozenCells } from "./freeze";
+import { getViewportFrozenCells } from "./freeze";
 import { is_date, update } from "./format";
 // @ts-ignore
 import SSF from "./ssf";
@@ -49,7 +49,7 @@ export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
 
   const frozen = sheet?.frozen;
   // cells in the frozen panes are always in view: no scrolling for them
-  const frozenCells = getFrozenCells(sheet);
+  const frozenCells = getViewportFrozenCells(ctx, sheet);
   const inFrozen = (i: number, start: number, count: number) =>
     !frozenCells.split && count > 0 && i >= start && i < start + count;
 
@@ -58,7 +58,9 @@ export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
     // the frozen pane's visible height (it may start below row 1)
     const hiddenH = frozen?.top ? (ctx.visibledatarow[frozen.top - 1] ?? 0) : 0;
     const freezeH =
-      frozen && r > row_focus ? ctx.visibledatarow[row_focus] - hiddenH : 0;
+      frozenCells.rows > 0 && r > row_focus
+        ? ctx.visibledatarow[row_focus] - hiddenH
+        : 0;
     const row = ctx.visibledatarow[r];
     const row_pre = r - 1 === -1 ? 0 : ctx.visibledatarow[r - 1];
 
@@ -76,7 +78,7 @@ export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
       ? (ctx.visibledatacolumn[frozen.left - 1] ?? 0)
       : 0;
     const freezeW =
-      frozen && c > column_focus
+      frozenCells.columns > 0 && c > column_focus
         ? ctx.visibledatacolumn[column_focus] - hiddenW
         : 0;
     const col = ctx.visibledatacolumn[c];

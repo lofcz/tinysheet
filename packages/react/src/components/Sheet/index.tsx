@@ -859,6 +859,8 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     context.currentSheetId,
     context.visibledatacolumn,
     context.visibledatarow,
+    context.cellmainHeight,
+    context.cellmainWidth,
   ]);
 
   // What was last drawn, so overlay-only context changes (selection, hover,

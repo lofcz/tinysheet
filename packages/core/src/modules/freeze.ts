@@ -70,6 +70,34 @@ export function getFrozenCells(
 }
 
 /**
+ * Frozen panes must leave at least half of each viewport axis for scrolling.
+ * Large imported title blocks otherwise consume an embedded editor. Suspend
+ * only the affected axis, without changing the saved sheet or split panes.
+ */
+export function getViewportFrozenCells(
+  ctx: Context,
+  sheet: Pick<Sheet, "frozen"> | null = currentSheetFile(ctx)
+) {
+  const cells = getFrozenCells(sheet);
+  if (cells.split) return cells;
+  const height =
+    startPx(ctx.visibledatarow, cells.top + cells.rows) -
+    startPx(ctx.visibledatarow, cells.top);
+  const width =
+    startPx(ctx.visibledatacolumn, cells.left + cells.columns) -
+    startPx(ctx.visibledatacolumn, cells.left);
+  if (ctx.cellmainHeight > 0 && height > ctx.cellmainHeight / 2) {
+    cells.top = 0;
+    cells.rows = 0;
+  }
+  if (ctx.cellmainWidth > 0 && width > ctx.cellmainWidth / 2) {
+    cells.left = 0;
+    cells.columns = 0;
+  }
+  return cells;
+}
+
+/**
  * The smallest scroll offsets of the current sheet. Frozen panes that start
  * below/right of the first row/column (frozen from a scrolled position)
  * keep the scrolling pane from scrolling back over the frozen rows/columns:
@@ -79,7 +107,7 @@ export function frozenScrollMin(ctx: Context) {
   const sheet = currentSheetFile(ctx);
   const frozen = sheet?.frozen;
   if (!frozen || frozen.split) return { top: 0, left: 0 };
-  const { top, rows, left, columns } = getFrozenCells(sheet);
+  const { top, rows, left, columns } = getViewportFrozenCells(ctx, sheet);
   return {
     top: rows > 0 ? startPx(ctx.visibledatarow, top) : 0,
     left: columns > 0 ? startPx(ctx.visibledatacolumn, left) : 0,
@@ -112,6 +140,7 @@ function frozenTofreezen(ctx: Context, cache: GlobalCache, sheetId: string) {
   }
 
   const freezen: Freezen = {};
+  const visible = getViewportFrozenCells(ctx, file);
 
   let { range } = frozen;
   if (!range) {
@@ -136,7 +165,7 @@ function frozenTofreezen(ctx: Context, cache: GlobalCache, sheetId: string) {
   const splitLeft = Math.max(0, frozen.left ?? 0);
 
   // transform to freezen
-  if (type === "rangeRow" || type === "rangeBoth") {
+  if (visible.rows > 0 && (type === "rangeRow" || type === "rangeBoth")) {
     const scrollTop =
       splitTop > 0 ? (ctx.visibledatarow[splitTop - 1] ?? 0) : 0;
     let row_st = _.sortedIndex(ctx.visibledatarow, scrollTop);
@@ -166,7 +195,7 @@ function frozenTofreezen(ctx: Context, cache: GlobalCache, sheetId: string) {
       top,
     };
   }
-  if (type === "rangeColumn" || type === "rangeBoth") {
+  if (visible.columns > 0 && (type === "rangeColumn" || type === "rangeBoth")) {
     const scrollLeft =
       splitLeft > 0 ? (ctx.visibledatacolumn[splitLeft - 1] ?? 0) : 0;
     let col_st = _.sortedIndex(ctx.visibledatacolumn, scrollLeft);
@@ -293,12 +322,7 @@ export function getFrozenHandleTop(ctx: Context) {
   if (idx == null) return ctx.scrollTop;
 
   const sheet = ctx.luckysheetfile[idx];
-  if (
-    sheet?.frozen?.type === "row" ||
-    sheet?.frozen?.type === "rangeRow" ||
-    sheet?.frozen?.type === "rangeBoth" ||
-    sheet?.frozen?.type === "both"
-  ) {
+  if (getViewportFrozenCells(ctx, sheet).rows > 0) {
     return (
       rowLocationByIndex(
         sheet?.frozen?.range?.row_focus || 0,
@@ -314,12 +338,7 @@ export function getFrozenHandleLeft(ctx: Context) {
   if (idx == null) return ctx.scrollLeft;
 
   const sheet = ctx.luckysheetfile[idx];
-  if (
-    sheet?.frozen?.type === "column" ||
-    sheet?.frozen?.type === "rangeColumn" ||
-    sheet?.frozen?.type === "rangeBoth" ||
-    sheet?.frozen?.type === "both"
-  ) {
+  if (getViewportFrozenCells(ctx, sheet).columns > 0) {
     return (
       colLocationByIndex(
         sheet?.frozen?.range?.column_focus || 0,
@@ -368,14 +387,14 @@ function firstVisibleIndex(positions: number[], scroll: number) {
   return i;
 }
 
-/** Index of the row/column under the middle of the visible area. */
+/** Last whole row/column fitting in the first half of the visible area. */
 function middleIndex(positions: number[], size: number, scroll = 0) {
   if (!positions?.length || !(size > 0)) return 0;
   return Math.max(
     0,
     Math.min(
       positions.length - 1,
-      _.sortedIndex(positions, Math.max(0, scroll) + size / 2)
+      _.sortedLastIndex(positions, Math.max(0, scroll) + size / 2) - 1
     )
   );
 }
@@ -466,8 +485,8 @@ function frozenAreaTooLarge(ctx: Context, frozen: Frozen) {
  *   first frozen row/column is at the top/left of the window again.
  * Rows/columns scrolled out above/left of the window when freezing are not
  * shown until unfreeze (Excel), and the scrolling pane continues right after
- * the frozen part. A frozen part larger than the window is allowed and
- * clipped, like Excel (never "tooLarge"). `dryRun` only checks.
+ * the frozen part. Large freezes are saved but suspended on axes where they
+ * would occupy more than half the viewport. `dryRun` only checks.
  */
 export function freezePanes(
   ctx: Context,

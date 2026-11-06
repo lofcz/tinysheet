@@ -230,6 +230,11 @@ export type Sheet = {
   hyperlink?: Record<string, { linkType: string; linkAddress: string }>;
   dynamicArray_compute?: any;
   dynamicArray?: any[];
+  /**
+   * Saved freeze settings. An axis occupying more than half the viewport
+   * scrolls normally until resizing or zooming leaves enough room again.
+   * This display fallback does not change saved data or XLSX exports.
+   */
   frozen?: {
     type: "row" | "column" | "both" | "rangeRow" | "rangeColumn" | "rangeBoth";
     range?: { row_focus: number; column_focus: number };

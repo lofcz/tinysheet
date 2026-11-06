@@ -4,6 +4,7 @@ import {
   freezePanes,
   frozenScrollMin,
   getFrozenCells,
+  getViewportFrozenCells,
   getPaneState,
   initFreeze,
   scrollSplitPane,
@@ -12,6 +13,8 @@ import {
 } from "../../src/modules/freeze";
 import { handleFreeze } from "../../src/modules/toolbar";
 import { insertRowCol, deleteRowCol } from "../../src/modules/rowcol";
+import { scrollToHighlightCell } from "../../src/modules/selection";
+import { moveToSheetStart } from "../../src/modules/navigation";
 
 const grid = (rows, cols) =>
   Array.from({ length: rows }, () => Array(cols).fill(null));
@@ -89,6 +92,16 @@ describe("Freeze Panes (Excel View > Freeze Panes)", () => {
     expect(frozen(ctx).range).toEqual({ row_focus: 2, column_focus: 1 });
   });
 
+  test("the default midpoint freeze fits even between row and column edges", () => {
+    const ctx = makeCtx(0, 0, { cellmainHeight: 415, cellmainWidth: 561 });
+    freezePanes(ctx, "panes");
+    expect(getViewportFrozenCells(ctx)).toMatchObject({ rows: 10, columns: 4 });
+    const cache = {};
+    initFreeze(ctx, cache, "id_1");
+    expect(cache.freezen.id_1.horizontal).toBeDefined();
+    expect(cache.freezen.id_1.vertical).toBeDefined();
+  });
+
   test("top row, first column, unfreeze", () => {
     const ctx = makeCtx(10, 5);
     freezePanes(ctx, "topRow");
@@ -105,7 +118,7 @@ describe("Freeze Panes (Excel View > Freeze Panes)", () => {
     expect(frozen(ctx)).toBeUndefined();
   });
 
-  test("a frozen part larger than the window is allowed (clipped)", () => {
+  test("a frozen part larger than the window is retained in the saved sheet", () => {
     const ctx = makeCtx(30, 1);
     expect(freezePanes(ctx, "panes", { dryRun: true })).toBe("ok");
     expect(freezePanes(ctx, "panes")).toBe("ok");
@@ -316,6 +329,66 @@ describe("Freeze Panes (Excel View > Freeze Panes)", () => {
     initFreeze(ctx, cache, "id_1");
     expect(cache.freezen.id_1.horizontal.freezenhorizontaldata[0]).toBe(120);
     expect(cache.freezen.id_1.vertical.freezenverticaldata[0]).toBe(140);
+  });
+
+  test("large headers scroll in small viewports without changing the workbook", () => {
+    const ctx = makeCtx(7, 3, { cellmainHeight: 540, cellmainWidth: 960 });
+    ctx.visibledatarow = Array.from({ length: 40 }, (_, i) => (i + 1) * 42);
+    freezePanes(ctx, "panes");
+    const saved = JSON.parse(JSON.stringify(frozen(ctx)));
+    const cache = {};
+    initFreeze(ctx, cache, "id_1");
+    expect(cache.freezen.id_1.horizontal).toBeUndefined();
+    expect(cache.freezen.id_1.vertical).toBeDefined();
+    expect(getViewportFrozenCells(ctx)).toMatchObject({ rows: 0, columns: 3 });
+    moveToSheetStart(ctx);
+    expect(ctx.luckysheet_select_save[0]).toMatchObject({
+      row: [0, 0],
+      column: [3, 3],
+    });
+
+    ctx.scrollTop = 500;
+    scrollToHighlightCell(ctx, 2, 0);
+    expect(ctx.scrollTop).toBe(84);
+    ctx.scrollTop = 0;
+    // Resize restores the original panes; zoom can suspend them again.
+    ctx.cellmainHeight = 700;
+    initFreeze(ctx, cache, "id_1");
+    expect(cache.freezen.id_1.horizontal.freezenhorizontaldata[0]).toBe(294);
+    ctx.visibledatarow = ctx.visibledatarow.map((v) => v * 2);
+    initFreeze(ctx, cache, "id_1");
+    expect(cache.freezen.id_1.horizontal).toBeUndefined();
+    expect(frozen(ctx)).toEqual(saved);
+  });
+
+  test("oversized columns suspend independently and release hidden scroll origins", () => {
+    const ctx = makeCtx(9, 4, { scrollTop: 100, scrollLeft: 140 });
+    freezePanes(ctx, "panes");
+    ctx.cellmainHeight = 120;
+    expect(frozenScrollMin(ctx)).toEqual({ top: 0, left: 140 });
+    ctx.cellmainWidth = 200;
+    expect(frozenScrollMin(ctx)).toEqual({ top: 0, left: 0 });
+    ctx.cellmainHeight = 400;
+    const cache = {};
+    initFreeze(ctx, cache, "id_1");
+    expect(cache.freezen.id_1.horizontal).toBeDefined();
+    expect(cache.freezen.id_1.vertical).toBeUndefined();
+    ctx.scrollLeft = 500;
+    scrollToHighlightCell(ctx, -1, 2);
+    expect(ctx.scrollLeft).toBe(140);
+  });
+
+  test("single headers and independently scrollable split panes remain active", () => {
+    const ctx = makeCtx(7, 3);
+    freezePanes(ctx, "topRow");
+    expect(getViewportFrozenCells(ctx).rows).toBe(1);
+    toggleSplitPanes(ctx);
+    ctx.cellmainHeight = 100;
+    ctx.cellmainWidth = 100;
+    const cache = {};
+    initFreeze(ctx, cache, "id_1");
+    expect(cache.freezen.id_1.horizontal).toBeDefined();
+    expect(cache.freezen.id_1.vertical).toBeDefined();
   });
 });
 
