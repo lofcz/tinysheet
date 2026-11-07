@@ -49,9 +49,9 @@
     },
     "packages/core": {
       "name": "@lofcz/tinysheet-core",
-      "version": "3.0.2",
+      "version": "3.0.3",
       "dependencies": {
-        "@lofcz/tinysheet-formula-parser": "^3.0.2",
+        "@lofcz/tinysheet-formula-parser": "^3.0.3",
         "dayjs": "^1.11.0",
         "immer": "^9.0.12",
         "lodash": "^4.17.21",
@@ -67,9 +67,9 @@
     },
     "packages/excel": {
       "name": "@lofcz/tinysheet-excel",
-      "version": "3.0.2",
+      "version": "3.0.3",
       "dependencies": {
-        "@lofcz/tinysheet-core": "^3.0.2",
+        "@lofcz/tinysheet-core": "^3.0.3",
         "@lofcz/ts-xlsx": "4.0.1",
         "@types/file-saver": "^2.0.7",
         "dayjs": "^1.11.10",
@@ -88,7 +88,7 @@
     },
     "packages/formula-parser": {
       "name": "@lofcz/tinysheet-formula-parser",
-      "version": "3.0.2",
+      "version": "3.0.3",
       "dependencies": {
         "@formulajs/formulajs": "4.6.0",
         "chevrotain": "^11.0.3",
@@ -101,9 +101,9 @@
     },
     "packages/react": {
       "name": "@lofcz/tinysheet-react",
-      "version": "3.0.2",
+      "version": "3.0.3",
       "dependencies": {
-        "@lofcz/tinysheet-core": "^3.0.2",
+        "@lofcz/tinysheet-core": "^3.0.3",
         "@types/regenerator-runtime": "^0.13.6",
         "immer": "^9.0.12",
         "lodash": "^4.17.21",
