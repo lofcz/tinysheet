@@ -10,6 +10,28 @@ import {
 } from "../dist/index.js";
 import { patchZip, zipText } from "./helpers.mjs";
 
+test("edited shared formulas survive export when a sibling changes and their original master is cleared", async () => {
+  const workbook = new Workbook();
+  const source = workbook.addWorksheet("Data");
+  source.addRows([[1], [2], [3]]);
+  source.getCell("B1").value = { formula: "A1*2", result: 2 };
+  source.getCell("B2").value = { sharedFormula: "B1", result: 4 };
+  source.getCell("B3").value = { sharedFormula: "B1", result: 6 };
+  const imported = await parseExcel(writeXlsx(workbook), "shared.xlsx");
+  const sheet = imported.sheets[0];
+  const b1 = sheet.celldata.find(cell => cell.r === 0 && cell.c === 1);
+  const b2 = sheet.celldata.find(cell => cell.r === 1 && cell.c === 1);
+  b1.v = { v: 5, m: "5", ct: { fa: "General", t: "n" } };
+  b2.v.f = "=A2*3";
+  b2.v.v = 6;
+  const saved = JSON.parse(JSON.stringify(imported));
+  const out = readXlsx(await exportToXlsx(saved.sheets, { preservation: saved.preservation })).requireWorksheet("Data");
+  assert.equal(out.getCell("B1").value, 5);
+  assert.equal(out.getCell("B2").value.formula, "A2*3");
+  assert.equal(out.getCell("B2").value.result, 6);
+  assert.equal(out.getCell("B3").value.formula, "A3*2");
+});
+
 test("import, hydrate, JSON save/reload and edited export retain original package features", async () => {
   const workbook = new Workbook();
   const source = workbook.addWorksheet("Data");
