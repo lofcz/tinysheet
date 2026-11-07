@@ -114,6 +114,17 @@ export function applyExcelImportHydration(
       );
       delete sheet.celldata;
     }
+    // Saved workbooks from older importers may contain a shared formula twice.
+    // Rebuild membership before the dependency graph is initialized.
+    if (sheet.calcChain) {
+      const seen = new Set<string>();
+      sheet.calcChain = sheet.calcChain.filter(({ r, c }) => {
+        const key = `${r}:${c}`;
+        if (!sheet.data?.[r]?.[c]?.f || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
   }
   for (const size of result.sizing) {
     if (size.columnlen && Object.keys(size.columnlen).length > 0) {

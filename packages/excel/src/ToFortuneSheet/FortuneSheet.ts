@@ -343,7 +343,17 @@ export class FortuneSheet extends FortuneSheetBase {
       this.calcChain = [];
     }
 
-    let formulaListExist = new Set<number>();
+    const formulaListExist = new Set<number>();
+    const addFormula = (r: number, c: number) => {
+      const key = r * 16384 + c;
+      if (formulaListExist.has(key)) return;
+      formulaListExist.add(key);
+      const chain = new FortunesheetCalcChain();
+      chain.r = r;
+      chain.c = c;
+      chain.id = this.id;
+      this.calcChain.push(chain);
+    };
     // `i` (the sheet id) may be omitted: it repeats the previous entry's
     let chainSheet: string = undefined;
     for (let c = 0; c < this.calcChainEles.length; c++) {
@@ -356,12 +366,7 @@ export class FortuneSheet extends FortuneSheetBase {
 
       let range = getcellrange(attrList.r);
       if (range == null) continue;
-      let chain = new FortunesheetCalcChain();
-      chain.r = range.row[0];
-      chain.c = range.column[0];
-      chain.id = this.id;
-      this.calcChain.push(chain);
-      formulaListExist.add(chain.r * 16384 + chain.c);
+      addFormula(range.row[0], range.column[0]);
     }
 
     if (this.formulaRefList != null) {
@@ -398,12 +403,7 @@ export class FortuneSheet extends FortuneSheetBase {
           }
           (cellValue.v as IfortuneSheetCelldataValue).f = func;
 
-          //添加共享公式链
-          let chain = new FortunesheetCalcChain();
-          chain.r = cellValue.r;
-          chain.c = cellValue.c;
-          chain.id = this.id;
-          this.calcChain.push(chain);
+          addFormula(cellValue.r, cellValue.c);
         }
       }
     }
@@ -411,15 +411,7 @@ export class FortuneSheet extends FortuneSheetBase {
     //There may be formulas that do not appear in calcChain
     for (const formulaListItem of (cellOtherInfo as any)
       .formulaCells as IformulaListItem[]) {
-      if (
-        !formulaListExist.has(formulaListItem.r * 16384 + formulaListItem.c)
-      ) {
-        let chain = new FortunesheetCalcChain();
-        chain.r = formulaListItem.r;
-        chain.c = formulaListItem.c;
-        chain.id = this.id;
-        this.calcChain.push(chain);
-      }
+      addFormula(formulaListItem.r, formulaListItem.c);
     }
 
     // dataVerification config

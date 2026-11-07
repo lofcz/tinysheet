@@ -18,6 +18,7 @@ test("import, hydrate, JSON save/reload and edited export retain original packag
     ["Q1", 10],
     ["Q2", 20],
   ]);
+  source.getCell("B4").value = { formula: "SUM(B2:B3)", result: 30 };
   source.getCell("B2").font = {
     name: "Aptos",
     color: { theme: 4 },
@@ -70,7 +71,14 @@ test("import, hydrate, JSON save/reload and edited export retain original packag
     formulaCache: new FormulaCache(),
     groupValuesRefreshData: [],
   };
+  context.luckysheetfile[0].calcChain = [
+    { r: 3, c: 1, id: sheet.id },
+    { r: 3, c: 1, id: sheet.id },
+    { r: 10, c: 1, id: sheet.id },
+  ];
   applyExcelImportHydration(context, imported);
+  assert.deepEqual(context.luckysheetfile[0].calcChain, [{ r: 3, c: 1, id: sheet.id }]);
+  assert.equal(context.luckysheetfile[0].data[3][1].v, 30);
   context.luckysheetfile[0].data[1][1].v = 42;
   context.luckysheetfile[0].charts[0].title = "Updated Sales";
   context.luckysheetfile[0].charts[0].formats = {

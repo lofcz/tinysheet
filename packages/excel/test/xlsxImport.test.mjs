@@ -20,6 +20,23 @@ async function importWorkbook(build, patches) {
   return importXlsx(bytes);
 }
 
+test("shared formulas are registered once with and without a calculation chain", async () => {
+  for (const chain of [null, '<c r="B1" i="1"/><c r="B2"/><c r="B2"/><c r="B3"/>']) {
+    const result = await importWorkbook((wb) => {
+      const ws = wb.addWorksheet("Data");
+      ws.getCell("B1").value = { formula: "A1*2", result: 2, shareType: "shared", ref: "B1:B3" };
+      ws.getCell("B2").value = { sharedFormula: "B1", result: 4 };
+      ws.getCell("B3").value = { sharedFormula: "B1", result: 6 };
+    }, chain ? {
+      "xl/calcChain.xml": () => `<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${chain}</calcChain>`,
+      "xl/_rels/workbook.xml.rels": xml => xml.replace("</Relationships>", '<Relationship Id="rIdChain" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain" Target="calcChain.xml"/></Relationships>'),
+    } : {});
+    const sheet = result.sheets[0];
+    assert.deepEqual(sheet.calcChain.map(c => `${c.r}_${c.c}`).sort(), ["0_1", "1_1", "2_1"]);
+    assert.equal(cellMap(sheet).get("2_1").f, "=A3*2");
+  }
+});
+
 test("shared formulas are expanded with relative references shifted", async () => {
   const result = await importWorkbook((wb) => {
     const ws = wb.addWorksheet("S");
