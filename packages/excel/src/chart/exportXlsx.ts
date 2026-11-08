@@ -327,7 +327,7 @@ function addOverride(types: string, part: string, contentType: string) {
 
 /**
  * Add native chart parts for every sheet's `charts` to an xlsx buffer written
- * by exceljs. Sheets are matched by name.
+ * by ts-xlsx. Sheets are matched by name.
  */
 export async function addChartsToXlsx(
   buffer: ArrayBuffer | Uint8Array,

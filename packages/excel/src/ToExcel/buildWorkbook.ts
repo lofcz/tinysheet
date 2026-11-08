@@ -327,7 +327,7 @@ export async function exportToXlsx(
     options,
   });
   if (!options.preservation) return bytes;
-  const result = preserveWorkbookEdits(
+  const result = await preserveWorkbookEdits(
     options.preservation,
     built.worksheets.map((part) => ({ ...part.sheet, name: part.name })),
     bytes

@@ -3,12 +3,12 @@
 // notes shown permanently.
 import test from "node:test";
 import assert from "node:assert/strict";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook } from "@lofcz/ts-xlsx";
 import {
   cellMap,
-  excelJsBytes,
+  xlsxBytes,
   importXlsx,
-  readWithExcelJS,
+  readWorkbook,
   roundTrip,
   sheetByName,
   zipText,
@@ -39,7 +39,7 @@ test("shrink to fit, indent, locked and hidden survive export -> import", async 
       "6_0": { v: "plain", m: "plain", ind: 4 },
     }),
   ]);
-  const ws = (await readWithExcelJS(bytes)).getWorksheet("Fmt");
+  const ws = (await readWorkbook(bytes)).getWorksheet("Fmt");
   assert.equal(ws.getCell("A1").alignment.shrinkToFit, true);
   assert.equal(ws.getCell("A2").alignment.indent, 3);
   assert.equal(ws.getCell("A2").alignment.horizontal, "left");
@@ -219,21 +219,20 @@ test("tables become xlsx table parts and come back", async () => {
 });
 
 test("tables made in Excel get TinySheet's table look", async () => {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   const ws = wb.addWorksheet("X");
-  ws.addTable({
+  const table = ws.addTable({
     name: "People",
     ref: "B2",
     headerRow: true,
-    style: { theme: "TableStyleMedium7", showRowStripes: true },
+    style: { name: "TableStyleMedium7", showRowStripes: true },
     columns: [{ name: "Name" }, { name: "Age" }],
-    rows: [
-      ["Ann", 31],
-      ["Bob", 42],
-    ],
+    rowCount: 0,
   });
+  table.addRow(["Ann", 31]);
+  table.addRow(["Bob", 42]);
   ws.getCell("D3").value = { formula: "People[[#This Row],[Age]]+1" };
-  const result = await importXlsx(await excelJsBytes(wb));
+  const result = await importXlsx(await xlsxBytes(wb));
   const sheetX = sheetByName(result, "X");
   assert.deepEqual(sheetX.tables[0].range, { row: [1, 3], column: [1, 2] });
   assert.deepEqual(

@@ -287,15 +287,16 @@ function applyTableLook(sheet: FortuneSheet, table: any) {
   const [c1, c2] = table.range.column;
   const inside = (r: number, c: number) =>
     r >= r1 && r <= r2 && c >= c1 && c <= c2;
-  const entries = new Map<string, any>();
+  // Row/column slots avoid allocating and hashing two strings per table cell.
+  const entries: any[][] = [];
   sheet.celldata.forEach((cell) => {
-    if (inside(cell.r, cell.c)) entries.set(`${cell.r}_${cell.c}`, cell);
+    if (inside(cell.r, cell.c)) (entries[cell.r] ??= [])[cell.c] = cell;
   });
   const data: any[][] = [];
   for (let r = r1; r <= r2; r += 1) {
     data[r] = [];
     for (let c = c1; c <= c2; c += 1) {
-      const v = entries.get(`${r}_${c}`)?.v;
+      const v = entries[r]?.[c]?.v;
       data[r][c] = v && typeof v === "object" ? v : null;
     }
   }
@@ -305,7 +306,7 @@ function applyTableLook(sheet: FortuneSheet, table: any) {
     for (let c = c1; c <= c2; c += 1) {
       const v = data[r][c];
       if (!v || Object.keys(v).length === 0) continue;
-      const entry = entries.get(`${r}_${c}`);
+      const entry = entries[r]?.[c];
       if (entry) entry.v = v;
       else sheet.celldata.push({ r, c, v });
     }

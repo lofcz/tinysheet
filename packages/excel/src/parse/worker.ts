@@ -120,8 +120,16 @@ export function exposeParseExcelWorker(scope?: MessageScope) {
   });
 }
 
-type WorkerLike = MessageScope & {
-  removeEventListener(type: "message", listener: (event: any) => void): void;
+type WorkerLike = {
+  addEventListener(
+    type: "message" | "error" | "messageerror",
+    listener: (event: any) => void
+  ): void;
+  removeEventListener(
+    type: "message" | "error" | "messageerror",
+    listener: (event: any) => void
+  ): void;
+  postMessage(message: any, transfer?: ArrayBuffer[]): void;
 };
 
 let nextRequestId = 1;
@@ -160,6 +168,15 @@ export function parseExcelInWorker(
   }
   const name = fileName ?? (input as File)?.name;
   return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      worker.removeEventListener("message", listener);
+      worker.removeEventListener("error", failed);
+      worker.removeEventListener("messageerror", failed);
+    };
+    const failed = (event: any) => {
+      cleanup();
+      reject(new Error(event?.message || "Excel import worker failed"));
+    };
     const listener = (event: any) => {
       const data = event?.data as ParseExcelWorkerResponse;
       if (!data || data.id !== id) return;
@@ -168,16 +185,22 @@ export function parseExcelInWorker(
         data.type !== "tinysheet:parseExcel:error"
       )
         return;
-      worker.removeEventListener("message", listener);
+      cleanup();
       if (data.type === "tinysheet:parseExcel:error") {
         reject(new Error(data.error));
       } else if (data.json) {
-        resolve(decodeExcelImportResult(data.json));
+        try {
+          resolve(decodeExcelImportResult(data.json));
+        } catch (error) {
+          reject(error);
+        }
       } else {
         resolve(data.result);
       }
     };
     worker.addEventListener("message", listener);
+    worker.addEventListener("error", failed);
+    worker.addEventListener("messageerror", failed);
     const request: ParseExcelWorkerRequest = {
       type: "tinysheet:parseExcel",
       id,
@@ -186,6 +209,11 @@ export function parseExcelInWorker(
       options: parseOptions,
       transfer,
     };
-    worker.postMessage(request, transferList);
+    try {
+      worker.postMessage(request, transferList);
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
   });
 }

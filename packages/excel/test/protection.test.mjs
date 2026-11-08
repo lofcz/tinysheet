@@ -5,9 +5,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook, readXlsx } from "@lofcz/ts-xlsx";
 import {
-  excelJsBytes,
+  xlsxBytes,
   importXlsx,
   patchZip,
   roundTrip,
@@ -27,7 +27,7 @@ function sheet(name, extra = {}, order = 0) {
   };
 }
 
-/** Excel's iterated SHA-512 password hash (as Excel and ExcelJS compute it). */
+/** Excel's iterated SHA-512 password hash (as Excel and ts-xlsx compute it). */
 function excelHash(password, salt, spinCount) {
   let h = createHash("sha512")
     .update(Buffer.concat([salt, Buffer.from(password, "utf16le")]))
@@ -116,12 +116,10 @@ test("sheet protection, edit ranges and workbook structure round-trip", async ()
   );
   assert.ok(wb.indexOf("<workbookProtection") < wb.indexOf("<sheets"));
 
-  // Excel's reader (ExcelJS) sees the protection
-  const ws = (await new ExcelJS.Workbook().xlsx.load(bytes)).getWorksheet(
-    "Prot"
-  );
-  assert.equal(ws.sheetProtection.sheet, true);
-  assert.equal(ws.sheetProtection.hashValue, hash.hashValue);
+  // Excel's reader (ts-xlsx) sees the protection
+  const ws = readXlsx(new Uint8Array(bytes)).getWorksheet("Prot");
+  assert.ok(ws.protection);
+  assert.equal(ws.protection.credential.hashValue, hash.hashValue);
 
   const back = sheetByName(result, "Prot");
   const a = back.config.authority;
@@ -186,12 +184,12 @@ test("SHA-512 workbook password and legacy sheet password come back", async () =
   assert.equal(back.workbookProtection.spinCount, 1000);
 });
 
-test("files protected by Excel (ExcelJS) import with their hash", async () => {
-  const wb = new ExcelJS.Workbook();
+test("files protected by Excel (ts-xlsx) import with their hash", async () => {
+  const wb = new Workbook();
   const ws = wb.addWorksheet("X");
   ws.getCell("A1").value = 1;
   await ws.protect("pw", { formatCells: true, spinCount: 500 });
-  const result = await importXlsx(await excelJsBytes(wb));
+  const result = await importXlsx(await xlsxBytes(wb));
   const a = sheetByName(result, "X").config.authority;
   assert.equal(a.sheet, 1);
   assert.equal(a.formatCells, 1);
@@ -232,9 +230,9 @@ test("sheet view options round-trip", async () => {
 });
 
 test("protected ranges written by Excel with SHA-512 hashes import", async () => {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   wb.addWorksheet("R").getCell("A1").value = 1;
-  const bytes = await patchZip(await excelJsBytes(wb), {
+  const bytes = await patchZip(await xlsxBytes(wb), {
     "xl/worksheets/sheet1.xml": (xml) =>
       xml.replace(
         "</sheetData>",

@@ -34,7 +34,7 @@ export function writeColumnsAndRows(ctx: SheetExportContext) {
   Object.keys(config.rowhidden || {}).forEach((key) => {
     const row = worksheet.getRow(Number(key) + 1);
     row.hidden = true;
-    // ExcelJS drops rows without cells or a height.
+    // Keep row settings even when the row has no cells or explicit height.
     if (!row.height) {
       row.height = pxToPoints(Number(sheet.defaultRowHeight) || 19);
     }

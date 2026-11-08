@@ -9,13 +9,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook } from "@lofcz/ts-xlsx";
 import { exportToXlsx } from "../dist/index.js";
 import {
   cellMap,
   comparableCell,
   comparableSheet,
-  excelJsBytes,
+  xlsxBytes,
   importXlsx,
   roundTrip,
   sheetByName,
@@ -203,15 +203,18 @@ async function assertStableRoundTrip(bytes, label) {
 }
 
 async function featureWorkbookBytes() {
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Features", {
-    properties: { tabColor: { argb: "FF7030A0" } },
-  });
-  ws.views = [{ state: "frozen", xSplit: 1, ySplit: 1 }];
-  ws.columns = [{ width: 18 }, { width: 10 }, { width: 30 }];
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("Features");
+  ws.tabColor = { argb: "FF7030A0" };
+  Object.assign(ws.view, { state: "frozen", xSplit: 1, ySplit: 1 });
+  [{ width: 18 }, { width: 10 }, { width: 30 }].forEach((column, i) =>
+    Object.assign(ws.getColumn(i + 1), column)
+  );
   ws.getRow(1).height = 24;
-  ws.getRow(1).font = { bold: true, name: "Calibri", size: 12 };
   ws.getRow(1).values = ["Item", "Qty", "Note"];
+  for (const cell of ws.getRow(1).cells) {
+    cell.font = { bold: true, name: "Calibri", size: 12 };
+  }
   const rows = [
     ["Apples", 3, "fresh"],
     ["Pears", 5, "ripe"],
@@ -228,8 +231,6 @@ async function featureWorkbookBytes() {
   ws.getCell("D2").value = {
     formula: "B2*2",
     result: 6,
-    shareType: "shared",
-    ref: "D2:D4",
   };
   ws.getCell("D3").value = { sharedFormula: "D2", result: 10 };
   ws.getCell("D4").value = { sharedFormula: "D2", result: 16 };
@@ -256,10 +257,8 @@ async function featureWorkbookBytes() {
     top: { style: "thin", color: { argb: "FF000000" } },
     bottom: { style: "double", color: { argb: "FF0000FF" } },
   };
-  ws.getCell("A8").value = {
-    text: "Docs",
-    hyperlink: "https://example.org/docs",
-  };
+  ws.getCell("A8").value = "Docs";
+  ws.addHyperlink({ ref: "A8", target: "https://example.org/docs" });
   ws.getCell("A9").value = 45123.5;
   ws.getCell("A9").numFmt = "m/d/yyyy h:mm";
   ws.getCell("A10").note = "Remember";
@@ -273,20 +272,20 @@ async function featureWorkbookBytes() {
   ws.getCell("C8").value = "merged";
   ws.getRow(12).hidden = true;
   ws.getColumn(7).hidden = true;
-  ws.getCell("F2").dataValidation = {
+  ws.addDataValidation("F2", {
     type: "list",
     formulae: ['"Yes,No"'],
     showErrorMessage: true,
-  };
-  ws.getCell("F3").dataValidation = {
+  });
+  ws.addDataValidation("F3", {
     type: "whole",
     operator: "greaterThanOrEqual",
     formulae: [0],
-  };
+  });
   const hidden = wb.addWorksheet("Lists");
   hidden.state = "hidden";
   hidden.getCell("A1").value = "Yes";
-  return excelJsBytes(wb);
+  return xlsxBytes(wb);
 }
 
 test("generated feature workbook: import -> export -> import is stable", async () => {

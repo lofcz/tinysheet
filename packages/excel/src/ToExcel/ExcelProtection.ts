@@ -1,8 +1,8 @@
 /**
  * Sheet / workbook protection -> xlsx.
  *
- * ExcelJS cannot write the legacy `password` hash, `protectedRanges` or
- * `workbookProtection`, so the elements are built here and inserted into
+ * The legacy `password` hash, `protectedRanges` and `workbookProtection`
+ * elements are built here and inserted into
  * the written zip (see postProcess.ts): `<sheetProtection>` and
  * `<protectedRanges>` right after `<sheetData>`, `<workbookProtection>`
  * before `<bookViews>`. Only password hashes are written (TinySheet never

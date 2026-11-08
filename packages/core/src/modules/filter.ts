@@ -8,7 +8,8 @@ import { getSheetIndex, isAllowEdit, rgbToHex } from "../utils";
 import { genarate, update } from "./format";
 import { normalizeSelection } from "./selection";
 import { isRealNull } from "./validation";
-import { normalizedAttr } from "./cell";
+import { peek } from "./dependencyGraph";
+import { materializeMatrix } from "./rowStore";
 import { getCellDisplayColors, sortDataRange } from "./sort";
 import { execFunctionGroup, groupValuesRefresh } from "./formula";
 import { dateToSerial, serialToDateParts } from "./autofill";
@@ -420,28 +421,29 @@ export function getFilterColumnValues(
   const flattenValues: string[] = [];
   // 日期值
   const dates: FilterDate[] = [];
-  let datesUncheck: string[] = [];
+  const datesUncheck = new Set<string>();
   const dateRowMap: Record<string, number[]> = {};
+  const dateNodes = new Map<string, FilterDate>();
+  const dateStrings = new Map<unknown, string>();
 
   // 除日期以外的值
-  const valuesMap: Map<string, FilterValue[]> = new Map();
-  let valuesUncheck: string[] = [];
+  const valuesMap = new Map<string, FilterValue | Map<unknown, FilterValue>>();
+  const valuesUncheck = new Set<string>();
   const valueRowMap: Record<string, number[]> = {};
 
-  const flowdata = getFlowdata(ctx);
+  const flowdata = peek(materializeMatrix(getFlowdata(ctx)));
   if (flowdata == null)
     return {
       dates,
-      datesUncheck,
+      datesUncheck: [],
       dateRowMap,
       values: [],
-      valuesUncheck,
+      valuesUncheck: [],
       valueRowMap,
       visibleRows,
       flattenValues,
     };
 
-  let cell: Cell | null;
   const { filter } = locale(ctx);
   // Date tree: year, localized month name, day.
   const monthNames = dataToolsLocale(ctx).filter.months;
@@ -451,22 +453,20 @@ export function getFilterColumnValues(
     }
     visibleRows.push(r);
 
-    cell = flowdata[r][col];
+    const cell = flowdata[r]?.[col];
+    const hasValue = cell != null && !isRealNull(cell.v);
 
-    if (
-      cell != null &&
-      !isRealNull(cell.v) &&
-      cell.ct != null &&
-      cell.ct.t === "d"
-    ) {
+    if (hasValue && cell.ct != null && cell.ct.t === "d") {
       // 单元格是日期
-      const dateStr: string = update("YYYY-MM-DD", cell.v);
+      const dateStr: string =
+        dateStrings.get(cell.v) ?? update("YYYY-MM-DD", cell.v);
+      dateStrings.set(cell.v, dateStr);
 
       const y = dateStr.split("-")[0];
       const m = dateStr.split("-")[1];
       const d = dateStr.split("-")[2];
 
-      let yearValue = _.find(dates, (v) => v.value === y);
+      let yearValue = dateNodes.get(y);
       if (yearValue == null) {
         yearValue = {
           key: y,
@@ -478,10 +478,10 @@ export function getFilterColumnValues(
           dateValues: [],
         };
         dates.push(yearValue);
-        flattenValues.push(dateStr);
+        dateNodes.set(y, yearValue);
       }
 
-      let monthValue = _.find(yearValue.children, (v) => v.value === m);
+      let monthValue = dateNodes.get(`${y}-${m}`);
       if (monthValue == null) {
         monthValue = {
           key: `${y}-${m}`,
@@ -493,9 +493,10 @@ export function getFilterColumnValues(
           dateValues: [],
         };
         yearValue.children.push(monthValue);
+        dateNodes.set(monthValue.key, monthValue);
       }
 
-      let dayValue = _.find(monthValue.children, (v) => v.value === d);
+      let dayValue = dateNodes.get(dateStr);
       if (dayValue == null) {
         dayValue = {
           key: dateStr,
@@ -507,23 +508,25 @@ export function getFilterColumnValues(
           dateValues: [],
         };
         monthValue.children.push(dayValue);
+        dateNodes.set(dateStr, dayValue);
+        flattenValues.push(dateStr);
+        yearValue.dateValues.push(dateStr);
+        monthValue.dateValues.push(dateStr);
+        dayValue.dateValues.push(dateStr);
+        dateRowMap[dateStr] = dayValue.rows;
       }
 
       yearValue.rows.push(r);
-      yearValue.dateValues.push(dateStr);
       monthValue.rows.push(r);
-      monthValue.dateValues.push(dateStr);
       dayValue.rows.push(r);
-      dayValue.dateValues.push(dateStr);
-      dateRowMap[dateStr] = (dateRowMap[dateStr] || []).concat(r);
 
       if (r in hiddenRows) {
-        datesUncheck = _.union(datesUncheck, [dateStr]);
+        datesUncheck.add(dateStr);
       }
     } else {
       let v;
       let m: string | number | null | undefined;
-      if (cell == null || isRealNull(cell.v)) {
+      if (!hasValue) {
         v = null;
         m = null;
       } else {
@@ -531,40 +534,40 @@ export function getFilterColumnValues(
         m = cell.m;
       }
 
-      const data = valuesMap.get(`${v}`);
-      const text = m == null ? filter.valueBlank : `${m}`;
-      const key = `${v}#$$$#${m}`;
-      if (data != null) {
-        let maskValue = _.find(data, (value) => value.mask === m);
-        if (maskValue == null) {
-          maskValue = {
-            key,
-            value: v,
-            text,
-            mask: m,
-            rows: [],
-          };
-          data.push(maskValue);
-          flattenValues.push(text);
-        }
-        maskValue.rows.push(r);
-      } else {
-        valuesMap.set(`${v}`, [{ key, value: v, text, mask: m, rows: [r] }]);
-        flattenValues.push(text);
+      let data = valuesMap.get(`${v}`);
+      if (data && !(data instanceof Map) && data.mask !== m) {
+        data = new Map([[data.mask, data]]);
+        valuesMap.set(`${v}`, data);
       }
+      let maskValue = data instanceof Map ? data.get(m) : data;
+      if (maskValue == null) {
+        const text =
+          m == null ? (v == null ? filter.valueBlank : `${v}`) : `${m}`;
+        const key = `${v}#$$$#${m}`;
+        maskValue = { key, value: v, text, mask: m, rows: [] };
+        if (data instanceof Map) data.set(m, maskValue);
+        else valuesMap.set(`${v}`, maskValue);
+        flattenValues.push(text);
+        valueRowMap[key] = maskValue.rows;
+      }
+      maskValue.rows.push(r);
 
       if (r in hiddenRows) {
-        valuesUncheck = _.union(valuesUncheck, [key]);
+        valuesUncheck.add(maskValue.key);
       }
-      valueRowMap[key] = (valueRowMap[key] || []).concat(r);
     }
   }
+  const values: FilterValue[] = [];
+  valuesMap.forEach((masks) => {
+    if (masks instanceof Map) masks.forEach((value) => values.push(value));
+    else values.push(masks);
+  });
   return {
     dates,
-    datesUncheck,
+    datesUncheck: [...datesUncheck],
     dateRowMap,
-    values: _.flatten(Array.from(valuesMap.values())),
-    valuesUncheck,
+    values,
+    valuesUncheck: [...valuesUncheck],
     valueRowMap,
     visibleRows,
     flattenValues,
@@ -583,100 +586,50 @@ export function getFilterColumnColors(
   startRow: number,
   endRow: number
 ) {
-  // 遍历筛选列颜色
-  const bgMap: Map<string, FilterColor> = new Map(); // 单元格颜色
-  const fcMap: Map<string, FilterColor> = new Map(); // 字体颜色
-
-  // const af_compute = alternateformat.getComputeMap();
-  const cf_compute: any = getComputeMap(ctx);
-  const flowdata = getFlowdata(ctx);
+  const bgMap = new Map<string, FilterColor>();
+  const fcMap = new Map<string, FilterColor>();
+  const flowdata = peek(materializeMatrix(getFlowdata(ctx)));
   if (flowdata == null) return { bgColors: [], fcColors: [] };
-
+  const sheet = ctx.luckysheetfile.find((s) => s.id === ctx.currentSheetId);
+  const cf = sheet?.luckysheet_conditionformat_save?.length
+    ? getComputeMap(ctx)
+    : null;
+  const hidden = ctx.config?.rowhidden || {};
+  // A banded table repeats a handful of colours across tens of thousands of
+  // cells. Normalize each distinct colour once, without repeated row lookups.
+  const colors = new Map<string, string>();
+  const normalize = (raw: string) => {
+    let color = colors.get(raw);
+    if (color != null) return color;
+    color = raw.includes("rgb") ? rgbToHex(raw) : raw;
+    if (color.length === 4) {
+      color =
+        "#" + color[1].repeat(2) + color[2].repeat(2) + color[3].repeat(2);
+    }
+    colors.set(raw, color);
+    return color;
+  };
+  const add = (map: Map<string, FilterColor>, raw: string, row: number) => {
+    const color = normalize(raw);
+    let group = map.get(color);
+    if (!group) {
+      group = { color, checked: true, rows: [] };
+      map.set(color, group);
+    }
+    group.rows.push(row);
+    if (row in hidden) group.checked = false;
+  };
   for (let r = startRow + 1; r <= endRow; r += 1) {
-    const cell = flowdata[r][col];
-
-    // 单元格颜色
-    let bg = normalizedAttr(flowdata, r, col, "bg");
-
-    if (bg == null) {
-      bg = "#ffffff";
-    }
-
-    // const checksAF = alternateformat.checksAF(r, col, af_compute);
-    const checksAF: any = [];
-    if (checksAF.length > 1) {
-      // 若单元格有交替颜色
-      [, bg] = checksAF;
-    }
-
-    const checksCF = checkCF(r, col, cf_compute);
-    if (checksCF != null && checksCF.cellColor != null) {
-      // 若单元格有条件格式
-      bg = checksCF.cellColor;
-    }
-
-    if (bg.indexOf("rgb") > -1) {
-      bg = rgbToHex(bg);
-    }
-
-    if (bg.length === 4) {
-      bg =
-        bg.substr(0, 1) +
-        bg.substr(1, 1).repeat(2) +
-        bg.substr(2, 1).repeat(2) +
-        bg.substr(3, 1).repeat(2);
-    }
-
-    // 字体颜色
-    let fc = normalizedAttr(flowdata, r, col, "fc");
-
-    if (checksAF.length > 0) {
-      // 若单元格有交替颜色
-      [fc] = checksAF;
-    }
-
-    if (checksCF != null && checksCF.textColor != null) {
-      // 若单元格有条件格式
-      fc = checksCF.textColor;
-    }
-
-    if (fc != null) {
-      if (fc.indexOf("rgb") > -1) {
-        fc = rgbToHex(fc);
-      }
-
-      if (fc.length === 4) {
-        fc =
-          fc.substr(0, 1) +
-          fc.substr(1, 1).repeat(2) +
-          fc.substr(2, 1).repeat(2) +
-          fc.substr(3, 1).repeat(2);
-      }
-    }
-
-    const isRowHidden = r in (ctx.config?.rowhidden || {});
-    const bgData = bgMap.get(bg);
-    if (bgData != null) {
-      bgData.rows.push(r);
-      if (isRowHidden) bgData.checked = false;
-    } else {
-      bgMap.set(bg, { color: bg, checked: !isRowHidden, rows: [r] });
-    }
-    if (fc != null) {
-      const fcData = fcMap.get(fc);
-      if (fcData != null && cell != null && !isRealNull(cell.v)) {
-        fcData.rows.push(r);
-        if (isRowHidden) fcData.checked = false;
-      } else if (cell != null && !isRealNull(cell.v)) {
-        fcMap.set(fc, { color: fc, checked: !isRowHidden, rows: [r] });
-      }
+    const cell = flowdata[r]?.[col];
+    const style = cf ? checkCF(r, col, cf) : null;
+    add(bgMap, style?.cellColor ?? cell?.bg ?? "#ffffff", r);
+    if (cell && !isRealNull(cell.v)) {
+      add(fcMap, style?.textColor ?? (cell.fc || "#000000"), r);
     }
   }
-  const bgColors = _.flatten(Array.from(bgMap.values()));
-  const fcColors = _.flatten(Array.from(fcMap.values()));
   return {
-    bgColors: bgColors.length < 2 ? [] : bgColors,
-    fcColors: fcColors.length < 2 ? [] : fcColors,
+    bgColors: bgMap.size < 2 ? [] : [...bgMap.values()],
+    fcColors: fcMap.size < 2 ? [] : [...fcMap.values()],
   };
 }
 
@@ -1229,7 +1182,7 @@ export function getFilterColumnKind(
   startRow: number,
   endRow: number
 ): "text" | "number" | "date" {
-  const data = getFlowdata(ctx);
+  const data = peek(materializeMatrix(getFlowdata(ctx)));
   if (data == null) return "text";
   let dates = 0;
   let nums = 0;

@@ -17,7 +17,7 @@
 - Light/dark themes, 1M+ rows
 - Collaboration through `onOp` / `applyOp`
 
-The Excel adapter uses [`@lofcz/ts-xlsx`](https://github.com/lofcz/ts-xlsx) for workbook export and native chart packaging. `parseExcel`, `exportToXlsx`, and the download helpers retain their signatures. `buildExcelWorkbook` and feature contexts now expose the ts-xlsx workbook model; use `writeXlsx(workbook)` instead of `workbook.xlsx.writeBuffer()`. ExcelJS remains a development-only interoperability reader for the regression suite.
+The Excel adapter, regression tests, and benchmarks use [`@lofcz/ts-xlsx`](https://github.com/lofcz/ts-xlsx) for workbook reading, writing, and native chart packaging. `parseExcel`, `exportToXlsx`, and the download helpers retain their signatures. `buildExcelWorkbook` and feature contexts expose the ts-xlsx workbook model; use `writeXlsx(workbook)` to serialize it.
 
 ## Preserving imported workbooks
 
@@ -40,6 +40,12 @@ The original package and editor baseline let the fork retain features outside th
 editor model while applying actual edits. Macro-enabled originals download as
 `.xlsm`. Set `{preserve: false}` when only parsed cells are needed. Original bytes
 and the baseline increase saved document size; treat both as workbook content.
+
+For large browser imports, use `parseExcelInWorker` with a module worker that
+calls `exposeParseExcelWorker` (the demo shows this integration). Parsing and the
+compressed preservation snapshot run in the worker; mount `result.sheets`, then
+call `applyExcelImport` after the workbook mounts. The baseline XLSX is generated
+on save. Previously saved version 1 preservation metadata remains supported.
 
 Version 3 uses native fork APIs for charts/chart sheets, shapes, cell images,
 checkboxes, sparklines, dynamic arrays, threaded comments and advanced conditional
@@ -96,6 +102,7 @@ bun run demo        # demo app
 bun run storybook   # stories
 bun run docs        # docs site
 bun run test        # unit tests (also: test:excel, test:e2e)
+bun run test:perf   # production Chromium: ts-xlsx-generated 50k-row workbook
 bun run lint && bun run tsc
 ```
 

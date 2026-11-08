@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import {
   importXlsx,
   patchZip,
-  readWithExcelJS,
+  readWorkbook,
   roundTrip,
   sheetByName,
   zipText,
@@ -118,13 +118,13 @@ test("table snapshots preserve falsy formula caches and structured references", 
     }
   );
   const { bytes } = await roundTrip([original]);
-  const wb = await readWithExcelJS(bytes);
+  const wb = await readWorkbook(bytes);
   const ws = wb.getWorksheet("Caches");
-  assert.equal(ws.getCell("B2").result, 0);
-  assert.equal(ws.getCell("C2").result, false);
-  assert.equal(ws.getCell("E2").result, 4);
-  assert.equal(ws.getCell("B2").formula, "Cached[[#This Row],[Qty]]-2");
-  // Empty caches are serialized as a present string value; ExcelJS's reader
+  assert.equal(ws.getCell("B2").value.result, 0);
+  assert.equal(ws.getCell("C2").value.result, false);
+  assert.equal(ws.getCell("E2").value.result, 4);
+  assert.equal(ws.getCell("B2").value.formula, "Cached[[#This Row],[Qty]]-2");
+  // Empty caches are serialized as a present string value; ts-xlsx's reader
   // normalizes an empty XML value to undefined, so check the actual file.
   const xml = await zipText(bytes, "xl/worksheets/sheet1.xml");
   assert.match(xml, /<c r="D2"[^>]*t="str"[^>]*><f>[^<]*<\/f><v><\/v><\/c>/);
@@ -153,8 +153,8 @@ test("table filters, calculated columns and custom totals are written", async ()
   assert.match(part, /name="TableStyleDark3"/);
   assert.match(part, /showColumnStripes="1"/);
   assert.match(part, /showFirstColumn="1"/);
-  // ExcelJS still reads the file
-  const ws = (await readWithExcelJS(bytes)).getWorksheet("T");
+  // ts-xlsx still reads the file
+  const ws = (await readWorkbook(bytes)).getWorksheet("T");
   assert.ok(ws);
 
   const back = sheetByName(result, "T").tables[0];

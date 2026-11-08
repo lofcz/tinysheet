@@ -2,13 +2,13 @@
 // note fallback, and import of Excel's threaded comments.
 import test from "node:test";
 import assert from "node:assert/strict";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook } from "@lofcz/ts-xlsx";
 import {
   roundTrip,
   zipText,
-  readWithExcelJS,
+  readWorkbook,
   cellMap,
-  excelJsBytes,
+  xlsxBytes,
   patchZip,
   importXlsx,
 } from "./helpers.mjs";
@@ -92,10 +92,15 @@ test("threads round-trip through threadedComments and persons parts", async () =
     comments,
     /<author>tc=\{4F6C1E2A-3B1D-4C9E-8A7B-0123456789AB\}<\/author>/
   );
-  const wb = await readWithExcelJS(bytes);
-  const note = wb.worksheets[0].getCell("B1").note;
+  const wb = await readWorkbook(bytes);
+  // ts-xlsx recognizes the modern thread and consumes its fallback note.
+  assert.equal(wb.worksheets[0].commentThreads.length, 2);
   const noteText =
-    typeof note === "string" ? note : note.texts.map((t) => t.text).join("");
+    /<comment\b[^>]*ref="B1"[^>]*>[\s\S]*?<t\b[^>]*>([\s\S]*?)<\/t>/
+      .exec(comments)[1]
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">");
   assert.match(noteText, /^\[Threaded comment\]/);
   assert.match(
     noteText,
@@ -141,12 +146,12 @@ test("a thread replaces a note on the same cell in the export", async () => {
 });
 
 test("Excel threaded comments with persons import with names and mentions", async () => {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   const ws = wb.addWorksheet("T");
   ws.getCell("C3").value = 5;
   ws.getCell("C3").note = "[Threaded comment]\n\nplaceholder";
   ws.getCell("A1").note = "real note";
-  let bytes = await excelJsBytes(wb);
+  let bytes = await xlsxBytes(wb);
   bytes = await patchZip(bytes, {
     "xl/threadedComments/threadedComment1.xml": () =>
       '<?xml version="1.0" encoding="UTF-8"?><ThreadedComments xmlns="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments">' +

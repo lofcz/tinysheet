@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook, writeXlsx } from "@lofcz/ts-xlsx";
 import * as core from "@lofcz/tinysheet-core";
 import {
   parseExcel,
@@ -118,13 +118,13 @@ test("parseExcel imports openpyxl default-namespace bar charts as live charts", 
 });
 
 test("parseExcel keeps formula text without empty cached values", async () => {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new Workbook();
   const worksheet = workbook.addWorksheet("Grades");
   worksheet.getCell("A1").value = 1;
   worksheet.getCell("A2").value = 3;
   worksheet.getCell("A3").value = { formula: "AVERAGE(A1:A2)" };
 
-  const workbookBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const workbookBuffer = Buffer.from(writeXlsx(workbook));
   const result = await parseExcel(
     new File([workbookBuffer], "formulas.xlsx", {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

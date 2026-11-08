@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { importXlsx, readWithExcelJS, roundTrip, zipText } from "./helpers.mjs";
+import { importXlsx, readWorkbook, roundTrip, zipText } from "./helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -118,8 +118,8 @@ test("shapes are written as DrawingML in one drawing part", async () => {
   assert.match(sheetXml, /<drawing\b[^>]*r:id="rId\d+"\/>/);
   const types = await zipText(bytes, "[Content_Types].xml");
   assert.match(types, /PartName="\/xl\/drawings\/drawing1.xml"/);
-  // exceljs (what Excel-compatible readers see) still opens the file
-  const wb = await readWithExcelJS(bytes);
+  // ts-xlsx (what Excel-compatible readers see) still opens the file
+  const wb = await readWorkbook(bytes);
   assert.equal(wb.worksheets[0].name, "Sheet1");
 });
 

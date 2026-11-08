@@ -3,6 +3,44 @@ import { Context, getFlowdata } from "../context";
 import { CellMatrix } from "../types";
 import { getSheetIndex } from "../utils";
 
+const borderRowIndexes = new WeakMap<
+  any[],
+  { rows: Map<number, number[]>; ranges: number[] }
+>();
+
+/** Keep original write order (range/cell overrides), but visit only viewport rows. */
+function bordersInRows(borderInfo: any[], start: number, end: number) {
+  // Mutable recipes and public callers may edit in place. Cache only immutable
+  // committed lists; Immer gives any edited list a fresh identity.
+  if (!Object.isFrozen(borderInfo) || borderInfo.length < 1000)
+    return borderInfo;
+  let index = borderRowIndexes.get(borderInfo);
+  if (!index) {
+    index = { rows: new Map(), ranges: [] };
+    borderInfo.forEach((entry, i) => {
+      if (entry.rangeType !== "cell") index!.ranges.push(i);
+      else {
+        const r = entry.value.row_index;
+        let entries = index!.rows.get(r);
+        if (!entries) {
+          entries = [];
+          index!.rows.set(r, entries);
+        }
+        entries.push(i);
+      }
+    });
+    borderRowIndexes.set(borderInfo, index);
+  }
+  if (end - start + 1 >= index.rows.size) return borderInfo;
+  const candidates = index.ranges.slice();
+  for (let r = start; r <= end; r += 1) {
+    const entries = index.rows.get(r);
+    if (entries) entries.forEach((i) => candidates.push(i));
+  }
+  candidates.sort((a, b) => a - b);
+  return candidates.map((i) => borderInfo[i]);
+}
+
 // 获取表格边框数据计算值
 export function getBorderInfoComputeRange(
   ctx: Context,
@@ -31,9 +69,10 @@ export function getBorderInfoComputeRange(
   }
   if (!data || !cfg) return borderInfoCompute;
 
-  const { borderInfo } = cfg;
+  let { borderInfo } = cfg;
 
   if (!borderInfo || _.isEmpty(borderInfo)) return borderInfoCompute;
+  borderInfo = bordersInRows(borderInfo, dataset_row_st, dataset_row_ed);
 
   for (let i = 0; i < borderInfo.length; i += 1) {
     const { rangeType } = borderInfo[i];

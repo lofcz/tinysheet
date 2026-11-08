@@ -7,7 +7,7 @@ import JSZip from "jszip";
 import {
   cellMap,
   importXlsx,
-  readWithExcelJS,
+  readWorkbook,
   roundTrip,
   sheetByName,
   zipText,
@@ -75,8 +75,8 @@ test("checkbox cells export a feature property bag and round-trip", async () => 
   const xfCount = (cellXfs[2].match(/<xf\b/g) || []).length;
   assert.equal(Number(cellXfs[1]), xfCount);
 
-  // booleans stay booleans, the file still opens in ExcelJS, bold kept
-  const ws = (await readWithExcelJS(bytes)).getWorksheet("Tasks");
+  // booleans stay booleans, the file still opens in ts-xlsx, bold kept
+  const ws = (await readWorkbook(bytes)).getWorksheet("Tasks");
   assert.equal(ws.getCell("A1").value, true);
   assert.equal(ws.getCell("A2").value, false);
   assert.equal(ws.getCell("A2").font?.bold, true);

@@ -7,7 +7,7 @@
 // eslint-disable-next-line import/no-relative-packages
 import JSZip from "jszip";
 // eslint-disable-next-line import/no-relative-packages
-import ExcelJS from "@protobi/exceljs";
+import { Workbook, writeXlsx } from "@lofcz/ts-xlsx";
 import { importChartXml } from "../../../excel/src/chart/importXlsx";
 import {
   addChartsToXlsx,
@@ -282,9 +282,9 @@ describe("chartex parts", () => {
   });
 
   test("addChartsToXlsx writes chartex parts with an AlternateContent anchor", async () => {
-    const workbook = new ExcelJS.Workbook();
+    const workbook = new Workbook();
     workbook.addWorksheet("Data").getCell("A1").value = "x";
-    const buffer = await workbook.xlsx.writeBuffer();
+    const buffer = writeXlsx(workbook);
     const sheet = makeSheet();
     sheet.charts = [
       single({ type: "waterfall" }),

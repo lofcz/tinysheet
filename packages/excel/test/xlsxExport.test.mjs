@@ -1,53 +1,65 @@
-// T55: xlsx export fidelity. The exported file is read back with ExcelJS
-// (and as raw XML where ExcelJS hides details) to check what Excel sees.
+// T55: xlsx export fidelity. The exported file is read back with ts-xlsx
+// (and as raw XML where ts-xlsx hides details) to check what Excel sees.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { exportToXlsx, toExcelFormula } from "../dist/index.js";
-import { readWithExcelJS, zipText } from "./helpers.mjs";
+import { readWorkbook, zipText } from "./helpers.mjs";
 import { tinySheetWorkbook } from "./fixtures/tinysheetWorkbook.mjs";
 
 let exported;
 async function exportedFile() {
   if (!exported) {
     const bytes = await exportToXlsx(tinySheetWorkbook());
-    exported = { bytes, wb: await readWithExcelJS(bytes) };
+    exported = { bytes, wb: await readWorkbook(bytes) };
   }
   return exported;
 }
 
 test("formulas are written with Excel future-function prefixes", async () => {
-  const { wb } = await exportedFile();
+  const { wb, bytes } = await exportedFile();
   const ws = wb.getWorksheet("Report");
-  assert.equal(ws.getCell("B1").formula, "_xlfn.XLOOKUP(A2,A2:A3,A2:A3)");
-  assert.equal(ws.getCell("C1").formula, "_xlfn.LET(_xlpm.x,2,_xlpm.x*A2)");
-  assert.equal(
-    ws.getCell("C2").formula,
-    "_xlfn._xlws.FILTER(A2:A3,A2:A3>2000)"
-  );
-  assert.equal(ws.getCell("C3").formula, "SUM(_xlfn.ANCHORARRAY(B2))");
-  assert.equal(
-    ws.getCell("C4").formula,
-    '_xlfn.CONCAT("a","b")&_xlfn.TEXTJOIN(",",TRUE,"x","y")'
-  );
-  assert.equal(ws.getCell("C5").formula, "SUM(A2:A3)");
-  assert.equal(ws.getCell("C6").formula, "'Other Sheet'!B2");
+  const expected = {
+    B1: ["XLOOKUP(A2,A2:A3,A2:A3)", "_xlfn.XLOOKUP(A2,A2:A3,A2:A3)"],
+    C1: ["LET(x,2,x*A2)", "_xlfn.LET(_xlpm.x,2,_xlpm.x*A2)"],
+    C2: ["FILTER(A2:A3,A2:A3>2000)", "_xlfn._xlws.FILTER(A2:A3,A2:A3>2000)"],
+    C3: ["SUM(ANCHORARRAY(B2))", "SUM(_xlfn.ANCHORARRAY(B2))"],
+    C4: [
+      'CONCAT("a","b")&TEXTJOIN(",",TRUE,"x","y")',
+      '_xlfn.CONCAT("a","b")&_xlfn.TEXTJOIN(",",TRUE,"x","y")',
+    ],
+    C5: ["SUM(A2:A3)", "SUM(A2:A3)"],
+    C6: ["'Other Sheet'!B2", "'Other Sheet'!B2"],
+  };
+  const xml = await zipText(bytes, "xl/worksheets/sheet1.xml");
+  for (const [address, [logical, wire]] of Object.entries(expected)) {
+    assert.equal(ws.getCell(address).value.formula, logical);
+    const formula = new RegExp(
+      `<c\\b[^>]*r="${address}"[^>]*>[\\s\\S]*?<f[^>]*>([\\s\\S]*?)</f>`
+    )
+      .exec(xml)[1]
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&gt;/g, ">");
+    assert.equal(formula, wire);
+  }
 });
 
 test("formula cached values are written", async () => {
   const { wb } = await exportedFile();
   const ws = wb.getWorksheet("Report");
-  assert.equal(ws.getCell("B1").result, 1234.5);
-  assert.equal(ws.getCell("C4").result, "abx,y");
-  assert.deepEqual(ws.getCell("A5").result, { error: "#DIV/0!" });
+  assert.equal(ws.getCell("B1").value.result, 1234.5);
+  assert.equal(ws.getCell("C4").value.result, "abx,y");
+  assert.deepEqual(ws.getCell("A5").value.result, { error: "#DIV/0!" });
 });
 
 test("spilling formulas become dynamic-array formulas with cm metadata", async () => {
   const { bytes, wb } = await exportedFile();
   const ws = wb.getWorksheet("Report");
   const b2 = ws.getCell("B2");
-  assert.equal(b2.formula, "_xlfn.SEQUENCE(3)");
-  assert.equal(b2.model.shareType, "array");
-  assert.equal(b2.model.ref, "B2:B4");
+  assert.equal(b2.value.formula, "SEQUENCE(3)");
+  assert.equal(b2.value.shareType, "array");
+  assert.equal(b2.value.ref, "B2:B4");
   assert.equal(ws.getCell("B3").value, 2);
   assert.equal(ws.getCell("B4").value, 3);
 
@@ -75,7 +87,7 @@ test("values and number formats", async () => {
   assert.equal(ws.getCell("A2").value, 1234.5);
   assert.equal(ws.getCell("A2").numFmt, '"$"#,##0.00');
   assert.equal(ws.getCell("A3").numFmt, "yyyy-mm-dd");
-  // ExcelJS turns date-formatted serials into Dates: 45000 = 2023-03-15.
+  // ts-xlsx turns date-formatted serials into Dates: 45000 = 2023-03-15.
   assert.equal(ws.getCell("A3").value.toISOString().slice(0, 10), "2023-03-15");
   assert.equal(ws.getCell("A4").value, true);
   assert.equal(ws.getCell("A10").numFmt, "0.0%");
@@ -96,11 +108,11 @@ test("fonts, fills, alignment, wrap and rotation", async () => {
   assert.equal(a1.font.color.argb, "FFFF0000");
   assert.equal(a1.fill.fgColor.argb, "FFFFFF00");
   assert.equal(a1.alignment.horizontal, "center");
-  assert.equal(a1.alignment.vertical, "middle");
+  assert.equal(a1.alignment.vertical, "center");
   assert.equal(a1.alignment.wrapText, true);
   assert.equal(a1.alignment.textRotation, 45);
-  assert.equal(ws.getCell("C10").alignment.textRotation, "vertical");
-  assert.equal(ws.getCell("D10").alignment.textRotation, -45);
+  assert.equal(ws.getCell("C10").alignment.textRotation, 255);
+  assert.equal(ws.getCell("D10").alignment.textRotation, 135);
   assert.equal(ws.getCell("A6").alignment.horizontal, "right");
   assert.equal(ws.getCell("A6").alignment.vertical, "top");
 });
@@ -123,25 +135,28 @@ test("merges, column widths, row heights and hidden rows/columns", async () => {
   assert.equal(ws.getRow(5).height, 18.75);
   assert.equal(ws.getRow(9).hidden, true);
   assert.equal(ws.getColumn(6).hidden, true);
-  assert.equal(ws.getColumn(2).hidden, false);
+  assert.equal(ws.getColumn(2).hidden ?? false, false);
 });
 
 test("freeze panes, gridlines and zoom", async () => {
-  const { wb } = await exportedFile();
-  const [view] = wb.getWorksheet("Report").views;
+  const { wb, bytes } = await exportedFile();
+  const view = wb.getWorksheet("Report").view;
   assert.equal(view.state, "frozen");
   assert.equal(view.xSplit, 2);
   assert.equal(view.ySplit, 1);
   assert.equal(view.topLeftCell, "C2");
   assert.equal(view.showGridLines, false);
-  assert.equal(view.zoomScale, 125);
+  assert.match(
+    await zipText(bytes, "xl/worksheets/sheet1.xml"),
+    /<sheetView\b[^>]*zoomScale="125"/
+  );
 });
 
 test("hyperlinks: external targets and internal locations", async () => {
   const { bytes, wb } = await exportedFile();
   const ws = wb.getWorksheet("Report");
-  assert.equal(ws.getCell("D1").hyperlink, "https://example.com/a?b=1&c=2");
-  assert.equal(ws.getCell("D1").text, "site");
+  assert.equal(ws.hyperlinkAt("D1").target, "https://example.com/a?b=1&c=2");
+  assert.equal(ws.getCell("D1").value, "site");
 
   const sheetXml = await zipText(bytes, "xl/worksheets/sheet1.xml");
   const internal = /<hyperlink [^>]*ref="D2"[^>]*\/>/.exec(sheetXml)[0];
@@ -167,33 +182,33 @@ test("notes, rich text, tab colour and hidden sheets", async () => {
   assert.equal(rich[1].text, " and italic");
   assert.equal(rich[1].font.italic, true);
 
-  assert.equal(ws.properties.tabColor.argb, "FF00B050");
+  assert.equal(ws.tabColor.argb, "FF00B050");
   assert.equal(wb.getWorksheet("Other Sheet").state, "hidden");
 });
 
 test("data validation", async () => {
   const { wb } = await exportedFile();
   const ws = wb.getWorksheet("Report");
-  const list = ws.getCell("A8").dataValidation;
+  const list = ws.dataValidationAt("A8");
   assert.equal(list.type, "list");
   assert.deepEqual(list.formulae, ['"a,b,c"']);
   assert.equal(list.showErrorMessage, true);
   assert.equal(list.prompt, "pick one");
 
-  const whole = ws.getCell("B8").dataValidation;
+  const whole = ws.dataValidationAt("B8");
   assert.equal(whole.type, "whole");
   assert.equal(whole.operator, "between");
   assert.deepEqual(whole.formulae.map(Number), [1, 10]);
 
-  const date = ws.getCell("C8").dataValidation;
+  const date = ws.dataValidationAt("C8");
   assert.equal(date.type, "date");
   assert.equal(date.operator, "greaterThan");
 
-  const custom = ws.getCell("D8").dataValidation;
+  const custom = ws.dataValidationAt("D8");
   assert.equal(custom.type, "custom");
   assert.deepEqual(custom.formulae, ['ISNUMBER(SEARCH("x",D8))']);
 
-  const length = ws.getCell("E8").dataValidation;
+  const length = ws.dataValidationAt("E8");
   assert.equal(length.type, "textLength");
   assert.equal(length.operator, "lessThanOrEqual");
 });
@@ -206,8 +221,8 @@ test("sheets given as loaded data matrices export like celldata", async () => {
     data[r][c] = v;
   }
   const bytes = await exportToXlsx([{ ...report, celldata: undefined, data }]);
-  const ws = (await readWithExcelJS(bytes)).getWorksheet("Report");
-  assert.equal(ws.getCell("B1").formula, "_xlfn.XLOOKUP(A2,A2:A3,A2:A3)");
+  const ws = (await readWorkbook(bytes)).getWorksheet("Report");
+  assert.equal(ws.getCell("B1").value.formula, "XLOOKUP(A2,A2:A3,A2:A3)");
   assert.equal(ws.getCell("A2").value, 1234.5);
 });
 
@@ -217,7 +232,7 @@ test("sheet names are made valid and unique for Excel", async () => {
     { name: "A/B", celldata: [] },
     { name: "x".repeat(40), celldata: [] },
   ]);
-  const wb = await readWithExcelJS(bytes);
+  const wb = await readWorkbook(bytes);
   assert.deepEqual(
     wb.worksheets.map((ws) => ws.name),
     ["a_b", "A_B (2)", "x".repeat(31)]

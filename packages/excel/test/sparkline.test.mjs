@@ -1,12 +1,12 @@
 // Sparklines (R5, T82): x14:sparklineGroups in the worksheet extLst.
 import test from "node:test";
 import assert from "node:assert/strict";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook } from "@lofcz/ts-xlsx";
 import {
-  excelJsBytes,
+  xlsxBytes,
   importXlsx,
   patchZip,
-  readWithExcelJS,
+  readWorkbook,
   roundTrip,
   sheetByName,
   zipText,
@@ -129,7 +129,7 @@ test("sparkline groups survive export -> import with every option", async () => 
     /<x14:sparkline><xm:f>Data!A1:D1<\/xm:f><xm:sqref>E1<\/xm:sqref><\/x14:sparkline>/
   );
   // still a valid workbook for other readers
-  const wb = await readWithExcelJS(bytes);
+  const wb = await readWorkbook(bytes);
   assert.equal(wb.getWorksheet("Data").getCell("A1").value, 1);
 
   const imported = sheetByName(result, "Data").sparklineGroups;
@@ -180,7 +180,7 @@ test("sparklines share the extLst with conditional-format extensions", async () 
 });
 
 test("imports Excel-written sparklines with theme colours and defaults", async () => {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   const ws = wb.addWorksheet("Sheet1");
   ws.getCell("A1").value = 1;
   ws.getCell("B1").value = 2;
@@ -203,7 +203,7 @@ test("imports Excel-written sparklines with theme colours and defaults", async (
     "<xm:sqref>D1</xm:sqref></x14:sparkline></x14:sparklines>" +
     "</x14:sparklineGroup>" +
     "</x14:sparklineGroups></ext></extLst>";
-  const bytes = await patchZip(await excelJsBytes(wb), {
+  const bytes = await patchZip(await xlsxBytes(wb), {
     "xl/worksheets/sheet1.xml": (xml) =>
       xml.replace("</worksheet>", `${ext}</worksheet>`),
   });

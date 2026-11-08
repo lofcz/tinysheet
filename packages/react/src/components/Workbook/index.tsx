@@ -466,6 +466,17 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             const newData = originalData.map((sheet) => ({ ...sheet }));
             ensureSheetIndex(newData, mergedSettings.generateSheetId);
             newData.forEach((sheet) => {
+              // Imported outside borders can contain two entries per row.
+              // Like cell rows, this immutable list is copied on write; do not
+              // recursively freeze 100k border records on the first commit.
+              if (sheet.config?.borderInfo) {
+                sheet.config = {
+                  ...sheet.config,
+                  borderInfo: Object.freeze(
+                    sheet.config.borderInfo.slice()
+                  ) as any[],
+                };
+              }
               // pending sheets keep their celldata until expanded; a frozen
               // copy spares immer from walking it
               if (sheet.celldata && _.isEmpty(sheet.data)) {

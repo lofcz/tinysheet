@@ -33,6 +33,7 @@ import _ from "lodash";
 import { produce } from "immer";
 import WorkbookContext from "../../context";
 import Divider from "./Divider";
+import FilterValueList from "./FilterValueList";
 import Menu from "./Menu";
 import {
   ArrowDownAZ,
@@ -68,122 +69,6 @@ const FilterMenuChevron: React.FC = () => (
   />
 );
 
-const SelectItem: React.FC<{
-  item: FilterValue;
-  isChecked: (key: string) => boolean;
-  onChange: (item: FilterValue, checked: boolean) => void;
-  isItemVisible: (item: FilterValue) => boolean;
-}> = ({ item, isChecked, onChange, isItemVisible }) => {
-  const checked = useMemo(() => isChecked(item.key), [isChecked, item.key]);
-  return isItemVisible(item) ? (
-    <div className="select-item">
-      <input
-        className="filter-checkbox"
-        type="checkbox"
-        checked={checked}
-        onChange={() => {
-          onChange(item, !checked);
-        }}
-      />
-      <div>{item.text}</div>
-      <span className="count">{`( ${item.rows.length} )`}</span>
-    </div>
-  ) : null;
-};
-
-const DateSelectTreeItem: React.FC<{
-  item: FilterDate;
-  depth?: number;
-  initialExpand: (key: string) => boolean;
-  onExpand?: (key: string, expand: boolean) => void;
-  isChecked: (key: string) => boolean;
-  onChange: (data: FilterDate, checked: boolean) => void;
-  isItemVisible: (item: FilterDate) => boolean;
-}> = ({
-  item,
-  depth = 0,
-  initialExpand,
-  onExpand,
-  isChecked,
-  onChange,
-  isItemVisible,
-}) => {
-  const [expand, setExpand] = useState(initialExpand(item.key));
-  const checked = useMemo(() => isChecked(item.key), [isChecked, item.key]);
-
-  return isItemVisible(item) ? (
-    <div>
-      <div
-        className="select-item"
-        style={{ marginLeft: -2 + depth * 20 }}
-        onClick={() => {
-          onExpand?.(item.key, !expand);
-          setExpand(!expand);
-        }}
-        tabIndex={0}
-      >
-        {_.isEmpty(item.children) ? (
-          <div style={{ width: 10 }} />
-        ) : (
-          <div
-            className={`filter-caret ${expand ? "down" : "right"}`}
-            style={{ cursor: "pointer" }}
-          />
-        )}
-        <input
-          className="filter-checkbox"
-          type="checkbox"
-          checked={checked}
-          onChange={() => {
-            onChange(item, !checked);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          tabIndex={0}
-        />
-        <div>{item.text}</div>
-        <span className="count">{`( ${item.rows.length} )`}</span>
-      </div>
-      {expand &&
-        item.children.map((v) => (
-          <DateSelectTreeItem
-            key={v.key}
-            item={v}
-            depth={depth + 1}
-            {...{ initialExpand, onExpand, isChecked, onChange, isItemVisible }}
-          />
-        ))}
-    </div>
-  ) : null;
-};
-
-const DateSelectTree: React.FC<{
-  dates: FilterDate[];
-  initialExpand: (key: string) => boolean;
-  onExpand?: (key: string, expand: boolean) => void;
-  isChecked: (key: string) => boolean;
-  onChange: (item: FilterDate, checked: boolean) => void;
-  isItemVisible: (item: FilterDate) => boolean;
-}> = ({
-  dates,
-  initialExpand,
-  onExpand,
-  isChecked,
-  onChange,
-  isItemVisible,
-}) => {
-  return (
-    <>
-      {dates.map((v) => (
-        <DateSelectTreeItem
-          key={v.key}
-          item={v}
-          {...{ initialExpand, onExpand, isChecked, onChange, isItemVisible }}
-        />
-      ))}
-    </>
-  );
-};
-
 const FilterMenu: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -217,11 +102,13 @@ const FilterMenu: React.FC = () => {
     visibleRows: [],
     flattenValues: [],
   });
-  const [datesUncheck, setDatesUncheck] = useState<string[]>([]);
-  const [valuesUncheck, setValuesUncheck] = useState<string[]>([]);
-  const dateTreeExpandState = useRef<Record<string, boolean>>({});
-  const hiddenRows = useRef<number[]>([]);
-  const [showValues, setShowValues] = useState<string[]>([]);
+  const [datesUncheck, setDatesUncheck] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [valuesUncheck, setValuesUncheck] = useState<Set<string>>(
+    () => new Set()
+  );
+  const hiddenRows = useRef<Set<number>>(new Set());
   const [searchText, setSearchText] = useState("");
   const [subMenuPos, setSubMenuPos] = useState<{
     left?: number;
@@ -292,51 +179,55 @@ const FilterMenu: React.FC = () => {
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [close, filterMenuOpen]);
 
-  const initialExpand = useCallback((key: string) => {
-    const expand = dateTreeExpandState.current[key];
-    if (expand == null) {
-      dateTreeExpandState.current[key] = true;
-      return true;
-    }
-    return expand;
-  }, []);
-
-  const onExpand = useCallback((key: string, expand: boolean) => {
-    dateTreeExpandState.current[key] = expand;
-  }, []);
-
-  const searchValues = useMemo(
-    () =>
-      _.debounce((text: string) => {
-        setShowValues(
-          _.filter(
-            data.flattenValues,
-            (v) => v.toLowerCase().indexOf(text.toLowerCase()) > -1
-          )
-        );
-      }, 300),
-    [data.flattenValues]
-  );
-
   const selectAll = useCallback(() => {
-    setDatesUncheck([]);
-    setValuesUncheck([]);
-    hiddenRows.current = [];
+    setDatesUncheck(new Set());
+    setValuesUncheck(new Set());
+    hiddenRows.current = new Set();
   }, []);
 
   const clearAll = useCallback(() => {
-    setDatesUncheck(_.keys(data.dateRowMap));
-    setValuesUncheck(_.keys(data.valueRowMap));
-    hiddenRows.current = data.visibleRows;
-  }, [data.dateRowMap, data.valueRowMap, data.visibleRows]);
+    setDatesUncheck(new Set(Object.keys(data.dateRowMap)));
+    setValuesUncheck(new Set(Object.keys(data.valueRowMap)));
+    hiddenRows.current = new Set(data.visibleRows);
+  }, [data]);
 
   const inverseSelect = useCallback(() => {
-    setDatesUncheck(produce((draft) => _.xor(draft, _.keys(data.dateRowMap))));
-    setValuesUncheck(
-      produce((draft) => _.xor(draft, _.keys(data.valueRowMap)))
+    setDatesUncheck(
+      (prev) =>
+        new Set(Object.keys(data.dateRowMap).filter((key) => !prev.has(key)))
     );
-    hiddenRows.current = _.xor(hiddenRows.current, data.visibleRows);
-  }, [data.dateRowMap, data.valueRowMap, data.visibleRows]);
+    setValuesUncheck(
+      (prev) =>
+        new Set(Object.keys(data.valueRowMap).filter((key) => !prev.has(key)))
+    );
+    // Rows hidden by this column but excluded by another column stay excluded.
+    const next = new Set(hiddenRows.current);
+    data.visibleRows.forEach((row) => {
+      if (next.has(row)) next.delete(row);
+      else next.add(row);
+    });
+    hiddenRows.current = next;
+  }, [data]);
+
+  const onValueChange = useCallback(
+    (item: FilterDate | FilterValue, checked: boolean, date: boolean) => {
+      item.rows.forEach((row) => {
+        if (checked) hiddenRows.current.delete(row);
+        else hiddenRows.current.add(row);
+      });
+      const keys = date ? (item as FilterDate).dateValues : [item.key];
+      const setUnchecked = date ? setDatesUncheck : setValuesUncheck;
+      setUnchecked((prev) => {
+        const next = new Set(prev);
+        keys.forEach((key) => {
+          if (checked) next.delete(key);
+          else next.add(key);
+        });
+        return next;
+      });
+    },
+    []
+  );
 
   const onColorSelectChange = useCallback(
     (key: string, color: string, checked: boolean) => {
@@ -668,8 +559,7 @@ const FilterMenu: React.FC = () => {
     if (col == null) return;
     setSearchText("");
     setShowSubMenu(false);
-    dateTreeExpandState.current = {};
-    hiddenRows.current = filterContextMenu?.hiddenRows || [];
+    hiddenRows.current = new Set(filterContextMenu?.hiddenRows);
     const res = getFilterColumnValues(
       contextRef.current,
       col,
@@ -678,9 +568,8 @@ const FilterMenu: React.FC = () => {
       startCol
     );
     setData(_.omit(res, ["datesUncheck", "valuesUncheck"]));
-    setDatesUncheck(res.datesUncheck);
-    setValuesUncheck(res.valuesUncheck);
-    setShowValues(res.flattenValues);
+    setDatesUncheck(new Set(res.datesUncheck));
+    setValuesUncheck(new Set(res.valuesUncheck));
   }, [
     col,
     endRow,
@@ -691,11 +580,11 @@ const FilterMenu: React.FC = () => {
   ]);
 
   useEffect(() => {
-    if (col == null) return;
+    if (col == null || !showSubMenu) return;
     setFilterColors(
       getFilterColumnColors(contextRef.current, col, startRow, endRow)
     );
-  }, [col, endRow, startRow]);
+  }, [col, endRow, startRow, showSubMenu]);
 
   if (filterContextMenu == null) return null;
 
@@ -872,76 +761,18 @@ const FilterMenu: React.FC = () => {
                       value={searchText}
                       onChange={(e) => {
                         setSearchText(e.target.value);
-                        searchValues(e.target.value);
                       }}
                     />
                   </div>
-                  <div
-                    id="luckysheet-filter-byvalue-select"
-                    style={{ maxHeight: listBoxMaxHeight }}
-                  >
-                    <DateSelectTree
-                      dates={data.dates}
-                      onExpand={onExpand}
-                      initialExpand={initialExpand}
-                      isChecked={(key: string) =>
-                        _.find(
-                          datesUncheck,
-                          (v: string) => v.match(key) != null
-                        ) == null
-                      }
-                      onChange={(item: FilterDate, checked: boolean) => {
-                        const rows = hiddenRows.current;
-                        hiddenRows.current = checked
-                          ? _.without(rows, ...item.rows)
-                          : _.union(rows, item.rows);
-                        setDatesUncheck(
-                          produce((draft) => {
-                            return checked
-                              ? _.without(draft, ...item.dateValues)
-                              : _.union(draft, item.dateValues);
-                          })
-                        );
-                      }}
-                      isItemVisible={(item) => {
-                        return showValues.length === data.flattenValues.length
-                          ? true
-                          : _.findIndex(
-                              showValues,
-                              (v) => v.match(item.key) != null
-                            ) > -1;
-                      }}
-                    />
-                    {data.values.map((v) => (
-                      <SelectItem
-                        key={v.key}
-                        item={v}
-                        isChecked={(key: string) =>
-                          !_.includes(valuesUncheck, key)
-                        }
-                        onChange={(item: FilterValue, checked: boolean) => {
-                          const rows = hiddenRows.current;
-                          hiddenRows.current = checked
-                            ? _.without(rows, ...item.rows)
-                            : _.concat(rows, item.rows);
-                          setValuesUncheck(
-                            produce((draft) => {
-                              if (checked) {
-                                _.pull(draft, item.key);
-                              } else {
-                                draft.push(item.key);
-                              }
-                            })
-                          );
-                        }}
-                        isItemVisible={(item) => {
-                          return showValues.length === data.flattenValues.length
-                            ? true
-                            : _.includes(showValues, item.text);
-                        }}
-                      />
-                    ))}
-                  </div>
+                  <FilterValueList
+                    dates={data.dates}
+                    values={data.values}
+                    datesUncheck={datesUncheck}
+                    valuesUncheck={valuesUncheck}
+                    search={searchText}
+                    maxHeight={listBoxMaxHeight}
+                    onChange={onValueChange}
+                  />
                 </div>
               </div>
             );
@@ -957,7 +788,7 @@ const FilterMenu: React.FC = () => {
               if (col == null) return;
               setContext((draftCtx) => {
                 const rowHidden = _.reduce(
-                  hiddenRows.current,
+                  Array.from(hiddenRows.current),
                   (pre, curr) => {
                     pre[curr] = 0;
                     return pre;
@@ -966,7 +797,7 @@ const FilterMenu: React.FC = () => {
                 );
                 saveFilter(
                   draftCtx,
-                  hiddenRows.current.length > 0,
+                  hiddenRows.current.size > 0,
                   rowHidden,
                   { type: "values" },
                   startRow,
@@ -975,7 +806,7 @@ const FilterMenu: React.FC = () => {
                   startCol,
                   endCol
                 );
-                hiddenRows.current = [];
+                hiddenRows.current = new Set();
                 draftCtx.filterContextMenu = undefined;
               });
             }}
@@ -1132,7 +963,7 @@ const FilterMenu: React.FC = () => {
                       startCol,
                       endCol
                     );
-                    hiddenRows.current = [];
+                    hiddenRows.current = new Set();
                     draftCtx.filterContextMenu = undefined;
                   });
                 }}

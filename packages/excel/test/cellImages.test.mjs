@@ -7,7 +7,7 @@ import {
   cellMap,
   importXlsx,
   patchZip,
-  readWithExcelJS,
+  readWorkbook,
   roundTrip,
   sheetByName,
   zipText,
@@ -112,9 +112,13 @@ test("placed pictures are written as rich values in cells", async () => {
 
 test("web pictures and IMAGE() are _xlfn.IMAGE formulas", async () => {
   const { bytes } = await roundTrip(sheets());
-  const ws = (await readWithExcelJS(bytes)).getWorksheet("Pics");
-  assert.equal(ws.getCell("A3").formula, `_xlfn.IMAGE("${WEB}","Logo")`);
-  assert.equal(ws.getCell("A4").formula, `_xlfn.IMAGE("${WEB}","Logo",1)`);
+  const ws = (await readWorkbook(bytes)).getWorksheet("Pics");
+  assert.equal(ws.getCell("A3").value.formula, `IMAGE("${WEB}","Logo")`);
+  assert.equal(ws.getCell("A4").value.formula, `IMAGE("${WEB}","Logo",1)`);
+  assert.match(
+    await zipText(bytes, "xl/worksheets/sheet1.xml"),
+    /<f>_xlfn\.IMAGE\(/
+  );
   const workbookXml = await zipText(bytes, "xl/workbook.xml");
   assert.match(workbookXml, /fullCalcOnLoad="1"/);
 });

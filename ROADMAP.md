@@ -95,7 +95,7 @@ Carried over from phase 2:
 * Cut/paste doesn't move autofilter ranges; charts don't move their on-sheet position for cell shifts.
 * GETPIVOTDATA, RTD, CALL, REGISTER.ID, PY and FIELDVALUE are missing; IMAGE returns its alt text.
 * Point mode can't pick references on other sheets; Freeze Panes freezes from A1, not from the scrolled position.
-* exceljs can't write some validation and conditional-format details (e.g. list "Show dropdown"), and tables without data rows aren't exported.
+* The former workbook writer couldn't write some validation and conditional-format details (e.g. list "Show dropdown"), and tables without data rows aren't exported.
 * The excel package's toolbar labels are English only.
 
 ## Phase 2 plan (15 streams, 64 tasks)
@@ -310,7 +310,7 @@ code through the extension registries instead of editing it:
 - **T115** xlsx round-trip of table filters, calculated columns and slicers where feasible.
 
 ### R15 · I/O robustness and localisation
-- **T116** Fill the remaining exceljs gaps through zip post-processing (list validation "show dropdown", tables without data rows, any other dropped attributes).
+- **T116** Fill the remaining writer gaps through zip post-processing (list validation "show dropdown", tables without data rows, any other dropped attributes).
 - **T117** Localise the excel package's toolbar, import and export labels.
 - **T118** xlsx import robustness corpus: generated fixtures for every feature, no crashes, fidelity checks.
 - **T119** Import performance for large xlsx files (100k+ cells): measured, streamed, and off the main thread where possible.

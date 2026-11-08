@@ -5,7 +5,7 @@
 // eslint-disable-next-line import/no-relative-packages
 import JSZip from "jszip";
 // eslint-disable-next-line import/no-relative-packages
-import ExcelJS from "@protobi/exceljs";
+import { Workbook, writeXlsx } from "@lofcz/ts-xlsx";
 import { saveAs } from "file-saver";
 jest.mock("file-saver", () => ({ saveAs: jest.fn() }));
 import { importChartXml } from "../../../excel/src/chart/importXlsx";
@@ -183,11 +183,11 @@ describe("chart XML export", () => {
     });
   });
 
-  test("addChartsToXlsx adds chart parts next to exceljs output", async () => {
-    const workbook = new ExcelJS.Workbook();
+  test("addChartsToXlsx adds chart parts next to ts-xlsx output", async () => {
+    const workbook = new Workbook();
     const ws = workbook.addWorksheet("My Sheet");
     ws.getCell("A1").value = "x";
-    const buffer = await workbook.xlsx.writeBuffer();
+    const buffer = writeXlsx(workbook);
     const sheet = makeSheet();
     sheet.charts = [makeChart(), makeChart({ id: "c2", type: "pie" })];
     const out = await addChartsToXlsx(buffer, [sheet]);
@@ -210,9 +210,9 @@ describe("chart XML export", () => {
 
 describe("xlsx round trip", () => {
   test("macro-enabled imports download with the xlsm extension after Blob normalizes MIME casing", async () => {
-    const workbook = new ExcelJS.Workbook();
+    const workbook = new Workbook();
     workbook.addWorksheet("Data").getCell("A1").value = 1;
-    const zip = await JSZip.loadAsync(await workbook.xlsx.writeBuffer());
+    const zip = await JSZip.loadAsync(writeXlsx(workbook));
     const types = await zip.file("[Content_Types].xml").async("string");
     zip.file(
       "[Content_Types].xml",

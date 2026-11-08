@@ -1,6 +1,6 @@
 // Shared helpers for the node --test suites (they run against ../dist).
 import JSZip from "jszip";
-import ExcelJS from "@protobi/exceljs";
+import { readXlsx, writeXlsx } from "@lofcz/ts-xlsx";
 import { parseExcel, exportToXlsx } from "../dist/index.js";
 
 export const XLSX_TYPE =
@@ -17,11 +17,9 @@ export async function roundTrip(sheets, options) {
   return { bytes, result: await importXlsx(bytes) };
 }
 
-/** Read xlsx bytes back with ExcelJS (to check what Excel sees). */
-export async function readWithExcelJS(bytes) {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(Buffer.from(bytes));
-  return wb;
+/** Read xlsx bytes back with ts-xlsx (to check what Excel sees). */
+export async function readWorkbook(bytes) {
+  return readXlsx(new Uint8Array(bytes));
 }
 
 export async function zipText(bytes, path) {
@@ -40,8 +38,8 @@ export async function patchZip(bytes, patches) {
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
-export async function excelJsBytes(workbook) {
-  return Buffer.from(await workbook.xlsx.writeBuffer());
+export async function xlsxBytes(workbook) {
+  return Buffer.from(writeXlsx(workbook, { useSharedStrings: true }));
 }
 
 /** Cell values of a parsed sheet keyed "r_c". */

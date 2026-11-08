@@ -88,7 +88,7 @@ function errorValue(v: any): Xlsx.ErrorValue | null {
   return ERROR_VALUES.has(s) ? ({ error: s } as Xlsx.ErrorValue) : null;
 }
 
-/** The plain (non-formula) value of a cell as ExcelJS understands it. */
+/** The plain (non-formula) value of a cell in the ts-xlsx model. */
 export function plainCellValue(cell: any): Xlsx.CellValue {
   if (isInlineString(cell)) return inlineText(cell);
   const { v } = cell;
@@ -266,8 +266,8 @@ type PendingLink = {
 };
 
 /**
- * ExcelJS writes a hyperlink only as a cell value, so links on formula
- * cells and on empty cells are dropped; they are recorded here and added
+ * Links on formula cells and empty cells have no plain value to attach
+ * the link to; they are recorded here and added
  * by the "cell-hyperlinks" zip post-processor.
  */
 function collectLinksWithoutValue(ctx: SheetExportContext) {

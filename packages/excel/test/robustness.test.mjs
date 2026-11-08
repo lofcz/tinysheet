@@ -1,5 +1,5 @@
-// T118: xlsx import robustness corpus. Workbooks are generated with ExcelJS
-// (and patched at the zip level for what ExcelJS cannot produce), imported,
+// T118: xlsx import robustness corpus. Workbooks are generated with ts-xlsx
+// (and patched at the zip level for what ts-xlsx cannot produce), imported,
 // and checked for crash-freedom and fidelity. A mutation pass drops or
 // damages random parts of a rich workbook: the import must either succeed
 // or fail with an ExcelImportError, never with a TypeError & co.
@@ -9,7 +9,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import JSZip from "jszip";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook } from "@lofcz/ts-xlsx";
 import {
   ExcelImportError,
   decodeExcelImportResult,
@@ -18,7 +18,7 @@ import {
 } from "../dist/index.js";
 import {
   cellMap,
-  excelJsBytes,
+  xlsxBytes,
   importXlsx,
   patchZip,
   sheetByName,
@@ -50,25 +50,30 @@ async function importOk(bytes, label) {
 }
 
 async function richWorkbook() {
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Data", {
-    properties: { tabColor: { argb: "FF00B050" } },
-  });
-  ws.columns = [{ width: 20 }, { width: 12 }, { width: 12 }];
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("Data");
+  ws.tabColor = { argb: "FF00B050" };
+  [{ width: 20 }, { width: 12 }, { width: 12 }].forEach((column, i) =>
+    Object.assign(ws.getColumn(i + 1), column)
+  );
   ws.getRow(1).values = ["Name", "Qty", "Price", "Total"];
-  ws.getRow(1).font = { bold: true, color: { theme: 1 } };
+  for (const cell of ws.getRow(1).cells) {
+    cell.font = { bold: true, color: { theme: 1 } };
+  }
   for (let r = 2; r <= 20; r += 1) {
-    ws.getCell(r, 1).value = `Item ${r}`;
-    ws.getCell(r, 2).value = r;
-    ws.getCell(r, 3).value = r * 1.5;
-    ws.getCell(r, 3).numFmt = "#,##0.00";
-    ws.getCell(r, 4).value = {
+    ws.getRow(r).getCell(1).value = `Item ${r}`;
+    ws.getRow(r).getCell(2).value = r;
+    ws.getRow(r).getCell(3).value = r * 1.5;
+    ws.getRow(r).getCell(3).numFmt = "#,##0.00";
+    ws.getRow(r).getCell(4).value = {
       formula: `B${r}*C${r}`,
       result: r * r * 1.5,
-      ...(r === 2 ? { shareType: "shared", ref: "D2:D20" } : {}),
     };
     if (r > 2)
-      ws.getCell(r, 4).value = { sharedFormula: "D2", result: r * r * 1.5 };
+      ws.getRow(r).getCell(4).value = {
+        sharedFormula: "D2",
+        result: r * r * 1.5,
+      };
   }
   ws.getCell("F1").value = {
     formula: "_xlfn.SEQUENCE(3)",
@@ -79,7 +84,8 @@ async function richWorkbook() {
   ws.getCell("F2").value = 2;
   ws.getCell("F3").value = 3;
   ws.getCell("A22").note = "a note";
-  ws.getCell("A23").value = { text: "link", hyperlink: "https://example.com" };
+  ws.getCell("A23").value = "link";
+  ws.addHyperlink({ ref: "A23", target: "https://example.com" });
   ws.getCell("A24").value = {
     richText: [
       { text: "rich ", font: { bold: true } },
@@ -88,7 +94,7 @@ async function richWorkbook() {
   };
   ws.mergeCells("B22:C24");
   ws.getRow(23).hidden = true;
-  ws.getCell("E2").dataValidation = { type: "list", formulae: ['"a,b"'] };
+  ws.addDataValidation("E2", { type: "list", formulae: ['"a,b"'] });
   ws.addConditionalFormatting({
     ref: "B2:B20",
     rules: [
@@ -101,27 +107,26 @@ async function richWorkbook() {
       },
     ],
   });
-  ws.addTable({
+  const table = ws.addTable({
     name: "Sales",
     ref: "H1",
     headerRow: true,
     columns: [{ name: "K" }, { name: "V" }],
-    rows: [
-      ["a", 1],
-      ["b", 2],
-    ],
+    rowCount: 0,
   });
-  ws.views = [{ state: "frozen", xSplit: 1, ySplit: 1 }];
+  table.addRow(["a", 1]);
+  table.addRow(["b", 2]);
+  Object.assign(ws.view, { state: "frozen", xSplit: 1, ySplit: 1 });
   const img = wb.addImage({
     base64:
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
     extension: "png",
   });
-  ws.addImage(img, "H6:I8");
+  ws.addImage(img, { tl: { col: 7, row: 5 }, br: { col: 9, row: 8 } });
   const other = wb.addWorksheet("Q'uote ü 日本");
   other.getCell("A1").value = { formula: "Data!B2*2", result: 4 };
-  wb.definedNames.add("Data!$B$2:$B$20", "Qty");
-  return excelJsBytes(wb);
+  wb.defineName({ name: "Qty", refersTo: "Data!$B$2:$B$20" });
+  return xlsxBytes(wb);
 }
 
 // ---------------------------------------------------------------------------
@@ -129,21 +134,21 @@ async function richWorkbook() {
 // ---------------------------------------------------------------------------
 
 test("corpus: empty workbook sheet and one-cell sheet", async () => {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   wb.addWorksheet("Empty");
   wb.addWorksheet("One").getCell("A1").value = 42;
-  const result = await importOk(await excelJsBytes(wb), "empty");
+  const result = await importOk(await xlsxBytes(wb), "empty");
   assert.equal(sheetByName(result, "Empty").celldata.length, 0);
   assert.equal(cellMap(sheetByName(result, "One")).get("0_0").v, 42);
 });
 
 test("corpus: extreme addresses (XFD1, A1048576, XFD1048576)", async () => {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   const ws = wb.addWorksheet("Far");
   ws.getCell("XFD1").value = "right";
   ws.getCell("A1048576").value = "bottom";
   ws.getCell("XFD1048576").value = "corner";
-  const result = await importOk(await excelJsBytes(wb), "far");
+  const result = await importOk(await xlsxBytes(wb), "far");
   const cells = cellMap(sheetByName(result, "Far"));
   assert.equal(cells.get("0_16383").v, "right");
   assert.equal(cells.get("1048575_0").v, "bottom");
@@ -167,7 +172,7 @@ test("corpus: unicode sheet names with quotes survive formulas and names", async
 });
 
 test("corpus: every error value, booleans, rich text, long strings", async () => {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   const ws = wb.addWorksheet("Values");
   const errors = [
     "#NULL!",
@@ -179,7 +184,7 @@ test("corpus: every error value, booleans, rich text, long strings", async () =>
     "#N/A",
   ];
   errors.forEach((e, i) => {
-    ws.getCell(i + 1, 1).value = { error: e };
+    ws.getRow(i + 1).getCell(1).value = { error: e };
   });
   ws.getCell("B1").value = true;
   ws.getCell("B2").value = false;
@@ -187,7 +192,7 @@ test("corpus: every error value, booleans, rich text, long strings", async () =>
   ws.getCell("C2").value = 'tab\tand\nnewline & <tag> "quotes"';
   ws.getCell("C3").value = "  leading and trailing spaces  ";
   ws.getCell("C4").value = "😀 emoji and ünïcödé";
-  const result = await importOk(await excelJsBytes(wb), "values");
+  const result = await importOk(await xlsxBytes(wb), "values");
   const cells = cellMap(sheetByName(result, "Values"));
   errors.forEach((e, i) => {
     assert.equal(cells.get(`${i}_0`).v, e);
@@ -209,14 +214,14 @@ test("corpus: every error value, booleans, rich text, long strings", async () =>
 
 test("corpus: dates in the 1900 and 1904 systems", async () => {
   for (const date1904 of [false, true]) {
-    const wb = new ExcelJS.Workbook();
-    wb.properties.date1904 = date1904;
+    const wb = new Workbook();
+    wb.dateEpoch = date1904 ? 1904 : 1900;
     const ws = wb.addWorksheet("Dates");
     ws.getCell("A1").value = new Date(Date.UTC(2024, 1, 29));
     ws.getCell("A1").numFmt = "yyyy-mm-dd";
     ws.getCell("A2").value = new Date(Date.UTC(1900, 0, 1));
     ws.getCell("A2").numFmt = "yyyy-mm-dd";
-    const result = await importOk(await excelJsBytes(wb), `1904=${date1904}`);
+    const result = await importOk(await xlsxBytes(wb), `1904=${date1904}`);
     const cells = cellMap(sheetByName(result, "Dates"));
     assert.equal(cells.get("0_0").m, "2024-02-29", `1904=${date1904}`);
     assert.equal(cells.get("0_0").v, 45351, `1904=${date1904}`);
@@ -225,13 +230,13 @@ test("corpus: dates in the 1900 and 1904 systems", async () => {
 });
 
 test("corpus: merged range over hidden rows", async () => {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   const ws = wb.addWorksheet("M");
   ws.getCell("A1").value = "merged";
   ws.mergeCells("A1:B5");
   ws.getRow(2).hidden = true;
   ws.getRow(3).hidden = true;
-  const result = await importOk(await excelJsBytes(wb), "merge");
+  const result = await importOk(await xlsxBytes(wb), "merge");
   const sheet = sheetByName(result, "M");
   assert.deepEqual(sheet.config.merge["0_0"], { r: 0, c: 0, rs: 5, cs: 2 });
   assert.deepEqual(Object.keys(sheet.config.rowhidden).sort(), ["1", "2"]);
@@ -242,11 +247,11 @@ test("corpus: merged range over hidden rows", async () => {
 });
 
 test("corpus: validation and links over whole columns stay bounded", async () => {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   const ws = wb.addWorksheet("Big");
   ws.getCell("A1").value = 1;
-  ws.dataValidations.add("B1:B1048576", { type: "list", formulae: ['"x,y"'] });
-  const bytes = await excelJsBytes(wb);
+  ws.addDataValidation("B1:B1048576", { type: "list", formulae: ['"x,y"'] });
+  const bytes = await xlsxBytes(wb);
   const t0 = Date.now();
   const result = await importOk(bytes, "big");
   assert.ok(

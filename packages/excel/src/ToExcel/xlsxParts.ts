@@ -2,8 +2,7 @@
  * String helpers for editing the parts of an xlsx package (OPC): content
  * types, relationships and worksheet children in schema order. They are
  * pure (XML text in, XML text out) and used by the zip post-processors
- * (see postProcessors.ts), so features that write parts ExcelJS cannot
- * create do not each reinvent them.
+ * (see postProcessors.ts) to share package-editing logic across features.
  */
 
 export const REL_NS =

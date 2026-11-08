@@ -6,7 +6,7 @@ export type XlsxPostProcessInfo = {
   visibleNotes?: Record<number, { r: number; c: number }[]>;
   /**
    * Worksheet id -> edits of the written worksheet XML, for elements or
-   * attributes ExcelJS cannot write (feature writers push them).
+   * additional package attributes (feature writers push them).
    */
   sheetXmlFixups?: Record<number, ((xml: string) => string)[]>;
   /** Further zip edits registered by export features (run last). */

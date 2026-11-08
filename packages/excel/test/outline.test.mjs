@@ -3,9 +3,9 @@
 // outlinePr summaryBelow/summaryRight.
 import test from "node:test";
 import assert from "node:assert/strict";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook } from "@lofcz/ts-xlsx";
 import {
-  excelJsBytes,
+  xlsxBytes,
   importXlsx,
   roundTrip,
   sheetByName,
@@ -49,7 +49,7 @@ test("row and column outline levels, collapsed groups and summary position", asy
   assert.match(xml, /<outlinePr[^>]*summaryRight="0"/);
   assert.match(xml, /<row r="2"[^>]*hidden="1"[^>]*outlineLevel="2"/);
   assert.match(xml, /<row r="4"[^>]*outlineLevel="1" collapsed="1"/);
-  // detail rows are not "collapsed" (ExcelJS would mark every deepest row)
+  // detail rows are not "collapsed" (ts-xlsx would mark every deepest row)
   assert.doesNotMatch(xml, /<row r="2"[^>]*collapsed/);
   assert.match(xml, /<col min="1" max="1"[^>]*collapsed="1"/);
   assert.match(
@@ -84,22 +84,20 @@ test("a collapsed summary row past the data is still written", async () => {
   assert.deepEqual(cfg.rowOutlineCollapsed, { 3: 1 });
 });
 
-test("outlines written by Excel (ExcelJS) are read", async () => {
-  const wb = new ExcelJS.Workbook();
+test("outlines written by Excel (ts-xlsx) are read", async () => {
+  const wb = new Workbook();
   const ws = wb.addWorksheet("FromExcel");
-  for (let r = 1; r <= 6; r += 1) ws.getCell(r, 1).value = r;
+  for (let r = 1; r <= 6; r += 1) ws.getRow(r).getCell(1).value = r;
   ws.getRow(2).outlineLevel = 1;
   ws.getRow(3).outlineLevel = 1;
   ws.getColumn(2).outlineLevel = 1;
-  ws.properties.outlineLevelRow = 1;
-  ws.properties.outlineLevelCol = 1;
-  ws.properties.outlineProperties = { summaryBelow: false, summaryRight: true };
-  const result = await importXlsx(await excelJsBytes(wb));
+  Object.assign(ws.outline, { summaryBelow: false, summaryRight: true });
+  const result = await importXlsx(await xlsxBytes(wb));
   const cfg = sheetByName(result, "FromExcel").config;
   assert.deepEqual(cfg.rowOutlineLevel, { 1: 1, 2: 1 });
   assert.deepEqual(cfg.colOutlineLevel, { 1: 1 });
   assert.equal(cfg.outlineSummaryBelow, false);
-  // ExcelJS marks level-1 rows "collapsed" although nothing is hidden:
+  // ts-xlsx marks level-1 rows "collapsed" although nothing is hidden:
   // no group is collapsed then
   assert.equal(cfg.rowOutlineCollapsed, undefined);
 });

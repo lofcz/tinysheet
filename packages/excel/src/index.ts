@@ -39,7 +39,7 @@ export type {
 } from "./ToExcel/buildWorkbook";
 export { postProcessXlsx } from "./ToExcel/postProcess";
 export type { XlsxPostProcessInfo } from "./ToExcel/postProcess";
-// Zip post-processors: the extension hook for parts ExcelJS cannot write.
+// Zip post-processors: the extension hook for additional package parts.
 export {
   xlsxPostProcessors,
   registerXlsxPostProcessor,

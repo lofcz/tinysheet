@@ -107,6 +107,15 @@ jobs:
           # the global CLI: npx in the repo would resolve against the
           # workspace's package.json (and its overrides)
           playwright install --with-deps chromium
+      - name: Large workbook browser regression (ts-xlsx + TinySheet)
+        run: PERF_REPORT=performance.json bun run test:perf
+      - name: Upload large workbook timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: large-workbook-performance
+          path: performance.json
+          retention-days: 7
       - name: Build Storybook and run e2e tests
         run: bun run test:e2e
       - name: Upload traces

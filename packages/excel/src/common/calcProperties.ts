@@ -5,8 +5,8 @@
  * calculation.ts); the file stores
  *   <calcPr calcId="191029" calcMode="manual" iterate="1"
  *           iterateCount="50" iterateDelta="0.0001" fullCalcOnLoad="1"/>
- * ExcelJS only writes `calcId` / `fullCalcOnLoad`, so the export rewrites
- * the element in the zip (a post-processing fixup).
+ * Export writes the complete calculation settings element through the
+ * zip post-processor.
  */
 import type JSZip from "jszip";
 import type { WorkbookExportContext } from "../ToExcel/buildWorkbook";

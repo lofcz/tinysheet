@@ -22,7 +22,9 @@ export function valueIsError(value: string) {
 
 // 是否是空值
 export function isRealNull(val: any) {
-  return _.isNil(val) || val.toString().replace(/\s/g, "") === "";
+  if (val == null) return true;
+  if (typeof val === "number" || typeof val === "boolean") return false;
+  return val.toString().trim() === "";
 }
 
 // 是否是纯数字

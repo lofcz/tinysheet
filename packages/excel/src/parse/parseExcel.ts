@@ -3,8 +3,7 @@ import { HandleZip } from "../ToFortuneSheet/HandleZip";
 import { CsvParseOptions, parseCsv } from "../csv";
 import type { ExcelImportResult, ExcelImportSizing } from "./types";
 import { workBookFile } from "../common/constant";
-import { encodeWorkbookBytes } from "../preservation";
-import { exportToXlsx } from "../ToExcel/buildWorkbook";
+import { encodeWorkbookBytes, snapshotWorkbookSheets } from "../preservation";
 
 /** Why a file could not be imported (`code`), with a readable message. */
 export class ExcelImportError extends Error {
@@ -123,16 +122,13 @@ export async function parseExcel(
   const serialized = fortuneFile.serialize();
   const sheets = serialized.sheets as unknown as ExcelImportResult["sheets"];
   if (options.preserve === false) return { sheets, sizing: sizingOf(sheets) };
-  const baseline = await exportToXlsx(sheets, {
-    timestamp: new Date("2000-01-01T00:00:00.000Z"),
-  });
   return {
     sheets,
     sizing: sizingOf(sheets),
     preservation: {
-      version: 1,
+      version: 2,
       source: encodeWorkbookBytes(new Uint8Array(buffer)),
-      baseline: encodeWorkbookBytes(baseline),
+      baselineSheetsZip: await snapshotWorkbookSheets(sheets),
       sheets: sheets.map((sheet) => ({
         id: String(sheet.id),
         name: sheet.name,

@@ -1,5 +1,5 @@
 /**
- * Table details ExcelJS cannot write, added to the xlsx zip after it was
+ * Table details added to the xlsx zip after it was
  * written (the "table-extras" post-processor, postProcessors.ts):
  *
  * - the table's filter state: `<autoFilter>` with one `<filterColumn>` per
@@ -16,7 +16,7 @@
  *
  * A slicer's selection is the table's filter on its column, so Excel shows
  * the same selection. Not written: "hide items with no data" (TinySheet
- * only) and slicers of tables ExcelJS could not write.
+ * only) and slicers whose tables were not exported.
  */
 import type JSZip from "jszip";
 import { qualifyStructuredReferences } from "../common/structuredRefs";

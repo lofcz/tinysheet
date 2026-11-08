@@ -1,6 +1,6 @@
 /**
  * Zip-level plumbing for adding DrawingML objects to an xlsx package that
- * exceljs wrote: find (or create) a worksheet's drawing part, and add
+ * ts-xlsx wrote: find (or create) a worksheet's drawing part, and add
  * relationships and content types. Every feature that adds drawing
  * anchors (shapes, and possibly charts) shares one drawing part per sheet,
  * as Excel does.

@@ -1,7 +1,7 @@
 /**
  * Data validation export (TinySheet `sheet.dataVerification` -> Excel).
  *
- * TinySheet keeps one rule per cell (`"r_c"` keys); ExcelJS squeezes equal
+ * TinySheet keeps one rule per cell (`"r_c"` keys); export groups equal
  * neighbouring rules back into ranges. Supported: dropdown (list or range),
  * checkbox (as a two-value list), number / integer / decimal, text length,
  * date, text contains / excludes / equals (as custom formulas) and custom
@@ -16,7 +16,7 @@
  * Error styles (stop / warning / information), error and input titles and
  * messages, and "ignore blank" are kept. A dropdown without the in-cell
  * arrow (`showDropdown: false`) gets Excel's inverted `showDropDown="1"`
- * from the "data-validation" zip post-processor (ExcelJS drops it).
+ * from the "data-validation" zip post-processor.
  */
 import type * as Xlsx from "@lofcz/ts-xlsx/core";
 import { cellAddress, shiftFormula } from "../common/formulaText";
@@ -107,7 +107,7 @@ export function getExcelValidation(
       else if (RANGE_RE.test(v)) formula = moved(v);
       else formula = quoteText(String(item.value1 ?? ""));
       const dv: any = { ...base, type: "list", formulae: [formula] };
-      // not rendered by ExcelJS: keeps rules with and without the arrow
+      // Keep rules with and without the arrow
       // apart when it merges equal neighbouring rules
       if (item.showDropdown === false) dv.showDropDown = true;
       return dv;

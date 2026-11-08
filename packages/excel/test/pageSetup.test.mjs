@@ -2,12 +2,12 @@
 // headerFooter, rowBreaks/colBreaks, print areas and print titles.
 import test from "node:test";
 import assert from "node:assert/strict";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook } from "@lofcz/ts-xlsx";
 import {
-  excelJsBytes,
+  xlsxBytes,
   importXlsx,
   patchZip,
-  readWithExcelJS,
+  readWorkbook,
   roundTrip,
   sheetByName,
   zipText,
@@ -90,18 +90,25 @@ test("a full Page Setup survives export -> import", async () => {
   );
 });
 
-test("ExcelJS (Excel's view) reads the written page setup", async () => {
+test("ts-xlsx (Excel's view) reads the written page setup", async () => {
   const { bytes } = await roundTrip([sheet("S", FULL)]);
-  const ws = (await readWithExcelJS(bytes)).getWorksheet("S");
+  const workbook = await readWorkbook(bytes);
+  const ws = workbook.getWorksheet("S");
   assert.equal(ws.pageSetup.orientation, "landscape");
   assert.equal(ws.pageSetup.paperSize, 9);
   assert.equal(ws.pageSetup.fitToPage, true);
   assert.equal(ws.pageSetup.fitToHeight, 0);
-  assert.equal(ws.pageSetup.margins.top, 1);
-  assert.equal(ws.pageSetup.showGridLines, true);
+  assert.equal(ws.pageMargins.top, 1);
+  assert.equal(ws.printOptions.gridLines, true);
   assert.equal(ws.headerFooter.oddHeader, "&L&B&A&CReport&R&D");
-  assert.equal(ws.pageSetup.printTitlesRow, "1:2");
-  assert.match(ws.pageSetup.printArea, /^A1:H40/);
+  assert.equal(
+    workbook.definedNames.find((n) => n.name === "_xlnm.Print_Titles").refersTo,
+    "'S'!$A:$A,'S'!$1:$2"
+  );
+  assert.match(
+    workbook.definedNames.find((n) => n.name === "_xlnm.Print_Area").refersTo,
+    /\$A\$1:\$H\$40/
+  );
 });
 
 test("a sheet without page setup writes Excel's defaults and imports none", async () => {
@@ -123,28 +130,35 @@ test("print names go to the right sheet of a multi-sheet workbook", async () => 
 });
 
 test("imports page layout written by other tools", async () => {
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Report", {
-    pageSetup: {
-      paperSize: 5,
-      orientation: "portrait",
-      scale: 75,
-      margins: {
-        left: 0.25,
-        right: 0.25,
-        top: 0.75,
-        bottom: 0.75,
-        header: 0.3,
-        footer: 0.3,
-      },
-      printArea: "A1:D20",
-      printTitlesRow: "1:1",
-    },
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("Report");
+  Object.assign(ws.pageSetup, {
+    paperSize: 5,
+    orientation: "portrait",
+    scale: 75,
+  });
+  Object.assign(ws.pageMargins, {
+    left: 0.25,
+    right: 0.25,
+    top: 0.75,
+    bottom: 0.75,
+    header: 0.3,
+    footer: 0.3,
+  });
+  wb.defineName({
+    name: "_xlnm.Print_Area",
+    scope: "Report",
+    refersTo: "'Report'!$A$1:$D$20",
+  });
+  wb.defineName({
+    name: "_xlnm.Print_Titles",
+    scope: "Report",
+    refersTo: "'Report'!$1:$1",
   });
   ws.getCell("A1").value = "Title";
   ws.headerFooter.oddFooter = "&CPage &P";
-  ws.getRow(10).addPageBreak();
-  const bytes = await patchZip(await excelJsBytes(wb), {
+  ws.rowBreaks.push({ id: 10 });
+  const bytes = await patchZip(await xlsxBytes(wb), {
     "xl/worksheets/sheet1.xml": (xml) =>
       xml.replace(
         "</rowBreaks>",

@@ -716,14 +716,16 @@ export class FortuneFile {
         sheetout.celldata.length = n;
         // OOXML may omit empty covered cells. TinySheet still needs their merge
         // ownership markers; the bounded merge map excludes enormous ranges.
-        const present = new Set(
-          sheetout.celldata.map((cell: any) => `${cell.r}_${cell.c}`)
-        );
-        merges.forEach((merge, key) => {
-          if (present.has(key)) return;
-          const [r, c] = key.split("_").map(Number);
-          sheetout.celldata.push({ r, c, v: { mc: { ...merge } } });
-        });
+        if (merges.size) {
+          const present = new Set(
+            sheetout.celldata.map((cell: any) => `${cell.r}_${cell.c}`)
+          );
+          merges.forEach((merge, key) => {
+            if (present.has(key)) return;
+            const [r, c] = key.split("_").map(Number);
+            sheetout.celldata.push({ r, c, v: { mc: { ...merge } } });
+          });
+        }
       }
 
       if (sheet.chart != null) {

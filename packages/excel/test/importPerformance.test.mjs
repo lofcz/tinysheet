@@ -7,14 +7,14 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook } from "@lofcz/ts-xlsx";
 import { parseExcel, parseExcelInWorker } from "../dist/index.js";
-import { cellMap, excelJsBytes } from "./helpers.mjs";
+import { cellMap, xlsxBytes } from "./helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function bigWorkbook(rows, cols) {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   const ws = wb.addWorksheet("Data");
   for (let r = 1; r <= rows; r += 1) {
     const row = ws.getRow(r);
@@ -29,7 +29,7 @@ async function bigWorkbook(rows, cols) {
       } else cell.value = { formula: `A${r}*2`, result: r * 2 };
     }
   }
-  return excelJsBytes(wb);
+  return xlsxBytes(wb);
 }
 
 let bytes;
@@ -53,7 +53,7 @@ test("100k cells import quickly and completely", async (t) => {
   assert.equal(cells.get("24999_1").fc, "#FF0000");
   assert.equal(cells.get("24999_2").f, "=A25000*2");
   assert.equal(cells.get("24999_3").v, "text 0");
-  // before the T119 work this took ~3 s on a quiet machine; now ~0.5 s
+  // Coarse CI guard; the browser benchmark reports interactive timings too.
   assert.ok(ms < 20000, `${ms} ms`);
 });
 
@@ -64,12 +64,15 @@ function nodeWorker(file) {
   return {
     worker,
     addEventListener(type, fn) {
-      const wrapped = (data) => fn({ data });
-      listeners.set(fn, wrapped);
+      const wrapped = type === "message" ? (data) => fn({ data }) : fn;
+      if (!listeners.has(type)) listeners.set(type, new Map());
+      listeners.get(type).set(fn, wrapped);
       worker.on(type, wrapped);
     },
     removeEventListener(type, fn) {
-      worker.off(type, listeners.get(fn));
+      const wrapped = listeners.get(type)?.get(fn);
+      if (wrapped) worker.off(type, wrapped);
+      listeners.get(type)?.delete(fn);
     },
     postMessage(message, transfer) {
       worker.postMessage(message, transfer);

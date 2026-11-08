@@ -62,7 +62,7 @@ export function colorToHex6(color: string | null | undefined): string | null {
   return null;
 }
 
-/** "RRGGBB" / "#RRGGBB" -> ExcelJS ARGB ("FFRRGGBB"). */
+/** "RRGGBB" / "#RRGGBB" -> OOXML ARGB ("FFRRGGBB"). */
 export function colorToArgb(color: string | null | undefined): string | null {
   const hex = colorToHex6(color);
   return hex ? `FF${hex}` : null;

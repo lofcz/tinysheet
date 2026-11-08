@@ -4,7 +4,7 @@
  * rich text), `xdr:cxnSp` for lines and connectors and `xdr:grpSp` for
  * groups, each in a `twoCellAnchor` (shapes move and size with cells).
  *
- * exceljs cannot write shapes, so the anchors are added to the written zip,
+ * Shape anchors are added to the written zip,
  * in the same drawing part as the sheet's pictures and charts.
  */
 import JSZip from "jszip";
@@ -256,7 +256,7 @@ export function shapesToAnchorsXml(sheet: Sheet, firstId: number): string {
 }
 
 /**
- * Add every sheet's shapes to an xlsx buffer written by exceljs (sheets are
+ * Add every sheet's shapes to an xlsx buffer written by ts-xlsx (sheets are
  * matched by name). Anchors join the sheet's existing drawing part.
  */
 /** Add the sheets' shapes to the drawing parts of an open xlsx package. */

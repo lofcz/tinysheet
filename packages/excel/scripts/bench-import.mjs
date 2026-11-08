@@ -1,10 +1,10 @@
-// Import benchmark: builds an xlsx with ExcelJS (cached in the OS temp dir)
+// Import benchmark: builds an xlsx with ts-xlsx (cached in the OS temp dir)
 // and times parseExcel on it.
 //
 //   node packages/excel/scripts/bench-import.mjs [rows] [cols]
 //
 // Run `bun run build` first; it measures ../dist.
-import ExcelJS from "@protobi/exceljs";
+import { Workbook, writeXlsx } from "@lofcz/ts-xlsx";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -21,7 +21,7 @@ const cols = Number(process.argv[3] || 10);
 const cache = path.join(os.tmpdir(), `tinysheet-bench-${rows}x${cols}.xlsx`);
 
 async function build() {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   const ws = wb.addWorksheet("Data");
   for (let r = 1; r <= rows; r += 1) {
     const row = ws.getRow(r);
@@ -36,7 +36,7 @@ async function build() {
       } else cell.value = { formula: `A${r}*2`, result: r * 2 };
     }
   }
-  return Buffer.from(await wb.xlsx.writeBuffer());
+  return Buffer.from(writeXlsx(wb));
 }
 
 let bytes;

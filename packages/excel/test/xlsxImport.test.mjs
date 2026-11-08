@@ -1,38 +1,55 @@
-// T56: xlsx import fidelity. Workbooks are generated with ExcelJS (and
-// patched at the XML level where ExcelJS can't express a feature).
+// T56: xlsx import fidelity. Workbooks are generated with ts-xlsx (and
+// patched at the XML level where ts-xlsx can't express a feature).
 import test from "node:test";
 import assert from "node:assert/strict";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook } from "@lofcz/ts-xlsx";
 import { fromExcelFormula, shiftFormula } from "../dist/index.js";
 import {
   cellMap,
-  excelJsBytes,
+  xlsxBytes,
   importXlsx,
   patchZip,
   sheetByName,
 } from "./helpers.mjs";
 
 async function importWorkbook(build, patches) {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   await build(wb);
-  let bytes = await excelJsBytes(wb);
+  let bytes = await xlsxBytes(wb);
   if (patches) bytes = await patchZip(bytes, patches);
   return importXlsx(bytes);
 }
 
 test("shared formulas are registered once with and without a calculation chain", async () => {
-  for (const chain of [null, '<c r="B1" i="1"/><c r="B2"/><c r="B2"/><c r="B3"/>']) {
-    const result = await importWorkbook((wb) => {
-      const ws = wb.addWorksheet("Data");
-      ws.getCell("B1").value = { formula: "A1*2", result: 2, shareType: "shared", ref: "B1:B3" };
-      ws.getCell("B2").value = { sharedFormula: "B1", result: 4 };
-      ws.getCell("B3").value = { sharedFormula: "B1", result: 6 };
-    }, chain ? {
-      "xl/calcChain.xml": () => `<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${chain}</calcChain>`,
-      "xl/_rels/workbook.xml.rels": xml => xml.replace("</Relationships>", '<Relationship Id="rIdChain" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain" Target="calcChain.xml"/></Relationships>'),
-    } : {});
+  for (const chain of [
+    null,
+    '<c r="B1" i="1"/><c r="B2"/><c r="B2"/><c r="B3"/>',
+  ]) {
+    const result = await importWorkbook(
+      (wb) => {
+        const ws = wb.addWorksheet("Data");
+        ws.getCell("B1").value = { formula: "A1*2", result: 2 };
+        ws.getCell("B2").value = { sharedFormula: "B1", result: 4 };
+        ws.getCell("B3").value = { sharedFormula: "B1", result: 6 };
+      },
+      chain
+        ? {
+            "xl/calcChain.xml": () =>
+              `<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${chain}</calcChain>`,
+            "xl/_rels/workbook.xml.rels": (xml) =>
+              xml.replace(
+                "</Relationships>",
+                '<Relationship Id="rIdChain" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain" Target="calcChain.xml"/></Relationships>'
+              ),
+          }
+        : {}
+    );
     const sheet = result.sheets[0];
-    assert.deepEqual(sheet.calcChain.map(c => `${c.r}_${c.c}`).sort(), ["0_1", "1_1", "2_1"]);
+    assert.deepEqual(sheet.calcChain.map((c) => `${c.r}_${c.c}`).sort(), [
+      "0_1",
+      "1_1",
+      "2_1",
+    ]);
     assert.equal(cellMap(sheet).get("2_1").f, "=A3*2");
   }
 });
@@ -44,8 +61,6 @@ test("shared formulas are expanded with relative references shifted", async () =
     ws.getCell("B1").value = {
       formula: "A1*$A$1+SUM(A$1:A1)",
       result: 2,
-      shareType: "shared",
-      ref: "B1:C3",
     };
     ws.getCell("B2").value = { sharedFormula: "B1", result: 5 };
     ws.getCell("B3").value = { sharedFormula: "B1", result: 9 };
@@ -145,11 +160,11 @@ test("theme colours with tint and indexed colours", async () => {
     ws.getCell("A4").font = { color: { theme: 5, tint: -0.25 } };
   });
   const cells = cellMap(result.sheets[0]);
-  // ExcelJS's default theme: accent1 4F81BD, accent2 C0504D, text1 = black.
-  assert.equal(cells.get("0_0").fc.toUpperCase(), "#95B3D7");
+  // Office theme: accent1 4472C4, accent2 ED7D31, text1 = black.
+  assert.equal(cells.get("0_0").fc.toUpperCase(), "#8FAADC");
   assert.equal(cells.get("1_0").bg.toUpperCase(), "#000000");
   assert.equal(cells.get("2_0").bg.toUpperCase(), "#FFFF00");
-  assert.equal(cells.get("3_0").fc.toUpperCase(), "#953735");
+  assert.equal(cells.get("3_0").fc.toUpperCase(), "#C55A11");
 });
 
 test("rich text runs, inline strings and line breaks", async () => {
@@ -169,8 +184,8 @@ test("rich text runs, inline strings and line breaks", async () => {
       // An inline rich string (t="inlineStr") as some generators write them.
       "xl/worksheets/sheet1.xml": (xml) =>
         xml.replace(
-          /<c r="A3"([^>]*) t="s"><v>\d+<\/v><\/c>/,
-          '<c r="A3"$1 t="inlineStr"><is><r><rPr><b/></rPr><t>in</t></r><r><t>line</t></r></is></c>'
+          /<c\b[^>]*\br="A3"[^>]*>[\s\S]*?<\/c>/,
+          '<c r="A3" t="inlineStr"><is><r><rPr><b/></rPr><t>in</t></r><r><t>line</t></r></is></c>'
         ),
     }
   );
@@ -217,7 +232,14 @@ test("number formats: built-in ids and custom codes", async () => {
       "xl/styles.xml": (xml) => {
         // Point the "0.00" (id 2) cell style at built-in currency id 7 and
         // add a date style with built-in id 14.
-        return xml.replace(/numFmtId="2"/, 'numFmtId="7"');
+        const id =
+          /<numFmt\b[^>]*numFmtId="(\d+)"[^>]*formatCode="0.00"/.exec(
+            xml
+          )?.[1] ?? "2";
+        return xml.replace(
+          new RegExp(`(<xf\\b[^>]*numFmtId=")${id}("[^>]*>)`, "g"),
+          "$17$2"
+        );
       },
     }
   );
@@ -252,7 +274,7 @@ test("booleans, errors and string formula results", async () => {
 
 test("date1904 workbooks are shifted to the 1900 date system", async () => {
   const result = await importWorkbook((wb) => {
-    wb.properties.date1904 = true;
+    wb.dateEpoch = true ? 1904 : 1900;
     const ws = wb.addWorksheet("D");
     ws.getCell("A1").value = 0;
     ws.getCell("A1").numFmt = "yyyy-mm-dd";
@@ -286,34 +308,28 @@ test("column widths from default and custom widths, row heights", async () => {
 
 test("hidden and very hidden sheets, tab colours", async () => {
   const result = await importWorkbook((wb) => {
-    wb.addWorksheet("Visible", {
-      properties: { tabColor: { argb: "FF00B050" } },
-    });
+    wb.addWorksheet("Visible").tabColor = { argb: "FF00B050" };
     const hidden = wb.addWorksheet("Hidden");
     hidden.state = "hidden";
     const very = wb.addWorksheet("Very");
     very.state = "veryHidden";
-    wb.addWorksheet("Themed", { properties: { tabColor: { theme: 5 } } });
+    wb.addWorksheet("Themed").tabColor = { theme: 5 };
   });
   assert.equal(sheetByName(result, "Visible").color.toUpperCase(), "#00B050");
   assert.equal(sheetByName(result, "Visible").hide, 0);
   assert.equal(sheetByName(result, "Hidden").hide, 1);
   assert.equal(sheetByName(result, "Very").hide, 1);
-  assert.equal(sheetByName(result, "Themed").color.toUpperCase(), "#C0504D");
+  assert.equal(sheetByName(result, "Themed").color.toUpperCase(), "#ED7D31");
 });
 
 test("hyperlinks: external and internal", async () => {
   const result = await importWorkbook(
     (wb) => {
       const ws = wb.addWorksheet("L");
-      ws.getCell("A1").value = {
-        text: "web",
-        hyperlink: "https://example.com/?a=1&b=2",
-      };
-      ws.getCell("A2").value = {
-        text: "inside",
-        hyperlink: "https://placeholder",
-      };
+      ws.getCell("A1").value = "web";
+      ws.addHyperlink({ ref: "A1", target: "https://example.com/?a=1&b=2" });
+      ws.getCell("A2").value = "inside";
+      ws.addHyperlink({ ref: "A2", target: "https://placeholder" });
       wb.addWorksheet("Other Sheet");
     },
     {
@@ -342,12 +358,7 @@ test("notes and threaded comments", async () => {
       const ws = wb.addWorksheet("N");
       ws.getCell("A1").value = "x";
       ws.getCell("A1").note = "plain note";
-      ws.getCell("B2").note = {
-        texts: [
-          { font: { bold: true }, text: "Author:" },
-          { text: "\nsecond line" },
-        ],
-      };
+      ws.getCell("B2").note = "Author:\nsecond line";
     },
     {
       "xl/threadedComments/threadedComment1.xml": () =>
@@ -398,8 +409,6 @@ test("imported spills and shared formulas recalculate without #SPILL!", async ()
       ws.getCell("C1").value = {
         formula: "A1*2",
         result: 0,
-        shareType: "shared",
-        ref: "C1:C3",
       };
       ws.getCell("C2").value = { sharedFormula: "C1", result: 0 };
       ws.getCell("C3").value = { sharedFormula: "C1", result: 0 };
@@ -436,31 +445,31 @@ test("imported spills and shared formulas recalculate without #SPILL!", async ()
 test("freeze panes and data validation", async () => {
   const result = await importWorkbook((wb) => {
     const ws = wb.addWorksheet("F");
-    ws.views = [{ state: "frozen", xSplit: 2, ySplit: 3 }];
-    ws.getCell("A1").dataValidation = {
+    Object.assign(ws.view, { state: "frozen", xSplit: 2, ySplit: 3 });
+    ws.addDataValidation("A1", {
       type: "list",
       formulae: ['"x,y,z"'],
       showErrorMessage: true,
       showInputMessage: true,
       prompt: "choose",
-    };
-    ws.getCell("B1").dataValidation = {
+    });
+    ws.addDataValidation("B1", {
       type: "decimal",
       operator: "greaterThan",
       formulae: [2.5],
-    };
-    ws.getCell("C1").dataValidation = {
+    });
+    ws.addDataValidation("C1", {
       type: "date",
       operator: "lessThan",
-      formulae: [new Date(Date.UTC(2024, 0, 31))],
-    };
-    ws.getCell("D1").dataValidation = { type: "list", formulae: ["$H$1:$H$3"] };
-    ws.getCell("E1").dataValidation = {
+      formulae: [45322],
+    });
+    ws.addDataValidation("D1", { type: "list", formulae: ["$H$1:$H$3"] });
+    ws.addDataValidation("E1", {
       type: "custom",
       formulae: ["LEN(E1)>2"],
-    };
+    });
     const only = wb.addWorksheet("Rows");
-    only.views = [{ state: "frozen", ySplit: 1 }];
+    Object.assign(only.view, { state: "frozen", ySplit: 1 });
   });
   const sheet = sheetByName(result, "F");
   assert.deepEqual(sheet.frozen, {
@@ -496,26 +505,27 @@ test("date validation bounds are independent of timezone and daylight saving", a
       for (const date1904 of [false, true]) {
         const result = await importWorkbook(
           (wb) => {
-            wb.properties.date1904 = date1904;
+            wb.dateEpoch = date1904 ? 1904 : 1900;
             const ws = wb.addWorksheet("Dates");
             for (const [cell, month] of [
               ["A1", 0],
               ["B1", 6],
             ]) {
-              ws.getCell(cell).dataValidation = {
+              ws.addDataValidation(cell, {
                 type: "date",
                 operator: "between",
                 formulae: [
-                  new Date(Date.UTC(2024, month, 1)).toISOString(),
-                  new Date(Date.UTC(2024, month, 31)).toISOString(),
+                  (Date.UTC(2024, month, 1) - Date.UTC(1899, 11, 30)) /
+                    86400000,
+                  (Date.UTC(2024, month, 31) - Date.UTC(1899, 11, 30)) /
+                    86400000,
                 ],
-              };
+              });
             }
           },
           date1904
             ? {
-                // ExcelJS serializes validation dates in the 1900 system even when
-                // date1904 is enabled. Encode a genuine 1904-system test fixture.
+                // Validation operands are raw serials: encode the workbook's epoch.
                 "xl/worksheets/sheet1.xml": (xml) =>
                   xml.replace(
                     /(<formula[12]>)(\d+)(<\/formula[12]>)/g,

@@ -5,7 +5,7 @@ const path = require("node:path");
 const React = require("react");
 const ReactDOMClient = require("react-dom/client");
 const { JSDOM } = require("jsdom");
-const ExcelJS = require("@protobi/exceljs");
+const { Workbook, writeXlsx } = require("@lofcz/ts-xlsx");
 
 const { transformExcelToFortune } = require("../dist/main.js");
 
@@ -259,7 +259,7 @@ test("transformExcelToFortune imports openpyxl default-namespace bar charts", as
 });
 
 test("transformExcelToFortune formats numeric serial values with date formats as dates", async () => {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new Workbook();
   const worksheet = workbook.addWorksheet("Dates");
 
   worksheet.getCell("A1").value = 46205;
@@ -267,7 +267,7 @@ test("transformExcelToFortune formats numeric serial values with date formats as
   worksheet.getCell("B1").value = 46205;
   worksheet.getCell("B1").numFmt = "0.0";
 
-  const workbookBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const workbookBuffer = Buffer.from(writeXlsx(workbook));
   const { setSheetsCalls } = await loadWorkbookBufferIntoFortune(
     workbookBuffer,
     "dates.xlsx"
@@ -290,14 +290,14 @@ test("transformExcelToFortune formats numeric serial values with date formats as
 });
 
 test("transformExcelToFortune keeps formula text without empty cached values", async () => {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new Workbook();
   const worksheet = workbook.addWorksheet("Grades");
 
   worksheet.getCell("A1").value = 1;
   worksheet.getCell("A2").value = 3;
   worksheet.getCell("A3").value = { formula: "AVERAGE(A1:A2)" };
 
-  const workbookBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const workbookBuffer = Buffer.from(writeXlsx(workbook));
   const { setSheetsCalls } = await loadWorkbookBufferIntoFortune(
     workbookBuffer,
     "formulas.xlsx"

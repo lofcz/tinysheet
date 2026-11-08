@@ -1,7 +1,8 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Sheet } from "@lofcz/tinysheet-core";
 import { Workbook, WorkbookInstance } from "@lofcz/tinysheet-react";
+import type { ExcelImportResult, applyExcelImport } from "demo-excel";
 import { sample } from "./sample";
 import "./index.css";
 
@@ -21,11 +22,20 @@ const XLSX_TYPE =
 const App: React.FC = () => {
   const ref = useRef<WorkbookInstance>(null);
   // a new key mounts a fresh workbook (File > New / Open)
-  const [book, setBook] = useState<{ key: number; data: Sheet[] }>({
+  const [book, setBook] = useState<{
+    key: number;
+    data: Sheet[];
+    imported?: ExcelImportResult;
+    hydrate?: typeof applyExcelImport;
+  }>({
     key: 0,
     data: sample,
   });
   const [title, setTitle] = useState("Sales");
+  useLayoutEffect(() => {
+    if (ref.current && book.imported)
+      book.hydrate?.(ref.current, book.imported);
+  }, [book]);
 
   const onNewWorkbook = useCallback(() => {
     setTitle("Book1");
@@ -46,13 +56,22 @@ const App: React.FC = () => {
       }));
       return;
     }
-    const result = await excel.parseExcel(file, file.name);
-    setTitle(name);
-    setBook((b) => ({ key: b.key + 1, data: result.sheets }));
-    // sizes, charts and the rest once the new workbook is mounted
-    requestAnimationFrame(() => {
-      if (ref.current) excel.applyExcelImport(ref.current, result);
+    const worker = new Worker(new URL("./excel.worker.ts", import.meta.url), {
+      type: "module",
     });
+    let result: ExcelImportResult;
+    try {
+      result = await excel.parseExcelInWorker(worker, file, file.name);
+    } finally {
+      worker.terminate();
+    }
+    setTitle(name);
+    setBook((b) => ({
+      key: b.key + 1,
+      data: result.sheets,
+      imported: result,
+      hydrate: excel.applyExcelImport,
+    }));
   }, []);
 
   // File > Save As
@@ -62,7 +81,9 @@ const App: React.FC = () => {
       if (!wb) return;
       const excel = await import("demo-excel");
       if (format === "xlsx") {
-        const bytes = await excel.exportToXlsx(wb.getAllSheets());
+        const bytes = await excel.exportToXlsx(wb.getAllSheets(), {
+          preservation: wb.getWorkbookMetadata()?.xlsxPreservation,
+        });
         download(bytes as BlobPart, `${title}.xlsx`, XLSX_TYPE);
       } else {
         const sheet = wb.getSheet();

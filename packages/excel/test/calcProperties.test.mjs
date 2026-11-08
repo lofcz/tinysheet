@@ -1,9 +1,9 @@
 // Workbook calculation options (core calculation.ts) <-> xlsx <calcPr>.
 import test from "node:test";
 import assert from "node:assert/strict";
-import ExcelJS from "@protobi/exceljs";
+import { Workbook } from "@lofcz/ts-xlsx";
 import {
-  excelJsBytes,
+  xlsxBytes,
   importXlsx,
   patchZip,
   roundTrip,
@@ -55,14 +55,16 @@ test("default options write a plain calcPr and import as nothing", async () => {
 });
 
 test("calcPr written by other applications is read", async () => {
-  const wb = new ExcelJS.Workbook();
+  const wb = new Workbook();
   wb.addWorksheet("S").getCell("A1").value = 1;
-  const bytes = await patchZip(await excelJsBytes(wb), {
+  const bytes = await patchZip(await xlsxBytes(wb), {
     "xl/workbook.xml": (xml) =>
-      xml.replace(
-        /<calcPr\b[^>]*\/>/,
-        '<calcPr calcId="191029" calcMode="autoNoTable" iterate="true"/>'
-      ),
+      xml
+        .replace(/<calcPr\b[^>]*\/>/, "")
+        .replace(
+          "</workbook>",
+          '<calcPr calcId="191029" calcMode="autoNoTable" iterate="true"/></workbook>'
+        ),
   });
   const result = await importXlsx(bytes);
   assert.deepEqual(result.sheets[0].calcSettings, {

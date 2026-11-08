@@ -164,7 +164,7 @@ export function readDefinedNamesXml(workbookXml: string): XlsxDefinedName[] {
 }
 
 /**
- * The definedName models ExcelJS writes for the names of `sheets`
+ * The definedName models ts-xlsx writes for the names of `sheets`
  * (TinySheet sheets); `worksheetNames` lists the exported worksheets in
  * order (for localSheetId).
  */

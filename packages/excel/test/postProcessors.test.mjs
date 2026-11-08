@@ -1,4 +1,4 @@
-// T116: the zip post-processor registry and the exceljs gaps it fills
+// T116: the zip post-processor registry and the ts-xlsx gaps it fills
 // (list validation without the in-cell arrow, tables without data rows,
 // text over Excel's cell limit, entity decoding).
 import test from "node:test";
@@ -16,7 +16,7 @@ import {
 } from "../dist/index.js";
 import {
   cellMap,
-  readWithExcelJS,
+  readWorkbook,
   roundTrip,
   sheetByName,
   zipText,
@@ -107,8 +107,8 @@ test("registerXlsxPostProcessor: order, replacement, unregister, context", async
       await zipText(bytes, "xl/_rels/workbook.xml.rels"),
       /Target="..\/customXml\/item1.xml"/
     );
-    // ExcelJS still reads it
-    await readWithExcelJS(bytes);
+    // ts-xlsx still reads it
+    await readWorkbook(bytes);
   } finally {
     offA();
     offB();
@@ -214,7 +214,7 @@ test("a table without data rows is written with Excel's insert row", async () =>
   const part = await zipText(bytes, "xl/tables/table1.xml");
   assert.match(part, /ref="A1:B2"/);
   assert.match(part, /insertRow="1"/);
-  const ws = (await readWithExcelJS(bytes)).getWorksheet("T");
+  const ws = (await readWorkbook(bytes)).getWorksheet("T");
   assert.ok(ws);
   const [table] = sheetByName(result, "T").tables;
   assert.equal(table.name, "Empty");
@@ -286,7 +286,7 @@ test("links on formula cells and empty cells are kept", async () => {
       hyperlink,
     },
   ]);
-  const ws = (await readWithExcelJS(bytes)).getWorksheet("L k");
+  const ws = (await readWorkbook(bytes)).getWorksheet("L k");
   assert.ok(ws);
   const xml = await zipText(bytes, "xl/worksheets/sheet1.xml");
   assert.match(xml, /<c r="A1"[^>]*><f>1\+1<\/f>/);

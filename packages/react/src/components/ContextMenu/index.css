@@ -296,6 +296,20 @@
   min-height: 24px;
 }
 
+.fortune-filter-tree-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* filter by colour / condition submenus */
 .luckysheet-filter-bycolor-submenu {
   position: absolute;

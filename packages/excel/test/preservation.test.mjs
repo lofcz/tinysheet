@@ -10,6 +10,27 @@ import {
 } from "../dist/index.js";
 import { patchZip, zipText } from "./helpers.mjs";
 
+test("deferred import baseline is detached and version 1 saves still load", async () => {
+  const workbook = new Workbook();
+  workbook.addWorksheet("Data").getCell("A1").value = "before";
+  const imported = await parseExcel(writeXlsx(workbook));
+  assert.equal(imported.preservation.version, 2);
+  const oldBaseline = await exportToXlsx(imported.sheets);
+  const legacy = {
+    ...imported.preservation,
+    version: 1,
+    baseline: Buffer.from(oldBaseline).toString("base64"),
+  };
+  delete legacy.baselineSheetsZip;
+  const snapshot = imported.preservation.baselineSheetsZip;
+  imported.sheets[0].celldata[0].v.v = "after";
+  assert.equal(imported.preservation.baselineSheetsZip, snapshot);
+  for (const preservation of [imported.preservation, legacy]) {
+    const out = readXlsx(await exportToXlsx(imported.sheets, { preservation }));
+    assert.equal(out.requireWorksheet("Data").getCell("A1").value, "after");
+  }
+});
+
 test("edited shared formulas survive export when a sibling changes and their original master is cleared", async () => {
   const workbook = new Workbook();
   const source = workbook.addWorksheet("Data");
@@ -19,13 +40,15 @@ test("edited shared formulas survive export when a sibling changes and their ori
   source.getCell("B3").value = { sharedFormula: "B1", result: 6 };
   const imported = await parseExcel(writeXlsx(workbook), "shared.xlsx");
   const sheet = imported.sheets[0];
-  const b1 = sheet.celldata.find(cell => cell.r === 0 && cell.c === 1);
-  const b2 = sheet.celldata.find(cell => cell.r === 1 && cell.c === 1);
+  const b1 = sheet.celldata.find((cell) => cell.r === 0 && cell.c === 1);
+  const b2 = sheet.celldata.find((cell) => cell.r === 1 && cell.c === 1);
   b1.v = { v: 5, m: "5", ct: { fa: "General", t: "n" } };
   b2.v.f = "=A2*3";
   b2.v.v = 6;
   const saved = JSON.parse(JSON.stringify(imported));
-  const out = readXlsx(await exportToXlsx(saved.sheets, { preservation: saved.preservation })).requireWorksheet("Data");
+  const out = readXlsx(
+    await exportToXlsx(saved.sheets, { preservation: saved.preservation })
+  ).requireWorksheet("Data");
   assert.equal(out.getCell("B1").value, 5);
   assert.equal(out.getCell("B2").value.formula, "A2*3");
   assert.equal(out.getCell("B2").value.result, 6);
@@ -99,7 +122,9 @@ test("import, hydrate, JSON save/reload and edited export retain original packag
     { r: 10, c: 1, id: sheet.id },
   ];
   applyExcelImportHydration(context, imported);
-  assert.deepEqual(context.luckysheetfile[0].calcChain, [{ r: 3, c: 1, id: sheet.id }]);
+  assert.deepEqual(context.luckysheetfile[0].calcChain, [
+    { r: 3, c: 1, id: sheet.id },
+  ]);
   assert.equal(context.luckysheetfile[0].data[3][1].v, 30);
   context.luckysheetfile[0].data[1][1].v = 42;
   context.luckysheetfile[0].charts[0].title = "Updated Sales";

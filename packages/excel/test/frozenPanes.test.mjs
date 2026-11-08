@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { exportToXlsx } from "../dist/index.js";
-import { importXlsx, readWithExcelJS, zipText } from "./helpers.mjs";
+import { importXlsx, readWorkbook, zipText } from "./helpers.mjs";
 
 for (const [label, frozen, rows, columns] of [
   ["unfrozen", undefined, 0, 0],
@@ -30,8 +30,11 @@ for (const [label, frozen, rows, columns] of [
       preservation: imported.preservation,
     });
     for (const output of [bytes, preserved]) {
-      const view = (await readWithExcelJS(output)).worksheets[0].views[0];
-      assert.equal(view.state, rows || columns ? "frozen" : "normal");
+      const view = (await readWorkbook(output)).worksheets[0].view;
+      assert.equal(
+        view.state ?? "normal",
+        rows || columns ? "frozen" : "normal"
+      );
       assert.equal(view.ySplit ?? 0, rows);
       assert.equal(view.xSplit ?? 0, columns);
       const xml = await zipText(output, "xl/worksheets/sheet1.xml");
