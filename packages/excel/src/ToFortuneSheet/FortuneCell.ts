@@ -19,7 +19,7 @@ import {
   FortuneSheetCelldataValue,
   FortuneSheetCellFormat,
 } from "./FortuneBase";
-import { childElement, ScannedElement } from "./xmlScan";
+import { childElement, scanElements, ScannedElement } from "./xmlScan";
 
 export type FortuneCellWorkbookInfo = {
   sourceBacked?: boolean;
@@ -411,7 +411,20 @@ type ParsedString =
 
 const stringCaches = new WeakMap<Element[], ParsedString[]>();
 
-function parseStringItem(si: Element, styles: IStyleCollections): ParsedString {
+function parseStringItem(
+  source: Element | string,
+  styles: IStyleCollections
+): ParsedString {
+  const xml = typeof source === "string" ? source : source.elementString;
+  if (!/<r(?:\s|>|\/)/.test(xml) && !xml.includes("<rPh")) {
+    let text = "";
+    scanElements(xml, "t", (item) => {
+      text += item.inner ?? "";
+    });
+    return { rich: false, text: decodeCellText(escapeCharacter(text)) };
+  }
+  const si =
+    typeof source === "string" ? new Element(`<is>${source}</is>`) : source;
   // Phonetic runs (<rPh>) are not part of the text.
   const item =
     si.elementString.indexOf("<rPh") >= 0
@@ -689,8 +702,7 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
     if (t == ST_CellType["InlineString"]) {
       const is = inner ? childElement(inner, "is") : null;
       if (is != null) {
-        const item = new Element(`<is>${is.inner ?? ""}</is>`);
-        assignParsedString(cellValue, parseStringItem(item, styles));
+        assignParsedString(cellValue, parseStringItem(is.inner ?? "", styles));
       }
       return;
     }
