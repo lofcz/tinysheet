@@ -16,7 +16,7 @@ test("source borders read only the viewport and editor overrides retain priority
   ctx.config = { sourceBorders: true };
   const compute = () => getBorderInfoComputeRange(ctx, 8, 12, 0, 1);
   expect(compute()["8_0"].l).toEqual(edge);
-  expect(compute()["8_0"].r).toBeUndefined();
+  expect(compute()["8_0"].r).toBeNull();
   expect(getSourceMatrixStats(data).decodedCells).toBe(10);
   ctx.config.borderInfo = [
     {
