@@ -1705,6 +1705,7 @@ export class Canvas {
     }
 
     for (let r = rowStart; r <= rowEnd; r += 1) {
+      if (this.sheetCtx.config?.rowhidden?.[r] != null) continue;
       if (_.isNil(data[r])) {
         continue;
       }

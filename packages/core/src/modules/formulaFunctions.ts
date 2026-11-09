@@ -925,9 +925,13 @@ function subtotalCompute(fn: number, values: any[]): any {
     case 3:
       return values.filter((v) => v != null && v !== "").length;
     case 4:
-      return n ? Math.max(...nums) : 0;
+      return n
+        ? nums.reduce((best, value) => Math.max(best, value), -Infinity)
+        : 0;
     case 5:
-      return n ? Math.min(...nums) : 0;
+      return n
+        ? nums.reduce((best, value) => Math.min(best, value), Infinity)
+        : 0;
     case 6:
       return n ? nums.reduce((a, b) => a * b, 1) : 0;
     case 7:
@@ -1191,7 +1195,7 @@ const allFunctions: Record<string, Fn> = {
           }
         }
       } else if (Array.isArray(arg)) {
-        values.push(..._.flattenDeep(arg));
+        for (const value of _.flattenDeep(arg)) values.push(value);
       } else {
         values.push(arg);
       }

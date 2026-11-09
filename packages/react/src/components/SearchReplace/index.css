@@ -114,6 +114,11 @@
   line-height: 30px;
 }
 
+#fortune-search-replace #searchAllbox .boxMain {
+  max-height: 178px;
+  overflow-y: auto;
+}
+
 #fortune-search-replace #searchAllbox .boxTitle {
   position: sticky;
   top: 0;

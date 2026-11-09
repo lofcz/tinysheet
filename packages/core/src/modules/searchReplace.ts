@@ -12,6 +12,8 @@
  *   to the next one; Replace All reports the number of replacements.
  */
 import _ from "lodash";
+import { createWildcardMatcher } from "./wildcard";
+import { peekCell } from "./dependencyGraph";
 
 import { Context, getFlowdata } from "../context";
 import { locale } from "../locale";
@@ -95,6 +97,13 @@ export function createMatcher(
 ): Matcher | null {
   if (searchText == null || searchText === "") return null;
   const o = normalizeOptions(options);
+  if (!o.regex && /[*?]/.test(searchText)) {
+    return createWildcardMatcher(
+      searchText,
+      o.matchEntire ? "full" : "any",
+      o.matchCase
+    );
+  }
   let source: string;
   if (o.regex) {
     try {
@@ -218,7 +227,7 @@ function cellMatch(
   matcher: Matcher,
   lookIn: FindOptions["lookIn"]
 ): FindMatch | null {
-  const cell = data[r]?.[c];
+  const cell = peekCell(data, r, c);
   if (!cell) return null;
   if (cell.mc && (cell.mc.r !== r || cell.mc.c !== c)) return null;
   const text = getCellSearchText(cell, lookIn);
@@ -262,16 +271,13 @@ export function findAllMatches(
       const c1 = Math.max(0, rg.column[0]);
       const c2 = Math.min(cols - 1, rg.column[1]);
       for (let r = r1; r <= r2; r += 1) {
-        const row = data[r];
-        if (row) {
-          for (let c = c1; c <= c2; c += 1) {
-            if (row[c] != null) {
-              const key = r * cols + c;
-              if (!seen.has(key)) {
-                seen.add(key);
-                const m = cellMatch(sheet, data, r, c, matcher, o.lookIn);
-                if (m) found.push(m);
-              }
+        for (let c = c1; c <= c2; c += 1) {
+          const key = r * cols + c;
+          if (!seen.has(key)) {
+            const m = cellMatch(sheet, data, r, c, matcher, o.lookIn);
+            if (m) {
+              seen.add(key);
+              found.push(m);
             }
           }
         }
@@ -282,7 +288,7 @@ export function findAllMatches(
     } else {
       found.sort((a, b) => a.r - b.r || a.c - b.c);
     }
-    out.push(...found);
+    for (const match of found) out.push(match);
   });
   return out;
 }
@@ -291,27 +297,6 @@ function activePosition(ctx: Context): [number, number] {
   const last = _.last(ctx.luckysheet_select_save);
   if (!last) return [-1, -1];
   return [last.row_focus ?? last.row[0], last.column_focus ?? last.column[0]];
-}
-
-/** Position of a match in search order, for comparing with the active cell. */
-function orderKey(
-  ctx: Context,
-  o: Required<FindOptions>,
-  sheetId: string,
-  r: number,
-  c: number
-): [number, number, number] {
-  const sheets = orderedVisibleSheets(ctx);
-  const si =
-    o.scope === "workbook" ? sheets.findIndex((s) => s.id === sheetId) : 0;
-  return o.searchBy === "columns" ? [si, c, r] : [si, r, c];
-}
-
-function compareKeys(a: number[], b: number[]) {
-  for (let i = 0; i < a.length; i += 1) {
-    if (a[i] !== b[i]) return a[i] - b[i];
-  }
-  return 0;
 }
 
 /**
@@ -366,29 +351,102 @@ export function findNextMatch(
   options: FindOptions & LegacyCheckModes = {},
   backwards = false
 ): FindMatch | null {
-  const o = normalizeOptions(options);
-  const matches = findAllMatches(ctx, searchText, o);
-  if (matches.length === 0) return null;
-  const [ar, ac] = activePosition(ctx);
-  const cur = orderKey(ctx, o, ctx.currentSheetId, ar, ac);
-  let next: FindMatch | undefined;
-  if (backwards) {
-    for (let i = matches.length - 1; i >= 0; i -= 1) {
-      const m = matches[i];
-      if (compareKeys(orderKey(ctx, o, m.sheetId, m.r, m.c), cur) < 0) {
-        next = m;
-        break;
-      }
-    }
-    next ??= matches[matches.length - 1];
-  } else {
-    next = matches.find(
-      (m) => compareKeys(orderKey(ctx, o, m.sheetId, m.r, m.c), cur) > 0
+  const match = getNextMatch(ctx, searchText, options, backwards);
+  if (match)
+    selectMatch(
+      ctx,
+      match,
+      normalizeOptions(options).scope === "sheet" && isMultiCellSelection(ctx)
     );
-    next ??= matches[0];
+  return match;
+}
+
+/** Locate the next match without changing selection or collecting all matches. */
+export function getNextMatch(
+  ctx: Context,
+  searchText: string,
+  options: FindOptions & LegacyCheckModes = {},
+  backwards = false
+): FindMatch | null {
+  const o = normalizeOptions(options);
+  const matcher = createMatcher(searchText, o);
+  if (!matcher) return null;
+  const scopes = searchScopes(ctx, o);
+  const current = scopes.findIndex(
+    ({ sheet }) => sheet.id === ctx.currentSheetId
+  );
+  const [ar, ac] = activePosition(ctx);
+  const byColumns = o.searchBy === "columns";
+  const major = byColumns ? ac : ar;
+  const minor = byColumns ? ar : ac;
+  const step = backwards ? -1 : 1;
+  // Search after the active cell, then wrap once. Each selected rectangle
+  // contributes only its first match, even when selections overlap or are
+  // listed out of order. No full-sheet result array is needed for Find Next.
+  for (const wrapped of [false, true]) {
+    for (
+      let si = backwards ? scopes.length - 1 : 0;
+      si >= 0 && si < scopes.length;
+      si += step
+    ) {
+      if (si !== current && (si - current) * step > 0 === wrapped) continue;
+      const { sheet, ranges } = scopes[si];
+      const data = sheet.data;
+      if (!data?.length) continue;
+      const rows = data.length;
+      const cols = data[0]?.length ?? 0;
+      const areas = ranges ?? [{ row: [0, rows - 1], column: [0, cols - 1] }];
+      let best: FindMatch | null = null;
+      for (const area of areas) {
+        const primary = byColumns ? area.column : area.row;
+        const secondary = byColumns ? area.row : area.column;
+        let lo = Math.max(0, primary[0]);
+        let hi = Math.min((byColumns ? cols : rows) - 1, primary[1]);
+        const min = Math.max(0, secondary[0]);
+        const max = Math.min((byColumns ? rows : cols) - 1, secondary[1]);
+        if (si === current) {
+          if (backwards === wrapped) lo = Math.max(lo, major);
+          else hi = Math.min(hi, major);
+        }
+        let candidate: FindMatch | null = null;
+        for (
+          let p = backwards ? hi : lo;
+          p >= lo && p <= hi && !candidate;
+          p += step
+        ) {
+          let from = min,
+            to = max;
+          if (si === current && p === major) {
+            if (backwards === wrapped)
+              from = Math.max(from, minor + (wrapped ? 0 : 1));
+            else to = Math.min(to, minor - (wrapped ? 0 : 1));
+          }
+          for (let q = backwards ? to : from; q >= from && q <= to; q += step) {
+            candidate = cellMatch(
+              sheet,
+              data,
+              byColumns ? q : p,
+              byColumns ? p : q,
+              matcher,
+              o.lookIn
+            );
+            if (candidate) break;
+          }
+        }
+        if (candidate) {
+          const cmp = !best
+            ? -1
+            : step *
+              (byColumns
+                ? candidate.c - best.c || candidate.r - best.r
+                : candidate.r - best.r || candidate.c - best.c);
+          if (cmp < 0) best = candidate;
+        }
+      }
+      if (best) return best;
+    }
   }
-  selectMatch(ctx, next, o.scope === "sheet" && isMultiCellSelection(ctx));
-  return next;
+  return null;
 }
 
 // ---------------------------------------------------------------------------

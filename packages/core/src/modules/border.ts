@@ -2,6 +2,7 @@ import _ from "lodash";
 import { Context, getFlowdata } from "../context";
 import { CellMatrix } from "../types";
 import { getSheetIndex } from "../utils";
+import { peekCell } from "./dependencyGraph";
 
 const borderRowIndexes = new WeakMap<
   any[],
@@ -75,8 +76,10 @@ export function getBorderInfoComputeRange(
   if (cfg.sourceBorders) {
     const source: any[] = [];
     for (let r = dataset_row_st; r <= dataset_row_ed; r += 1) {
+      if (cfg.rowhidden?.[r] != null) continue;
       for (let c = dataset_col_st; c <= dataset_col_ed; c += 1) {
-        const edges = data[r]?.[c]?.sourceBorder;
+        if (cfg.colhidden?.[c] != null) continue;
+        const edges = peekCell(data, r, c)?.sourceBorder;
         if (edges)
           source.push({
             rangeType: "cell",

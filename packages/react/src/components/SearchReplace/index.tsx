@@ -3,6 +3,7 @@ import {
   locale,
   findAllMatches,
   findNextMatch,
+  getNextMatch,
   FindMatch,
   FindOptions,
   isAllowEdit,
@@ -25,7 +26,7 @@ import { X } from "lucide-react";
 import { Button, ICON_STROKE, Tabs } from "../ui";
 import "../ui/form.css";
 import { useAlert } from "../../hooks/useAlert";
-import { activateOnKey } from "../Toolbar/Button";
+import { SearchResults } from "./Results";
 import { useDialogBehavior } from "../../hooks/useDialogBehavior";
 import "./index.css";
 
@@ -132,7 +133,7 @@ const SearchReplace: React.FC<{
         setStatus(findAndReplace.searchInputTip);
         return;
       }
-      if (findAllMatches(context, searchText, effective).length === 0) {
+      if (!getNextMatch(context, searchText, effective, backwards)) {
         notFound();
         return;
       }
@@ -187,7 +188,7 @@ const SearchReplace: React.FC<{
       setStatus(findAndReplace.searchInputTip);
       return;
     }
-    if (findAllMatches(context, searchText, effective).length === 0) {
+    if (!getNextMatch(context, searchText, effective)) {
       notFound();
       return;
     }
@@ -444,7 +445,11 @@ const SearchReplace: React.FC<{
           {status}
         </div>
         {results.length > 0 && (
-          <div id="searchAllbox" role="table">
+          <div
+            id="searchAllbox"
+            role="table"
+            aria-rowcount={results.length + 1}
+          >
             <div className="boxTitle" role="row">
               <span role="columnheader">
                 {findAndReplace.searchTargetSheet}
@@ -457,32 +462,14 @@ const SearchReplace: React.FC<{
                 {findAndReplace.searchTargetFormula}
               </span>
             </div>
-            <div className="boxMain">
-              {results.map((v) => {
-                const key = matchKey(v);
-                return (
-                  <div
-                    className={`boxItem ${selected === key ? "on" : ""}`}
-                    key={key}
-                    role="row"
-                    aria-selected={selected === key}
-                    onClick={() => {
-                      setContext((draftCtx) => {
-                        selectMatch(draftCtx, v);
-                      });
-                      setSelected(key);
-                    }}
-                    onKeyDown={activateOnKey}
-                    tabIndex={0}
-                  >
-                    <span title={v.sheetName}>{v.sheetName}</span>
-                    <span>{`$${v.cellPosition.replace(/(\d)/, "$$$1")}`}</span>
-                    <span title={v.value}>{v.value}</span>
-                    <span title={v.formula ?? ""}>{v.formula ?? ""}</span>
-                  </div>
-                );
-              })}
-            </div>
+            <SearchResults
+              results={results}
+              selected={selected}
+              onSelect={(match) => {
+                setContext((ctx) => selectMatch(ctx, match));
+                setSelected(matchKey(match));
+              }}
+            />
           </div>
         )}
       </div>

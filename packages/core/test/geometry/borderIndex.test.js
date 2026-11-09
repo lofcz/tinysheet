@@ -1,10 +1,34 @@
 import produce from "immer";
 import { makeContext } from "../formula/helpers";
 import { getBorderInfoComputeRange } from "../../src/modules/border";
+import { Canvas } from "../../src/canvas";
 import {
   createSourceMatrix,
   getSourceMatrixStats,
 } from "../../src/modules/rowStore";
+
+test("rendering a filtered viewport does not decode the hidden rows between visible rows", () => {
+  const ctx = makeContext({ rows: 1, cols: 2 });
+  const data = createSourceMatrix(50001, 2, () => ({ v: "value" }));
+  ctx.luckysheetfile[0].data = data;
+  ctx.config = {
+    sourceBorders: true,
+    rowhidden: Object.fromEntries(
+      Array.from({ length: 49999 }, (_, r) => [r + 1, 0])
+    ),
+  };
+  getBorderInfoComputeRange(ctx, 0, 50000, 0, 1);
+  const canvas = new Canvas(document.createElement("canvas"), ctx);
+  canvas.getCellOverflowMap(
+    document.createElement("canvas").getContext("2d"),
+    0,
+    1,
+    0,
+    50000
+  );
+  expect(getSourceMatrixStats(data).decodedCells).toBe(4);
+  expect(getSourceMatrixStats(data).materializedRows).toBeLessThan(5);
+});
 
 test("source borders read only the viewport and editor overrides retain priority", () => {
   const ctx = makeContext({ rows: 1, cols: 2 });

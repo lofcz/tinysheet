@@ -415,6 +415,19 @@ describe("HYPERLINK", () => {
 });
 
 describe("SUBTOTAL", () => {
+  test("MIN and MAX handle large filtered ranges without an argument-limit error", () => {
+    const ctx = makeContext({ rows: 1, cols: 2 });
+    ctx.luckysheetfile[0].data = Array.from({ length: 150000 }, (_, r) => [
+      { v: r + 1 },
+      null,
+    ]);
+    ctx.luckysheetfile[0].config = { rowhidden: { 149999: 0 } };
+    ctx.config = ctx.luckysheetfile[0].config;
+    input(ctx, "B1", "=SUBTOTAL(104,A1:A150000)");
+    expect(value(ctx, "B1")).toBe(149999);
+    input(ctx, "B1", "=SUBTOTAL(5,A1:A150000)");
+    expect(value(ctx, "B1")).toBe(1);
+  });
   function setup() {
     const ctx = makeContext();
     fill(ctx, { A1: "1", A2: "2", A3: "3", A4: "4", A5: "5" });

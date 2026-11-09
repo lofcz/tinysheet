@@ -8,6 +8,7 @@ import {
   Context,
   findTable,
   FormulaCache,
+  createSourceMatrix,
 } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../src/context";
 import { SlicerLayer, TableOverlay } from "../src/components/Tables";
@@ -84,6 +85,32 @@ const Harness: React.FC<{ initial: Context; children: React.ReactNode }> = ({
 };
 
 describe("tables UI", () => {
+  it("windows 50,000 unique slicer items and reaches the last item with the keyboard", () => {
+    const initial = produce(makeContext(), (ctx) => {
+      const sheet = ctx.luckysheetfile[0];
+      sheet.tables![0].range.row[1] = 50000;
+      sheet.data = createSourceMatrix(50001, 2, (r) =>
+        text(r === 0 ? "Region" : `Item ${r}`)
+      );
+    });
+    const { container, getByRole } = render(
+      <Harness initial={initial}>
+        <SlicerLayer />
+      </Harness>
+    );
+    expect(container.querySelectorAll("[role=option]").length).toBeLessThan(40);
+    const first = getByRole("option", { name: "Item 1" });
+    first.focus();
+    fireEvent.keyDown(first, { key: "End" });
+    const last = getByRole("option", { name: "Item 50000" });
+    expect(document.activeElement).toBe(last);
+    expect(last.getAttribute("aria-setsize")).toBe("50000");
+    expect(container.querySelectorAll("[role=option]").length).toBeLessThan(40);
+    fireEvent.keyDown(last, { key: "Home" });
+    expect(document.activeElement).toBe(
+      getByRole("option", { name: "Item 1" })
+    );
+  });
   it("registers its overlays; Insert › Slicer is a ribbon command", () => {
     const keys = getSheetOverlays().map((o) => o.key);
     expect(keys).toEqual(expect.arrayContaining(["tables", "slicers"]));

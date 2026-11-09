@@ -372,9 +372,6 @@
 .fortune-slicer-items {
   flex: 1;
   min-height: 0;
-  display: grid;
-  align-content: start;
-  gap: 4px;
   padding: 6px;
   overflow: auto;
   cursor: default;

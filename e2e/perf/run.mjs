@@ -37,7 +37,17 @@ const report = {
   fixture:
     "ts-xlsx: 50000 rows, 10 columns, 3 sheets, banded table, outside borders",
   scenarios: [],
+  budgetFailures: [],
 };
+const checkBudget = (condition, message) => {
+  if (!condition) report.budgetFailures.push(message);
+};
+const scenarios = process.env.PERF_SCENARIOS?.split(",") ?? [
+  "import",
+  "import-shared",
+  "import-slicer",
+  "autofilter",
+];
 try {
   const build = spawnSync(
     "bun",
@@ -67,10 +77,11 @@ try {
     path.join(dir, "iframe.html")
   );
   writeFileSync(path.join(dir, "large-table.xlsx"), await largeTableBytes());
-  writeFileSync(
-    path.join(dir, "large-table-shared.xlsx"),
-    await largeTableBytes(50000, true)
-  );
+  if (scenarios.includes("import-shared"))
+    writeFileSync(
+      path.join(dir, "large-table-shared.xlsx"),
+      await largeTableBytes(50000, true)
+    );
   server = spawn(process.execPath, ["e2e/serve.mjs", dir, String(port)], {
     cwd: root,
     stdio: "inherit",
@@ -88,11 +99,7 @@ try {
     process.env.CHROMIUM_PATH ||
     (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined);
   browser = await chromium.launch({ executablePath });
-  for (const scenario of process.env.PERF_SCENARIOS?.split(",") ?? [
-    "import",
-    "import-shared",
-    "autofilter",
-  ]) {
+  for (const scenario of scenarios) {
     const imported = scenario.startsWith("import");
     const page = await browser.newPage({
       viewport: { width: 1600, height: 900 },
@@ -154,20 +161,104 @@ try {
       const { profile } = await profiler.send("Profiler.stop");
       writeFileSync(process.env.PERF_PROFILE, JSON.stringify(profile));
     }
-    assert.ok(metrics.mountMs < 2000, `mount took ${metrics.mountMs}ms`);
+    checkBudget(metrics.mountMs < 2000, `mount took ${metrics.mountMs}ms`);
     if (metrics.importMs != null) {
-      assert.ok(
+      checkBudget(
         metrics.importMs + metrics.mountMs < 2000,
         `XLSX file-to-interactive took ${metrics.importMs + metrics.mountMs}ms`
       );
       assert.ok(
-        metrics.source?.decodedCells < 2000,
+        metrics.source?.decodedCells <
+          (scenario.includes("slicer") ? 52000 : 2000),
         "initial rendering must not expand the workbook"
       );
       assert.ok(
         metrics.ticks > metrics.importMs / 150,
         "page heartbeat continues while worker parses"
       );
+    }
+    const wildcardStart = Date.now();
+    assert.deepEqual(await page.evaluate(() => window.__auditWildcards()), [
+      false,
+      false,
+      true,
+    ]);
+    metrics.wildcardMs = Date.now() - wildcardStart;
+    checkBudget(
+      metrics.wildcardMs < 500,
+      "wildcard search and filter must not block the page"
+    );
+    if (scenario.includes("slicer")) {
+      const panel = page.locator(".fortune-slicer");
+      const options = panel.getByRole("option");
+      assert.ok((await options.count()) < 50, "slicer options are windowed");
+      const start = Date.now();
+      const slicerProfiler = process.env.PERF_PROFILE
+        ? await page.context().newCDPSession(page)
+        : null;
+      if (slicerProfiler) {
+        await slicerProfiler.send("Profiler.enable");
+        await slicerProfiler.send("Profiler.start");
+      }
+      await options.first().focus();
+      await page.keyboard.press("End");
+      await panel
+        .getByRole("option", { name: "ID-50000", exact: true })
+        .waitFor();
+      assert.equal(
+        await page.evaluate(() => document.activeElement?.textContent),
+        "ID-50000"
+      );
+      metrics.slicerNavigation = await page.evaluate(() =>
+        window.__largeTable.sourceStats()
+      );
+      console.log(
+        "slicer navigation",
+        Date.now() - start,
+        metrics.slicerNavigation
+      );
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(
+        () =>
+          Object.keys(
+            window.__largeTable.workbook.getSheet().config?.rowhidden || {}
+          ).length === 49999
+      );
+      metrics.slicerSelectMs = Date.now() - start;
+      metrics.afterSlicer = await page.evaluate(() =>
+        window.__largeTable.sourceStats()
+      );
+      console.log(
+        "slicer selection",
+        metrics.slicerSelectMs,
+        metrics.afterSlicer
+      );
+      if (slicerProfiler) {
+        const { profile } = await slicerProfiler.send("Profiler.stop");
+        writeFileSync(
+          `${process.env.PERF_PROFILE}.slicer`,
+          JSON.stringify(profile)
+        );
+      }
+      checkBudget(
+        metrics.slicerSelectMs < 1000,
+        `slicer selection took ${metrics.slicerSelectMs}ms`
+      );
+      assert.ok((await options.count()) < 50);
+      await panel.getByRole("button", { name: "Clear Filter (Alt+C)" }).click();
+      await page.waitForFunction(
+        () =>
+          Object.keys(
+            window.__largeTable.workbook.getSheet().config?.rowhidden || {}
+          ).length === 0
+      );
+      await panel.focus();
+      await page.keyboard.press("Delete");
+      await panel.waitFor({ state: "detached" });
+      if (process.env.PERF_PROFILE_SLICER) {
+        await page.close();
+        continue;
+      }
     }
     const menu = page.locator(".fortune-filter-menu");
     const list = page.locator("#luckysheet-filter-byvalue-select");
@@ -191,7 +282,7 @@ try {
           JSON.stringify(profile)
         );
       }
-      assert.ok(ms < 1000, `column ${col} menu took ${ms}ms`);
+      checkBudget(ms < 1000, `column ${col} menu took ${ms}ms`);
       assert.ok(
         (await list.locator("input").count()) < 40,
         "value list is windowed"
@@ -220,7 +311,7 @@ try {
           JSON.stringify(profile)
         );
       }
-      assert.ok(ms < 500, `applying a filter took ${ms}ms`);
+      checkBudget(ms < 500, `applying a filter took ${ms}ms`);
     };
     if (process.env.PERF_PROFILE_COLUMN) {
       await open(Number(process.env.PERF_PROFILE_COLUMN));
@@ -334,7 +425,33 @@ try {
       );
       return performance.now() - start;
     });
-    assert.ok(metrics.scrollMs < 1000, `scroll took ${metrics.scrollMs}ms`);
+    checkBudget(metrics.scrollMs < 1000, `scroll took ${metrics.scrollMs}ms`);
+    if (scenario.includes("slicer")) {
+      await page.locator("#luckysheet-input-box").focus();
+      await page.keyboard.press("Control+f");
+      const dialog = page.locator("#fortune-search-replace");
+      await dialog.locator("#fortune-find-what").fill("ID-");
+      const searchStart = Date.now();
+      await dialog.locator("#searchAllBtn").click();
+      await dialog.locator('[role="table"][aria-rowcount="50000"]').waitFor();
+      metrics.findAllMs = Date.now() - searchStart;
+      checkBudget(
+        metrics.findAllMs < 2000,
+        `Find All took ${metrics.findAllMs}ms`
+      );
+      const rows = dialog.locator(".boxItem");
+      assert.ok((await rows.count()) < 20, "Find All results are windowed");
+      await rows.first().focus();
+      await page.keyboard.press("End");
+      assert.equal(
+        await page.evaluate(() =>
+          document.activeElement?.getAttribute("aria-rowindex")
+        ),
+        "50000"
+      );
+      await page.keyboard.press("Escape");
+      await dialog.waitFor({ state: "detached" });
+    }
     await page.evaluate(() =>
       window.__largeTable.workbook.activateSheet({
         index: 1,
@@ -353,6 +470,7 @@ try {
     await page.close();
   }
   console.log(JSON.stringify(report, null, 2));
+  assert.deepEqual(report.budgetFailures, [], "performance budgets");
 } catch (error) {
   report.error = String(error);
   if (browser) {

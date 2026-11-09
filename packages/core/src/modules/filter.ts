@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { createWildcardMatcher } from "./wildcard";
 import { checkProtection } from "./protection";
 import { locale } from "../locale";
 import { dataToolsLocale } from "../locale/dataTools";
@@ -846,6 +847,26 @@ function parseCriterion(text: string): { num: number | null; text: string } {
 
 const textCollator = new Intl.Collator(undefined, { sensitivity: "accent" });
 
+// A filter scans a column with one criterion. Bound the cache while avoiding
+// compiling that criterion again for every row.
+const filterMatchers = new Map<
+  string,
+  ReturnType<typeof createWildcardMatcher>
+>();
+function filterMatcher(
+  pattern: string,
+  anchor: "full" | "start" | "end" | "any"
+) {
+  const key = `${anchor}:${pattern}`;
+  let matcher = filterMatchers.get(key);
+  if (!matcher) {
+    if (filterMatchers.size >= 64) filterMatchers.clear();
+    matcher = createWildcardMatcher(pattern, anchor);
+    filterMatchers.set(key, matcher);
+  }
+  return matcher;
+}
+
 /** Does a cell satisfy one Custom AutoFilter criterion? */
 export function matchFilterOperator(
   cell: Cell | null | undefined,
@@ -864,7 +885,7 @@ export function matchFilterOperator(
       else if (crit.num != null && isNum) {
         eq = Math.abs((cell!.v as number) - crit.num) < 1e-9;
       } else {
-        eq = !blank && wildcardRegExp(crit.text, "full").test(text);
+        eq = !blank && filterMatcher(crit.text, "full").test(text);
       }
       return op === "equals" ? eq : !eq;
     }
@@ -887,17 +908,17 @@ export function matchFilterOperator(
       return cmp <= 0;
     }
     case "beginsWith":
-      return wildcardRegExp(crit.text, "start").test(text);
+      return filterMatcher(crit.text, "start").test(text);
     case "notBeginsWith":
-      return !wildcardRegExp(crit.text, "start").test(text);
+      return !filterMatcher(crit.text, "start").test(text);
     case "endsWith":
-      return wildcardRegExp(crit.text, "end").test(text);
+      return filterMatcher(crit.text, "end").test(text);
     case "notEndsWith":
-      return !wildcardRegExp(crit.text, "end").test(text);
+      return !filterMatcher(crit.text, "end").test(text);
     case "contains":
-      return wildcardRegExp(crit.text, "any").test(text);
+      return filterMatcher(crit.text, "any").test(text);
     case "notContains":
-      return !wildcardRegExp(crit.text, "any").test(text);
+      return !filterMatcher(crit.text, "any").test(text);
     default:
       return true;
   }

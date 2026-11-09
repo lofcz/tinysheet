@@ -229,6 +229,10 @@ const SlicerPanel: React.FC<PanelProps> = ({
   );
   const filtered = !!items.length && slicerHasFilter(context, slicer.name);
   const panelRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [focusedItem, setFocusedItem] = useState(0);
+  const pendingFocus = useRef(false);
 
   useLayoutEffect(() => {
     if (active && !panelRef.current?.contains(document.activeElement)) {
@@ -309,11 +313,46 @@ const SlicerPanel: React.FC<PanelProps> = ({
     }
   };
 
-  const columns = Math.max(1, slicer.columnCount ?? 1);
+  const columns = Math.max(1, Math.floor(slicer.columnCount ?? 1));
   const buttonHeight =
-    (slicer.buttonHeight ?? SLICER_DEFAULTS.buttonHeight) * zoom;
+    Math.max(1, slicer.buttonHeight ?? SLICER_DEFAULTS.buttonHeight) * zoom;
   const buttonWidth = slicer.buttonWidth ? slicer.buttonWidth * zoom : null;
   const { className, style } = styleProps(slicer.style);
+  const stride = buttonHeight + 4;
+  const rowCount = Math.ceil(items.length / columns);
+  const visibleRows = Math.ceil(box.height / stride) + 4;
+  const firstRow = Math.min(
+    Math.max(0, rowCount - visibleRows),
+    Math.max(0, Math.floor(scrollTop / stride) - 2)
+  );
+  const firstItem = firstRow * columns;
+  const visibleItems = items.slice(
+    firstItem,
+    (firstRow + visibleRows) * columns
+  );
+  const focusItem = (index: number) => {
+    const next = Math.max(0, Math.min(items.length - 1, index));
+    setFocusedItem(next);
+    pendingFocus.current = true;
+    const list = listRef.current;
+    if (!list) return;
+    const top = Math.floor(next / columns) * stride;
+    if (
+      top < list.scrollTop ||
+      top + buttonHeight > list.scrollTop + list.clientHeight
+    ) {
+      list.scrollTop = top;
+      setScrollTop(top);
+    }
+  };
+  useLayoutEffect(() => {
+    if (pendingFocus.current) {
+      listRef.current
+        ?.querySelector<HTMLElement>(`[data-item-index="${focusedItem}"]`)
+        ?.focus({ preventScroll: true });
+      pendingFocus.current = false;
+    }
+  }, [focusedItem, firstItem]);
 
   return (
     // a focusable, draggable object like a chart: moved with the mouse,
@@ -391,66 +430,106 @@ const SlicerPanel: React.FC<PanelProps> = ({
         </div>
       )}
       <div
+        ref={listRef}
         className="fortune-slicer-items"
         role="listbox"
         aria-multiselectable
         aria-label={slicer.caption || slicer.column}
-        style={{
-          gridTemplateColumns: buttonWidth
-            ? `repeat(${columns}, ${buttonWidth}px)`
-            : `repeat(${columns}, minmax(0, 1fr))`,
-          gridAutoRows: buttonHeight,
-        }}
+        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
         onMouseDown={(e) => e.stopPropagation()}
         onWheel={(e) => e.stopPropagation()}
       >
-        {items.map((item) => {
-          const cls = [
-            "fortune-slicer-item",
-            item.selected ? "fortune-slicer-item-selected" : "",
-            item.hasData ? "" : "fortune-slicer-item-nodata",
-          ]
-            .filter(Boolean)
-            .join(" ");
-          const label = item.text === "" ? tt.blank : item.text;
-          return (
-            <div
-              key={item.text}
-              role="option"
-              tabIndex={0}
-              aria-selected={item.selected}
-              title={item.hasData ? label : `${label} (${tt.noData})`}
-              className={cls}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                if (!active) {
-                  setContext((ctx) => {
-                    ctx.activeSlicer = {
-                      sheetId,
-                      table: table.name,
-                      name: slicer.name,
-                    };
-                  });
+        <div
+          style={{
+            display: "grid",
+            gap: 4,
+            gridTemplateColumns: buttonWidth
+              ? `repeat(${columns}, ${buttonWidth}px)`
+              : `repeat(${columns}, minmax(0, 1fr))`,
+            gridAutoRows: buttonHeight,
+            paddingTop: firstRow * stride,
+            paddingBottom:
+              Math.max(
+                0,
+                rowCount - firstRow - Math.ceil(visibleItems.length / columns)
+              ) * stride,
+          }}
+        >
+          {visibleItems.map((item, offset) => {
+            const itemIndex = firstItem + offset;
+            const cls = [
+              "fortune-slicer-item",
+              item.selected ? "fortune-slicer-item-selected" : "",
+              item.hasData ? "" : "fortune-slicer-item-nodata",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            const label = item.text === "" ? tt.blank : item.text;
+            return (
+              <div
+                key={item.text}
+                role="option"
+                tabIndex={
+                  itemIndex === Math.min(focusedItem, items.length - 1) ? 0 : -1
                 }
-              }}
-              onClick={(e) =>
-                select(
-                  item.text,
-                  !!slicer.multiSelect || e.ctrlKey || e.metaKey
-                )
-              }
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
+                data-item-index={itemIndex}
+                onFocus={() => setFocusedItem(itemIndex)}
+                aria-posinset={itemIndex + 1}
+                aria-setsize={items.length}
+                aria-selected={item.selected}
+                title={item.hasData ? label : `${label} (${tt.noData})`}
+                className={cls}
+                onMouseDown={(e) => {
                   e.stopPropagation();
-                  select(item.text, !!slicer.multiSelect || e.ctrlKey);
+                  if (!active) {
+                    setContext((ctx) => {
+                      ctx.activeSlicer = {
+                        sheetId,
+                        table: table.name,
+                        name: slicer.name,
+                      };
+                    });
+                  }
+                }}
+                onClick={(e) =>
+                  select(
+                    item.text,
+                    !!slicer.multiSelect || e.ctrlKey || e.metaKey
+                  )
                 }
-              }}
-            >
-              {label}
-            </div>
-          );
-        })}
+                onKeyDown={(e) => {
+                  const target = {
+                    ArrowDown: itemIndex + columns,
+                    ArrowUp: itemIndex - columns,
+                    ArrowLeft: itemIndex - 1,
+                    ArrowRight: itemIndex + 1,
+                    Home: 0,
+                    End: items.length - 1,
+                    PageDown:
+                      itemIndex + Math.max(1, visibleRows - 4) * columns,
+                    PageUp: itemIndex - Math.max(1, visibleRows - 4) * columns,
+                  }[e.key];
+                  if (target != null) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    focusItem(target);
+                    return;
+                  }
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    select(
+                      item.text,
+                      !!slicer.multiSelect || e.ctrlKey || e.metaKey
+                    );
+                  }
+                }}
+              >
+                {label}
+              </div>
+            );
+          })}
+        </div>
       </div>
       {active && !readonly && (
         <div className="fortune-slicer-handles">

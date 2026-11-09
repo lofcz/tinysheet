@@ -3,6 +3,7 @@ import {
   createMatcher,
   findAllMatches,
   findNextMatch,
+  getNextMatch,
   getCellSearchText,
   replaceAllMatches,
   replaceNextMatch,
@@ -11,6 +12,12 @@ import {
   replaceAll,
 } from "../../src/modules/searchReplace";
 import { groupValuesRefresh } from "../../src/modules/formula";
+import { matchFilterOperator } from "../../src/modules/filter";
+import { createWildcardMatcher } from "../../src/modules/wildcard";
+import {
+  createSourceMatrix,
+  getSourceMatrixStats,
+} from "../../src/modules/rowStore";
 
 function select(ctx, r, c, r2 = r, c2 = c) {
   ctx.luckysheet_select_save = [
@@ -49,6 +56,73 @@ function workbook() {
 const where = (ms) => ms.map((m) => `${m.sheetName}!${m.cellPosition}`);
 
 describe("wildcards (Excel: * any characters, ? one character, ~ escapes)", () => {
+  test("ambiguous wildcard searches and filters finish without backtracking", () => {
+    const pattern = "*a".repeat(16) + "b";
+    const text = "a".repeat(48);
+    expect(createMatcher(pattern).test(text)).toBe(false);
+    expect(createMatcher(pattern).replace(text, "x")).toBe(text);
+    for (const op of ["equals", "contains", "beginsWith", "endsWith"]) {
+      expect(matchFilterOperator({ v: text }, op, pattern)).toBe(false);
+      expect(matchFilterOperator({ v: text + "b" }, op, pattern)).toBe(true);
+    }
+  });
+
+  test("bounded matching preserves greedy replacements, escapes and anchors", () => {
+    const patterns = [
+      "*",
+      "?",
+      "a*",
+      "*a",
+      "a*b*",
+      "*a*b",
+      "*?*",
+      "a??*b",
+      "~*",
+      "~?",
+      "~~*",
+      "a~z*",
+      "[.*",
+      "é*",
+      "s*",
+      "ß*",
+    ];
+    const texts = [
+      "",
+      "a",
+      "ababa",
+      "banana",
+      "\na\nb",
+      "a*c",
+      "?",
+      "~a",
+      "a~z",
+      "[.x",
+      "Élan",
+      "ſ",
+      "ß",
+      "😀a",
+    ];
+    for (const pattern of patterns)
+      for (const text of texts)
+        for (const matchCase of [true, false]) {
+          const source = wildcardToRegExpSource(pattern);
+          const flags = matchCase ? "" : "i";
+          const matcher = createWildcardMatcher(pattern, "any", matchCase);
+          expect(matcher.test(text)).toBe(new RegExp(source, flags).test(text));
+          expect(matcher.replace(text, "$&")).toBe(
+            text.replace(new RegExp(source, flags + "g"), () => "$&")
+          );
+          for (const anchor of ["start", "end", "full"]) {
+            const re = new RegExp(
+              `${anchor !== "end" ? "^" : ""}(?:${source})${anchor !== "start" ? "$(?![\\s\\S])" : ""}`,
+              flags
+            );
+            expect(
+              createWildcardMatcher(pattern, anchor, matchCase).test(text)
+            ).toBe(re.test(text));
+          }
+        }
+  });
   test("pattern translation", () => {
     expect(wildcardToRegExpSource("a*c")).toBe("a[\\s\\S]*c");
     expect(wildcardToRegExpSource("a?c")).toBe("a[\\s\\S]c");
@@ -123,6 +197,15 @@ describe("look in formulas / values / notes", () => {
 });
 
 describe("Find All scope and order", () => {
+  test("large result sets do not overflow the stack or materialize source rows", () => {
+    const ctx = makeContext({ rows: 1, cols: 1 });
+    const data = createSourceMatrix(150000, 1, () => ({ v: "match" }));
+    ctx.luckysheetfile[0].data = data;
+    const matches = findAllMatches(ctx, "match");
+    expect(matches).toHaveLength(150000);
+    expect(matches[149999].cellPosition).toBe("A150000");
+    expect(getSourceMatrixStats(data).materializedRows).toBeLessThan(3);
+  });
   test("sheet scope, by rows (default)", () => {
     const ctx = workbook();
     expect(where(findAllMatches(ctx, "apple"))).toEqual([
@@ -187,6 +270,49 @@ describe("Find All scope and order", () => {
 });
 
 describe("Find Next / Find Previous", () => {
+  test("forward and backward traversal agree with Find All across overlapping selections", () => {
+    for (const searchBy of ["rows", "columns"])
+      for (const scope of ["sheet", "workbook"]) {
+        const ctx = workbook();
+        ctx.luckysheet_select_save = [
+          { row: [0, 2], column: [1, 2], row_focus: 0, column_focus: 1 },
+          { row: [0, 2], column: [0, 1], row_focus: 0, column_focus: 0 },
+        ];
+        const options = { scope, searchBy };
+        const matches = findAllMatches(ctx, "apple", options);
+        for (const backwards of [false, true]) {
+          for (let i = 0; i < matches.length; i += 1) {
+            const current = matches[i];
+            ctx.currentSheetId = current.sheetId;
+            const active = ctx.luckysheet_select_save.at(-1);
+            active.row_focus = current.r;
+            active.column_focus = current.c;
+            const expected =
+              matches[
+                (i + (backwards ? matches.length - 1 : 1)) % matches.length
+              ];
+            expect(
+              findNextMatch(ctx, "apple", options, backwards)
+            ).toMatchObject({
+              r: expected.r,
+              c: expected.c,
+              sheetId: expected.sheetId,
+            });
+          }
+        }
+      }
+  });
+  test("Find Next stops at the next source cell instead of collecting every match", () => {
+    const ctx = makeContext({ rows: 1, cols: 1 });
+    const data = createSourceMatrix(150000, 1, () => ({ v: "match" }));
+    ctx.luckysheetfile[0].data = data;
+    select(ctx, 0, 0);
+    expect(getNextMatch(ctx, "match").r).toBe(1);
+    expect(active(ctx)).toEqual(["id_1", 0, 0]);
+    expect(findNextMatch(ctx, "match").r).toBe(1);
+    expect(getSourceMatrixStats(data).decodedCells).toBeLessThan(5);
+    expect(findNextMatch(ctx, "match", {}, true).r).toBe(0);
+  });
   test("starts after the active cell and wraps", () => {
     const ctx = workbook();
     select(ctx, 0, 0);

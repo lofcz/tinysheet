@@ -85,6 +85,24 @@ const hiddenRows = (ctx) =>
     .sort((a, b) => a - b);
 
 describe("table filters", () => {
+  test("descending slicers handle more values than the JavaScript argument limit", () => {
+    const host = makeHost({ rows: 6, cols: 3 });
+    const table = regionTable(host.ctx);
+    table.range.row[1] = 150001;
+    const data = createSourceMatrix(150002, 3, (r) => ({
+      v: r === 150001 ? "" : r,
+    }));
+    host.ctx.luckysheetfile[0].data = data;
+    const items = getSlicerItems(host.ctx, "id_1", table, {
+      column: "Region",
+      sortOrder: "descending",
+    });
+    expect(items).toHaveLength(150001);
+    expect(items[0].text).toBe("150000");
+    expect(items[149999].text).toBe("1");
+    expect(items[150000].text).toBe("");
+    expect(getSourceMatrixStats(data).materializedRows).toBe(0);
+  });
   test("source-backed filtering and slicers read one column without expanding rows", () => {
     const host = makeHost({ rows: 6, cols: 3 });
     const table = regionTable(host.ctx);

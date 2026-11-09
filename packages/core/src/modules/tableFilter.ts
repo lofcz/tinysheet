@@ -310,6 +310,10 @@ export type SlicerItem = {
   hasData: boolean;
 };
 
+const slicerCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: "base",
+});
 function compareItems(a: string, b: string, aNum: number, bNum: number) {
   // blanks last
   if (a === "" && b === "") return 0;
@@ -320,7 +324,7 @@ function compareItems(a: string, b: string, aNum: number, bNum: number) {
   if (!na && !nb) return aNum - bNum;
   if (!na) return -1;
   if (!nb) return 1;
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  return slicerCollator.compare(a, b);
 }
 
 /**
@@ -365,13 +369,13 @@ export function getSlicerItems(
     if (!own || !(r in own.rowhidden)) item.selected = true;
     if (!(r in others)) item.hasData = true;
   }
-  const list = [...items.entries()].sort((a, b) =>
+  let list = [...items.entries()].sort((a, b) =>
     compareItems(a[0], b[0], a[1].num, b[1].num)
   );
   if (slicer.sortOrder === "descending") {
     const blanks = list.filter(([t]) => t === "");
     const rest = list.filter(([t]) => t !== "").reverse();
-    list.splice(0, list.length, ...rest, ...blanks);
+    list = rest.concat(blanks);
   }
   let out = list.map(([text, v]) => ({
     text,
