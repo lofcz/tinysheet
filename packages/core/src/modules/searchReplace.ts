@@ -14,6 +14,7 @@
 import _ from "lodash";
 import { createWildcardMatcher } from "./wildcard";
 import { peekCell } from "./dependencyGraph";
+import { getSourceMatrixExtent } from "./rowStore";
 
 import { Context, getFlowdata } from "../context";
 import { locale } from "../locale";
@@ -260,8 +261,9 @@ export function findAllMatches(
   searchScopes(ctx, o).forEach(({ sheet, ranges }) => {
     const { data } = sheet;
     if (!data || data.length === 0) return;
-    const rows = data.length;
-    const cols = data[0]?.length ?? 0;
+    const extent = getSourceMatrixExtent(data);
+    const rows = Math.min(data.length, extent?.rows ?? data.length);
+    const cols = Math.min(data[0]?.length ?? 0, extent?.columns ?? Infinity);
     const areas = ranges ?? [{ row: [0, rows - 1], column: [0, cols - 1] }];
     const seen = new Set<number>();
     const found: FindMatch[] = [];
@@ -393,8 +395,9 @@ export function getNextMatch(
       const { sheet, ranges } = scopes[si];
       const data = sheet.data;
       if (!data?.length) continue;
-      const rows = data.length;
-      const cols = data[0]?.length ?? 0;
+      const extent = getSourceMatrixExtent(data);
+      const rows = Math.min(data.length, extent?.rows ?? data.length);
+      const cols = Math.min(data[0]?.length ?? 0, extent?.columns ?? Infinity);
       const areas = ranges ?? [{ row: [0, rows - 1], column: [0, cols - 1] }];
       let best: FindMatch | null = null;
       for (const area of areas) {

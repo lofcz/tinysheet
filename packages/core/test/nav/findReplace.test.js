@@ -17,7 +17,11 @@ import { createWildcardMatcher } from "../../src/modules/wildcard";
 import {
   createSourceMatrix,
   getSourceMatrixStats,
+  getSourceMatrixExtent,
+  sizeSourceMatrix,
+  reconcileChunkedSheets,
 } from "../../src/modules/rowStore";
+import { makeHost } from "../editing/historyHarness";
 
 function select(ctx, r, c, r2 = r, c2 = c) {
   ctx.luckysheet_select_save = [
@@ -197,6 +201,30 @@ describe("look in formulas / values / notes", () => {
 });
 
 describe("Find All scope and order", () => {
+  test("source search skips grid padding but includes committed and pending edits outside the source", () => {
+    const host = makeHost({ rows: 1, cols: 1 });
+    const source = createSourceMatrix(3, 2, () => ({ v: "match" }));
+    host.ctx.luckysheetfile[0].data = sizeSourceMatrix(source, 100, 60);
+    host.ctx = reconcileChunkedSheets(null, host.ctx);
+    expect(getSourceMatrixExtent(host.ctx.luckysheetfile[0].data)).toEqual({
+      rows: 3,
+      columns: 2,
+    });
+    expect(findAllMatches(host.ctx, "match")).toHaveLength(6);
+    host.act((ctx) => {
+      ctx.luckysheetfile[0].data[80][40] = { v: "match" };
+      expect(findAllMatches(ctx, "match")).toHaveLength(7);
+    });
+    expect(getSourceMatrixExtent(host.ctx.luckysheetfile[0].data)).toEqual({
+      rows: 81,
+      columns: 41,
+    });
+    expect(findAllMatches(host.ctx, "match")).toHaveLength(7);
+    host.undo();
+    expect(findAllMatches(host.ctx, "match")).toHaveLength(6);
+    host.redo();
+    expect(findAllMatches(host.ctx, "match")).toHaveLength(7);
+  });
   test("large result sets do not overflow the stack or materialize source rows", () => {
     const ctx = makeContext({ rows: 1, cols: 1 });
     const data = createSourceMatrix(150000, 1, () => ({ v: "match" }));

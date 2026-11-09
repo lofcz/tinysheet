@@ -86,12 +86,14 @@ class MatrixState {
 
   source?: {
     base: CellMatrix;
+    extent: { rows: number; columns: number };
     commentRows?: readonly number[];
     stats: { decodedCells: number; materializedRows: number };
     read: (r: number, c: number) => Cell | null | undefined;
   };
 
   cellReader?: (r: number, c: number) => Cell | null | undefined;
+  searchExtent?: { rows: number; columns: number };
 
   /** id of the sheet the view belongs to; undefined for a fresh matrix */
   sheetId: string | undefined;
@@ -841,7 +843,10 @@ function createSourceView(
   columnCount: number,
   read: (r: number, c: number) => Cell | null | undefined,
   stats: { decodedCells: number; materializedRows: number },
-  metadata: { commentRows?: readonly number[] }
+  metadata: {
+    commentRows?: readonly number[];
+    extent?: { rows: number; columns: number };
+  }
 ): CellMatrix {
   const positions = new WeakMap<Row, number>();
   const descriptors: PropertyDescriptorMap = {};
@@ -876,7 +881,13 @@ function createSourceView(
     chunks.push(chunk);
   }
   const st = makeState(freezeList(chunks), undefined, false);
-  st.source = { base: st.view, stats, read, ...metadata };
+  st.source = {
+    base: st.view,
+    stats,
+    read,
+    extent: { rows: rowCount, columns: columnCount },
+    ...metadata,
+  };
   return st.view;
 }
 
@@ -884,6 +895,33 @@ function createSourceView(
 export function getSourceMatrixStats(data: CellMatrix) {
   const st: MatrixState | undefined = (data as any)?.[MATRIX];
   return st?.source ? { ...st.source.stats } : undefined;
+}
+
+/** Conservative occupied bounds of an immutable source view, including edits. */
+export function getSourceMatrixExtent(
+  data: CellMatrix
+): Readonly<{ rows: number; columns: number }> | undefined {
+  const st: MatrixState | undefined = (data as any)?.[MATRIX];
+  // Drafts can contain pending edits; use the full grid until they commit.
+  if (!st?.source || currentSession()) return undefined;
+  if (st.searchExtent) return st.searchExtent;
+  const extent = { ...st.source.extent };
+  if (
+    !forEachChangedRow(st.source.base, data, (r) => {
+      const row = peekRow(st, r);
+      if (!row) return;
+      for (let c = row.length - 1; c >= 0; c -= 1) {
+        if (peek(row[c]) != null) {
+          extent.rows = Math.max(extent.rows, r + 1);
+          extent.columns = Math.max(extent.columns, c + 1);
+          break;
+        }
+      }
+    })
+  )
+    return undefined;
+  st.searchExtent = Object.freeze(extent);
+  return extent;
 }
 
 /** Add the host's empty grid area without decoding or copying the source cells. */
@@ -904,7 +942,13 @@ export function sizeSourceMatrix(
     columnCount,
     (r, c) => read(r, c) ?? null,
     st.source.stats,
-    { commentRows: sourceCommentRows(data) }
+    {
+      commentRows: sourceCommentRows(data),
+      extent: getSourceMatrixExtent(data) ?? {
+        rows: data.length,
+        columns: data[0]?.length ?? 0,
+      },
+    }
   );
 }
 
