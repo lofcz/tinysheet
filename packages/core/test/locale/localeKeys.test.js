@@ -18,6 +18,25 @@ function leaves(value, path = "") {
 }
 
 describe("typesafe-i18n catalogs", () => {
+  test.each(["cs", "sk", "pl"])(
+    "%s translates formula warnings and auditing controls",
+    (lang) => {
+      const english = leaves(getLocaleSection("en", "formulaAudit"));
+      const translated = leaves(getLocaleSection(lang, "formulaAudit"));
+      for (const key of Object.keys(english)) {
+        // The confirmation button uses the same conventional spelling.
+        if (key === ".calc.ok") continue;
+        expect({ key, text: translated[key] }).not.toEqual({
+          key,
+          text: english[key],
+        });
+      }
+      expect(
+        getLocaleSection(lang, "ribbonFormulasDataReview").formulas
+          .circularReferences
+      ).toBe(getLocaleSection(lang, "formulaAudit").calc.circularReferences);
+    }
+  );
   test("only host-supported languages are registered", () => {
     expect([...supportedLocales].sort()).toEqual(["cs", "en", "pl", "sk"]);
     expect(normalizeLocale("CS-cz")).toBe("cs");

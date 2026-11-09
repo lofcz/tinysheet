@@ -73,7 +73,7 @@ const pl = {
     errorCheckingTip: "Check for common errors that occur in formulas.",
     errorCheckingMenu: "Error Checking…",
     noErrors: "The error check has been completed for the entire sheet.",
-    circularReferences: "Circular References",
+    circularReferences: "Odwołania cykliczne",
     evaluateFormulaTip:
       "Debug a complex formula, evaluating each part individually.",
     watchWindowTip:
