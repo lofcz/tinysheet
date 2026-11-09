@@ -77,12 +77,15 @@ describe("registration", () => {
     expect(hasCellDecorators()).toBe(true);
   });
 
-  test("locale falls back to English", () => {
+  test("supported locales translate errors; unknown locales fall back to English", () => {
     expect(sparklineLocale({ lang: "cs" }).group).toBe("Seskupit");
     expect(sparklineLocale({ lang: "cs" }).errorData).toBe(
-      "The data range is not valid."
+      "Rozsah dat není platný."
     );
     expect(sparklineLocale({ lang: null }).line).toBe("Line");
+    expect(sparklineLocale({ lang: "unsupported" }).errorData).toBe(
+      "The data range is not valid."
+    );
   });
 });
 

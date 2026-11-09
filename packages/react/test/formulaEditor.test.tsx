@@ -1,6 +1,6 @@
 import { fireEvent, render } from "@testing-library/react";
 import React from "react";
-import { defaultContext, Context } from "@lofcz/tinysheet-core";
+import { defaultContext, Context, locale } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../src/context";
 import FormulaHint from "../src/components/SheetOverlay/FormulaHint";
 import FormulaSearch from "../src/components/SheetOverlay/FormulaSearch";
@@ -11,17 +11,6 @@ function renderWith(
   setContext = jest.fn()
 ) {
   const context = { ...defaultContext({} as any), lang: "en", ...patch };
-  // a fixed catalog entry, independent of the locale function list
-  context.formulaCache.functionlistMap = {
-    MYSUM: {
-      n: "MYSUM",
-      d: "Adds numbers.",
-      p: [
-        { name: "value1", detail: "First value", require: "m", repeat: "n" },
-        { name: "value2", detail: "More values", require: "o", repeat: "y" },
-      ],
-    },
-  };
   return render(
     <WorkbookContext.Provider
       value={{ context, setContext, refs: {} as any, settings: {} as any }}
@@ -32,25 +21,32 @@ function renderWith(
 }
 
 describe("FormulaHint", () => {
-  it("bolds the argument under the caret and uses locale strings", () => {
-    const { container, getByTitle } = renderWith(<FormulaHint />, {
-      functionHint: "MYSUM",
-      functionHintArgIndex: 3,
-    });
-    const current = container.querySelector(
-      ".luckysheet-arguments-help-parameter-current"
-    );
-    // MYSUM(value1, [value2], ...): the 4th argument is described by value2
-    expect(current?.textContent).toBe("[value2]");
-    expect(container.textContent).toContain("More values");
-    expect(getByTitle("Close")).toBeTruthy();
-    expect(getByTitle("Collapse")).toBeTruthy();
-    expect(container.textContent).not.toMatch(/关闭|收起/);
-  });
+  it.each(["en", "cs", "sk", "pl"])(
+    "%s uses the real function catalog and bolds repeated arguments",
+    (lang) => {
+      const { functionlist, formulaMore } = locale({ lang });
+      const sum = functionlist.find((fn) => fn.n === "SUM")!;
+      const { container, getByTitle } = renderWith(<FormulaHint />, {
+        lang,
+        functionHint: "SUM",
+        functionHintArgIndex: 3,
+      });
+      const current = container.querySelector(
+        ".luckysheet-arguments-help-parameter-current"
+      );
+      // SUM(number1, [number2], ...): the 4th argument repeats number2.
+      expect(current?.textContent).toBe(`[${sum.p[1].name}]`);
+      expect(container.textContent).toContain(sum.p[1].detail);
+      expect(container.textContent).toContain(sum.d);
+      expect(getByTitle(formulaMore.helpClose)).toBeTruthy();
+      expect(getByTitle(formulaMore.helpCollapse)).toBeTruthy();
+      expect(container.textContent).not.toMatch(/关闭|收起/);
+    }
+  );
 
   it("can be collapsed and closed", () => {
     const { container, getByTitle } = renderWith(<FormulaHint />, {
-      functionHint: "MYSUM",
+      functionHint: "SUM",
       functionHintArgIndex: 0,
     });
     expect(
