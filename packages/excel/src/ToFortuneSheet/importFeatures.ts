@@ -43,6 +43,7 @@ import { readCheckboxes } from "./FortuneCheckbox";
 
 export type WorkbookImportInfo = {
   date1904?: boolean;
+  sourceBacked?: boolean;
 };
 
 export type SheetImportContext = {
@@ -317,7 +318,8 @@ function applyTableLook(sheet: FortuneSheet, table: any) {
 function applyTableExtras(
   sheet: FortuneSheet,
   table: any,
-  extras: TablePartExtras
+  extras: TablePartExtras,
+  sourceBacked = false
 ) {
   if (table.headerRow && !extras.hasAutoFilter) table.filterButton = false;
   Object.entries(extras.calculated).forEach(([i, f]) => {
@@ -328,6 +330,10 @@ function applyTableExtras(
     const col = table.columns[Number(i)];
     if (col && col.totalFunction === "custom") col.totalFormula = f;
   });
+  if (sourceBacked && extras.filters.length) {
+    table._sourceFilters = extras.filters;
+    return;
+  }
   const filters = tableFiltersFromXlsx(sheet as any, table, extras.filters);
   if (filters) table.filters = filters;
 }
@@ -416,7 +422,8 @@ export function readTables(ctx: SheetImportContext) {
   if (parsed.length === 0) return;
   const tables = parsed.map((p) => p.table);
   (ctx.sheet as any).tables = tables;
-  tables.forEach((table) => applyTableLook(ctx.sheet, table));
+  if (!ctx.workbook.sourceBacked)
+    tables.forEach((table) => applyTableLook(ctx.sheet, table));
   ctx.sheet.celldata.forEach((cell) => {
     const v = cell.v as any;
     if (!v || typeof v.f !== "string" || v.f.indexOf("[") < 0) return;
@@ -430,7 +437,7 @@ export function readTables(ctx: SheetImportContext) {
     if (table) v.f = unqualifyStructuredReferences(v.f, table.name);
   });
   parsed.forEach(({ table, extras }) =>
-    applyTableExtras(ctx.sheet, table, extras)
+    applyTableExtras(ctx.sheet, table, extras, ctx.workbook.sourceBacked)
   );
   readTableSlicers(ctx, rels, parsed);
 }

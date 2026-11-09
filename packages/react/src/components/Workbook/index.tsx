@@ -20,6 +20,7 @@ import {
   locale,
   groupValuesRefresh,
   setFormulaCellInfoMap,
+  sizeSourceMatrix,
   expandCellData,
   mirrorGroupedSheetEdits,
   produceWithHistory,
@@ -466,6 +467,16 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             const newData = originalData.map((sheet) => ({ ...sheet }));
             ensureSheetIndex(newData, mergedSettings.generateSheetId);
             newData.forEach((sheet) => {
+              const sized = sizeSourceMatrix(
+                sheet.data,
+                mergedSettings.row,
+                mergedSettings.column
+              );
+              if (sized && sized !== sheet.data) {
+                sheet.data = sized;
+                sheet.row = sized.length;
+                sheet.column = sized[0].length;
+              }
               // Imported outside borders can contain two entries per row.
               // Like cell rows, this immutable list is copied on write; do not
               // recursively freeze 100k border records on the first commit.

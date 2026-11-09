@@ -1,7 +1,7 @@
 import { Workbook, writeXlsx } from "@lofcz/ts-xlsx";
 
 /** Synthetic version of a customer-shaped workbook; no external data. */
-export async function largeTableBytes(rows = 50000) {
+export async function largeTableBytes(rows = 50000, useSharedStrings = false) {
   const wb = new Workbook();
   const sheet = wb.addWorksheet("Data");
   const columns = [
@@ -55,5 +55,5 @@ export async function largeTableBytes(rows = 50000) {
     const lookup = wb.addWorksheet(`Lookup ${count}`);
     for (let r = 0; r < count; r += 1) lookup.addRow([`Lookup ${r}`, r]);
   }
-  return new Uint8Array(writeXlsx(wb));
+  return new Uint8Array(writeXlsx(wb, { useSharedStrings }));
 }

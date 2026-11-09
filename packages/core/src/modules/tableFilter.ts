@@ -25,6 +25,7 @@ import type {
 } from "../types";
 import type { FilterCondition } from "./filter";
 import { computeFilterConditionRows, refreshFilterFormulas } from "./filter";
+import { peekCell } from "./dependencyGraph";
 import {
   findTable,
   syncFilterHiddenRows,
@@ -120,7 +121,7 @@ export function computeTableColumnRows(
   if (condition.type === "values") {
     const set = new Set(condition.hidden ?? []);
     for (let r = dataStart; r <= dataEnd; r += 1) {
-      if (set.has(tableItemText(data[r]?.[c]))) hidden[r] = 0;
+      if (set.has(tableItemText(peekCell(data, r, c)))) hidden[r] = 0;
     }
     return hidden;
   }
@@ -193,7 +194,7 @@ function hiddenTexts(
   const hidden = new Set<string>();
   const shown = new Set<string>();
   for (let r = dataStart; r <= dataEnd; r += 1) {
-    const text = tableItemText(data[r]?.[c]);
+    const text = tableItemText(peekCell(data, r, c));
     if (r in rows) hidden.add(text);
     else shown.add(text);
   }
@@ -350,7 +351,7 @@ export function getSlicerItems(
     { num: number; selected: boolean; hasData: boolean }
   >();
   for (let r = dataStart; r <= dataEnd; r += 1) {
-    const cell = data[r]?.[c];
+    const cell = peekCell(data, r, c);
     const text = tableItemText(cell);
     let item = items.get(text);
     if (!item) {

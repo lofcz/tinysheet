@@ -1,6 +1,6 @@
 /**
- * Off-main-thread import: run `parseExcel` in a Web Worker and hand the
- * result back as one transferable buffer.
+ * Off-main-thread import: index the source in a Web Worker, then attach
+ * copy-on-write cell views on the main thread.
  *
  * Worker script (bundle it as a module worker):
  *
@@ -16,14 +16,13 @@
  *   const result = await parseExcelInWorker(worker, file);
  *   applyExcelImport(workbookRef.current, result); // as with parseExcel
  *
- * The parsed workbook is sent as UTF-8 JSON in an ArrayBuffer that is
- * transferred, not copied (structured-cloning a million cell objects costs
- * about as much as parsing them); the main thread only runs JSON.parse.
- * Pass `transfer: "clone"` to post the result object instead. One worker
- * can serve any number of concurrent requests.
+ * XLSX results carry source XML, compact row indexes and metadata; ordinary
+ * cells are decoded only when requested. CSV results use transferred JSON by
+ * default, or structured cloning with `transfer: "clone"`.
  */
-import { parseExcel, ParseExcelOptions } from "./parseExcel";
+import { parseExcelDocument, ParseExcelOptions } from "./parseExcel";
 import type { ExcelImportResult } from "./types";
+import { bindSourceImport, sourceTransferResult } from "./source";
 
 export type ParseExcelWorkerRequest = {
   type: "tinysheet:parseExcel";
@@ -54,7 +53,11 @@ type MessageScope = {
 export function encodeExcelImportResult(
   result: ExcelImportResult
 ): ArrayBuffer {
-  const bytes = new TextEncoder().encode(JSON.stringify(result));
+  const bytes = new TextEncoder().encode(
+    JSON.stringify(sourceTransferResult(result), (_key, value) =>
+      value instanceof Uint32Array ? { $rows: Array.from(value) } : value
+    )
+  );
   return bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
     ? (bytes.buffer as ArrayBuffer)
     : (bytes.buffer.slice(
@@ -66,7 +69,11 @@ export function encodeExcelImportResult(
 export function decodeExcelImportResult(
   buffer: ArrayBuffer | Uint8Array
 ): ExcelImportResult {
-  return JSON.parse(new TextDecoder().decode(buffer));
+  return bindSourceImport(
+    JSON.parse(new TextDecoder().decode(buffer), (_key, value) =>
+      value?.$rows ? Uint32Array.from(value.$rows) : value
+    )
+  );
 }
 
 /** Answer one parse request (what the worker runs for each message). */
@@ -74,19 +81,29 @@ export async function handleParseExcelRequest(
   request: ParseExcelWorkerRequest
 ): Promise<{ response: ParseExcelWorkerResponse; transfer: ArrayBuffer[] }> {
   try {
-    const result = await parseExcel(
+    const result = await parseExcelDocument(
       request.input,
       request.fileName,
-      request.options
+      request.options ?? {},
+      false
     );
-    if (request.transfer === "clone") {
+    if (result.source || request.transfer === "clone") {
       return {
         response: {
           type: "tinysheet:parseExcel:result",
           id: request.id,
-          result,
+          result: sourceTransferResult(result),
         },
-        transfer: [],
+        transfer: result.source
+          ? [
+              result.source.stringOffsets.buffer as ArrayBuffer,
+              ...result.source.worksheets.flatMap((sheet) => [
+                sheet.rows.buffer as ArrayBuffer,
+                sheet.cells.buffer as ArrayBuffer,
+                sheet.rowCellStarts.buffer as ArrayBuffer,
+              ]),
+            ]
+          : [],
       };
     }
     const json = encodeExcelImportResult(result);
@@ -135,7 +152,7 @@ type WorkerLike = {
 let nextRequestId = 1;
 
 export type ParseExcelInWorkerOptions = ParseExcelOptions & {
-  /** How the result comes back (default "json": one transferred buffer). */
+  /** CSV transport (default "json"). XLSX always transfers compact source indexes. */
   transfer?: "json" | "clone";
 };
 
@@ -195,7 +212,11 @@ export function parseExcelInWorker(
           reject(error);
         }
       } else {
-        resolve(data.result);
+        try {
+          resolve(bindSourceImport(data.result));
+        } catch (error) {
+          reject(error);
+        }
       }
     };
     worker.addEventListener("message", listener);

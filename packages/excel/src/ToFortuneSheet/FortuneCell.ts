@@ -22,6 +22,7 @@ import {
 import { childElement, ScannedElement } from "./xmlScan";
 
 export type FortuneCellWorkbookInfo = {
+  sourceBacked?: boolean;
   /** The workbook uses the 1904 date system (serials are shifted on import). */
   date1904?: boolean;
 };

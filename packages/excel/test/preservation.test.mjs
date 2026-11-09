@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import JSZip from "jszip";
 import { Workbook, readXlsx, writeXlsx } from "@lofcz/ts-xlsx";
 import { FormulaCache, api } from "@lofcz/tinysheet-core";
 import {
@@ -10,11 +11,12 @@ import {
 } from "../dist/index.js";
 import { patchZip, zipText } from "./helpers.mjs";
 
-test("deferred import baseline is detached and version 1 saves still load", async () => {
+test("source-backed import retains original bytes and version 1/2 saves still load", async () => {
   const workbook = new Workbook();
   workbook.addWorksheet("Data").getCell("A1").value = "before";
   const imported = await parseExcel(writeXlsx(workbook));
-  assert.equal(imported.preservation.version, 2);
+  assert.equal(imported.preservation.version, 3);
+  assert.equal("baselineSheetsZip" in imported.preservation, false);
   const oldBaseline = await exportToXlsx(imported.sheets);
   const legacy = {
     ...imported.preservation,
@@ -22,10 +24,18 @@ test("deferred import baseline is detached and version 1 saves still load", asyn
     baseline: Buffer.from(oldBaseline).toString("base64"),
   };
   delete legacy.baselineSheetsZip;
-  const snapshot = imported.preservation.baselineSheetsZip;
-  imported.sheets[0].celldata[0].v.v = "after";
-  assert.equal(imported.preservation.baselineSheetsZip, snapshot);
-  for (const preservation of [imported.preservation, legacy]) {
+  const sparse = imported.sheets[0].celldata;
+  const zip = new JSZip();
+  zip.file("sheets.json", JSON.stringify(imported.sheets));
+  const previous = {
+    ...imported.preservation,
+    version: 2,
+    baselineSheetsZip: await zip.generateAsync({ type: "base64" }),
+  };
+  const snapshot = imported.preservation.source;
+  sparse[0].v.v = "after";
+  assert.equal(imported.preservation.source, snapshot);
+  for (const preservation of [imported.preservation, legacy, previous]) {
     const out = readXlsx(await exportToXlsx(imported.sheets, { preservation }));
     assert.equal(out.requireWorksheet("Data").getCell("A1").value, "after");
   }

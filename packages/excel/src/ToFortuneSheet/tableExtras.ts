@@ -17,6 +17,7 @@ import { escapeCharacter } from "../common/method";
 import { fromExcelFormula } from "../common/formulaText";
 import { unqualifyStructuredReferences } from "../common/structuredRefs";
 import type { IuploadfileList } from "../common/ICommon";
+import { peekCell, type CellMatrix } from "@lofcz/tinysheet-core";
 
 const EMU_PER_PX = 9525;
 
@@ -216,7 +217,7 @@ function cellText(v: any) {
  * rows the file hides.
  */
 export function tableFiltersFromXlsx(
-  sheet: { celldata: any[]; config?: any },
+  sheet: { celldata?: any[]; data?: CellMatrix; config?: any },
   table: any,
   raw: RawTableFilter[]
 ) {
@@ -226,7 +227,7 @@ export function tableFiltersFromXlsx(
   const dataEnd = r2 - (table.totalRow ? 1 : 0);
   const c1 = table.range.column[0];
   const texts = new Map<string, string>();
-  sheet.celldata.forEach((cell) => {
+  (sheet.data ? [] : (sheet.celldata ?? [])).forEach((cell) => {
     if (cell.r >= dataStart && cell.r <= dataEnd) {
       texts.set(`${cell.r}_${cell.c}`, cellText(cell.v));
     }
@@ -242,7 +243,9 @@ export function tableFiltersFromXlsx(
       if (f.blank) shown.add("");
       const hidden = new Set<string>();
       for (let r = dataStart; r <= dataEnd; r += 1) {
-        const text = texts.get(`${r}_${c}`) ?? "";
+        const text = sheet.data
+          ? cellText(peekCell(sheet.data, r, c))
+          : (texts.get(`${r}_${c}`) ?? "");
         if (!shown.has(text)) {
           hidden.add(text);
           rowhidden[r] = 0;

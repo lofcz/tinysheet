@@ -7,11 +7,49 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
-import { Workbook } from "@lofcz/ts-xlsx";
+import { Workbook, writeXlsx } from "@lofcz/ts-xlsx";
+import { getSourceMatrixStats, peekCell } from "@lofcz/tinysheet-core";
 import { parseExcel, parseExcelInWorker } from "../dist/index.js";
 import { cellMap, xlsxBytes } from "./helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+test("inline and shared-string imports decode only requested cells, including after worker transfer", async () => {
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("Strings");
+  for (let r = 1; r <= 2000; r++)
+    ws.getCell(`A${r}`).value = `Unique ${r} & <text>`;
+  ws.getCell("B2000").value = {
+    richText: [{ text: "bold", font: { bold: true } }, { text: " plain" }],
+  };
+  const w = nodeWorker(path.resolve(__dirname, "fixtures/parseWorker.mjs"));
+  try {
+    for (const useSharedStrings of [false, true]) {
+      const bytes = writeXlsx(wb, { useSharedStrings });
+      for (const result of [
+        await parseExcel(bytes),
+        await parseExcelInWorker(w, bytes),
+      ]) {
+        const data = result.sheets[0].data;
+        assert.equal(getSourceMatrixStats(data).decodedCells, 0);
+        assert.equal(result.source.stringOffsets.length > 0, useSharedStrings);
+        assert.equal(peekCell(data, 1999, 0).v, "Unique 2000 & <text>");
+        assert.equal(peekCell(data, 0, 0).v, "Unique 1 & <text>");
+        assert.equal(peekCell(data, 1999, 1).ct.s[0].bl, 1);
+        assert.equal(
+          peekCell(data, 1999, 1)
+            .ct.s.map((run) => run.v)
+            .join(""),
+          "bold plain"
+        );
+        assert.equal(getSourceMatrixStats(data).decodedCells, 3);
+        assert.equal(getSourceMatrixStats(data).materializedRows, 0);
+      }
+    }
+  } finally {
+    await w.worker.terminate();
+  }
+});
 
 async function bigWorkbook(rows, cols) {
   const wb = new Workbook();
@@ -97,7 +135,22 @@ test("parseExcelInWorker returns what parseExcel returns", async (t) => {
     // the caller's buffer is not detached
     assert.ok(input.byteLength > 0);
     const direct = await parseExcel(input, "big.xlsx");
-    assert.deepEqual(viaWorker, JSON.parse(JSON.stringify(direct)));
+    assert.deepEqual(viaWorker.sizing, direct.sizing);
+    assert.deepEqual(viaWorker.preservation, direct.preservation);
+    assert.deepEqual(viaWorker.sheets[0].calcChain, direct.sheets[0].calcChain);
+    assert.equal(viaWorker.sheets[0].data.length, 25000);
+    for (const r of [0, 12499, 24999]) {
+      for (let c = 0; c < 4; c++) {
+        assert.deepEqual(
+          viaWorker.sheets[0].data[r][c],
+          direct.sheets[0].data[r][c]
+        );
+        assert.deepEqual(
+          viaClone.sheets[0].data[r][c],
+          direct.sheets[0].data[r][c]
+        );
+      }
+    }
     assert.equal(viaClone.sheets[0].celldata.length, 100000);
     await assert.rejects(
       parseExcelInWorker(w, new Uint8Array([1, 2, 3]), "bad.xlsx"),

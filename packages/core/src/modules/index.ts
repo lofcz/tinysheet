@@ -11,6 +11,7 @@ export * from "./freeze";
 export * from "./geometry";
 export * from "./sheetLoad";
 export * from "./rowStore";
+export { peekCell } from "./dependencyGraph";
 export * from "./recalcScheduler";
 export { flushRecalc, runRecalcSlice } from "./formulaHelper";
 export * from "./history";

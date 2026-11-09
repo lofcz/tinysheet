@@ -105,9 +105,27 @@ export type WorkbookExportFeature = {
 
 function borders(ctx: SheetExportContext) {
   const { config } = ctx.sheet;
-  if (!config?.borderInfo?.length) return;
+  if (!config?.borderInfo?.length && !config?.sourceBorders) return;
   // Borders on hidden rows/columns are still borders in Excel.
   const visibleConfig = { ...config };
+  if (config.sourceBorders) {
+    const source: any[] = [];
+    ctx.data.forEach((row, r) =>
+      row?.forEach((cell, c) => {
+        if (cell?.sourceBorder)
+          source.push({
+            rangeType: "cell",
+            value: {
+              ...cell.sourceBorder,
+              row_index: r,
+              col_index: c,
+            },
+          });
+      })
+    );
+    visibleConfig.borderInfo = source.concat(config.borderInfo ?? []);
+  }
+  if (!visibleConfig.borderInfo?.length) return;
   delete visibleConfig.rowhidden;
   delete visibleConfig.colhidden;
   setBorder(

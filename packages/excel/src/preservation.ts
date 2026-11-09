@@ -18,6 +18,9 @@ export type XlsxPreservation = PreservationSource &
     // Materialize its XLSX only on export, not on the loading path. Compression
     // also keeps worker transfers and persisted workbook metadata small.
     | { version: 2; baselineSheetsZip: string }
+    // The package is the backing store. No second workbook or baseline is
+    // constructed during import; export can reconstruct a baseline on demand.
+    | { version: 3 }
   );
 
 export type XlsxFidelityDiagnostic = FidelityDiagnostic;
@@ -34,20 +37,6 @@ function decodeWorkbookBytes(base64: string): Uint8Array {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
-export async function snapshotWorkbookSheets(sheets: Sheet[]): Promise<string> {
-  const zip = new JSZip();
-  zip.file("sheets.json", JSON.stringify(sheets), {
-    date: new Date("2000-01-01T00:00:00Z"),
-  });
-  return encodeWorkbookBytes(
-    await zip.generateAsync({
-      type: "uint8array",
-      compression: "DEFLATE",
-      compressionOptions: { level: 1 },
-    })
-  );
-}
-
 async function restoreWorkbookSheets(snapshot: string): Promise<Sheet[]> {
   const zip = await JSZip.loadAsync(decodeWorkbookBytes(snapshot));
   const file = zip.file("sheets.json");
@@ -61,7 +50,7 @@ export async function preserveWorkbookEdits(
   edited: Uint8Array
 ) {
   if (
-    (source.version !== 1 && source.version !== 2) ||
+    (source.version !== 1 && source.version !== 2 && source.version !== 3) ||
     !Array.isArray(source.sheets)
   )
     throw new Error("Unsupported workbook preservation state");
@@ -72,7 +61,17 @@ export async function preserveWorkbookEdits(
     source.version === 1
       ? decodeWorkbookBytes(source.baseline)
       : await exportToXlsx(
-          await restoreWorkbookSheets(source.baselineSheetsZip),
+          source.version === 2
+            ? await restoreWorkbookSheets(source.baselineSheetsZip)
+            : (
+                await (
+                  await import("./parse/parseExcel")
+                ).parseExcel(
+                  decodeWorkbookBytes(source.source),
+                  "workbook.xlsx",
+                  { preserve: false }
+                )
+              ).sheets,
           {
             timestamp: new Date("2000-01-01T00:00:00.000Z"),
           }

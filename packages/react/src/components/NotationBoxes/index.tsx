@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useRef } from "react";
 import {
   CellMatrix,
   forEachChangedRow,
+  sourceCommentRows,
   getFlowdata,
   onCommentBoxMoveStart,
   onCommentBoxResizeStart,
@@ -64,7 +65,10 @@ const NotationBoxes: React.FC = () => {
       }
       if (!shown) {
         shown = new Map();
-        for (let i = 0; i < flowdata.length; i += 1) {
+        const candidates = sourceCommentRows(flowdata);
+        const count = candidates?.length ?? flowdata.length;
+        for (let n = 0; n < count; n += 1) {
+          const i = candidates ? candidates[n] : n;
           const cols = colsOf(i);
           if (cols.length > 0) shown.set(i, cols);
         }

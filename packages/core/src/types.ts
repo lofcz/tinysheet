@@ -54,6 +54,8 @@ export type CellImage = {
 };
 
 export type Cell = {
+  /** Original cell edges, resolved on demand by a source-backed importer. */
+  sourceBorder?: Record<string, { color: string; style: number | string }>;
   v?: string | number | boolean;
   m?: string | number;
   mc?: { r: number; c: number; rs?: number; cs?: number };
@@ -121,6 +123,8 @@ export type Presence = {
 };
 
 export type SheetConfig = {
+  /** Read original borders from cells before applying the editor's border operations. */
+  sourceBorders?: boolean;
   merge?: Record<string, { r: number; c: number; rs: number; cs: number }>; // 合并单元格
   rowlen?: Record<string, number>; // 表格行高
   columnlen?: Record<string, number>; // 表格列宽

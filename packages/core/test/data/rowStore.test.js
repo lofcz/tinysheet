@@ -7,6 +7,10 @@ import { produce } from "immer";
 import { makeHost, type, val, sheetOf } from "../editing/historyHarness";
 import {
   createChunkedMatrix,
+  createSourceMatrix,
+  getSourceMatrixStats,
+  sourceCommentRows,
+  sizeSourceMatrix,
   isChunkedMatrix,
   materializeMatrix,
   setChunkedRowThreshold,
@@ -24,7 +28,7 @@ import {
 import { insertRowCol, deleteRowCol } from "../../src/modules/rowcol";
 import { sortSelection } from "../../src/modules/sort";
 import { getFlowdata } from "../../src/context";
-import { peek } from "../../src/modules/dependencyGraph";
+import { peek, peekCell } from "../../src/modules/dependencyGraph";
 
 const initialThreshold = getChunkedRowThreshold();
 afterEach(() => setChunkedRowThreshold(initialThreshold));
@@ -48,6 +52,59 @@ function chunkedHost(rows = 3000, cols = 6) {
 }
 
 describe("matrix view", () => {
+  test("host grid dimensions add empty cells without decoding the source", () => {
+    const read = jest.fn(() => ({ v: "source" }));
+    const source = createSourceMatrix(1, 1, read, { commentRows: [] });
+    const sized = sizeSourceMatrix(source, 84, 60);
+    expect([sized.length, sized[0].length]).toEqual([84, 60]);
+    expect(peekCell(sized, 83, 59)).toBeNull();
+    expect(read).not.toHaveBeenCalled();
+    expect(peekCell(sized, 0, 0).v).toBe("source");
+    expect(sourceCommentRows(sized)).toEqual([]);
+  });
+  test("column reads and note discovery do not expand source rows", () => {
+    const data = createSourceMatrix(50000, 10, (r, c) => ({ v: r + c }), {
+      commentRows: [42],
+    });
+    expect(sourceCommentRows(data)).toEqual([42]);
+    for (let r = 0; r < 50000; r++) expect(peekCell(data, r, 3).v).toBe(r + 3);
+    expect(getSourceMatrixStats(data)).toEqual({
+      decodedCells: 50000,
+      materializedRows: 0,
+    });
+    expect(data[49999][3].v).toBe(50002);
+    expect(getSourceMatrixStats(data)).toEqual({
+      decodedCells: 50000,
+      materializedRows: 1,
+    });
+  });
+
+  test("source cells are read on demand and edits retain source ownership", () => {
+    const read = jest.fn((r, c) => ({
+      v: r * 10 + c,
+      ct: { fa: "General", t: "n" },
+    }));
+    const data = createSourceMatrix(50000, 10, read);
+    expect(data.length).toBe(50000);
+    expect(read).not.toHaveBeenCalled();
+    expect(data[49999][2].v).toBe(499992);
+    expect(data[49999][2].v).toBe(499992);
+    expect(read).toHaveBeenCalledTimes(1);
+    const host = makeHost({ rows: 1, cols: 10 });
+    host.ctx.luckysheetfile[0].data = data;
+    host.ctx = reconcileChunkedSheets(null, host.ctx);
+    const before = sheetOf(host.ctx).data;
+    const next = produceContext(host.ctx, (ctx) => {
+      getFlowdata(ctx)[49999][2].v = 42;
+      expect(peekCell(getFlowdata(ctx), 49999, 2).v).toBe(42);
+    });
+    expect(sheetOf(next).data[49999][2].v).toBe(42);
+    expect(before[49999][2].v).toBe(499992);
+    // Copying a row may decode that row, but never the rest of the worksheet.
+    expect(read.mock.calls.length).toBeLessThanOrEqual(10);
+    expect(Object.isFrozen(before[49999][2].ct)).toBe(true);
+  });
+
   test("indexes, iterates and serialises like a 2D array", () => {
     const rows = grid(2500, 3, (r, c) => (c === 0 ? { v: r } : null));
     const m = createChunkedMatrix(rows);

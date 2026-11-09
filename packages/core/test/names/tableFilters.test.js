@@ -36,6 +36,11 @@ import {
 } from "../../src/modules/filter";
 import { insertRowCol, deleteRowCol } from "../../src/modules/rowcol";
 import {
+  createSourceMatrix,
+  getSourceMatrixStats,
+  reconcileChunkedSheets,
+} from "../../src/modules/rowStore";
+import {
   expectUndoRedo,
   makeHost,
   type as typeInto,
@@ -80,6 +85,40 @@ const hiddenRows = (ctx) =>
     .sort((a, b) => a - b);
 
 describe("table filters", () => {
+  test("source-backed filtering and slicers read one column without expanding rows", () => {
+    const host = makeHost({ rows: 6, cols: 3 });
+    const table = regionTable(host.ctx);
+    table.range.row[1] = 50000;
+    const data = createSourceMatrix(50001, 60, (r, c) => ({
+      v: c === 0 ? (r % 2 ? "East" : "West") : "unrelated",
+    }));
+    host.ctx.luckysheetfile[0].data = data;
+    host.ctx = reconcileChunkedSheets(null, host.ctx);
+    host.act((ctx) => {
+      ctx.filterScope = { sheetId: "id_1", table: "Table1" };
+      setTableColumnFilter(ctx, "Table1", 0, {
+        type: "values",
+        hidden: ["West"],
+      });
+      saveFilter(ctx, true, { 2: 0 }, { type: "values" }, 0, 50000, 0, 0, 2);
+    });
+    // Hiding one occurrence alone does not exclude the duplicate value.
+    expect(
+      findTable(host.ctx, "Table1").table.filters[0].condition.hidden
+    ).toEqual([]);
+    const items = getSlicerItems(
+      host.ctx,
+      "id_1",
+      findTable(host.ctx, "Table1").table,
+      { column: "Region" }
+    );
+    expect(items.map((item) => item.text)).toEqual(["East", "West"]);
+    expect(getSourceMatrixStats(data)).toEqual({
+      decodedCells: 50000,
+      materializedRows: 0,
+    });
+  });
+
   test("a value filter hides rows and the total row follows", () => {
     const ctx = makeContext();
     regionTable(ctx);

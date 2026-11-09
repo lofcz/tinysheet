@@ -8,8 +8,7 @@ import { getSheetIndex, isAllowEdit, rgbToHex } from "../utils";
 import { genarate, update } from "./format";
 import { normalizeSelection } from "./selection";
 import { isRealNull } from "./validation";
-import { peek } from "./dependencyGraph";
-import { materializeMatrix } from "./rowStore";
+import { peek, peekCell } from "./dependencyGraph";
 import { getCellDisplayColors, sortDataRange } from "./sort";
 import { execFunctionGroup, groupValuesRefresh } from "./formula";
 import { dateToSerial, serialToDateParts } from "./autofill";
@@ -431,7 +430,7 @@ export function getFilterColumnValues(
   const valuesUncheck = new Set<string>();
   const valueRowMap: Record<string, number[]> = {};
 
-  const flowdata = peek(materializeMatrix(getFlowdata(ctx)));
+  const flowdata = peek(getFlowdata(ctx));
   if (flowdata == null)
     return {
       dates,
@@ -453,7 +452,7 @@ export function getFilterColumnValues(
     }
     visibleRows.push(r);
 
-    const cell = flowdata[r]?.[col];
+    const cell = peekCell(flowdata, r, col);
     const hasValue = cell != null && !isRealNull(cell.v);
 
     if (hasValue && cell.ct != null && cell.ct.t === "d") {
@@ -588,7 +587,7 @@ export function getFilterColumnColors(
 ) {
   const bgMap = new Map<string, FilterColor>();
   const fcMap = new Map<string, FilterColor>();
-  const flowdata = peek(materializeMatrix(getFlowdata(ctx)));
+  const flowdata = peek(getFlowdata(ctx));
   if (flowdata == null) return { bgColors: [], fcColors: [] };
   const sheet = ctx.luckysheetfile.find((s) => s.id === ctx.currentSheetId);
   const cf = sheet?.luckysheet_conditionformat_save?.length
@@ -620,7 +619,7 @@ export function getFilterColumnColors(
     if (row in hidden) group.checked = false;
   };
   for (let r = startRow + 1; r <= endRow; r += 1) {
-    const cell = flowdata[r]?.[col];
+    const cell = peekCell(flowdata, r, col);
     const style = cf ? checkCF(r, col, cf) : null;
     add(bgMap, style?.cellColor ?? cell?.bg ?? "#ffffff", r);
     if (cell && !isRealNull(cell.v)) {
@@ -1002,7 +1001,7 @@ export function computeFilterConditionRows(
   if (data == null) return hidden;
   const rows: number[] = [];
   for (let r = startRow + 1; r <= endRow; r += 1) rows.push(r);
-  const cellOf = (r: number) => data[r]?.[col] ?? null;
+  const cellOf = (r: number) => peekCell(data, r, col) ?? null;
   let keep: (r: number) => boolean = () => true;
 
   if (condition.type === "custom") {
@@ -1182,13 +1181,13 @@ export function getFilterColumnKind(
   startRow: number,
   endRow: number
 ): "text" | "number" | "date" {
-  const data = peek(materializeMatrix(getFlowdata(ctx)));
+  const data = peek(getFlowdata(ctx));
   if (data == null) return "text";
   let dates = 0;
   let nums = 0;
   let texts = 0;
   for (let r = startRow + 1; r <= endRow; r += 1) {
-    const cell = data[r]?.[col];
+    const cell = peekCell(data, r, col);
     if (cell == null || isRealNull(cell.v)) continue;
     if (isDateCell(cell)) dates += 1;
     else if (typeof cell.v === "number") nums += 1;

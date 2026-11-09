@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { largeTableBytes } from "../test/largeTableFixture.mjs";
 import { parseExcel } from "../dist/index.js";
+import { getSourceMatrixStats, peekCell } from "@lofcz/tinysheet-core";
 
 const rows = Number(process.argv[2] || 50000);
 const file = path.join(
@@ -15,14 +16,20 @@ const bytes = fs.readFileSync(file);
 for (const preserve of [false, true]) {
   const start = performance.now();
   const result = await parseExcel(bytes, "table.xlsx", { preserve });
+  const parsed = performance.now();
+  const data = result.sheets[0].data;
+  for (let r = 0; r < Math.min(40, data.length); r++) {
+    for (let c = 0; c < Math.min(12, data[0].length); c++) peekCell(data, r, c);
+  }
   console.log(
     JSON.stringify({
       rows,
       preserve,
-      ms: Math.round(performance.now() - start),
-      cells: result.sheets[0].celldata.length,
+      parseMs: Math.round(parsed - start),
+      firstViewportMs: Math.round(performance.now() - start),
+      cells: result.source.worksheets[0].cellCount,
       sheets: result.sheets.length,
-      borders: result.sheets[0].config.borderInfo.length,
+      source: getSourceMatrixStats(data),
     })
   );
 }

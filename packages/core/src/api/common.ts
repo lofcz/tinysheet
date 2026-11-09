@@ -70,9 +70,22 @@ export function getSheetWithLatestCelldata(
   options: CommonOptions = {}
 ) {
   const sheet = getSheet(ctx, options);
+  let data = sheet.data;
+  let celldata: CellWithRowAndCol[] | undefined;
   return {
     ...sheet,
-    data: materializeMatrix(sheet.data),
-    celldata: dataToCelldata(sheet.data),
+    // Inspecting sheet metadata must not request a full cell snapshot.
+    get data() {
+      return materializeMatrix(data);
+    },
+    set data(value) {
+      data = value;
+    },
+    get celldata() {
+      return (celldata ??= dataToCelldata(sheet.data));
+    },
+    set celldata(value) {
+      celldata = value;
+    },
   };
 }

@@ -71,8 +71,22 @@ export function getBorderInfoComputeRange(
 
   let { borderInfo } = cfg;
 
-  if (!borderInfo || _.isEmpty(borderInfo)) return borderInfoCompute;
-  borderInfo = bordersInRows(borderInfo, dataset_row_st, dataset_row_ed);
+  borderInfo = bordersInRows(borderInfo ?? [], dataset_row_st, dataset_row_ed);
+  if (cfg.sourceBorders) {
+    const source: any[] = [];
+    for (let r = dataset_row_st; r <= dataset_row_ed; r += 1) {
+      for (let c = dataset_col_st; c <= dataset_col_ed; c += 1) {
+        const edges = data[r]?.[c]?.sourceBorder;
+        if (edges)
+          source.push({
+            rangeType: "cell",
+            value: { ...edges, row_index: r, col_index: c },
+          });
+      }
+    }
+    borderInfo = source.concat(borderInfo);
+  }
+  if (!borderInfo.length) return borderInfoCompute;
 
   for (let i = 0; i < borderInfo.length; i += 1) {
     const { rangeType } = borderInfo[i];

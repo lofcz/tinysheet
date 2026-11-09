@@ -875,37 +875,47 @@ export function applyTableFormatting(
 ) {
   const data = sheetById(ctx, sheetId)?.data;
   if (!data) return;
-  const style = TABLE_STYLES[table.style] ?? TABLE_STYLES[DEFAULT_TABLE_STYLE];
-  const { header, total, dataStart, dataEnd } = tableAreas(table);
+  const formatCell = tableCellFormatter(table);
   const [c1, c2] = table.range.column;
   for (let r = table.range.row[0]; r <= table.range.row[1]; r += 1) {
     if (!data[r]) continue;
     for (let c = c1; c <= c2; c += 1) {
-      const cell: Cell = { ...(data[r][c] ?? {}) };
-      if (r === header) {
-        setBg(cell, style.header || null);
-        setFc(cell, style.headerText);
-        cell.bl = 1;
-      } else if (r === total) {
-        setBg(cell, style.total || null);
-        setFc(cell, style.text);
-        cell.bl = 1;
-      } else if (r >= dataStart && r <= dataEnd) {
-        let banded = false;
-        if (table.bandedRows) banded = (r - dataStart) % 2 === 0;
-        if (table.bandedColumns) banded = banded || (c - c1) % 2 === 0;
-        setBg(cell, banded ? style.band : (style.fill ?? null));
-        setFc(cell, style.text);
-        if (c === c1 || c === c2) {
-          const bold =
-            (table.firstColumn && c === c1) || (table.lastColumn && c === c2);
-          if (bold) cell.bl = 1;
-          else if (cell.bl === 1) delete cell.bl;
-        }
-      }
-      data[r][c] = cell;
+      data[r][c] = formatCell(r, c, { ...data[r][c] });
     }
   }
+}
+
+/** Compile table presentation once; apply it to a cell owned by the caller. */
+export function tableCellFormatter(
+  table: SheetTable
+): (r: number, c: number, cell: Cell) => Cell {
+  const style = TABLE_STYLES[table.style] ?? TABLE_STYLES[DEFAULT_TABLE_STYLE];
+  const { header, total, dataStart, dataEnd } = tableAreas(table);
+  const [c1, c2] = table.range.column;
+  const { bandedRows, bandedColumns, firstColumn, lastColumn } = table;
+  return (r, c, cell) => {
+    if (r === header) {
+      setBg(cell, style.header || null);
+      setFc(cell, style.headerText);
+      cell.bl = 1;
+    } else if (r === total) {
+      setBg(cell, style.total || null);
+      setFc(cell, style.text);
+      cell.bl = 1;
+    } else if (r >= dataStart && r <= dataEnd) {
+      let banded = false;
+      if (bandedRows) banded = (r - dataStart) % 2 === 0;
+      if (bandedColumns) banded = banded || (c - c1) % 2 === 0;
+      setBg(cell, banded ? style.band : (style.fill ?? null));
+      setFc(cell, style.text);
+      if (c === c1 || c === c2) {
+        const bold = (firstColumn && c === c1) || (lastColumn && c === c2);
+        if (bold) cell.bl = 1;
+        else if (cell.bl === 1) delete cell.bl;
+      }
+    }
+    return cell;
+  };
 }
 
 /** Remove the fills a table wrote (cells with a user colour keep it). */

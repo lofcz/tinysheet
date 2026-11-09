@@ -21,8 +21,8 @@ The Excel adapter, regression tests, and benchmarks use [`@lofcz/ts-xlsx`](https
 
 ## Preserving imported workbooks
 
-`parseExcel` retains a JSON-safe `preservation` object by default. Save the entire
-`ExcelImportResult`, or use `captureExcelWorkbook(workbookRef.current)` to capture
+`parseExcel` retains a JSON-safe `preservation` object by default. Use
+`captureExcelWorkbook(workbookRef.current)` to capture
 live sheets together with their import metadata. `applyExcelImport` and
 `applyExcelImportHydration` restore that metadata; mounted download helpers carry
 it automatically. For headless export, pass it explicitly:
@@ -36,16 +36,24 @@ const output = await exportToXlsx(imported.sheets, {
 });
 ```
 
-The original package and editor baseline let the fork retain features outside the
-editor model while applying actual edits. Macro-enabled originals download as
-`.xlsm`. Set `{preserve: false}` when only parsed cells are needed. Original bytes
-and the baseline increase saved document size; treat both as workbook content.
+The original package lets the fork retain features outside the editor model
+while applying actual edits. Macro-enabled originals download as `.xlsm`.
+Set `{preserve: false}` to omit it from saved documents. Original bytes are
+workbook content and can include features the editor does not display.
 
 For large browser imports, use `parseExcelInWorker` with a module worker that
-calls `exposeParseExcelWorker` (the demo shows this integration). Parsing and the
-compressed preservation snapshot run in the worker; mount `result.sheets`, then
-call `applyExcelImport` after the workbook mounts. The baseline XLSX is generated
-on save. Previously saved version 1 preservation metadata remains supported.
+calls `exposeParseExcelWorker` (the demo shows this integration). The worker
+indexes the original XML and transfers compact row/cell offsets with metadata.
+Mount `result.sheets`, then call `applyExcelImport` after the workbook mounts.
+Cells, table formatting and borders are decoded as requested; edits use the
+core's copy-on-write rows and undo history. Import does not create a second
+workbook or serialize a full cell snapshot.
+
+`sheet.data[r][c]` reads the source-backed matrix. Reading `sheet.celldata`
+explicitly materializes the legacy sparse representation and gives its mutable
+cells to the caller. Full export or JSON serialization also requests all cells.
+The preservation baseline is reconstructed from the original package on save;
+previously saved version 1 and 2 preservation metadata remains supported.
 
 Version 3 uses native fork APIs for charts/chart sheets, shapes, cell images,
 checkboxes, sparklines, dynamic arrays, threaded comments and advanced conditional

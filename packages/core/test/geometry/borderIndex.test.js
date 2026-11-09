@@ -1,6 +1,35 @@
 import produce from "immer";
 import { makeContext } from "../formula/helpers";
 import { getBorderInfoComputeRange } from "../../src/modules/border";
+import {
+  createSourceMatrix,
+  getSourceMatrixStats,
+} from "../../src/modules/rowStore";
+
+test("source borders read only the viewport and editor overrides retain priority", () => {
+  const ctx = makeContext({ rows: 1, cols: 2 });
+  const edge = { style: "1", color: "red" };
+  const data = createSourceMatrix(50000, 2, (_r, c) =>
+    c === 0 ? { sourceBorder: { l: edge } } : null
+  );
+  ctx.luckysheetfile[0].data = data;
+  ctx.config = { sourceBorders: true };
+  const compute = () => getBorderInfoComputeRange(ctx, 8, 12, 0, 1);
+  expect(compute()["8_0"].l).toEqual(edge);
+  expect(compute()["8_0"].r).toBeUndefined();
+  expect(getSourceMatrixStats(data).decodedCells).toBe(10);
+  ctx.config.borderInfo = [
+    {
+      rangeType: "range",
+      borderType: "border-left",
+      color: "blue",
+      style: "1",
+      range: [{ row: [8, 12], column: [0, 1] }],
+    },
+  ];
+  expect(compute()["8_0"].l.color).toBe("blue");
+  expect(data[8][0].sourceBorder.l.color).toBe("red");
+});
 
 test("indexed cell borders preserve range overrides and invalidate after edits", () => {
   const ctx = makeContext({ rows: 2001, cols: 2 });

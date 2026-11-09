@@ -49,17 +49,28 @@ try {
       dir,
       "--target",
       "browser",
+      "--minify",
+      "--sourcemap=external",
       "--define",
       'process.env.NODE_ENV="production"',
     ],
     { cwd: root, stdio: "inherit" }
   );
   assert.equal(build.status, 0, "browser bundle");
+  if (process.env.PERF_PROFILE)
+    copyFileSync(
+      path.join(dir, "entry.js.map"),
+      `${process.env.PERF_PROFILE}.map`
+    );
   copyFileSync(
     path.join(root, "e2e/perf/iframe.html"),
     path.join(dir, "iframe.html")
   );
   writeFileSync(path.join(dir, "large-table.xlsx"), await largeTableBytes());
+  writeFileSync(
+    path.join(dir, "large-table-shared.xlsx"),
+    await largeTableBytes(50000, true)
+  );
   server = spawn(process.execPath, ["e2e/serve.mjs", dir, String(port)], {
     cwd: root,
     stdio: "inherit",
@@ -77,7 +88,12 @@ try {
     process.env.CHROMIUM_PATH ||
     (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined);
   browser = await chromium.launch({ executablePath });
-  for (const scenario of ["import", "autofilter"]) {
+  for (const scenario of process.env.PERF_SCENARIOS?.split(",") ?? [
+    "import",
+    "import-shared",
+    "autofilter",
+  ]) {
+    const imported = scenario.startsWith("import");
     const page = await browser.newPage({
       viewport: { width: 1600, height: 900 },
     });
@@ -101,16 +117,22 @@ try {
       setInterval(() => window.__perf.ticks++, 50);
     });
     await page.goto(`${url}?${scenario}`);
-    if (scenario === "import") {
+    const profiler =
+      process.env.PERF_PROFILE && imported
+        ? await page.context().newCDPSession(page)
+        : null;
+    if (profiler) {
+      await profiler.send("Profiler.enable");
+      await profiler.send("Profiler.start");
+    }
+    if (imported) {
       await page.getByRole("button", { name: "Import workbook" }).click();
       await page.waitForFunction(() => window.__largeTable?.ready, undefined, {
         timeout: 60000,
       });
     }
     const buttons = page.locator(
-      scenario === "import"
-        ? ".fortune-table-filter-button"
-        : ".luckysheet-filter-options"
+      imported ? ".fortune-table-filter-button" : ".luckysheet-filter-options"
     );
     await buttons.first().waitFor({ timeout: 60000 });
     const metrics = await page.evaluate(() => {
@@ -119,16 +141,28 @@ try {
         importMs: m.parsed ? m.parsed - m.started : null,
         mountMs: (m.ready || performance.now()) - (m.parsed || m.started),
         ticks: window.__perf.ticks,
+        source: m.sourceStats?.(),
         tasks: window.__perf.tasks.slice(),
         filters: [],
+        applyMs: [],
       };
     });
     console.log(scenario, "load", JSON.stringify(metrics));
-    assert.ok(metrics.mountMs < 5000, `mount took ${metrics.mountMs}ms`);
+    metrics.scenario = scenario;
+    report.scenarios.push(metrics);
+    if (profiler) {
+      const { profile } = await profiler.send("Profiler.stop");
+      writeFileSync(process.env.PERF_PROFILE, JSON.stringify(profile));
+    }
+    assert.ok(metrics.mountMs < 2000, `mount took ${metrics.mountMs}ms`);
     if (metrics.importMs != null) {
       assert.ok(
-        metrics.importMs < 20000,
-        `XLSX import took ${metrics.importMs}ms`
+        metrics.importMs + metrics.mountMs < 2000,
+        `XLSX file-to-interactive took ${metrics.importMs + metrics.mountMs}ms`
+      );
+      assert.ok(
+        metrics.source?.decodedCells < 2000,
+        "initial rendering must not expand the workbook"
       );
       assert.ok(
         metrics.ticks > metrics.importMs / 150,
@@ -138,6 +172,7 @@ try {
     const menu = page.locator(".fortune-filter-menu");
     const list = page.locator("#luckysheet-filter-byvalue-select");
     const open = async (col) => {
+      if (profiler) await profiler.send("Profiler.start");
       await buttons.nth(col).click();
       await list.locator("input").first().waitFor();
       const ms = await page.evaluate(
@@ -149,7 +184,14 @@ try {
         mounted: await list.locator("input").count(),
       });
       console.log(scenario, "filter", col, Math.round(ms), "ms");
-      assert.ok(ms < 1500, `column ${col} menu took ${ms}ms`);
+      if (profiler) {
+        const { profile } = await profiler.send("Profiler.stop");
+        writeFileSync(
+          `${process.env.PERF_PROFILE}.filter-${metrics.filters.length}`,
+          JSON.stringify(profile)
+        );
+      }
+      assert.ok(ms < 1000, `column ${col} menu took ${ms}ms`);
       assert.ok(
         (await list.locator("input").count()) < 40,
         "value list is windowed"
@@ -163,14 +205,28 @@ try {
           ).length
       );
     const confirm = async () => {
+      if (profiler) await profiler.send("Profiler.start");
       await menu.getByText("Confirm", { exact: true }).click();
       await menu.waitFor({ state: "hidden" });
       const ms = await page.evaluate(
         () => performance.now() - window.__perf.clicked
       );
       console.log(scenario, "apply", Math.round(ms), "ms");
-      assert.ok(ms < 2000, `applying a filter took ${ms}ms`);
+      metrics.applyMs.push(ms);
+      if (profiler) {
+        const { profile } = await profiler.send("Profiler.stop");
+        writeFileSync(
+          `${process.env.PERF_PROFILE}.apply-${metrics.filters.length}`,
+          JSON.stringify(profile)
+        );
+      }
+      assert.ok(ms < 500, `applying a filter took ${ms}ms`);
     };
+    if (process.env.PERF_PROFILE_COLUMN) {
+      await open(Number(process.env.PERF_PROFILE_COLUMN));
+      await page.close();
+      continue;
+    }
     await open(0);
     // Keyboard navigation crosses the virtual window and can select the tail.
     await list.getByRole("checkbox").first().focus();
@@ -224,6 +280,16 @@ try {
     await page.keyboard.press("Escape");
     assert.equal(await hidden(), 0, "cancel does not apply draft selection");
     await open(1);
+    const bandColors = await page.evaluate(() =>
+      [1, 2].map((r) =>
+        window.__largeTable.workbook.getCellValue(r, 1, { type: "bg" })
+      )
+    );
+    assert.notEqual(
+      bandColors[0],
+      bandColors[1],
+      `banded row colors: ${bandColors}`
+    );
     await menu.locator(".filter-bycolor-container").first().hover();
     const colorMenu = page.locator(
       ".luckysheet-filter-bycolor-submenu:not(.fortune-filter-condition-submenu)"
@@ -251,6 +317,15 @@ try {
       .getByRole("checkbox", { name: "Updated last row", exact: true })
       .waitFor();
     await page.keyboard.press("Escape");
+    if (imported) {
+      metrics.afterFiltering = await page.evaluate(() =>
+        window.__largeTable.sourceStats()
+      );
+      assert.ok(
+        metrics.afterFiltering.decodedCells < 300000,
+        "filtering five columns must not decode the unrelated columns"
+      );
+    }
     metrics.scrollMs = await page.evaluate(async () => {
       const start = performance.now();
       window.__largeTable.workbook.scroll({ targetRow: 49999 });
@@ -275,13 +350,29 @@ try {
       "Lookup 0"
     );
     assert.deepEqual(errors, []);
-    report.scenarios.push({ scenario, ...metrics });
     await page.close();
   }
   console.log(JSON.stringify(report, null, 2));
+} catch (error) {
+  report.error = String(error);
+  if (browser) {
+    for (const context of browser.contexts())
+      for (const page of context.pages()) {
+        console.error(
+          "Browser failure:",
+          await page.locator("body").innerText()
+        );
+        await page.screenshot({
+          path: process.env.PERF_REPORT
+            ? `${process.env.PERF_REPORT}.png`
+            : "/tmp/tinysheet-perf-failure.png",
+        });
+      }
+  }
+  throw error;
+} finally {
   if (process.env.PERF_REPORT)
     writeFileSync(process.env.PERF_REPORT, JSON.stringify(report, null, 2));
-} finally {
   await browser?.close();
   server?.kill();
   rmSync(dir, { recursive: true, force: true });

@@ -37,7 +37,9 @@ import {
   importDefinedNames,
   readDefinedNamesXml,
 } from "../common/definedNames";
-import { generateChartId } from "@lofcz/tinysheet-core";
+import { FortuneSheetCelldata } from "./FortuneCell";
+import type { ScannedElement } from "./xmlScan";
+import { indexSharedStrings } from "@lofcz/ts-xlsx/xlsx";
 
 export class FortuneFile {
   private files: IuploadfileList;
@@ -54,16 +56,39 @@ export class FortuneFile {
   private info?: FortuneFileInfo;
   private workbookInfo: WorkbookImportInfo = {};
 
-  constructor(files: IuploadfileList, fileName: string) {
+  constructor(
+    files: IuploadfileList,
+    fileName: string,
+    sourceBacked = false,
+    stringOffsets?: Uint32Array
+  ) {
+    this.workbookInfo.sourceBacked = sourceBacked;
     this.files = files;
     this.fileName = fileName;
     this.readXml = new ReadXml(files);
     this.getSheetNameList();
 
-    this.sharedStrings = this.readXml.getElementsByTagName(
-      "sst/si",
-      sharedStringsFile
-    );
+    if (sourceBacked) {
+      const xml = files[sharedStringsFile] ?? "";
+      const offsets = stringOffsets ?? indexSharedStrings(xml);
+      this.sharedStrings = new Proxy(new Array<Element>(offsets.length / 2), {
+        get(target, key, receiver) {
+          if (typeof key === "string" && /^(0|[1-9]\d*)$/.test(key)) {
+            const index = Number(key);
+            if (index >= target.length) return undefined;
+            return new Element(
+              xml.slice(offsets[index * 2], offsets[index * 2 + 1])
+            );
+          }
+          return Reflect.get(target, key, receiver);
+        },
+      });
+    } else {
+      this.sharedStrings = this.readXml.getElementsByTagName(
+        "sst/si",
+        sharedStringsFile
+      );
+    }
     this.calcChain = this.readXml.getElementsByTagName(
       "calcChain/c",
       calcChainFile
@@ -570,6 +595,29 @@ export class FortuneFile {
     this.getSheetsFull();
   }
 
+  /** Decode a requested source cell using the same format and value rules as eager import. */
+  readSourceCell(cell: ScannedElement, r: number, c: number) {
+    const parsed = new FortuneSheetCelldata(
+      cell,
+      this.styles,
+      this.sharedStrings,
+      undefined,
+      undefined,
+      undefined,
+      this.workbookInfo,
+      { r, c }
+    );
+    if (!parsed.v || typeof parsed.v !== "object") return parsed.v;
+    const value: any = parsed.v;
+    if (parsed._borderObject) {
+      const { row_index, col_index, ...edges } = parsed._borderObject.value;
+      value.sourceBorder = Object.fromEntries(
+        Object.entries(edges).map(([side, style]) => [side, { ...style }])
+      );
+    }
+    return value;
+  }
+
   /** Defined names of xl/workbook.xml -> sheet.definedNames (core names.ts) */
   private attachDefinedNames(sheets: any[]) {
     const key = Object.keys(this.files).find(
@@ -781,9 +829,9 @@ export class FortuneFile {
       }
       let chartObjects = (sheet as any).chartObjects as any[] | undefined;
       if (chartObjects != null && chartObjects.length > 0) {
-        sheetout.charts = chartObjects.map((item) => ({
+        sheetout.charts = chartObjects.map((item, index) => ({
           ...item.chart,
-          id: generateChartId(),
+          id: `xlsx-chart-${sheet.id}-${index}`,
           left: item.default?.left ?? 0,
           top: item.default?.top ?? 0,
           width: item.default?.width || item.originWidth || 480,

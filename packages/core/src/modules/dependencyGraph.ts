@@ -85,8 +85,11 @@ export function peek<T>(value: T): T {
 }
 
 /** Read-only cell lookup that does not create immer drafts. */
+const READ_CELL = Symbol.for("tinysheet.readCell");
 export function peekCell(data: any, r: number, c: number) {
-  return peek(peek(peek(data)?.[r])?.[c]);
+  const matrix = peek(data);
+  const read = matrix?.[READ_CELL];
+  return read ? read(r, c) : peek(peek(matrix?.[r])?.[c]);
 }
 
 /* Draft-free, memoised sheet lookups */

@@ -2060,6 +2060,7 @@ export class FortuneSheet extends FortuneSheetBase {
       if (!(rs >= 1 && cs >= 1) || (rs == 1 && cs == 1)) continue;
       if (anchor.v == null || typeof anchor.v !== "object") continue;
       (anchor.v as any).spill = { rs, cs };
+      if (this.workbookInfo.sourceBacked) continue;
       for (let i = 0; i < rs; i++) {
         for (let j = 0; j < cs; j++) {
           if (i == 0 && j == 0) continue;

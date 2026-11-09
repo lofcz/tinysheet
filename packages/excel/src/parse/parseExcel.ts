@@ -1,9 +1,8 @@
-import { FortuneFile } from "../ToFortuneSheet/FortuneFile";
-import { HandleZip } from "../ToFortuneSheet/HandleZip";
 import { CsvParseOptions, parseCsv } from "../csv";
 import type { ExcelImportResult, ExcelImportSizing } from "./types";
 import { workBookFile } from "../common/constant";
-import { encodeWorkbookBytes, snapshotWorkbookSheets } from "../preservation";
+import { encodeWorkbookBytes } from "../preservation";
+import { prepareSourceImport, bindSourceImport } from "./source";
 
 /** Why a file could not be imported (`code`), with a readable message. */
 export class ExcelImportError extends Error {
@@ -17,7 +16,7 @@ export class ExcelImportError extends Error {
 }
 
 export type ParseExcelOptions = {
-  /** Keep the original package and an editor baseline for loss-aware export. Defaults to true. */
+  /** Keep the original package for loss-aware export. Defaults to true. */
   preserve?: boolean;
   /** Options for .csv / .tsv / .txt input (delimiter, encoding, locale). */
   csv?: CsvParseOptions;
@@ -71,6 +70,16 @@ export async function parseExcel(
   fileName?: string,
   options: ParseExcelOptions = {}
 ): Promise<ExcelImportResult> {
+  return parseExcelDocument(input, fileName, options, true);
+}
+
+/** Worker requests return the source descriptor; the receiving thread owns cell views. */
+export async function parseExcelDocument(
+  input: File | Blob | ArrayBuffer | Uint8Array,
+  fileName: string | undefined,
+  options: ParseExcelOptions,
+  bindSources: boolean
+): Promise<ExcelImportResult> {
   const file: File | Blob | ArrayBuffer =
     ArrayBuffer.isView(input) &&
     typeof (input as any).arrayBuffer !== "function"
@@ -102,40 +111,42 @@ export async function parseExcel(
       "This file is a legacy .xls or a password-protected workbook; save it as an unprotected .xlsx first."
     );
   }
-  let files;
+  let result: ExcelImportResult;
   try {
-    files = await new HandleZip(buffer).unzipFile();
+    result = prepareSourceImport(new Uint8Array(buffer), name);
   } catch (e) {
+    if (
+      head[0] === 0x50 &&
+      head[1] === 0x4b &&
+      (e as any)?.format === "unknown"
+    ) {
+      throw new ExcelImportError(
+        "no-workbook",
+        "Not an .xlsx workbook: the package has no workbook part."
+      );
+    }
     throw new ExcelImportError(
       "not-a-zip",
       `Not an .xlsx file (${e instanceof Error ? e.message : String(e)})`
     );
   }
-  if (!files[workBookFile]) {
+  if (!result.source.files[workBookFile]) {
     throw new ExcelImportError(
       "no-workbook",
       "Not an .xlsx workbook: the package has no workbook part."
     );
   }
-  const fortuneFile = new FortuneFile(files, name);
-  fortuneFile.Parse();
-  const serialized = fortuneFile.serialize();
-  const sheets = serialized.sheets as unknown as ExcelImportResult["sheets"];
-  if (options.preserve === false) return { sheets, sizing: sizingOf(sheets) };
-  return {
-    sheets,
-    sizing: sizingOf(sheets),
-    preservation: {
-      version: 2,
+  if (options.preserve !== false)
+    result.preservation = {
+      version: 3,
       source: encodeWorkbookBytes(new Uint8Array(buffer)),
-      baselineSheetsZip: await snapshotWorkbookSheets(sheets),
-      sheets: sheets.map((sheet) => ({
+      sheets: result.sheets.map((sheet) => ({
         id: String(sheet.id),
         name: sheet.name,
       })),
       macroEnabled: /macroEnabled\.main\+xml/i.test(
-        files["[Content_Types].xml"] || ""
+        result.source.files["[Content_Types].xml"] || ""
       ),
-    },
-  };
+    };
+  return bindSources ? bindSourceImport(result) : result;
 }

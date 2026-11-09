@@ -1,6 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseExcelInWorker } from "../dist/index.js";
+import {
+  parseExcelInWorker,
+  parseExcel,
+  encodeExcelImportResult,
+  decodeExcelImportResult,
+} from "../dist/index.js";
+import { Workbook, writeXlsx } from "@lofcz/ts-xlsx";
+
+test("explicit sparse materialization retains caller edits across encoding", async () => {
+  const workbook = new Workbook();
+  workbook.addWorksheet("S").getCell("A1").value = "original";
+  const result = await parseExcel(writeXlsx(workbook));
+  result.sheets[0].celldata[0].v.v = "edited";
+  const restored = decodeExcelImportResult(encodeExcelImportResult(result));
+  assert.equal(restored.sheets[0].celldata[0].v.v, "edited");
+});
 
 // Only the transport is simulated: exercise the public worker API's settlement
 // and listener ownership when a browser fails before/after a worker replies.

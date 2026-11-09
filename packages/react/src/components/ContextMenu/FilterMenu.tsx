@@ -979,4 +979,8 @@ const FilterMenu: React.FC = () => {
   );
 };
 
-export default FilterMenu;
+/** Each opening owns its draft selection and submenu state. */
+export default function FilterMenuHost() {
+  const { context } = useContext(WorkbookContext);
+  return context.filterContextMenu ? <FilterMenu /> : null;
+}

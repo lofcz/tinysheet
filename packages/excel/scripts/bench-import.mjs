@@ -66,7 +66,9 @@ console.log(
     1
   )} MB): best ${Math.min(...times).toFixed(0)} ms of ${runs} (${times
     .map((t) => t.toFixed(0))
-    .join(", ")}), ${result.sheets[0].celldata.length} cells, result ${(
+    .join(
+      ", "
+    )}), ${result.source.worksheets[0].cellCount} source cells, result ${(
     retained / 1e6
   ).toFixed(0)} MB, peak RSS ${(process.resourceUsage().maxRSS / 1e3).toFixed(
     0

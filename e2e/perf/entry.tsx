@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Workbook, WorkbookInstance } from "@lofcz/tinysheet-react";
+import { getSourceMatrixStats } from "@lofcz/tinysheet-core";
 import {
   applyExcelImport,
   parseExcelInWorker,
@@ -18,6 +19,8 @@ function Imported() {
     Object.defineProperty((window as any).__largeTable, "workbook", {
       get: () => ref.current,
     });
+    (window as any).__largeTable.sourceStats = () =>
+      getSourceMatrixStats(result.sheets[0].data!);
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         (window as any).__largeTable.ready = performance.now();
@@ -41,7 +44,11 @@ function Imported() {
           (window as any).__largeTable = metrics;
           try {
             const bytes = await (
-              await fetch("./large-table.xlsx")
+              await fetch(
+                location.search.includes("shared")
+                  ? "./large-table-shared.xlsx"
+                  : "./large-table.xlsx"
+              )
             ).arrayBuffer();
             const parsed = await parseExcelInWorker(
               worker,

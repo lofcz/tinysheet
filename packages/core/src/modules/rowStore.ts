@@ -31,7 +31,7 @@
  *   `["luckysheetfile", i, "data", r, c, ...]` paths used by undo/redo, the
  *   formula cache and `onOp`.
  */
-import { isDraft, original } from "immer";
+import { freeze, isDraft, original } from "immer";
 import type { Patch } from "immer";
 import type { Cell, CellMatrix } from "../types";
 import { peek } from "./dependencyGraph";
@@ -54,6 +54,7 @@ const MATRIX = Symbol.for("tinysheet.matrix");
 const CHUNK_KEY: any = ROW_CHUNKS;
 /** Read by `peek` (dependencyGraph.ts): the draft-free view of a matrix. */
 const PEEK_VIEW = Symbol.for("tinysheet.peekView");
+const READ_CELL = Symbol.for("tinysheet.readCell");
 
 function envThreshold() {
   try {
@@ -82,6 +83,15 @@ export function setChunkedRowThreshold(rows: number) {
 
 class MatrixState {
   chunks: ChunkList;
+
+  source?: {
+    base: CellMatrix;
+    commentRows?: readonly number[];
+    stats: { decodedCells: number; materializedRows: number };
+    read: (r: number, c: number) => Cell | null | undefined;
+  };
+
+  cellReader?: (r: number, c: number) => Cell | null | undefined;
 
   /** id of the sheet the view belongs to; undefined for a fresh matrix */
   sheetId: string | undefined;
@@ -252,6 +262,24 @@ function peekRow(st: MatrixState, r: number): Row | undefined {
   }
   const chunk = peek(peek(list)[r >> ROW_CHUNK_BITS]);
   return chunk === undefined ? undefined : peek(chunk[r & MASK]);
+}
+
+function sourceCellReader(st: MatrixState) {
+  if (!st.source) return undefined;
+  if (!st.cellReader)
+    st.cellReader = (r, c) => {
+      if (r < 0 || r >= lengthOf(st) || c < 0) return undefined;
+      const session = currentSession();
+      const list = peek(session?.entries.get(st)?.list ?? st.chunks);
+      const originalChunks = stateOf(st.source!.base).chunks;
+      if (
+        peek(list[r >> ROW_CHUNK_BITS]) === originalChunks[r >> ROW_CHUNK_BITS]
+      ) {
+        return st.source!.read(r, c);
+      }
+      return peek(peekRow(st, r)?.[c]);
+    };
+  return st.cellReader;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -568,6 +596,7 @@ const viewHandler: ProxyHandler<MatrixTarget> = {
       return (Array.prototype as any)[prop];
     }
     if (prop === MATRIX) return st;
+    if (prop === READ_CELL) return sourceCellReader(st);
     // eslint-disable-next-line no-use-before-define
     if (prop === PEEK_VIEW) return peekViewOf(st);
     if (prop === Symbol.iterator) return iterateRows;
@@ -661,6 +690,7 @@ const peekHandler: ProxyHandler<MatrixTarget> = {
       return (Array.prototype as any)[prop];
     }
     if (prop === MATRIX) return st;
+    if (prop === READ_CELL) return sourceCellReader(st);
     // eslint-disable-next-line no-use-before-define
     if (prop === PEEK_VIEW) return peekViewOf(st);
     if (prop === Symbol.iterator) {
@@ -769,10 +799,133 @@ export function createChunkedMatrix(rows: Row[]): CellMatrix {
   return makeState(freezeList(chunkRows(rows)), undefined, false).view;
 }
 
+/**
+ * An immutable backing source with copy-on-write rows. Reading or copying the
+ * chunk index never decodes cells. Immer replaces accessors with owned values
+ * when a row is edited, preserving the source for old states and undo.
+ */
+export function createSourceMatrix(
+  rowCount: number,
+  columnCount: number,
+  readCell: (r: number, c: number) => Cell | null,
+  metadata: { commentRows?: readonly number[] } = {}
+): CellMatrix {
+  if (
+    !Number.isSafeInteger(rowCount) ||
+    rowCount < 0 ||
+    !Number.isSafeInteger(columnCount) ||
+    columnCount < 0
+  ) {
+    throw new RangeError("Invalid source matrix dimensions");
+  }
+  const stats = { decodedCells: 0, materializedRows: 0 };
+  const cells = new Map<number, Row>();
+  const read = (r: number, c: number) => {
+    if (r >= rowCount || c >= columnCount) return undefined;
+    let values = cells.get(r);
+    if (!values) {
+      values = [];
+      cells.set(r, values);
+    }
+    if (values[c] === undefined) {
+      stats.decodedCells += 1;
+      values[c] = freeze(readCell(r, c) ?? null, true);
+    }
+    return values[c];
+  };
+  return createSourceView(rowCount, columnCount, read, stats, metadata);
+}
+
+function createSourceView(
+  rowCount: number,
+  columnCount: number,
+  read: (r: number, c: number) => Cell | null | undefined,
+  stats: { decodedCells: number; materializedRows: number },
+  metadata: { commentRows?: readonly number[] }
+): CellMatrix {
+  const positions = new WeakMap<Row, number>();
+  const descriptors: PropertyDescriptorMap = {};
+  for (let c = 0; c < columnCount; c += 1) {
+    descriptors[c] = {
+      enumerable: true,
+      get(this: Row) {
+        return read(positions.get(this)!, c);
+      },
+    };
+  }
+  const chunks: ChunkList = [];
+  for (let start = 0; start < rowCount; start += ROW_CHUNK_SIZE) {
+    const chunk: Chunk = new Array(Math.min(ROW_CHUNK_SIZE, rowCount - start));
+    for (let offset = 0; offset < chunk.length; offset += 1) {
+      const r = start + offset;
+      let row: Row | undefined;
+      Object.defineProperty(chunk, offset, {
+        enumerable: true,
+        get() {
+          if (!row) {
+            stats.materializedRows += 1;
+            row = new Array(columnCount);
+            positions.set(row, r);
+            Object.defineProperties(row, descriptors);
+            Object.freeze(row);
+          }
+          return row;
+        },
+      });
+    }
+    chunks.push(chunk);
+  }
+  const st = makeState(freezeList(chunks), undefined, false);
+  st.source = { base: st.view, stats, read, ...metadata };
+  return st.view;
+}
+
+/** Instrumentation for verifying that source-backed work stays proportional to cells read. */
+export function getSourceMatrixStats(data: CellMatrix) {
+  const st: MatrixState | undefined = (data as any)?.[MATRIX];
+  return st?.source ? { ...st.source.stats } : undefined;
+}
+
+/** Add the host's empty grid area without decoding or copying the source cells. */
+export function sizeSourceMatrix(
+  data: CellMatrix | undefined,
+  rows: number,
+  columns: number
+) {
+  const st: MatrixState | undefined = (data as any)?.[MATRIX];
+  if (!st?.source || !data) return data;
+  const rowCount = Math.max(data.length, rows);
+  const columnCount = Math.max(data[0]?.length ?? 0, columns);
+  if (rowCount === data.length && columnCount === data[0]?.length) return data;
+  const read = sourceCellReader(st)!;
+  // Grid padding is a view of the same source and must share its cell cache.
+  return createSourceView(
+    rowCount,
+    columnCount,
+    (r, c) => read(r, c) ?? null,
+    st.source.stats,
+    { commentRows: sourceCommentRows(data) }
+  );
+}
+
+/** Rows that may contain shown notes, including rows changed since import. */
+export function sourceCommentRows(data: CellMatrix): number[] | undefined {
+  const st: MatrixState | undefined = (data as any)?.[MATRIX];
+  if (!st?.source?.commentRows) return undefined;
+  const rows = new Set(st.source.commentRows);
+  if (!forEachChangedRow(st.source.base, data, (r) => rows.add(r)))
+    return undefined;
+  return Array.from(rows);
+}
+
 // one view per (chunk list, sheet)
 const views = new WeakMap<ChunkList, Map<string, MatrixState>>();
 
-function viewFor(list: ChunkList, sheetId: string | undefined): CellMatrix {
+function viewFor(
+  list: ChunkList,
+  sheetId: string | undefined,
+  source?: MatrixState["source"]
+): CellMatrix {
   let bySheet = views.get(list);
   if (!bySheet) {
     bySheet = new Map();
@@ -782,6 +935,7 @@ function viewFor(list: ChunkList, sheetId: string | undefined): CellMatrix {
   let st = bySheet.get(key);
   if (!st) {
     st = makeState(list, sheetId, true);
+    st.source = source;
     bySheet.set(key, st);
   }
   return st.view;
@@ -898,7 +1052,7 @@ function fixSheet(sheet: any, base: any, session?: DataSession) {
     else if (!base || base.data !== data) list = st.chunks;
     else list = chunks ?? st.chunks;
     Object.freeze(list);
-    const view = viewFor(list, sheet.id);
+    const view = viewFor(list, sheet.id, st.source);
     if (view === data && chunks === list && !enumerable) return sheet;
     return withChunks(sheet, view, list);
   }
