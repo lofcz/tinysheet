@@ -84,8 +84,7 @@ export async function handleParseExcelRequest(
     const result = await parseExcelDocument(
       request.input,
       request.fileName,
-      request.options ?? {},
-      false
+      request.options ?? {}
     );
     if (result.source || request.transfer === "clone") {
       return {

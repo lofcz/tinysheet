@@ -14,6 +14,29 @@ import { cellMap, xlsxBytes } from "./helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+test("preservation keeps the original bytes with native and fallback base64 encoding", async () => {
+  const workbook = new Workbook();
+  workbook.addWorksheet("Unicode").getCell("A1").value = "Příliš žluťoučký 🐈";
+  const bytes = writeXlsx(workbook);
+  const expected = Buffer.from(bytes).toString("base64");
+  assert.equal((await parseExcel(bytes)).preservation.source, expected);
+  const descriptor = Object.getOwnPropertyDescriptor(
+    Uint8Array.prototype,
+    "toBase64"
+  );
+  try {
+    Object.defineProperty(Uint8Array.prototype, "toBase64", {
+      value: undefined,
+      configurable: true,
+    });
+    assert.equal((await parseExcel(bytes)).preservation.source, expected);
+  } finally {
+    if (descriptor)
+      Object.defineProperty(Uint8Array.prototype, "toBase64", descriptor);
+    else delete Uint8Array.prototype.toBase64;
+  }
+});
+
 test("source borders share immutable styles while explicit cell snapshots own their edges", async () => {
   const workbook = new Workbook();
   const sheet = workbook.addWorksheet("Borders");

@@ -26,6 +26,8 @@ export type XlsxPreservation = PreservationSource &
 export type XlsxFidelityDiagnostic = FidelityDiagnostic;
 
 export function encodeWorkbookBytes(bytes: Uint8Array): string {
+  const native = (bytes as Uint8Array & { toBase64?: () => string }).toBase64;
+  if (native) return native.call(bytes);
   let binary = "";
   for (let i = 0; i < bytes.length; i += 32768)
     binary += String.fromCharCode(...bytes.subarray(i, i + 32768));

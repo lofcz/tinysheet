@@ -70,15 +70,14 @@ export async function parseExcel(
   fileName?: string,
   options: ParseExcelOptions = {}
 ): Promise<ExcelImportResult> {
-  return parseExcelDocument(input, fileName, options, true);
+  return bindSourceImport(await parseExcelDocument(input, fileName, options));
 }
 
 /** Worker requests return the source descriptor; the receiving thread owns cell views. */
 export async function parseExcelDocument(
   input: File | Blob | ArrayBuffer | Uint8Array,
   fileName: string | undefined,
-  options: ParseExcelOptions,
-  bindSources: boolean
+  options: ParseExcelOptions
 ): Promise<ExcelImportResult> {
   const file: File | Blob | ArrayBuffer =
     ArrayBuffer.isView(input) &&
@@ -148,5 +147,5 @@ export async function parseExcelDocument(
         result.source.files["[Content_Types].xml"] || ""
       ),
     };
-  return bindSources ? bindSourceImport(result) : result;
+  return result;
 }

@@ -9,6 +9,7 @@ import {
   writeFileSync,
   rmSync,
   existsSync,
+  statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -38,6 +39,7 @@ const report = {
     "ts-xlsx: 50000 rows, 10 columns, 3 sheets, banded table, outside borders",
   scenarios: [],
   budgetFailures: [],
+  workerBytes: 0,
 };
 const checkBudget = (condition, message) => {
   if (!condition) report.budgetFailures.push(message);
@@ -49,24 +51,32 @@ const scenarios = process.env.PERF_SCENARIOS?.split(",") ?? [
   "autofilter",
 ];
 try {
-  const build = spawnSync(
-    "bun",
-    [
-      "build",
-      "e2e/perf/entry.tsx",
-      "e2e/perf/import.worker.ts",
-      "--outdir",
-      dir,
-      "--target",
-      "browser",
-      "--minify",
-      "--sourcemap=external",
-      "--define",
-      'process.env.NODE_ENV="production"',
-    ],
-    { cwd: root, stdio: "inherit" }
+  // Workers have their own module graph. A single Bun multi-entry build keeps
+  // main-thread imports alive in the worker as well, hiding accidental coupling.
+  for (const entry of ["e2e/perf/entry.tsx", "e2e/perf/import.worker.ts"]) {
+    const build = spawnSync(
+      "bun",
+      [
+        "build",
+        entry,
+        "--outdir",
+        dir,
+        "--target",
+        "browser",
+        "--minify",
+        "--sourcemap=external",
+        "--define",
+        'process.env.NODE_ENV="production"',
+      ],
+      { cwd: root, stdio: "inherit" }
+    );
+    assert.equal(build.status, 0, "browser bundle");
+  }
+  report.workerBytes = statSync(path.join(dir, "import.worker.js")).size;
+  checkBudget(
+    report.workerBytes < 2000000,
+    "import worker must not pull in the live editor model"
   );
-  assert.equal(build.status, 0, "browser bundle");
   if (process.env.PERF_PROFILE)
     copyFileSync(
       path.join(dir, "entry.js.map"),
