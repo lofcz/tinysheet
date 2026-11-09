@@ -308,6 +308,11 @@ export type NamespaceChartTranslation = {
 	 */
 	chart: string
 	/**
+	 * C​h​a​r​t​ ​{​n​}
+	 * @param {unknown} n
+	 */
+	objectName: RequiredParams<'n'>
+	/**
 	 * C​h​a​r​t​ ​e​d​i​t​o​r
 	 */
 	editor: string
@@ -411,6 +416,10 @@ export type NamespaceChartTranslation = {
 	 * N​a​m​e
 	 */
 	seriesName: string
+	/**
+	 * S​e​r​i​e​s​ ​f​o​r​m​u​l​a
+	 */
+	seriesFormula: string
 	/**
 	 * V​a​l​u​e​s
 	 */
@@ -898,6 +907,388 @@ export type NamespaceChartTranslation = {
 }
 
 export type NamespaceChartToolsTranslation = {
+	effects: {
+		shadow: {
+			/**
+			 * O​f​f​s​e​t​:​ ​B​o​t​t​o​m​ ​R​i​g​h​t
+			 */
+			outerBottomRight: string
+			/**
+			 * O​f​f​s​e​t​:​ ​B​o​t​t​o​m
+			 */
+			outerBottom: string
+			/**
+			 * O​f​f​s​e​t​:​ ​B​o​t​t​o​m​ ​L​e​f​t
+			 */
+			outerBottomLeft: string
+			/**
+			 * O​f​f​s​e​t​:​ ​R​i​g​h​t
+			 */
+			outerRight: string
+			/**
+			 * O​f​f​s​e​t​:​ ​C​e​n​t​e​r
+			 */
+			outerCenter: string
+			/**
+			 * O​f​f​s​e​t​:​ ​L​e​f​t
+			 */
+			outerLeft: string
+			/**
+			 * O​f​f​s​e​t​:​ ​T​o​p​ ​R​i​g​h​t
+			 */
+			outerTopRight: string
+			/**
+			 * O​f​f​s​e​t​:​ ​T​o​p
+			 */
+			outerTop: string
+			/**
+			 * O​f​f​s​e​t​:​ ​T​o​p​ ​L​e​f​t
+			 */
+			outerTopLeft: string
+			/**
+			 * I​n​s​i​d​e​:​ ​T​o​p​ ​L​e​f​t
+			 */
+			innerTopLeft: string
+			/**
+			 * I​n​s​i​d​e​:​ ​T​o​p
+			 */
+			innerTop: string
+			/**
+			 * I​n​s​i​d​e​:​ ​T​o​p​ ​R​i​g​h​t
+			 */
+			innerTopRight: string
+			/**
+			 * I​n​s​i​d​e​:​ ​L​e​f​t
+			 */
+			innerLeft: string
+			/**
+			 * I​n​s​i​d​e​:​ ​C​e​n​t​e​r
+			 */
+			innerCenter: string
+			/**
+			 * I​n​s​i​d​e​:​ ​R​i​g​h​t
+			 */
+			innerRight: string
+			/**
+			 * I​n​s​i​d​e​:​ ​B​o​t​t​o​m​ ​L​e​f​t
+			 */
+			innerBottomLeft: string
+			/**
+			 * I​n​s​i​d​e​:​ ​B​o​t​t​o​m
+			 */
+			innerBottom: string
+			/**
+			 * I​n​s​i​d​e​:​ ​B​o​t​t​o​m​ ​R​i​g​h​t
+			 */
+			innerBottomRight: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​U​p​p​e​r​ ​L​e​f​t
+			 */
+			perspUpperLeft: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​U​p​p​e​r​ ​R​i​g​h​t
+			 */
+			perspUpperRight: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​B​e​l​o​w
+			 */
+			perspBelow: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​L​o​w​e​r​ ​L​e​f​t
+			 */
+			perspLowerLeft: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​L​o​w​e​r​ ​R​i​g​h​t
+			 */
+			perspLowerRight: string
+		}
+		bevel: {
+			/**
+			 * C​i​r​c​l​e
+			 */
+			circle: string
+			/**
+			 * R​e​l​a​x​e​d​ ​I​n​s​e​t
+			 */
+			relaxedInset: string
+			/**
+			 * C​r​o​s​s
+			 */
+			cross: string
+			/**
+			 * C​o​o​l​ ​S​l​a​n​t
+			 */
+			coolSlant: string
+			/**
+			 * A​n​g​l​e
+			 */
+			angle: string
+			/**
+			 * S​o​f​t​ ​R​o​u​n​d
+			 */
+			softRound: string
+			/**
+			 * C​o​n​v​e​x
+			 */
+			convex: string
+			/**
+			 * S​l​o​p​e
+			 */
+			slope: string
+			/**
+			 * D​i​v​o​t
+			 */
+			divot: string
+			/**
+			 * R​i​b​l​e​t
+			 */
+			riblet: string
+			/**
+			 * H​a​r​d​ ​E​d​g​e
+			 */
+			hardEdge: string
+			/**
+			 * A​r​t​ ​D​e​c​o
+			 */
+			artDeco: string
+		}
+		rotation: {
+			/**
+			 * I​s​o​m​e​t​r​i​c​:​ ​L​e​f​t​ ​D​o​w​n
+			 */
+			isometricLeftDown: string
+			/**
+			 * I​s​o​m​e​t​r​i​c​:​ ​R​i​g​h​t​ ​U​p
+			 */
+			isometricRightUp: string
+			/**
+			 * I​s​o​m​e​t​r​i​c​:​ ​T​o​p​ ​U​p
+			 */
+			isometricTopUp: string
+			/**
+			 * I​s​o​m​e​t​r​i​c​:​ ​B​o​t​t​o​m​ ​D​o​w​n
+			 */
+			isometricBottomDown: string
+			/**
+			 * O​f​f​ ​A​x​i​s​ ​1​:​ ​L​e​f​t
+			 */
+			isometricOffAxis1Left: string
+			/**
+			 * O​f​f​ ​A​x​i​s​ ​1​:​ ​R​i​g​h​t
+			 */
+			isometricOffAxis1Right: string
+			/**
+			 * O​f​f​ ​A​x​i​s​ ​1​:​ ​T​o​p
+			 */
+			isometricOffAxis1Top: string
+			/**
+			 * O​f​f​ ​A​x​i​s​ ​2​:​ ​L​e​f​t
+			 */
+			isometricOffAxis2Left: string
+			/**
+			 * O​f​f​ ​A​x​i​s​ ​2​:​ ​R​i​g​h​t
+			 */
+			isometricOffAxis2Right: string
+			/**
+			 * O​f​f​ ​A​x​i​s​ ​2​:​ ​T​o​p
+			 */
+			isometricOffAxis2Top: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​F​r​o​n​t
+			 */
+			perspectiveFront: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​L​e​f​t
+			 */
+			perspectiveLeft: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​R​i​g​h​t
+			 */
+			perspectiveRight: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​B​e​l​o​w
+			 */
+			perspectiveBelow: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​A​b​o​v​e
+			 */
+			perspectiveAbove: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​R​e​l​a​x​e​d​ ​M​o​d​e​r​a​t​e​l​y
+			 */
+			perspectiveRelaxedModerately: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​R​e​l​a​x​e​d
+			 */
+			perspectiveRelaxed: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​C​o​n​t​r​a​s​t​i​n​g​ ​L​e​f​t
+			 */
+			perspectiveContrastingLeftFacing: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​C​o​n​t​r​a​s​t​i​n​g​ ​R​i​g​h​t
+			 */
+			perspectiveContrastingRightFacing: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​H​e​r​o​i​c​ ​E​x​t​r​e​m​e​ ​L​e​f​t
+			 */
+			perspectiveHeroicExtremeLeftFacing: string
+			/**
+			 * P​e​r​s​p​e​c​t​i​v​e​:​ ​H​e​r​o​i​c​ ​E​x​t​r​e​m​e​ ​R​i​g​h​t
+			 */
+			perspectiveHeroicExtremeRightFacing: string
+			/**
+			 * O​b​l​i​q​u​e​:​ ​T​o​p​ ​L​e​f​t
+			 */
+			obliqueTopLeft: string
+			/**
+			 * O​b​l​i​q​u​e​:​ ​T​o​p​ ​R​i​g​h​t
+			 */
+			obliqueTopRight: string
+			/**
+			 * O​b​l​i​q​u​e​:​ ​B​o​t​t​o​m​ ​L​e​f​t
+			 */
+			obliqueBottomLeft: string
+			/**
+			 * O​b​l​i​q​u​e​:​ ​B​o​t​t​o​m​ ​R​i​g​h​t
+			 */
+			obliqueBottomRight: string
+		}
+		reflection: {
+			/**
+			 * T​i​g​h​t​ ​R​e​f​l​e​c​t​i​o​n​:​ ​T​o​u​c​h​i​n​g
+			 */
+			tight: string
+			/**
+			 * H​a​l​f​ ​R​e​f​l​e​c​t​i​o​n​:​ ​T​o​u​c​h​i​n​g
+			 */
+			half: string
+			/**
+			 * F​u​l​l​ ​R​e​f​l​e​c​t​i​o​n​:​ ​T​o​u​c​h​i​n​g
+			 */
+			full: string
+			/**
+			 * T​i​g​h​t​ ​R​e​f​l​e​c​t​i​o​n​:​ ​4​ ​p​t​ ​o​f​f​s​e​t
+			 */
+			tight4: string
+			/**
+			 * H​a​l​f​ ​R​e​f​l​e​c​t​i​o​n​:​ ​4​ ​p​t​ ​o​f​f​s​e​t
+			 */
+			half4: string
+			/**
+			 * F​u​l​l​ ​R​e​f​l​e​c​t​i​o​n​:​ ​4​ ​p​t​ ​o​f​f​s​e​t
+			 */
+			full4: string
+		}
+		accents: {
+			/**
+			 * B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​1
+			 */
+			accent1: string
+			/**
+			 * O​r​a​n​g​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​2
+			 */
+			accent2: string
+			/**
+			 * G​r​a​y​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​3
+			 */
+			accent3: string
+			/**
+			 * G​o​l​d​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​4
+			 */
+			accent4: string
+			/**
+			 * B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​5
+			 */
+			accent5: string
+			/**
+			 * G​r​e​e​n​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​6
+			 */
+			accent6: string
+		}
+		wordArt: {
+			/**
+			 * F​i​l​l​:​ ​B​l​a​c​k​,​ ​T​e​x​t​ ​c​o​l​o​r​ ​1​;​ ​S​h​a​d​o​w
+			 */
+			style1: string
+			/**
+			 * F​i​l​l​:​ ​B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​1​;​ ​S​h​a​d​o​w
+			 */
+			style2: string
+			/**
+			 * F​i​l​l​:​ ​O​r​a​n​g​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​2​;​ ​O​u​t​l​i​n​e​:​ ​O​r​a​n​g​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​2
+			 */
+			style3: string
+			/**
+			 * F​i​l​l​:​ ​W​h​i​t​e​;​ ​O​u​t​l​i​n​e​:​ ​O​r​a​n​g​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​2​;​ ​G​l​o​w​:​ ​O​r​a​n​g​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​2
+			 */
+			style4: string
+			/**
+			 * F​i​l​l​:​ ​G​o​l​d​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​4​;​ ​S​o​f​t​ ​B​e​v​e​l
+			 */
+			style5: string
+			/**
+			 * G​r​a​d​i​e​n​t​ ​F​i​l​l​:​ ​G​r​a​y
+			 */
+			style6: string
+			/**
+			 * G​r​a​d​i​e​n​t​ ​F​i​l​l​:​ ​B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​1​;​ ​R​e​f​l​e​c​t​i​o​n
+			 */
+			style7: string
+			/**
+			 * G​r​a​d​i​e​n​t​ ​F​i​l​l​:​ ​G​o​l​d​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​4​;​ ​O​u​t​l​i​n​e​:​ ​G​o​l​d​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​4
+			 */
+			style8: string
+			/**
+			 * F​i​l​l​:​ ​W​h​i​t​e​;​ ​O​u​t​l​i​n​e​:​ ​B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​1​;​ ​G​l​o​w​:​ ​B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​1
+			 */
+			style9: string
+			/**
+			 * F​i​l​l​:​ ​G​r​a​y​-​5​0​%​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​3​;​ ​S​h​a​r​p​ ​B​e​v​e​l
+			 */
+			style10: string
+			/**
+			 * F​i​l​l​:​ ​B​l​a​c​k​,​ ​T​e​x​t​ ​c​o​l​o​r​ ​1​;​ ​O​u​t​l​i​n​e​:​ ​W​h​i​t​e​,​ ​B​a​c​k​g​r​o​u​n​d​ ​c​o​l​o​r​ ​1​;​ ​H​a​r​d​ ​S​h​a​d​o​w​:​ ​B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​5
+			 */
+			style11: string
+			/**
+			 * F​i​l​l​:​ ​B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​1​;​ ​O​u​t​l​i​n​e​:​ ​W​h​i​t​e​,​ ​B​a​c​k​g​r​o​u​n​d​ ​c​o​l​o​r​ ​1​;​ ​H​a​r​d​ ​S​h​a​d​o​w​:​ ​B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​1
+			 */
+			style12: string
+			/**
+			 * F​i​l​l​:​ ​W​h​i​t​e​;​ ​O​u​t​l​i​n​e​:​ ​B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​5​;​ ​S​h​a​d​o​w
+			 */
+			style13: string
+			/**
+			 * F​i​l​l​:​ ​B​l​a​c​k​,​ ​T​e​x​t​ ​c​o​l​o​r​ ​1​;​ ​O​u​t​l​i​n​e​:​ ​W​h​i​t​e​,​ ​B​a​c​k​g​r​o​u​n​d​ ​c​o​l​o​r​ ​1​;​ ​H​a​r​d​ ​S​h​a​d​o​w​:​ ​O​r​a​n​g​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​2
+			 */
+			style14: string
+			/**
+			 * F​i​l​l​:​ ​G​r​a​y​-​5​0​%​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​3​;​ ​O​u​t​l​i​n​e​:​ ​G​r​a​y​-​5​0​%​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​3
+			 */
+			style15: string
+			/**
+			 * P​a​t​t​e​r​n​ ​F​i​l​l​:​ ​B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​1​;​ ​S​h​a​d​o​w
+			 */
+			style16: string
+			/**
+			 * P​a​t​t​e​r​n​ ​F​i​l​l​:​ ​G​r​a​y​-​5​0​%​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​3​;​ ​H​a​r​d​ ​S​h​a​d​o​w
+			 */
+			style17: string
+			/**
+			 * F​i​l​l​:​ ​G​r​e​e​n​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​6​;​ ​G​l​o​w​:​ ​G​r​e​e​n​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​6
+			 */
+			style18: string
+			/**
+			 * F​i​l​l​:​ ​B​l​u​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​5​;​ ​R​e​f​l​e​c​t​i​o​n
+			 */
+			style19: string
+			/**
+			 * F​i​l​l​:​ ​O​r​a​n​g​e​,​ ​A​c​c​e​n​t​ ​c​o​l​o​r​ ​2​;​ ​B​e​v​e​l
+			 */
+			style20: string
+		}
+	}
 	contextual: {
 		/**
 		 * C​h​a​r​t​ ​T​o​o​l​s
@@ -1771,6 +2162,10 @@ export type NamespaceChartToolsTranslation = {
 		rotateChartTip: string
 	}
 	names: {
+		/**
+		 * S​h​a​p​e
+		 */
+		shape: string
 		/**
 		 * C​h​a​r​t​ ​A​r​e​a
 		 */
@@ -3238,6 +3633,16 @@ export type NamespaceDialogsTranslation = {
 	 */
 	close: string
 	/**
+	 * {​l​a​b​e​l​}​:​ ​o​p​e​n​ ​l​i​s​t
+	 * @param {unknown} label
+	 */
+	openList: RequiredParams<'label'>
+	/**
+	 * {​l​a​b​e​l​}​:​ ​m​o​r​e​ ​o​p​t​i​o​n​s
+	 * @param {unknown} label
+	 */
+	moreOptions: RequiredParams<'label'>
+	/**
 	 * O​K
 	 */
 	ok: string
@@ -4629,7 +5034,7 @@ export type NamespaceGridTranslation = {
 	currencyDetail: {
 		'0': {
 			/**
-			 * R​M​B
+			 * C​h​i​n​e​s​e​ ​Y​u​a​n
 			 */
 			name: string
 			/**
@@ -4643,7 +5048,7 @@ export type NamespaceGridTranslation = {
 		}
 		'1': {
 			/**
-			 * U​S​ ​d​o​l​l​a​r
+			 * U​S​ ​D​o​l​l​a​r
 			 */
 			name: string
 			/**
@@ -4657,7 +5062,7 @@ export type NamespaceGridTranslation = {
 		}
 		'2': {
 			/**
-			 * E​U​R
+			 * E​u​r​o
 			 */
 			name: string
 			/**
@@ -4671,7 +5076,7 @@ export type NamespaceGridTranslation = {
 		}
 		'3': {
 			/**
-			 * G​B​P
+			 * B​r​i​t​i​s​h​ ​P​o​u​n​d
 			 */
 			name: string
 			/**
@@ -4685,7 +5090,7 @@ export type NamespaceGridTranslation = {
 		}
 		'4': {
 			/**
-			 * H​K
+			 * H​o​n​g​ ​K​o​n​g​ ​D​o​l​l​a​r
 			 */
 			name: string
 			/**
@@ -4699,7 +5104,7 @@ export type NamespaceGridTranslation = {
 		}
 		'5': {
 			/**
-			 * J​P​Y
+			 * J​a​p​a​n​e​s​e​ ​Y​e​n
 			 */
 			name: string
 			/**
@@ -4741,7 +5146,7 @@ export type NamespaceGridTranslation = {
 		}
 		'8': {
 			/**
-			 * A​f​g​h​a​n​i
+			 * A​f​g​h​a​n​ ​A​f​g​h​a​n​i
 			 */
 			name: string
 			/**
@@ -4811,7 +5216,7 @@ export type NamespaceGridTranslation = {
 		}
 		'13': {
 			/**
-			 * A​z​e​r​b​a​i​j​a​n​i​ ​m​a​n​a​t
+			 * A​z​e​r​b​a​i​j​a​n​i​ ​M​a​n​a​t
 			 */
 			name: string
 			/**
@@ -4853,7 +5258,7 @@ export type NamespaceGridTranslation = {
 		}
 		'16': {
 			/**
-			 * A​n​g​o​l​a​ ​K​w​a​n​z​a
+			 * A​n​g​o​l​a​n​ ​K​w​a​n​z​a
 			 */
 			name: string
 			/**
@@ -4881,7 +5286,7 @@ export type NamespaceGridTranslation = {
 		}
 		'18': {
 			/**
-			 * P​a​t​a​c​a​s
+			 * M​a​c​a​n​e​s​e​ ​P​a​t​a​c​a
 			 */
 			name: string
 			/**
@@ -4895,7 +5300,7 @@ export type NamespaceGridTranslation = {
 		}
 		'19': {
 			/**
-			 * B​a​r​b​a​d​o​s​ ​D​o​l​l​a​r
+			 * B​a​r​b​a​d​i​a​n​ ​D​o​l​l​a​r
 			 */
 			name: string
 			/**
@@ -4909,7 +5314,7 @@ export type NamespaceGridTranslation = {
 		}
 		'20': {
 			/**
-			 * P​a​p​u​a​ ​N​e​w​ ​G​u​i​n​e​a​ ​K​i​n​a
+			 * P​a​p​u​a​ ​N​e​w​ ​G​u​i​n​e​a​n​ ​K​i​n​a
 			 */
 			name: string
 			/**
@@ -4937,7 +5342,7 @@ export type NamespaceGridTranslation = {
 		}
 		'22': {
 			/**
-			 * P​a​k​i​s​t​a​n​ ​R​u​p​e​e
+			 * P​a​k​i​s​t​a​n​i​ ​R​u​p​e​e
 			 */
 			name: string
 			/**
@@ -4993,7 +5398,7 @@ export type NamespaceGridTranslation = {
 		}
 		'26': {
 			/**
-			 * B​r​a​z​i​l​i​a​n​ ​r​e​a​l
+			 * B​r​a​z​i​l​i​a​n​ ​R​e​a​l
 			 */
 			name: string
 			/**
@@ -5007,7 +5412,7 @@ export type NamespaceGridTranslation = {
 		}
 		'27': {
 			/**
-			 * B​e​l​a​r​u​s​i​a​n​ ​r​u​b​l​e
+			 * B​e​l​a​r​u​s​i​a​n​ ​R​u​b​l​e
 			 */
 			name: string
 			/**
@@ -5021,7 +5426,7 @@ export type NamespaceGridTranslation = {
 		}
 		'28': {
 			/**
-			 * B​e​r​m​u​d​i​a​n​ ​D​o​l​l​a​r
+			 * B​e​r​m​u​d​a​n​ ​D​o​l​l​a​r
 			 */
 			name: string
 			/**
@@ -5049,7 +5454,7 @@ export type NamespaceGridTranslation = {
 		}
 		'30': {
 			/**
-			 * I​c​e​l​a​n​d​ ​K​r​o​n​a
+			 * I​c​e​l​a​n​d​i​c​ ​K​r​ó​n​a
 			 */
 			name: string
 			/**
@@ -5091,7 +5496,7 @@ export type NamespaceGridTranslation = {
 		}
 		'33': {
 			/**
-			 * B​o​l​i​v​i​a​n​o
+			 * B​o​l​i​v​i​a​n​ ​B​o​l​i​v​i​a​n​o
 			 */
 			name: string
 			/**
@@ -5119,7 +5524,7 @@ export type NamespaceGridTranslation = {
 		}
 		'35': {
 			/**
-			 * B​o​t​s​w​a​n​a​ ​P​u​l​a
+			 * B​o​t​s​w​a​n​a​n​ ​P​u​l​a
 			 */
 			name: string
 			/**
@@ -5133,7 +5538,7 @@ export type NamespaceGridTranslation = {
 		}
 		'36': {
 			/**
-			 * N​o​t​ ​D​a​n​n​u​z​h​a​m​u
+			 * B​h​u​t​a​n​e​s​e​ ​N​g​u​l​t​r​u​m
 			 */
 			name: string
 			/**
@@ -5147,7 +5552,7 @@ export type NamespaceGridTranslation = {
 		}
 		'37': {
 			/**
-			 * B​u​r​u​n​d​i​ ​F​r​a​n​c
+			 * B​u​r​u​n​d​i​a​n​ ​F​r​a​n​c
 			 */
 			name: string
 			/**
@@ -5203,7 +5608,7 @@ export type NamespaceGridTranslation = {
 		}
 		'41': {
 			/**
-			 * D​o​m​i​n​i​c​a​ ​P​e​s​o
+			 * D​o​m​i​n​i​c​a​n​ ​P​e​s​o
 			 */
 			name: string
 			/**
@@ -5245,7 +5650,7 @@ export type NamespaceGridTranslation = {
 		}
 		'44': {
 			/**
-			 * C​F​A​ ​f​r​a​n​c
+			 * W​e​s​t​ ​A​f​r​i​c​a​n​ ​C​F​A​ ​F​r​a​n​c
 			 */
 			name: string
 			/**
@@ -5273,7 +5678,7 @@ export type NamespaceGridTranslation = {
 		}
 		'46': {
 			/**
-			 * F​i​j​i​ ​D​o​l​l​a​r
+			 * F​i​j​i​a​n​ ​D​o​l​l​a​r
 			 */
 			name: string
 			/**
@@ -5287,7 +5692,7 @@ export type NamespaceGridTranslation = {
 		}
 		'47': {
 			/**
-			 * C​a​p​e​ ​V​e​r​d​e​ ​E​s​c​u​d​o
+			 * C​a​p​e​ ​V​e​r​d​e​a​n​ ​E​s​c​u​d​o
 			 */
 			name: string
 			/**
@@ -5329,7 +5734,7 @@ export type NamespaceGridTranslation = {
 		}
 		'50': {
 			/**
-			 * C​o​n​g​o​l​e​s​e​ ​f​r​a​n​c
+			 * C​o​n​g​o​l​e​s​e​ ​F​r​a​n​c
 			 */
 			name: string
 			/**
@@ -5357,7 +5762,7 @@ export type NamespaceGridTranslation = {
 		}
 		'52': {
 			/**
-			 * C​o​s​t​a​ ​R​i​c​a​n​ ​C​o​l​o​n
+			 * C​o​s​t​a​ ​R​i​c​a​n​ ​C​o​l​ó​n
 			 */
 			name: string
 			/**
@@ -5385,7 +5790,7 @@ export type NamespaceGridTranslation = {
 		}
 		'54': {
 			/**
-			 * C​u​b​a​n​ ​c​o​n​v​e​r​t​i​b​l​e​ ​p​e​s​o
+			 * C​u​b​a​n​ ​C​o​n​v​e​r​t​i​b​l​e​ ​P​e​s​o
 			 */
 			name: string
 			/**
@@ -5399,7 +5804,7 @@ export type NamespaceGridTranslation = {
 		}
 		'55': {
 			/**
-			 * G​u​y​a​n​a​ ​D​o​l​l​a​r
+			 * G​u​y​a​n​a​e​s​e​ ​D​o​l​l​a​r
 			 */
 			name: string
 			/**
@@ -5413,7 +5818,7 @@ export type NamespaceGridTranslation = {
 		}
 		'56': {
 			/**
-			 * K​a​z​a​k​h​s​t​a​n​ ​T​e​n​g​e
+			 * K​a​z​a​k​h​s​t​a​n​i​ ​T​e​n​g​e
 			 */
 			name: string
 			/**
@@ -5427,7 +5832,7 @@ export type NamespaceGridTranslation = {
 		}
 		'57': {
 			/**
-			 * H​a​i​t​i​a​n​ ​g​o​u​r​d​e
+			 * H​a​i​t​i​a​n​ ​G​o​u​r​d​e
 			 */
 			name: string
 			/**
@@ -5441,7 +5846,7 @@ export type NamespaceGridTranslation = {
 		}
 		'58': {
 			/**
-			 * w​o​n
+			 * S​o​u​t​h​ ​K​o​r​e​a​n​ ​W​o​n
 			 */
 			name: string
 			/**
@@ -5455,7 +5860,7 @@ export type NamespaceGridTranslation = {
 		}
 		'59': {
 			/**
-			 * N​e​t​h​e​r​l​a​n​d​s​ ​A​n​t​i​l​l​e​s​ ​G​u​i​l​d​e​r
+			 * N​e​t​h​e​r​l​a​n​d​s​ ​A​n​t​i​l​l​e​a​n​ ​G​u​i​l​d​e​r
 			 */
 			name: string
 			/**
@@ -5469,7 +5874,7 @@ export type NamespaceGridTranslation = {
 		}
 		'60': {
 			/**
-			 * H​o​n​d​u​r​a​s​ ​l​e​m​p​i​r​a​s
+			 * H​o​n​d​u​r​a​n​ ​L​e​m​p​i​r​a
 			 */
 			name: string
 			/**
@@ -5483,7 +5888,7 @@ export type NamespaceGridTranslation = {
 		}
 		'61': {
 			/**
-			 * D​j​i​b​o​u​t​i​ ​F​r​a​n​c
+			 * D​j​i​b​o​u​t​i​a​n​ ​F​r​a​n​c
 			 */
 			name: string
 			/**
@@ -5497,7 +5902,7 @@ export type NamespaceGridTranslation = {
 		}
 		'62': {
 			/**
-			 * K​y​r​g​y​z​s​t​a​n​ ​S​o​m
+			 * K​y​r​g​y​z​ ​S​o​m
 			 */
 			name: string
 			/**
@@ -5511,7 +5916,7 @@ export type NamespaceGridTranslation = {
 		}
 		'63': {
 			/**
-			 * G​u​i​n​e​a​ ​F​r​a​n​c
+			 * G​u​i​n​e​a​n​ ​F​r​a​n​c
 			 */
 			name: string
 			/**
@@ -5553,7 +5958,7 @@ export type NamespaceGridTranslation = {
 		}
 		'66': {
 			/**
-			 * C​a​m​b​o​d​i​a​n​ ​r​i​e​l
+			 * C​a​m​b​o​d​i​a​n​ ​R​i​e​l
 			 */
 			name: string
 			/**
@@ -5581,7 +5986,7 @@ export type NamespaceGridTranslation = {
 		}
 		'68': {
 			/**
-			 * Z​i​m​b​a​b​w​e​ ​D​o​l​l​a​r
+			 * Z​i​m​b​a​b​w​e​a​n​ ​D​o​l​l​a​r​ ​(​2​0​0​9​–​2​0​2​4​)
 			 */
 			name: string
 			/**
@@ -5623,7 +6028,7 @@ export type NamespaceGridTranslation = {
 		}
 		'71': {
 			/**
-			 * C​o​m​o​r​i​a​n​ ​f​r​a​n​c
+			 * C​o​m​o​r​i​a​n​ ​F​r​a​n​c
 			 */
 			name: string
 			/**
@@ -5693,7 +6098,7 @@ export type NamespaceGridTranslation = {
 		}
 		'76': {
 			/**
-			 * L​a​o​ ​K​i​p
+			 * L​a​o​t​i​a​n​ ​K​i​p
 			 */
 			name: string
 			/**
@@ -5721,7 +6126,7 @@ export type NamespaceGridTranslation = {
 		}
 		'78': {
 			/**
-			 * L​i​t​h​u​a​n​i​a​n​ ​l​i​t​a​s
+			 * L​i​t​h​u​a​n​i​a​n​ ​L​i​t​a​s
 			 */
 			name: string
 			/**
@@ -5763,7 +6168,7 @@ export type NamespaceGridTranslation = {
 		}
 		'81': {
 			/**
-			 * R​w​a​n​d​a​ ​F​r​a​n​c
+			 * R​w​a​n​d​a​n​ ​F​r​a​n​c
 			 */
 			name: string
 			/**
@@ -5819,7 +6224,7 @@ export type NamespaceGridTranslation = {
 		}
 		'85': {
 			/**
-			 * M​a​l​a​w​i​ ​K​w​a​c​h​a
+			 * M​a​l​a​w​i​a​n​ ​K​w​a​c​h​a
 			 */
 			name: string
 			/**
@@ -5847,7 +6252,7 @@ export type NamespaceGridTranslation = {
 		}
 		'87': {
 			/**
-			 * M​a​c​e​d​o​n​i​a​ ​w​e​a​r​i​n​g​ ​D​i​n​a​r
+			 * M​a​c​e​d​o​n​i​a​n​ ​D​e​n​a​r
 			 */
 			name: string
 			/**
@@ -5861,7 +6266,7 @@ export type NamespaceGridTranslation = {
 		}
 		'88': {
 			/**
-			 * M​a​u​r​i​t​i​u​s​ ​R​u​p​e​e
+			 * M​a​u​r​i​t​i​a​n​ ​R​u​p​e​e
 			 */
 			name: string
 			/**
@@ -5875,7 +6280,7 @@ export type NamespaceGridTranslation = {
 		}
 		'89': {
 			/**
-			 * M​a​u​r​i​t​a​n​i​a​n​ ​O​u​g​u​i​y​a
+			 * M​a​u​r​i​t​a​n​i​a​n​ ​O​u​g​u​i​y​a​ ​(​1​9​7​3​–​2​0​1​7​)
 			 */
 			name: string
 			/**
@@ -5917,7 +6322,7 @@ export type NamespaceGridTranslation = {
 		}
 		'92': {
 			/**
-			 * P​e​r​u​v​i​a​n​ ​N​u​e​v​o​ ​S​o​l
+			 * P​e​r​u​v​i​a​n​ ​S​o​l
 			 */
 			name: string
 			/**
@@ -5973,7 +6378,7 @@ export type NamespaceGridTranslation = {
 		}
 		'96': {
 			/**
-			 * M​o​z​a​m​b​i​q​u​e​ ​M​e​t​i​c​a​l
+			 * M​o​z​a​m​b​i​c​a​n​ ​M​e​t​i​c​a​l
 			 */
 			name: string
 			/**
@@ -6043,7 +6448,7 @@ export type NamespaceGridTranslation = {
 		}
 		'101': {
 			/**
-			 * N​i​c​a​r​a​g​u​a​ ​C​o​r​d​o​b​a
+			 * N​i​c​a​r​a​g​u​a​n​ ​C​ó​r​d​o​b​a
 			 */
 			name: string
 			/**
@@ -6155,7 +6560,7 @@ export type NamespaceGridTranslation = {
 		}
 		'109': {
 			/**
-			 * S​i​e​r​r​a​ ​L​e​o​n​e
+			 * S​i​e​r​r​a​ ​L​e​o​n​e​a​n​ ​L​e​o​n​e​ ​(​1​9​6​4​—​2​0​2​2​)
 			 */
 			name: string
 			/**
@@ -6169,7 +6574,7 @@ export type NamespaceGridTranslation = {
 		}
 		'110': {
 			/**
-			 * S​e​y​c​h​e​l​l​e​s​ ​R​u​p​e​e
+			 * S​e​y​c​h​e​l​l​o​i​s​ ​R​u​p​e​e
 			 */
 			name: string
 			/**
@@ -6197,7 +6602,7 @@ export type NamespaceGridTranslation = {
 		}
 		'112': {
 			/**
-			 * S​a​o​ ​T​o​m​e​ ​D​o​b​r​a
+			 * S​ã​o​ ​T​o​m​é​ ​&​ ​P​r​í​n​c​i​p​e​ ​D​o​b​r​a​ ​(​1​9​7​7​–​2​0​1​7​)
 			 */
 			name: string
 			/**
@@ -6211,7 +6616,7 @@ export type NamespaceGridTranslation = {
 		}
 		'113': {
 			/**
-			 * S​a​i​n​t​ ​H​e​l​e​n​a​ ​p​o​u​n​d
+			 * S​t​.​ ​H​e​l​e​n​a​ ​P​o​u​n​d
 			 */
 			name: string
 			/**
@@ -6225,7 +6630,7 @@ export type NamespaceGridTranslation = {
 		}
 		'114': {
 			/**
-			 * S​r​i​ ​L​a​n​k​a​ ​R​u​p​e​e
+			 * S​r​i​ ​L​a​n​k​a​n​ ​R​u​p​e​e
 			 */
 			name: string
 			/**
@@ -6239,7 +6644,7 @@ export type NamespaceGridTranslation = {
 		}
 		'115': {
 			/**
-			 * S​w​a​z​i​l​a​n​d​ ​L​i​l​a​n​g​e​n​i
+			 * S​w​a​z​i​ ​L​i​l​a​n​g​e​n​i
 			 */
 			name: string
 			/**
@@ -6267,7 +6672,7 @@ export type NamespaceGridTranslation = {
 		}
 		'117': {
 			/**
-			 * S​u​r​i​n​a​m​e​s​e​ ​d​o​l​l​a​r
+			 * S​u​r​i​n​a​m​e​s​e​ ​D​o​l​l​a​r
 			 */
 			name: string
 			/**
@@ -6309,7 +6714,7 @@ export type NamespaceGridTranslation = {
 		}
 		'120': {
 			/**
-			 * T​a​j​i​k​i​s​t​a​n​ ​S​o​m​o​n​i
+			 * T​a​j​i​k​i​s​t​a​n​i​ ​S​o​m​o​n​i
 			 */
 			name: string
 			/**
@@ -6323,7 +6728,7 @@ export type NamespaceGridTranslation = {
 		}
 		'121': {
 			/**
-			 * P​a​c​i​f​i​c​ ​F​r​a​n​c
+			 * C​F​P​ ​F​r​a​n​c
 			 */
 			name: string
 			/**
@@ -6365,7 +6770,7 @@ export type NamespaceGridTranslation = {
 		}
 		'124': {
 			/**
-			 * T​o​n​g​a​n​ ​P​a​'​a​n​g​a
+			 * T​o​n​g​a​n​ ​P​a​ʻ​a​n​g​a
 			 */
 			name: string
 			/**
@@ -6379,7 +6784,7 @@ export type NamespaceGridTranslation = {
 		}
 		'125': {
 			/**
-			 * T​r​i​n​i​d​a​d​ ​a​n​d​ ​T​o​b​a​g​o​ ​D​o​l​l​a​r
+			 * T​r​i​n​i​d​a​d​ ​&​ ​T​o​b​a​g​o​ ​D​o​l​l​a​r
 			 */
 			name: string
 			/**
@@ -6449,7 +6854,7 @@ export type NamespaceGridTranslation = {
 		}
 		'130': {
 			/**
-			 * C​o​m​m​i​s​s​i​o​n​ ​B​o​l​i​v​a​r
+			 * V​e​n​e​z​u​e​l​a​n​ ​B​o​l​í​v​a​r​ ​(​2​0​0​8​–​2​0​1​8​)
 			 */
 			name: string
 			/**
@@ -6519,7 +6924,7 @@ export type NamespaceGridTranslation = {
 		}
 		'135': {
 			/**
-			 * U​z​b​e​k​i​s​t​a​n​ ​s​o​m
+			 * U​z​b​e​k​i​s​t​a​n​i​ ​S​o​m
 			 */
 			name: string
 			/**
@@ -6533,7 +6938,7 @@ export type NamespaceGridTranslation = {
 		}
 		'136': {
 			/**
-			 * W​e​s​t​e​r​n​ ​S​a​m​o​a​ ​T​a​l​a
+			 * S​a​m​o​a​n​ ​T​a​l​a
 			 */
 			name: string
 			/**
@@ -6561,7 +6966,7 @@ export type NamespaceGridTranslation = {
 		}
 		'138': {
 			/**
-			 * N​T
+			 * N​e​w​ ​T​a​i​w​a​n​ ​D​o​l​l​a​r
 			 */
 			name: string
 			/**
@@ -6687,7 +7092,7 @@ export type NamespaceGridTranslation = {
 		}
 		'147': {
 			/**
-			 * N​e​w​ ​I​s​r​a​e​l​i​ ​S​h​e​k​e​l
+			 * I​s​r​a​e​l​i​ ​N​e​w​ ​S​h​e​k​e​l
 			 */
 			name: string
 			/**
@@ -6743,7 +7148,7 @@ export type NamespaceGridTranslation = {
 		}
 		'151': {
 			/**
-			 * V​N​D
+			 * V​i​e​t​n​a​m​e​s​e​ ​D​o​n​g
 			 */
 			name: string
 			/**
@@ -6799,7 +7204,7 @@ export type NamespaceGridTranslation = {
 		}
 		'155': {
 			/**
-			 * C​F​A​ ​F​r​a​n​c​ ​B​E​A​C
+			 * C​e​n​t​r​a​l​ ​A​f​r​i​c​a​n​ ​C​F​A​ ​F​r​a​n​c
 			 */
 			name: string
 			/**
@@ -9251,7 +9656,7 @@ export type NamespaceGridTranslation = {
 		 */
 		top10_percent: string
 		/**
-		 * L​a​s​t
+		 * B​o​t​t​o​m
 		 */
 		last: string
 		/**
@@ -9284,7 +9689,7 @@ export type NamespaceGridTranslation = {
 		 */
 		all: string
 		/**
-		 * Y​T​D
+		 * Y​e​s​t​e​r​d​a​y
 		 */
 		yesterday: string
 		/**
@@ -11375,15 +11780,15 @@ export type NamespaceGridTranslation = {
 		 */
 		offsetColumnLessZero: string
 		/**
-		 * 在​表​格​中​进​行​复​制​粘​贴​:​ ​C​t​r​l​ ​+​ ​C​ ​进​行​复​制​,​ ​C​t​r​l​ ​+​ ​V​ ​进​行​粘​贴​,​ ​C​t​r​l​ ​+​ ​X​ ​进​行​剪​切
+		 * U​s​e​ ​k​e​y​b​o​a​r​d​ ​s​h​o​r​t​c​u​t​s​ ​i​n​ ​t​h​e​ ​s​h​e​e​t​:​ ​C​t​r​l​ ​+​ ​C​ ​t​o​ ​c​o​p​y​,​ ​C​t​r​l​ ​+​ ​V​ ​t​o​ ​p​a​s​t​e​,​ ​C​t​r​l​ ​+​ ​X​ ​t​o​ ​c​u​t​.
 		 */
 		pasteMustKeybordAlert: string
 		/**
-		 * 在​表​格​中​进​行​复​制​粘​贴
+		 * C​o​p​y​ ​a​n​d​ ​p​a​s​t​e​ ​i​n​ ​t​h​e​ ​s​h​e​e​t
 		 */
 		pasteMustKeybordAlertHTMLTitle: string
 		/**
-		 * <​s​p​a​n​ ​s​t​y​l​e​=​'​l​i​n​e​-​h​e​i​g​h​t​:​ ​1​.​0​;​f​o​n​t​-​s​i​z​e​:​3​6​p​x​;​f​o​n​t​-​w​e​i​g​h​t​:​ ​b​o​l​d​;​c​o​l​o​r​:​#​6​6​6​;​'​>​C​t​r​l​ ​+​ ​C​<​/​s​p​a​n​>​&​n​b​s​p​;​&​n​b​s​p​;​进​行​复​制​<​b​r​/​>​<​s​p​a​n​ ​s​t​y​l​e​=​'​l​i​n​e​-​h​e​i​g​h​t​:​ ​1​.​0​;​f​o​n​t​-​s​i​z​e​:​3​6​p​x​;​f​o​n​t​-​w​e​i​g​h​t​:​ ​b​o​l​d​;​c​o​l​o​r​:​#​6​6​6​;​'​>​C​t​r​l​ ​+​ ​V​<​/​s​p​a​n​>​&​n​b​s​p​;​&​n​b​s​p​;​进​行​粘​贴​<​b​r​/​>​<​s​p​a​n​ ​s​t​y​l​e​=​'​l​i​n​e​-​h​e​i​g​h​t​:​ ​1​.​0​;​f​o​n​t​-​s​i​z​e​:​3​6​p​x​;​f​o​n​t​-​w​e​i​g​h​t​:​ ​b​o​l​d​;​c​o​l​o​r​:​#​6​6​6​;​'​>​C​t​r​l​ ​+​ ​X​<​/​s​p​a​n​>​&​n​b​s​p​;​&​n​b​s​p​;​进​行​剪​切
+		 * <​s​p​a​n​ ​s​t​y​l​e​=​'​l​i​n​e​-​h​e​i​g​h​t​:​ ​1​.​0​;​f​o​n​t​-​s​i​z​e​:​3​6​p​x​;​f​o​n​t​-​w​e​i​g​h​t​:​ ​b​o​l​d​;​c​o​l​o​r​:​#​6​6​6​;​'​>​C​t​r​l​ ​+​ ​C​<​/​s​p​a​n​>​&​n​b​s​p​;​&​n​b​s​p​;​C​o​p​y​<​b​r​/​>​<​s​p​a​n​ ​s​t​y​l​e​=​'​l​i​n​e​-​h​e​i​g​h​t​:​ ​1​.​0​;​f​o​n​t​-​s​i​z​e​:​3​6​p​x​;​f​o​n​t​-​w​e​i​g​h​t​:​ ​b​o​l​d​;​c​o​l​o​r​:​#​6​6​6​;​'​>​C​t​r​l​ ​+​ ​V​<​/​s​p​a​n​>​&​n​b​s​p​;​&​n​b​s​p​;​P​a​s​t​e​<​b​r​/​>​<​s​p​a​n​ ​s​t​y​l​e​=​'​l​i​n​e​-​h​e​i​g​h​t​:​ ​1​.​0​;​f​o​n​t​-​s​i​z​e​:​3​6​p​x​;​f​o​n​t​-​w​e​i​g​h​t​:​ ​b​o​l​d​;​c​o​l​o​r​:​#​6​6​6​;​'​>​C​t​r​l​ ​+​ ​X​<​/​s​p​a​n​>​&​n​b​s​p​;​&​n​b​s​p​;​C​u​t
 		 */
 		pasteMustKeybordAlertHTML: string
 	}
@@ -18402,6 +18807,10 @@ export type TranslationFunctions = {
 		 */
 		chart: () => LocalizedString
 		/**
+		 * Chart {n}
+		 */
+		objectName: (arg: { n: unknown }) => LocalizedString
+		/**
 		 * Chart editor
 		 */
 		editor: () => LocalizedString
@@ -18505,6 +18914,10 @@ export type TranslationFunctions = {
 		 * Name
 		 */
 		seriesName: () => LocalizedString
+		/**
+		 * Series formula
+		 */
+		seriesFormula: () => LocalizedString
 		/**
 		 * Values
 		 */
@@ -18991,6 +19404,388 @@ export type TranslationFunctions = {
 		chartMenu: () => LocalizedString
 	}
 	chartTools: {
+		effects: {
+			shadow: {
+				/**
+				 * Offset: Bottom Right
+				 */
+				outerBottomRight: () => LocalizedString
+				/**
+				 * Offset: Bottom
+				 */
+				outerBottom: () => LocalizedString
+				/**
+				 * Offset: Bottom Left
+				 */
+				outerBottomLeft: () => LocalizedString
+				/**
+				 * Offset: Right
+				 */
+				outerRight: () => LocalizedString
+				/**
+				 * Offset: Center
+				 */
+				outerCenter: () => LocalizedString
+				/**
+				 * Offset: Left
+				 */
+				outerLeft: () => LocalizedString
+				/**
+				 * Offset: Top Right
+				 */
+				outerTopRight: () => LocalizedString
+				/**
+				 * Offset: Top
+				 */
+				outerTop: () => LocalizedString
+				/**
+				 * Offset: Top Left
+				 */
+				outerTopLeft: () => LocalizedString
+				/**
+				 * Inside: Top Left
+				 */
+				innerTopLeft: () => LocalizedString
+				/**
+				 * Inside: Top
+				 */
+				innerTop: () => LocalizedString
+				/**
+				 * Inside: Top Right
+				 */
+				innerTopRight: () => LocalizedString
+				/**
+				 * Inside: Left
+				 */
+				innerLeft: () => LocalizedString
+				/**
+				 * Inside: Center
+				 */
+				innerCenter: () => LocalizedString
+				/**
+				 * Inside: Right
+				 */
+				innerRight: () => LocalizedString
+				/**
+				 * Inside: Bottom Left
+				 */
+				innerBottomLeft: () => LocalizedString
+				/**
+				 * Inside: Bottom
+				 */
+				innerBottom: () => LocalizedString
+				/**
+				 * Inside: Bottom Right
+				 */
+				innerBottomRight: () => LocalizedString
+				/**
+				 * Perspective: Upper Left
+				 */
+				perspUpperLeft: () => LocalizedString
+				/**
+				 * Perspective: Upper Right
+				 */
+				perspUpperRight: () => LocalizedString
+				/**
+				 * Perspective: Below
+				 */
+				perspBelow: () => LocalizedString
+				/**
+				 * Perspective: Lower Left
+				 */
+				perspLowerLeft: () => LocalizedString
+				/**
+				 * Perspective: Lower Right
+				 */
+				perspLowerRight: () => LocalizedString
+			}
+			bevel: {
+				/**
+				 * Circle
+				 */
+				circle: () => LocalizedString
+				/**
+				 * Relaxed Inset
+				 */
+				relaxedInset: () => LocalizedString
+				/**
+				 * Cross
+				 */
+				cross: () => LocalizedString
+				/**
+				 * Cool Slant
+				 */
+				coolSlant: () => LocalizedString
+				/**
+				 * Angle
+				 */
+				angle: () => LocalizedString
+				/**
+				 * Soft Round
+				 */
+				softRound: () => LocalizedString
+				/**
+				 * Convex
+				 */
+				convex: () => LocalizedString
+				/**
+				 * Slope
+				 */
+				slope: () => LocalizedString
+				/**
+				 * Divot
+				 */
+				divot: () => LocalizedString
+				/**
+				 * Riblet
+				 */
+				riblet: () => LocalizedString
+				/**
+				 * Hard Edge
+				 */
+				hardEdge: () => LocalizedString
+				/**
+				 * Art Deco
+				 */
+				artDeco: () => LocalizedString
+			}
+			rotation: {
+				/**
+				 * Isometric: Left Down
+				 */
+				isometricLeftDown: () => LocalizedString
+				/**
+				 * Isometric: Right Up
+				 */
+				isometricRightUp: () => LocalizedString
+				/**
+				 * Isometric: Top Up
+				 */
+				isometricTopUp: () => LocalizedString
+				/**
+				 * Isometric: Bottom Down
+				 */
+				isometricBottomDown: () => LocalizedString
+				/**
+				 * Off Axis 1: Left
+				 */
+				isometricOffAxis1Left: () => LocalizedString
+				/**
+				 * Off Axis 1: Right
+				 */
+				isometricOffAxis1Right: () => LocalizedString
+				/**
+				 * Off Axis 1: Top
+				 */
+				isometricOffAxis1Top: () => LocalizedString
+				/**
+				 * Off Axis 2: Left
+				 */
+				isometricOffAxis2Left: () => LocalizedString
+				/**
+				 * Off Axis 2: Right
+				 */
+				isometricOffAxis2Right: () => LocalizedString
+				/**
+				 * Off Axis 2: Top
+				 */
+				isometricOffAxis2Top: () => LocalizedString
+				/**
+				 * Perspective: Front
+				 */
+				perspectiveFront: () => LocalizedString
+				/**
+				 * Perspective: Left
+				 */
+				perspectiveLeft: () => LocalizedString
+				/**
+				 * Perspective: Right
+				 */
+				perspectiveRight: () => LocalizedString
+				/**
+				 * Perspective: Below
+				 */
+				perspectiveBelow: () => LocalizedString
+				/**
+				 * Perspective: Above
+				 */
+				perspectiveAbove: () => LocalizedString
+				/**
+				 * Perspective: Relaxed Moderately
+				 */
+				perspectiveRelaxedModerately: () => LocalizedString
+				/**
+				 * Perspective: Relaxed
+				 */
+				perspectiveRelaxed: () => LocalizedString
+				/**
+				 * Perspective: Contrasting Left
+				 */
+				perspectiveContrastingLeftFacing: () => LocalizedString
+				/**
+				 * Perspective: Contrasting Right
+				 */
+				perspectiveContrastingRightFacing: () => LocalizedString
+				/**
+				 * Perspective: Heroic Extreme Left
+				 */
+				perspectiveHeroicExtremeLeftFacing: () => LocalizedString
+				/**
+				 * Perspective: Heroic Extreme Right
+				 */
+				perspectiveHeroicExtremeRightFacing: () => LocalizedString
+				/**
+				 * Oblique: Top Left
+				 */
+				obliqueTopLeft: () => LocalizedString
+				/**
+				 * Oblique: Top Right
+				 */
+				obliqueTopRight: () => LocalizedString
+				/**
+				 * Oblique: Bottom Left
+				 */
+				obliqueBottomLeft: () => LocalizedString
+				/**
+				 * Oblique: Bottom Right
+				 */
+				obliqueBottomRight: () => LocalizedString
+			}
+			reflection: {
+				/**
+				 * Tight Reflection: Touching
+				 */
+				tight: () => LocalizedString
+				/**
+				 * Half Reflection: Touching
+				 */
+				half: () => LocalizedString
+				/**
+				 * Full Reflection: Touching
+				 */
+				full: () => LocalizedString
+				/**
+				 * Tight Reflection: 4 pt offset
+				 */
+				tight4: () => LocalizedString
+				/**
+				 * Half Reflection: 4 pt offset
+				 */
+				half4: () => LocalizedString
+				/**
+				 * Full Reflection: 4 pt offset
+				 */
+				full4: () => LocalizedString
+			}
+			accents: {
+				/**
+				 * Blue, Accent color 1
+				 */
+				accent1: () => LocalizedString
+				/**
+				 * Orange, Accent color 2
+				 */
+				accent2: () => LocalizedString
+				/**
+				 * Gray, Accent color 3
+				 */
+				accent3: () => LocalizedString
+				/**
+				 * Gold, Accent color 4
+				 */
+				accent4: () => LocalizedString
+				/**
+				 * Blue, Accent color 5
+				 */
+				accent5: () => LocalizedString
+				/**
+				 * Green, Accent color 6
+				 */
+				accent6: () => LocalizedString
+			}
+			wordArt: {
+				/**
+				 * Fill: Black, Text color 1; Shadow
+				 */
+				style1: () => LocalizedString
+				/**
+				 * Fill: Blue, Accent color 1; Shadow
+				 */
+				style2: () => LocalizedString
+				/**
+				 * Fill: Orange, Accent color 2; Outline: Orange, Accent color 2
+				 */
+				style3: () => LocalizedString
+				/**
+				 * Fill: White; Outline: Orange, Accent color 2; Glow: Orange, Accent color 2
+				 */
+				style4: () => LocalizedString
+				/**
+				 * Fill: Gold, Accent color 4; Soft Bevel
+				 */
+				style5: () => LocalizedString
+				/**
+				 * Gradient Fill: Gray
+				 */
+				style6: () => LocalizedString
+				/**
+				 * Gradient Fill: Blue, Accent color 1; Reflection
+				 */
+				style7: () => LocalizedString
+				/**
+				 * Gradient Fill: Gold, Accent color 4; Outline: Gold, Accent color 4
+				 */
+				style8: () => LocalizedString
+				/**
+				 * Fill: White; Outline: Blue, Accent color 1; Glow: Blue, Accent color 1
+				 */
+				style9: () => LocalizedString
+				/**
+				 * Fill: Gray-50%, Accent color 3; Sharp Bevel
+				 */
+				style10: () => LocalizedString
+				/**
+				 * Fill: Black, Text color 1; Outline: White, Background color 1; Hard Shadow: Blue, Accent color 5
+				 */
+				style11: () => LocalizedString
+				/**
+				 * Fill: Blue, Accent color 1; Outline: White, Background color 1; Hard Shadow: Blue, Accent color 1
+				 */
+				style12: () => LocalizedString
+				/**
+				 * Fill: White; Outline: Blue, Accent color 5; Shadow
+				 */
+				style13: () => LocalizedString
+				/**
+				 * Fill: Black, Text color 1; Outline: White, Background color 1; Hard Shadow: Orange, Accent color 2
+				 */
+				style14: () => LocalizedString
+				/**
+				 * Fill: Gray-50%, Accent color 3; Outline: Gray-50%, Accent color 3
+				 */
+				style15: () => LocalizedString
+				/**
+				 * Pattern Fill: Blue, Accent color 1; Shadow
+				 */
+				style16: () => LocalizedString
+				/**
+				 * Pattern Fill: Gray-50%, Accent color 3; Hard Shadow
+				 */
+				style17: () => LocalizedString
+				/**
+				 * Fill: Green, Accent color 6; Glow: Green, Accent color 6
+				 */
+				style18: () => LocalizedString
+				/**
+				 * Fill: Blue, Accent color 5; Reflection
+				 */
+				style19: () => LocalizedString
+				/**
+				 * Fill: Orange, Accent color 2; Bevel
+				 */
+				style20: () => LocalizedString
+			}
+		}
 		contextual: {
 			/**
 			 * Chart Tools
@@ -19854,6 +20649,10 @@ export type TranslationFunctions = {
 			rotateChartTip: () => LocalizedString
 		}
 		names: {
+			/**
+			 * Shape
+			 */
+			shape: () => LocalizedString
 			/**
 			 * Chart Area
 			 */
@@ -21294,6 +22093,14 @@ export type TranslationFunctions = {
 		 */
 		close: () => LocalizedString
 		/**
+		 * {label}: open list
+		 */
+		openList: (arg: { label: unknown }) => LocalizedString
+		/**
+		 * {label}: more options
+		 */
+		moreOptions: (arg: { label: unknown }) => LocalizedString
+		/**
 		 * OK
 		 */
 		ok: () => LocalizedString
@@ -22670,7 +23477,7 @@ export type TranslationFunctions = {
 		currencyDetail: {
 			'0': {
 				/**
-				 * RMB
+				 * Chinese Yuan
 				 */
 				name: () => LocalizedString
 				/**
@@ -22684,7 +23491,7 @@ export type TranslationFunctions = {
 			}
 			'1': {
 				/**
-				 * US dollar
+				 * US Dollar
 				 */
 				name: () => LocalizedString
 				/**
@@ -22698,7 +23505,7 @@ export type TranslationFunctions = {
 			}
 			'2': {
 				/**
-				 * EUR
+				 * Euro
 				 */
 				name: () => LocalizedString
 				/**
@@ -22712,7 +23519,7 @@ export type TranslationFunctions = {
 			}
 			'3': {
 				/**
-				 * GBP
+				 * British Pound
 				 */
 				name: () => LocalizedString
 				/**
@@ -22726,7 +23533,7 @@ export type TranslationFunctions = {
 			}
 			'4': {
 				/**
-				 * HK
+				 * Hong Kong Dollar
 				 */
 				name: () => LocalizedString
 				/**
@@ -22740,7 +23547,7 @@ export type TranslationFunctions = {
 			}
 			'5': {
 				/**
-				 * JPY
+				 * Japanese Yen
 				 */
 				name: () => LocalizedString
 				/**
@@ -22782,7 +23589,7 @@ export type TranslationFunctions = {
 			}
 			'8': {
 				/**
-				 * Afghani
+				 * Afghan Afghani
 				 */
 				name: () => LocalizedString
 				/**
@@ -22852,7 +23659,7 @@ export type TranslationFunctions = {
 			}
 			'13': {
 				/**
-				 * Azerbaijani manat
+				 * Azerbaijani Manat
 				 */
 				name: () => LocalizedString
 				/**
@@ -22894,7 +23701,7 @@ export type TranslationFunctions = {
 			}
 			'16': {
 				/**
-				 * Angola Kwanza
+				 * Angolan Kwanza
 				 */
 				name: () => LocalizedString
 				/**
@@ -22922,7 +23729,7 @@ export type TranslationFunctions = {
 			}
 			'18': {
 				/**
-				 * Patacas
+				 * Macanese Pataca
 				 */
 				name: () => LocalizedString
 				/**
@@ -22936,7 +23743,7 @@ export type TranslationFunctions = {
 			}
 			'19': {
 				/**
-				 * Barbados Dollar
+				 * Barbadian Dollar
 				 */
 				name: () => LocalizedString
 				/**
@@ -22950,7 +23757,7 @@ export type TranslationFunctions = {
 			}
 			'20': {
 				/**
-				 * Papua New Guinea Kina
+				 * Papua New Guinean Kina
 				 */
 				name: () => LocalizedString
 				/**
@@ -22978,7 +23785,7 @@ export type TranslationFunctions = {
 			}
 			'22': {
 				/**
-				 * Pakistan Rupee
+				 * Pakistani Rupee
 				 */
 				name: () => LocalizedString
 				/**
@@ -23034,7 +23841,7 @@ export type TranslationFunctions = {
 			}
 			'26': {
 				/**
-				 * Brazilian real
+				 * Brazilian Real
 				 */
 				name: () => LocalizedString
 				/**
@@ -23048,7 +23855,7 @@ export type TranslationFunctions = {
 			}
 			'27': {
 				/**
-				 * Belarusian ruble
+				 * Belarusian Ruble
 				 */
 				name: () => LocalizedString
 				/**
@@ -23062,7 +23869,7 @@ export type TranslationFunctions = {
 			}
 			'28': {
 				/**
-				 * Bermudian Dollar
+				 * Bermudan Dollar
 				 */
 				name: () => LocalizedString
 				/**
@@ -23090,7 +23897,7 @@ export type TranslationFunctions = {
 			}
 			'30': {
 				/**
-				 * Iceland Krona
+				 * Icelandic Króna
 				 */
 				name: () => LocalizedString
 				/**
@@ -23132,7 +23939,7 @@ export type TranslationFunctions = {
 			}
 			'33': {
 				/**
-				 * Boliviano
+				 * Bolivian Boliviano
 				 */
 				name: () => LocalizedString
 				/**
@@ -23160,7 +23967,7 @@ export type TranslationFunctions = {
 			}
 			'35': {
 				/**
-				 * Botswana Pula
+				 * Botswanan Pula
 				 */
 				name: () => LocalizedString
 				/**
@@ -23174,7 +23981,7 @@ export type TranslationFunctions = {
 			}
 			'36': {
 				/**
-				 * Not Dannuzhamu
+				 * Bhutanese Ngultrum
 				 */
 				name: () => LocalizedString
 				/**
@@ -23188,7 +23995,7 @@ export type TranslationFunctions = {
 			}
 			'37': {
 				/**
-				 * Burundi Franc
+				 * Burundian Franc
 				 */
 				name: () => LocalizedString
 				/**
@@ -23244,7 +24051,7 @@ export type TranslationFunctions = {
 			}
 			'41': {
 				/**
-				 * Dominica Peso
+				 * Dominican Peso
 				 */
 				name: () => LocalizedString
 				/**
@@ -23286,7 +24093,7 @@ export type TranslationFunctions = {
 			}
 			'44': {
 				/**
-				 * CFA franc
+				 * West African CFA Franc
 				 */
 				name: () => LocalizedString
 				/**
@@ -23314,7 +24121,7 @@ export type TranslationFunctions = {
 			}
 			'46': {
 				/**
-				 * Fiji Dollar
+				 * Fijian Dollar
 				 */
 				name: () => LocalizedString
 				/**
@@ -23328,7 +24135,7 @@ export type TranslationFunctions = {
 			}
 			'47': {
 				/**
-				 * Cape Verde Escudo
+				 * Cape Verdean Escudo
 				 */
 				name: () => LocalizedString
 				/**
@@ -23370,7 +24177,7 @@ export type TranslationFunctions = {
 			}
 			'50': {
 				/**
-				 * Congolese franc
+				 * Congolese Franc
 				 */
 				name: () => LocalizedString
 				/**
@@ -23398,7 +24205,7 @@ export type TranslationFunctions = {
 			}
 			'52': {
 				/**
-				 * Costa Rican Colon
+				 * Costa Rican Colón
 				 */
 				name: () => LocalizedString
 				/**
@@ -23426,7 +24233,7 @@ export type TranslationFunctions = {
 			}
 			'54': {
 				/**
-				 * Cuban convertible peso
+				 * Cuban Convertible Peso
 				 */
 				name: () => LocalizedString
 				/**
@@ -23440,7 +24247,7 @@ export type TranslationFunctions = {
 			}
 			'55': {
 				/**
-				 * Guyana Dollar
+				 * Guyanaese Dollar
 				 */
 				name: () => LocalizedString
 				/**
@@ -23454,7 +24261,7 @@ export type TranslationFunctions = {
 			}
 			'56': {
 				/**
-				 * Kazakhstan Tenge
+				 * Kazakhstani Tenge
 				 */
 				name: () => LocalizedString
 				/**
@@ -23468,7 +24275,7 @@ export type TranslationFunctions = {
 			}
 			'57': {
 				/**
-				 * Haitian gourde
+				 * Haitian Gourde
 				 */
 				name: () => LocalizedString
 				/**
@@ -23482,7 +24289,7 @@ export type TranslationFunctions = {
 			}
 			'58': {
 				/**
-				 * won
+				 * South Korean Won
 				 */
 				name: () => LocalizedString
 				/**
@@ -23496,7 +24303,7 @@ export type TranslationFunctions = {
 			}
 			'59': {
 				/**
-				 * Netherlands Antilles Guilder
+				 * Netherlands Antillean Guilder
 				 */
 				name: () => LocalizedString
 				/**
@@ -23510,7 +24317,7 @@ export type TranslationFunctions = {
 			}
 			'60': {
 				/**
-				 * Honduras lempiras
+				 * Honduran Lempira
 				 */
 				name: () => LocalizedString
 				/**
@@ -23524,7 +24331,7 @@ export type TranslationFunctions = {
 			}
 			'61': {
 				/**
-				 * Djibouti Franc
+				 * Djiboutian Franc
 				 */
 				name: () => LocalizedString
 				/**
@@ -23538,7 +24345,7 @@ export type TranslationFunctions = {
 			}
 			'62': {
 				/**
-				 * Kyrgyzstan Som
+				 * Kyrgyz Som
 				 */
 				name: () => LocalizedString
 				/**
@@ -23552,7 +24359,7 @@ export type TranslationFunctions = {
 			}
 			'63': {
 				/**
-				 * Guinea Franc
+				 * Guinean Franc
 				 */
 				name: () => LocalizedString
 				/**
@@ -23594,7 +24401,7 @@ export type TranslationFunctions = {
 			}
 			'66': {
 				/**
-				 * Cambodian riel
+				 * Cambodian Riel
 				 */
 				name: () => LocalizedString
 				/**
@@ -23622,7 +24429,7 @@ export type TranslationFunctions = {
 			}
 			'68': {
 				/**
-				 * Zimbabwe Dollar
+				 * Zimbabwean Dollar (2009–2024)
 				 */
 				name: () => LocalizedString
 				/**
@@ -23664,7 +24471,7 @@ export type TranslationFunctions = {
 			}
 			'71': {
 				/**
-				 * Comorian franc
+				 * Comorian Franc
 				 */
 				name: () => LocalizedString
 				/**
@@ -23734,7 +24541,7 @@ export type TranslationFunctions = {
 			}
 			'76': {
 				/**
-				 * Lao Kip
+				 * Laotian Kip
 				 */
 				name: () => LocalizedString
 				/**
@@ -23762,7 +24569,7 @@ export type TranslationFunctions = {
 			}
 			'78': {
 				/**
-				 * Lithuanian litas
+				 * Lithuanian Litas
 				 */
 				name: () => LocalizedString
 				/**
@@ -23804,7 +24611,7 @@ export type TranslationFunctions = {
 			}
 			'81': {
 				/**
-				 * Rwanda Franc
+				 * Rwandan Franc
 				 */
 				name: () => LocalizedString
 				/**
@@ -23860,7 +24667,7 @@ export type TranslationFunctions = {
 			}
 			'85': {
 				/**
-				 * Malawi Kwacha
+				 * Malawian Kwacha
 				 */
 				name: () => LocalizedString
 				/**
@@ -23888,7 +24695,7 @@ export type TranslationFunctions = {
 			}
 			'87': {
 				/**
-				 * Macedonia wearing Dinar
+				 * Macedonian Denar
 				 */
 				name: () => LocalizedString
 				/**
@@ -23902,7 +24709,7 @@ export type TranslationFunctions = {
 			}
 			'88': {
 				/**
-				 * Mauritius Rupee
+				 * Mauritian Rupee
 				 */
 				name: () => LocalizedString
 				/**
@@ -23916,7 +24723,7 @@ export type TranslationFunctions = {
 			}
 			'89': {
 				/**
-				 * Mauritanian Ouguiya
+				 * Mauritanian Ouguiya (1973–2017)
 				 */
 				name: () => LocalizedString
 				/**
@@ -23958,7 +24765,7 @@ export type TranslationFunctions = {
 			}
 			'92': {
 				/**
-				 * Peruvian Nuevo Sol
+				 * Peruvian Sol
 				 */
 				name: () => LocalizedString
 				/**
@@ -24014,7 +24821,7 @@ export type TranslationFunctions = {
 			}
 			'96': {
 				/**
-				 * Mozambique Metical
+				 * Mozambican Metical
 				 */
 				name: () => LocalizedString
 				/**
@@ -24084,7 +24891,7 @@ export type TranslationFunctions = {
 			}
 			'101': {
 				/**
-				 * Nicaragua Cordoba
+				 * Nicaraguan Córdoba
 				 */
 				name: () => LocalizedString
 				/**
@@ -24196,7 +25003,7 @@ export type TranslationFunctions = {
 			}
 			'109': {
 				/**
-				 * Sierra Leone
+				 * Sierra Leonean Leone (1964—2022)
 				 */
 				name: () => LocalizedString
 				/**
@@ -24210,7 +25017,7 @@ export type TranslationFunctions = {
 			}
 			'110': {
 				/**
-				 * Seychelles Rupee
+				 * Seychellois Rupee
 				 */
 				name: () => LocalizedString
 				/**
@@ -24238,7 +25045,7 @@ export type TranslationFunctions = {
 			}
 			'112': {
 				/**
-				 * Sao Tome Dobra
+				 * São Tomé & Príncipe Dobra (1977–2017)
 				 */
 				name: () => LocalizedString
 				/**
@@ -24252,7 +25059,7 @@ export type TranslationFunctions = {
 			}
 			'113': {
 				/**
-				 * Saint Helena pound
+				 * St. Helena Pound
 				 */
 				name: () => LocalizedString
 				/**
@@ -24266,7 +25073,7 @@ export type TranslationFunctions = {
 			}
 			'114': {
 				/**
-				 * Sri Lanka Rupee
+				 * Sri Lankan Rupee
 				 */
 				name: () => LocalizedString
 				/**
@@ -24280,7 +25087,7 @@ export type TranslationFunctions = {
 			}
 			'115': {
 				/**
-				 * Swaziland Lilangeni
+				 * Swazi Lilangeni
 				 */
 				name: () => LocalizedString
 				/**
@@ -24308,7 +25115,7 @@ export type TranslationFunctions = {
 			}
 			'117': {
 				/**
-				 * Surinamese dollar
+				 * Surinamese Dollar
 				 */
 				name: () => LocalizedString
 				/**
@@ -24350,7 +25157,7 @@ export type TranslationFunctions = {
 			}
 			'120': {
 				/**
-				 * Tajikistan Somoni
+				 * Tajikistani Somoni
 				 */
 				name: () => LocalizedString
 				/**
@@ -24364,7 +25171,7 @@ export type TranslationFunctions = {
 			}
 			'121': {
 				/**
-				 * Pacific Franc
+				 * CFP Franc
 				 */
 				name: () => LocalizedString
 				/**
@@ -24406,7 +25213,7 @@ export type TranslationFunctions = {
 			}
 			'124': {
 				/**
-				 * Tongan Pa'anga
+				 * Tongan Paʻanga
 				 */
 				name: () => LocalizedString
 				/**
@@ -24420,7 +25227,7 @@ export type TranslationFunctions = {
 			}
 			'125': {
 				/**
-				 * Trinidad and Tobago Dollar
+				 * Trinidad & Tobago Dollar
 				 */
 				name: () => LocalizedString
 				/**
@@ -24490,7 +25297,7 @@ export type TranslationFunctions = {
 			}
 			'130': {
 				/**
-				 * Commission Bolivar
+				 * Venezuelan Bolívar (2008–2018)
 				 */
 				name: () => LocalizedString
 				/**
@@ -24560,7 +25367,7 @@ export type TranslationFunctions = {
 			}
 			'135': {
 				/**
-				 * Uzbekistan som
+				 * Uzbekistani Som
 				 */
 				name: () => LocalizedString
 				/**
@@ -24574,7 +25381,7 @@ export type TranslationFunctions = {
 			}
 			'136': {
 				/**
-				 * Western Samoa Tala
+				 * Samoan Tala
 				 */
 				name: () => LocalizedString
 				/**
@@ -24602,7 +25409,7 @@ export type TranslationFunctions = {
 			}
 			'138': {
 				/**
-				 * NT
+				 * New Taiwan Dollar
 				 */
 				name: () => LocalizedString
 				/**
@@ -24728,7 +25535,7 @@ export type TranslationFunctions = {
 			}
 			'147': {
 				/**
-				 * New Israeli Shekel
+				 * Israeli New Shekel
 				 */
 				name: () => LocalizedString
 				/**
@@ -24784,7 +25591,7 @@ export type TranslationFunctions = {
 			}
 			'151': {
 				/**
-				 * VND
+				 * Vietnamese Dong
 				 */
 				name: () => LocalizedString
 				/**
@@ -24840,7 +25647,7 @@ export type TranslationFunctions = {
 			}
 			'155': {
 				/**
-				 * CFA Franc BEAC
+				 * Central African CFA Franc
 				 */
 				name: () => LocalizedString
 				/**
@@ -27288,7 +28095,7 @@ export type TranslationFunctions = {
 			 */
 			top10_percent: () => LocalizedString
 			/**
-			 * Last
+			 * Bottom
 			 */
 			last: () => LocalizedString
 			/**
@@ -27321,7 +28128,7 @@ export type TranslationFunctions = {
 			 */
 			all: () => LocalizedString
 			/**
-			 * YTD
+			 * Yesterday
 			 */
 			yesterday: () => LocalizedString
 			/**
@@ -29409,15 +30216,15 @@ export type TranslationFunctions = {
 			 */
 			offsetColumnLessZero: () => LocalizedString
 			/**
-			 * 在表格中进行复制粘贴: Ctrl + C 进行复制, Ctrl + V 进行粘贴, Ctrl + X 进行剪切
+			 * Use keyboard shortcuts in the sheet: Ctrl + C to copy, Ctrl + V to paste, Ctrl + X to cut.
 			 */
 			pasteMustKeybordAlert: () => LocalizedString
 			/**
-			 * 在表格中进行复制粘贴
+			 * Copy and paste in the sheet
 			 */
 			pasteMustKeybordAlertHTMLTitle: () => LocalizedString
 			/**
-			 * <span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + C</span>&nbsp;&nbsp;进行复制<br/><span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + V</span>&nbsp;&nbsp;进行粘贴<br/><span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + X</span>&nbsp;&nbsp;进行剪切
+			 * <span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + C</span>&nbsp;&nbsp;Copy<br/><span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + V</span>&nbsp;&nbsp;Paste<br/><span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + X</span>&nbsp;&nbsp;Cut
 			 */
 			pasteMustKeybordAlertHTML: () => LocalizedString
 		}

@@ -1,4 +1,6 @@
-import React, { useId, useRef, useState } from "react";
+import React, { useContext, useId, useRef, useState } from "react";
+import { dialogsLocale } from "@lofcz/tinysheet-core";
+import WorkbookContext from "../../context";
 import { ChevronDown } from "lucide-react";
 import { ICON_STROKE } from "./icons";
 import { DropdownMenu, MenuItem } from "./Menu";
@@ -78,7 +80,9 @@ export function Select<T extends string = string>({
         .join(" ")}
       style={width ? { width } : undefined}
       aria-label={
-        current ? `${label}: ${current.text ?? current.value}` : label
+        current
+          ? `${label}: ${current.text ?? (typeof current.label === "string" ? current.label : current.value)}`
+          : label
       }
       aria-haspopup="menu"
       aria-expanded={open}
@@ -159,6 +163,8 @@ export const Combo: React.FC<ComboProps> = ({
   ...rest
 }) => {
   const [draft, setDraft] = useState<string | null>(null);
+  const { context } = useContext(WorkbookContext);
+  const t = dialogsLocale(context);
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
   const listId = useId();
@@ -221,7 +227,7 @@ export const Combo: React.FC<ComboProps> = ({
         type="button"
         className="ts-combo-arrow"
         tabIndex={-1}
-        aria-label={`${label}: open list`}
+        aria-label={t.openList.replace("{label}", label)}
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={disabled}

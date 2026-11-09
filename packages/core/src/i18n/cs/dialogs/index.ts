@@ -3,6 +3,8 @@ import type { NamespaceDialogsTranslation } from "../../i18n-types";
 const cs = {
   appName: "TinySheet",
   close: "Zavřít",
+  openList: "{label}: otevřít seznam",
+  moreOptions: "{label}: další možnosti",
   ok: "OK",
   cancel: "Zrušit",
   apply: "Použít",

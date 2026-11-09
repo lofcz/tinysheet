@@ -12,6 +12,7 @@
 import type { Context } from "../context";
 import type { Cell, CellMatrix } from "../types";
 import { locale } from "../locale";
+import { normalizeLocale } from "../i18n/runtime";
 import { referenceColors as colors } from "./color";
 import { getNameCandidates } from "./names";
 import { escapeColumnName, findTable, tableAt } from "./tables";
@@ -432,9 +433,12 @@ export function insertFunctionName(
 }
 
 export function getFunctionListMap(ctx: Context): Record<string, any> {
+  const lang = normalizeLocale(ctx.lang);
   const map = ctx.formulaCache.functionlistMap;
-  if (map && Object.keys(map).length > 0) return map;
+  if (map && ctx.formulaCache.functionlistLanguage === lang) return map;
   const { functionlist } = locale(ctx);
+  ctx.formulaCache.functionlistMap = {};
+  ctx.formulaCache.functionlistLanguage = lang;
   for (let i = 0; i < functionlist.length; i += 1) {
     ctx.formulaCache.functionlistMap[functionlist[i].n] = functionlist[i];
   }

@@ -401,7 +401,8 @@ export const WordArtStylesCommand: React.FC<RibbonCommandProps> = ({
       selectedId={current ? String(current) : undefined}
       items={CHART_WORDART_STYLES.map((s) => ({
         id: String(s.id),
-        label: s.label,
+        label:
+          t.effects.wordArt[`style${s.id}` as keyof typeof t.effects.wordArt],
         preview: wordArtTile(s),
       }))}
       onPreview={(id) => preview(id ? Number(id) : null)}
@@ -444,12 +445,23 @@ export const WordArtStylesCommand: React.FC<RibbonCommandProps> = ({
     >
       <div className="ts-chart-style-strip-tiles">
         {shown.map((s) => (
-          <Tooltip key={s.id} label={s.label}>
+          <Tooltip
+            key={s.id}
+            label={
+              t.effects.wordArt[
+                `style${s.id}` as keyof typeof t.effects.wordArt
+              ]
+            }
+          >
             <button
               type="button"
               role="option"
               aria-selected={s.id === current}
-              aria-label={s.label}
+              aria-label={
+                t.effects.wordArt[
+                  `style${s.id}` as keyof typeof t.effects.wordArt
+                ]
+              }
               className="ts-chart-style-strip-tile ts-wordart-strip-tile"
               data-wordart={s.id}
               disabled={disabled}

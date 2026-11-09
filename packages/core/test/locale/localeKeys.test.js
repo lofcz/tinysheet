@@ -6,6 +6,14 @@ import {
   supportedLocales,
 } from "../../src/i18n/runtime";
 import { namespaces } from "../../src/i18n/i18n-util";
+import {
+  CHART_SHADOW_PRESETS,
+  CHART_BEVEL_PRESETS,
+  CHART_ROTATION_PRESETS,
+  CHART_REFLECTION_PRESETS,
+  CHART_ACCENTS,
+  CHART_WORDART_STYLES,
+} from "../../src/modules/chartRender/effects";
 
 function leaves(value, path = "") {
   if (typeof value === "string") return { [path]: value };
@@ -18,6 +26,107 @@ function leaves(value, path = "") {
 }
 
 describe("typesafe-i18n catalogs", () => {
+  test("every chart effect has a catalog label matching its stable preset id", () => {
+    const labels = getLocaleSection("en", "chartTools").effects;
+    const expected = {
+      shadow: Object.fromEntries(
+        CHART_SHADOW_PRESETS.flatMap((g) => g.items).map((p) => [p.id, p.label])
+      ),
+      bevel: Object.fromEntries(
+        CHART_BEVEL_PRESETS.map((p) => [p.id, p.label])
+      ),
+      rotation: Object.fromEntries(
+        CHART_ROTATION_PRESETS.flatMap((g) => g.items).map((p) => [
+          p.id,
+          p.label,
+        ])
+      ),
+      reflection: Object.fromEntries(
+        CHART_REFLECTION_PRESETS.map((p) => [p.id, p.label])
+      ),
+      accents: Object.fromEntries(
+        CHART_ACCENTS.map((p, i) => [`accent${i + 1}`, p.label])
+      ),
+      wordArt: Object.fromEntries(
+        CHART_WORDART_STYLES.map((p) => [`style${p.id}`, p.label])
+      ),
+    };
+    expect(leaves(labels)).toEqual(leaves(expected));
+  });
+  test.each(["cs", "sk", "pl"])(
+    "%s has no English fallback messages and preserves workbook metadata",
+    (lang) => {
+      // Reviewed shared spellings, proper names and notation. All other
+      // English text must have a translation, including newly added keys.
+      const common = new Set([
+        "OK",
+        "TinySheet",
+        "Luckysheet",
+        "SUM",
+        "ESC",
+        "AaBbCcYyZz",
+        "Histogram",
+        "Pareto",
+        "Plus",
+        "Log",
+        "Euro",
+      ]);
+      const shared = {
+        cs: new Set(["Text", "Minimum", "Maximum", "Symbol", "Data", "Web"]),
+        sk: new Set([
+          "Text",
+          "Minimum",
+          "Maximum",
+          "Symbol",
+          "Filter",
+          "Web",
+          "Filter: {column}",
+        ]),
+        pl: new Set([
+          "Symbol",
+          "Minus",
+          "Zero",
+          "Operator",
+          "Parser",
+          "Link…",
+          "Format {element}",
+        ]),
+      };
+      const metadata = (name, key) =>
+        name === "grid" &&
+        (/^\.(currencyDetail|numberFmtList|dateFmtList|linkTypeList)\.\d+\.(value|pos)$/.test(
+          key
+        ) ||
+          /^\.splitText\.splitSymbols\.\d+\.value$/.test(key) ||
+          /^\.(fontarray|fontFamily)\./.test(key) ||
+          /^\.dateFmtList\.\d+\.name$/.test(key));
+      const untranslated = [];
+      for (const name of namespaces) {
+        const base = leaves(getLocaleSection("en", name));
+        const translated = leaves(getLocaleSection(lang, name));
+        for (const [key, text] of Object.entries(base)) {
+          if (metadata(name, key)) {
+            expect({ name, key, text: translated[key] }).toEqual({
+              name,
+              key,
+              text,
+            });
+            continue;
+          }
+          if (
+            translated[key] !== text ||
+            common.has(text) ||
+            shared[lang].has(text)
+          )
+            continue;
+          if (!/[A-Za-z]{2}/.test(text.replace(/\$?\{\w+\}/g, ""))) continue;
+          if (/^(?:Ctrl|Alt|Shift)\+\S+$|^F\d+$/.test(text)) continue;
+          untranslated.push(`${name}${key}: ${text}`);
+        }
+      }
+      expect(untranslated).toEqual([]);
+    }
+  );
   test.each(["cs", "sk", "pl"])(
     "%s translates formula warnings and auditing controls",
     (lang) => {

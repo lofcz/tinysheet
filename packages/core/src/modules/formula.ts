@@ -145,6 +145,7 @@ export class FormulaCache {
   functionRangeIndex?: number[];
 
   functionlistMap: any;
+  functionlistLanguage?: string;
 
   execFunctionExist?: any[];
 

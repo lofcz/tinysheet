@@ -4,6 +4,7 @@ import englishCatalog from "../../src/locale/functions/en";
 import { WORKBOOK_FUNCTION_NAMES } from "../../src/modules/formulaFunctions";
 import { LEGACY_FUNCTION_NAMES } from "../../src/locale/functions/legacy";
 import { mergeFunctionList } from "../../src/locale/functions/merge";
+import { getFunctionListMap } from "../../src/modules/formulaEditor";
 
 const LANGS = ["en", "cs", "sk", "pl"];
 const PARAM_TYPES = [
@@ -170,5 +171,62 @@ describe("function catalog", () => {
     ]);
     expect(mismatched[0].d).toBe("Suma.");
     expect(mismatched[0].p).toBe(english[0].p);
+  });
+
+  test.each(["cs", "sk", "pl"])(
+    "%s translates every function description and parameter explanation",
+    (lang) => {
+      const list = locale({ lang }).functionlist;
+      list.forEach((fn, i) => {
+        const en = englishCatalog[i];
+        for (const key of ["d", "a"]) {
+          expect({ name: fn.n, key, text: fn[key] }).not.toEqual({
+            name: en.n,
+            key,
+            text: en[key],
+          });
+          expect(fn[key]).not.toMatch(/__TSTOKEN|\[10\s?\d{3}\]/);
+        }
+        fn.p.forEach((param, j) => {
+          expect(param.detail.trim().length).toBeGreaterThan(0);
+          expect({ name: fn.n, parameter: j, text: param.detail }).not.toEqual({
+            name: en.n,
+            parameter: j,
+            text: en.p[j].detail,
+          });
+        });
+        // Quoted input values (CELL's "address", format codes, etc.) are
+        // accepted by the formula engine and must not be translated.
+        const pairs = [
+          [en.d, fn.d],
+          [en.a, fn.a],
+          ...en.p.map((p, j) => [p.detail, fn.p[j].detail]),
+        ];
+        for (const [source, translated] of pairs) {
+          for (const literal of source.match(/"[^"\n]*"/g) ?? []) {
+            const index = en.p.findIndex((p) => `"${p.name}"` === literal);
+            const expected = index < 0 ? literal : `"${fn.p[index].name}"`;
+            expect({ name: fn.n, text: translated }).toEqual({
+              name: fn.n,
+              text: expect.stringContaining(expected),
+            });
+          }
+        }
+      });
+    }
+  );
+
+  test("formula hints refresh their catalog when the workbook language changes", () => {
+    const ctx = { lang: "en", formulaCache: { functionlistMap: {} } };
+    const initial = getFunctionListMap(ctx);
+    expect(initial.SUM).toBe(englishCatalog.find((fn) => fn.n === "SUM"));
+    for (const lang of ["cs-CZ", "sk", "pl", "en"]) {
+      ctx.lang = lang;
+      const map = getFunctionListMap(ctx);
+      expect(map.SUM).toBe(
+        locale(ctx).functionlist.find((fn) => fn.n === "SUM")
+      );
+      expect(getFunctionListMap(ctx)).toBe(map);
+    }
   });
 });

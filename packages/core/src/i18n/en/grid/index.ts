@@ -195,32 +195,32 @@ const en = {
   },
   currencyDetail: [
     {
-      name: "RMB",
+      name: "Chinese Yuan",
       pos: "before",
       value: "¥",
     },
     {
-      name: "US dollar",
+      name: "US Dollar",
       pos: "before",
       value: "$",
     },
     {
-      name: "EUR",
+      name: "Euro",
       pos: "before",
       value: "€",
     },
     {
-      name: "GBP",
+      name: "British Pound",
       pos: "before",
       value: "￡",
     },
     {
-      name: "HK",
+      name: "Hong Kong Dollar",
       pos: "before",
       value: "$",
     },
     {
-      name: "JPY",
+      name: "Japanese Yen",
       pos: "before",
       value: "￥",
     },
@@ -235,7 +235,7 @@ const en = {
       value: "din",
     },
     {
-      name: "Afghani",
+      name: "Afghan Afghani",
       pos: "after",
       value: "Af",
     },
@@ -260,7 +260,7 @@ const en = {
       value: "Rial",
     },
     {
-      name: "Azerbaijani manat",
+      name: "Azerbaijani Manat",
       pos: "before",
       value: "?",
     },
@@ -275,7 +275,7 @@ const en = {
       value: "Birr",
     },
     {
-      name: "Angola Kwanza",
+      name: "Angolan Kwanza",
       pos: "before",
       value: "Kz",
     },
@@ -285,17 +285,17 @@ const en = {
       value: "$",
     },
     {
-      name: "Patacas",
+      name: "Macanese Pataca",
       pos: "before",
       value: "MOP",
     },
     {
-      name: "Barbados Dollar",
+      name: "Barbadian Dollar",
       pos: "before",
       value: "$",
     },
     {
-      name: "Papua New Guinea Kina",
+      name: "Papua New Guinean Kina",
       pos: "before",
       value: "PGK",
     },
@@ -305,7 +305,7 @@ const en = {
       value: "$",
     },
     {
-      name: "Pakistan Rupee",
+      name: "Pakistani Rupee",
       pos: "before",
       value: "Rs",
     },
@@ -325,17 +325,17 @@ const en = {
       value: "B/",
     },
     {
-      name: "Brazilian real",
+      name: "Brazilian Real",
       pos: "before",
       value: "R$",
     },
     {
-      name: "Belarusian ruble",
+      name: "Belarusian Ruble",
       pos: "after",
       value: "р",
     },
     {
-      name: "Bermudian Dollar",
+      name: "Bermudan Dollar",
       pos: "before",
       value: "$",
     },
@@ -345,7 +345,7 @@ const en = {
       value: "lev",
     },
     {
-      name: "Iceland Krona",
+      name: "Icelandic Króna",
       pos: "before",
       value: "kr",
     },
@@ -360,7 +360,7 @@ const en = {
       value: "z?",
     },
     {
-      name: "Boliviano",
+      name: "Bolivian Boliviano",
       pos: "before",
       value: "Bs",
     },
@@ -370,17 +370,17 @@ const en = {
       value: "$",
     },
     {
-      name: "Botswana Pula",
+      name: "Botswanan Pula",
       pos: "before",
       value: "P",
     },
     {
-      name: "Not Dannuzhamu",
+      name: "Bhutanese Ngultrum",
       pos: "before",
       value: "Nu",
     },
     {
-      name: "Burundi Franc",
+      name: "Burundian Franc",
       pos: "before",
       value: "FBu",
     },
@@ -400,7 +400,7 @@ const en = {
       value: "$",
     },
     {
-      name: "Dominica Peso",
+      name: "Dominican Peso",
       pos: "before",
       value: "RD$",
     },
@@ -415,7 +415,7 @@ const en = {
       value: "Nfk",
     },
     {
-      name: "CFA franc",
+      name: "West African CFA Franc",
       pos: "before",
       value: "CFA",
     },
@@ -425,12 +425,12 @@ const en = {
       value: "?",
     },
     {
-      name: "Fiji Dollar",
+      name: "Fijian Dollar",
       pos: "before",
       value: "$",
     },
     {
-      name: "Cape Verde Escudo",
+      name: "Cape Verdean Escudo",
       pos: "before",
       value: "CVE",
     },
@@ -445,7 +445,7 @@ const en = {
       value: "GMD",
     },
     {
-      name: "Congolese franc",
+      name: "Congolese Franc",
       pos: "before",
       value: "FrCD",
     },
@@ -455,7 +455,7 @@ const en = {
       value: "$",
     },
     {
-      name: "Costa Rican Colon",
+      name: "Costa Rican Colón",
       pos: "before",
       value: "?",
     },
@@ -465,52 +465,52 @@ const en = {
       value: "$",
     },
     {
-      name: "Cuban convertible peso",
+      name: "Cuban Convertible Peso",
       pos: "before",
       value: "$",
     },
     {
-      name: "Guyana Dollar",
+      name: "Guyanaese Dollar",
       pos: "before",
       value: "$",
     },
     {
-      name: "Kazakhstan Tenge",
+      name: "Kazakhstani Tenge",
       pos: "before",
       value: "?",
     },
     {
-      name: "Haitian gourde",
+      name: "Haitian Gourde",
       pos: "before",
       value: "HTG",
     },
     {
-      name: "won",
+      name: "South Korean Won",
       pos: "before",
       value: "?",
     },
     {
-      name: "Netherlands Antilles Guilder",
+      name: "Netherlands Antillean Guilder",
       pos: "before",
       value: "NAf.",
     },
     {
-      name: "Honduras lempiras",
+      name: "Honduran Lempira",
       pos: "before",
       value: "L",
     },
     {
-      name: "Djibouti Franc",
+      name: "Djiboutian Franc",
       pos: "before",
       value: "Fdj",
     },
     {
-      name: "Kyrgyzstan Som",
+      name: "Kyrgyz Som",
       pos: "before",
       value: "KGS",
     },
     {
-      name: "Guinea Franc",
+      name: "Guinean Franc",
       pos: "before",
       value: "FG",
     },
@@ -525,7 +525,7 @@ const en = {
       value: "GHS",
     },
     {
-      name: "Cambodian riel",
+      name: "Cambodian Riel",
       pos: "before",
       value: "Riel",
     },
@@ -535,7 +535,7 @@ const en = {
       value: "K?",
     },
     {
-      name: "Zimbabwe Dollar",
+      name: "Zimbabwean Dollar (2009–2024)",
       pos: "before",
       value: "$",
     },
@@ -550,7 +550,7 @@ const en = {
       value: "$",
     },
     {
-      name: "Comorian franc",
+      name: "Comorian Franc",
       pos: "before",
       value: "CF",
     },
@@ -575,7 +575,7 @@ const en = {
       value: "LSL",
     },
     {
-      name: "Lao Kip",
+      name: "Laotian Kip",
       pos: "before",
       value: "?",
     },
@@ -585,7 +585,7 @@ const en = {
       value: "L￡",
     },
     {
-      name: "Lithuanian litas",
+      name: "Lithuanian Litas",
       pos: "before",
       value: "Lt",
     },
@@ -600,7 +600,7 @@ const en = {
       value: "$",
     },
     {
-      name: "Rwanda Franc",
+      name: "Rwandan Franc",
       pos: "before",
       value: "RF",
     },
@@ -620,7 +620,7 @@ const en = {
       value: "Rf",
     },
     {
-      name: "Malawi Kwacha",
+      name: "Malawian Kwacha",
       pos: "before",
       value: "MWK",
     },
@@ -630,17 +630,17 @@ const en = {
       value: "RM",
     },
     {
-      name: "Macedonia wearing Dinar",
+      name: "Macedonian Denar",
       pos: "before",
       value: "din",
     },
     {
-      name: "Mauritius Rupee",
+      name: "Mauritian Rupee",
       pos: "before",
       value: "MURs",
     },
     {
-      name: "Mauritanian Ouguiya",
+      name: "Mauritanian Ouguiya (1973–2017)",
       pos: "before",
       value: "MRO",
     },
@@ -655,7 +655,7 @@ const en = {
       value: "?",
     },
     {
-      name: "Peruvian Nuevo Sol",
+      name: "Peruvian Sol",
       pos: "before",
       value: "S/",
     },
@@ -675,7 +675,7 @@ const en = {
       value: "dh",
     },
     {
-      name: "Mozambique Metical",
+      name: "Mozambican Metical",
       pos: "before",
       value: "MTn",
     },
@@ -700,7 +700,7 @@ const en = {
       value: "￡",
     },
     {
-      name: "Nicaragua Cordoba",
+      name: "Nicaraguan Córdoba",
       pos: "before",
       value: "C$",
     },
@@ -740,12 +740,12 @@ const en = {
       value: "din",
     },
     {
-      name: "Sierra Leone",
+      name: "Sierra Leonean Leone (1964—2022)",
       pos: "before",
       value: "SLL",
     },
     {
-      name: "Seychelles Rupee",
+      name: "Seychellois Rupee",
       pos: "before",
       value: "SCR",
     },
@@ -755,22 +755,22 @@ const en = {
       value: "Rial",
     },
     {
-      name: "Sao Tome Dobra",
+      name: "São Tomé & Príncipe Dobra (1977–2017)",
       pos: "before",
       value: "Db",
     },
     {
-      name: "Saint Helena pound",
+      name: "St. Helena Pound",
       pos: "before",
       value: "￡",
     },
     {
-      name: "Sri Lanka Rupee",
+      name: "Sri Lankan Rupee",
       pos: "before",
       value: "Rs",
     },
     {
-      name: "Swaziland Lilangeni",
+      name: "Swazi Lilangeni",
       pos: "before",
       value: "SZL",
     },
@@ -780,7 +780,7 @@ const en = {
       value: "SDG",
     },
     {
-      name: "Surinamese dollar",
+      name: "Surinamese Dollar",
       pos: "before",
       value: "$",
     },
@@ -795,12 +795,12 @@ const en = {
       value: "SOS",
     },
     {
-      name: "Tajikistan Somoni",
+      name: "Tajikistani Somoni",
       pos: "before",
       value: "Som",
     },
     {
-      name: "Pacific Franc",
+      name: "CFP Franc",
       pos: "after",
       value: "FCFP",
     },
@@ -815,12 +815,12 @@ const en = {
       value: "TSh",
     },
     {
-      name: "Tongan Pa'anga",
+      name: "Tongan Paʻanga",
       pos: "before",
       value: "T$",
     },
     {
-      name: "Trinidad and Tobago Dollar",
+      name: "Trinidad & Tobago Dollar",
       pos: "before",
       value: "$",
     },
@@ -845,7 +845,7 @@ const en = {
       value: "Q",
     },
     {
-      name: "Commission Bolivar",
+      name: "Venezuelan Bolívar (2008–2018)",
       pos: "before",
       value: "Bs",
     },
@@ -870,12 +870,12 @@ const en = {
       value: "$",
     },
     {
-      name: "Uzbekistan som",
+      name: "Uzbekistani Som",
       pos: "before",
       value: "so?m",
     },
     {
-      name: "Western Samoa Tala",
+      name: "Samoan Tala",
       pos: "before",
       value: "WST",
     },
@@ -885,7 +885,7 @@ const en = {
       value: "$",
     },
     {
-      name: "NT",
+      name: "New Taiwan Dollar",
       pos: "before",
       value: "NT$",
     },
@@ -930,7 +930,7 @@ const en = {
       value: "Rial",
     },
     {
-      name: "New Israeli Shekel",
+      name: "Israeli New Shekel",
       pos: "before",
       value: "?",
     },
@@ -950,7 +950,7 @@ const en = {
       value: "din",
     },
     {
-      name: "VND",
+      name: "Vietnamese Dong",
       pos: "after",
       value: "?",
     },
@@ -970,7 +970,7 @@ const en = {
       value: "$",
     },
     {
-      name: "CFA Franc BEAC",
+      name: "Central African CFA Franc",
       pos: "before",
       value: "FCFA",
     },
@@ -1656,7 +1656,7 @@ const en = {
     top: "Top",
     top10: "Top 10",
     top10_percent: "Top 10%",
-    last: "Last",
+    last: "Bottom",
     last10: "Last 10",
     last10_percent: "Last 10%",
     oneself: "",
@@ -1665,7 +1665,7 @@ const en = {
     below: "Below",
     belowAverage: "Below average",
     all: "All",
-    yesterday: "YTD",
+    yesterday: "Yesterday",
     today: "Today",
     tomorrow: "Tomorrow",
     lastWeek: "Last week",
@@ -2219,10 +2219,10 @@ const en = {
     notLessOne: "The number of rows and columns cannot be less than 1",
     offsetColumnLessZero: "The offset column cannot be negative!",
     pasteMustKeybordAlert:
-      "在表格中进行复制粘贴: Ctrl + C 进行复制, Ctrl + V 进行粘贴, Ctrl + X 进行剪切",
-    pasteMustKeybordAlertHTMLTitle: "在表格中进行复制粘贴",
+      "Use keyboard shortcuts in the sheet: Ctrl + C to copy, Ctrl + V to paste, Ctrl + X to cut.",
+    pasteMustKeybordAlertHTMLTitle: "Copy and paste in the sheet",
     pasteMustKeybordAlertHTML:
-      "<span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + C</span>&nbsp;&nbsp;进行复制<br/><span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + V</span>&nbsp;&nbsp;进行粘贴<br/><span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + X</span>&nbsp;&nbsp;进行剪切",
+      "<span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + C</span>&nbsp;&nbsp;Copy<br/><span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + V</span>&nbsp;&nbsp;Paste<br/><span style='line-height: 1.0;font-size:36px;font-weight: bold;color:#666;'>Ctrl + X</span>&nbsp;&nbsp;Cut",
   },
   pivotTable: {
     title: "Pivot Table",

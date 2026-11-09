@@ -3,6 +3,8 @@ import type { BaseTranslation } from "typesafe-i18n";
 const en = {
   appName: "TinySheet",
   close: "Close",
+  openList: "{label}: open list",
+  moreOptions: "{label}: more options",
   ok: "OK",
   cancel: "Cancel",
   apply: "Apply",

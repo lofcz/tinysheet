@@ -8,6 +8,7 @@ import React, { useContext, useEffect, useState } from "react";
 import {
   applySeriesFormula,
   findChart,
+  locale,
   moveChartSeries,
   parseSeriesFormula,
   seriesFormula,
@@ -67,7 +68,7 @@ export const SeriesFormulaBar: React.FC<{
       className={`fortune-series-formula${
         invalid ? " fortune-series-formula--invalid" : ""
       }`}
-      aria-label="Series formula"
+      aria-label={locale(context).chart.seriesFormula}
       aria-invalid={invalid || undefined}
       data-testid="series-formula"
       value={text}

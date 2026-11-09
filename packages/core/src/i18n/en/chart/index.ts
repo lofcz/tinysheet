@@ -3,6 +3,7 @@ import type { BaseTranslation } from "typesafe-i18n";
 const en = {
   insertChart: "Insert chart",
   chart: "Chart",
+  objectName: "Chart {n}",
   editor: "Chart editor",
   editChart: "Edit chart",
   deleteChart: "Delete chart",
@@ -29,6 +30,7 @@ const en = {
   switchRowColumn: "Switch row/column",
   series: "Series",
   seriesName: "Name",
+  seriesFormula: "Series formula",
   seriesValues: "Values",
   categories: "Categories (X values)",
   addSeries: "Add series",

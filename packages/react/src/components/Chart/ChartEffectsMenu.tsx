@@ -230,6 +230,7 @@ export function effectsMenu(
   caps: { bevel?: boolean; preset?: boolean } = {}
 ): MenuItem[] {
   const f = t.format;
+  const labels = t.effects;
   const current = elementEffects(chart, element, text) ?? {};
   const opts = { chart, element, text, onApply };
   const items: MenuItem[] = [];
@@ -260,7 +261,7 @@ export function effectsMenu(
     g.items.forEach((item, i) =>
       shadowTiles.push({
         id: item.id,
-        label: item.label,
+        label: labels.shadow[item.id as keyof typeof labels.shadow],
         header: i === 0 ? f[g.group] : undefined,
         selected:
           !!current.shadow &&
@@ -287,7 +288,7 @@ export function effectsMenu(
         f.reflection,
         CHART_REFLECTION_PRESETS.map((r) => ({
           id: r.id,
-          label: r.label,
+          label: labels.reflection[r.id as keyof typeof labels.reflection],
           style: {
             WebkitBoxReflect: `below ${r.value.dist ?? 0}px linear-gradient(transparent ${Math.round(
               (1 - (r.value.size ?? 0.5)) * 100
@@ -307,7 +308,12 @@ export function effectsMenu(
         id: `glow-${size}-${i + 1}`,
         label: f.glowLabel
           .replace("{size}", String(size))
-          .replace("{color}", a.label),
+          .replace(
+            "{color}",
+            labels.accents[
+              `accent${CHART_ACCENTS.indexOf(a) + 1}` as keyof typeof labels.accents
+            ]
+          ),
         header:
           size === CHART_GLOW_SIZES[0] && i === 0
             ? f.glowVariations
@@ -368,7 +374,7 @@ export function effectsMenu(
         f.bevel,
         CHART_BEVEL_PRESETS.map((b) => ({
           id: `bevel-${b.id}`,
-          label: b.label,
+          label: labels.bevel[b.id as keyof typeof labels.bevel],
           selected: current.bevel?.preset === b.id,
           style: text
             ? {
@@ -388,7 +394,7 @@ export function effectsMenu(
     g.items.forEach((item, i) =>
       rotationTiles.push({
         id: item.id,
-        label: item.label,
+        label: labels.rotation[item.id as keyof typeof labels.rotation],
         header: i === 0 ? f[g.group] : undefined,
         selected: current.rotation3d === item.id,
         style: rotationCss(item.id),

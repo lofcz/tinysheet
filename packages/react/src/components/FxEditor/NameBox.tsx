@@ -36,7 +36,7 @@ import { useNameBoxWidth } from "./useNameBoxWidth";
 const NameBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const { showDialog } = useDialog();
-  const { definedNames: t, formulaMore } = locale(context);
+  const { definedNames: t, formulaMore, chart } = locale(context);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
@@ -49,7 +49,8 @@ const NameBox: React.FC = () => {
     // a selected chart shows its name, like Excel ("Chart 1")
     if (context.activeChart) {
       const found = findChart(context, context.activeChart);
-      if (found) return `Chart ${found.index + 1}`;
+      if (found)
+        return chart.objectName.replace("{n}", String(found.index + 1));
     }
     const lastSelection = _.last(context.luckysheet_select_save);
     if (
@@ -81,6 +82,7 @@ const NameBox: React.FC = () => {
     context.currentSheetId,
     context.luckysheet_select_save,
     context.luckysheetfile,
+    chart.objectName,
   ]);
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import React, { useContext, useId, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { dialogsLocale } from "@lofcz/tinysheet-core";
 import WorkbookContext from "../../context";
 import { useDialogBehavior } from "../../hooks/useDialogBehavior";
 import { ICON_STROKE } from "./icons";
@@ -72,6 +73,8 @@ export const DialogShell: React.FC<DialogShellProps> = ({
   ...rest
 }) => {
   const autoTitleId = useId();
+  const { context } = useContext(WorkbookContext);
+  const t = dialogsLocale(context);
   const titleId = rest.titleId ?? autoTitleId;
   const frame = useContext(DialogFrameContext);
   useLayoutEffect(() => {
@@ -126,8 +129,8 @@ export const DialogShell: React.FC<DialogShellProps> = ({
             type="button"
             className="ts-dialog-close"
             data-dialog-close
-            aria-label="Close"
-            title="Close"
+            aria-label={t.close}
+            title={t.close}
             onClick={close}
           >
             <X size={16} strokeWidth={ICON_STROKE} aria-hidden />

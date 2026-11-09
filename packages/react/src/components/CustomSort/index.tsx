@@ -316,14 +316,14 @@ const CustomSort: React.FC = () => {
         <IconButton
           size="sm"
           icon={ChevronUp}
-          label={t.moveUp ?? "Move Up"}
+          label={t.moveUp}
           disabled={selected === 0}
           onClick={() => move(selected, selected - 1)}
         />
         <IconButton
           size="sm"
           icon={ChevronDown}
-          label={t.moveDown ?? "Move Down"}
+          label={t.moveDown}
           disabled={selected >= levels.length - 1}
           onClick={() => move(selected, selected + 1)}
         />

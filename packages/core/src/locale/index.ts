@@ -1,14 +1,16 @@
 import type { Context } from "../context";
 import { getLocaleSection, normalizeLocale } from "../i18n/runtime";
 import type { Locales } from "../i18n/runtime";
-import functionlist from "./functions/en";
+import { functionCatalog } from "./functions";
 import { gridMetadata } from "./gridMetadata";
 function createLocale(lang: Locales) {
   const strings = getLocaleSection(lang, "grid");
   return {
     ...strings,
     ...gridMetadata(strings),
-    functionlist,
+    get functionlist() {
+      return functionCatalog(lang);
+    },
     chart: getLocaleSection(lang, "chart"),
   };
 }

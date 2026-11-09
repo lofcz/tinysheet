@@ -130,7 +130,7 @@ export function chartElementLabel(
     return n.series.replace("{name}", name);
   }
   const shape = chartShapeOf(chart, element);
-  if (shape) return shape.name ?? "Shape";
+  if (shape) return shape.name ?? n.shape;
   switch (element) {
     case "title":
       return n.title;

@@ -1,4 +1,6 @@
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useContext, useLayoutEffect, useRef, useState } from "react";
+import { dialogsLocale } from "@lofcz/tinysheet-core";
+import WorkbookContext from "../../context";
 import { ChevronDown } from "lucide-react";
 import {
   Icon,
@@ -327,6 +329,8 @@ export const LargeButton: React.FC<LargeButtonProps> = ({
   const [open, setOpen] = useState(false);
   const [byKeyboard, setByKeyboard] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
+  const { context } = useContext(WorkbookContext);
+  const t = dialogsLocale(context);
   const hasDropdown = !!(menu || popover);
   const split = hasDropdown && !!onClick;
   const toggle = (e: React.MouseEvent) => {
@@ -395,7 +399,7 @@ export const LargeButton: React.FC<LargeButtonProps> = ({
             <button
               type="button"
               className="ts-large-arrow"
-              aria-label={`${label}: more options`}
+              aria-label={t.moreOptions.replace("{label}", label)}
               aria-haspopup={menu ? "menu" : "dialog"}
               aria-expanded={open}
               disabled={disabled}
