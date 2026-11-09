@@ -157,6 +157,7 @@ try {
       return {
         importMs: m.parsed ? m.parsed - m.started : null,
         mountMs: (m.ready || performance.now()) - (m.parsed || m.started),
+        worker: m.worker,
         ticks: window.__perf.ticks,
         source: m.sourceStats?.(),
         tasks: window.__perf.tasks.slice(),
@@ -341,8 +342,24 @@ try {
     await confirm();
     assert.equal(await hidden(), 1);
     await page.evaluate(() => window.__largeTable.workbook.handleUndo());
+    await page.waitForFunction(
+      () =>
+        Object.keys(
+          window.__largeTable.workbook.getSheet().config?.rowhidden || {}
+        ).length === 0,
+      undefined,
+      { timeout: 2000 }
+    );
     assert.equal(await hidden(), 0, "undo restores visibility");
     await page.evaluate(() => window.__largeTable.workbook.handleRedo());
+    await page.waitForFunction(
+      () =>
+        Object.keys(
+          window.__largeTable.workbook.getSheet().config?.rowhidden || {}
+        ).length === 1,
+      undefined,
+      { timeout: 2000 }
+    );
     assert.equal(await hidden(), 1, "redo reapplies the filter");
     await open(0);
     await menu.locator('input[type="text"]').fill("ID-50000");

@@ -56,6 +56,9 @@ function Imported() {
           );
           const metrics = { started: performance.now(), parsed: 0 };
           (window as any).__largeTable = metrics;
+          worker.addEventListener("message", (event) => {
+            Object.assign(metrics, { worker: event.data.benchmark });
+          });
           try {
             const bytes = await (
               await fetch(
