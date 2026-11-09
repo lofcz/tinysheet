@@ -37,7 +37,6 @@ export function generateRandomSheetName(
   return `Sheet${index + 1}`;
 }
 
-// 颜色 rgb转16进制
 export function rgbToHex(color: string): string {
   let rgb;
 
@@ -54,7 +53,6 @@ export function rgbToHex(color: string): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
-// 列下标  数字转字母
 export function indexToColumnChar(n: number) {
   const orda = "a".charCodeAt(0);
   const ordz = "z".charCodeAt(0);
@@ -67,7 +65,6 @@ export function indexToColumnChar(n: number) {
   return s.toUpperCase();
 }
 
-// 列下标  字母转数字
 export function columnCharToIndex(a: string) {
   if (a == null || a.length === 0) {
     return NaN;
@@ -134,15 +131,14 @@ export function getSheetByIndex(ctx: Context, id: string) {
   return ctx.luckysheetfile[i];
 }
 
-// 获取当前日期时间
 export function getNowDateTime(format: number) {
   const now = new Date();
-  const year = now.getFullYear(); // 得到年份
-  let month: string | number = now.getMonth(); // 得到月份
-  let date: string | number = now.getDate(); // 得到日期
-  let hour: string | number = now.getHours(); // 得到小时
-  let minu: string | number = now.getMinutes(); // 得到分钟
-  let sec: string | number = now.getSeconds(); // 得到秒
+  const year = now.getFullYear();
+  let month: string | number = now.getMonth();
+  let date: string | number = now.getDate();
+  let hour: string | number = now.getHours();
+  let minu: string | number = now.getMinutes();
+  let sec: string | number = now.getSeconds();
 
   month += 1;
   if (month < 10) month = `0${month}`;
@@ -153,20 +149,15 @@ export function getNowDateTime(format: number) {
 
   let time = "";
 
-  // 日期
   if (format === 1) {
     time = `${year}-${month}-${date}`;
-  }
-  // 日期时间
-  else if (format === 2) {
+  } else if (format === 2) {
     time = `${year}-${month}-${date} ${hour}:${minu}:${sec}`;
   }
 
   return time;
 }
 
-// 替换temp中的${xxx}为指定内容 ,temp:字符串，这里指html代码，dataarry：一个对象{"xxx":"替换的内容"}
-// 例：luckysheet.replaceHtml("${image}",{"image":"abc","jskdjslf":"abc"})   ==>  abc
 export function replaceHtml(temp: string, dataarry: any) {
   return temp.replace(/\$\{([\w]+)\}/g, (s1, s2) => {
     const s = dataarry[s2];
@@ -177,7 +168,6 @@ export function replaceHtml(temp: string, dataarry: any) {
   });
 }
 
-// 获取正则字符串（处理 . * ? ~* ~?）
 export function getRegExpStr(str: string) {
   return str
     .replace("~*", "\\*")
@@ -187,7 +177,6 @@ export function getRegExpStr(str: string) {
     .replace("?", ".");
 }
 
-// 列下标  数字转字母
 export function chatatABC(n: number) {
   // let wordlen = columeHeader_word.length;
 

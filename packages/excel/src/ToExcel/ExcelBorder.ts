@@ -30,7 +30,7 @@ var setBorder = function (lucksheetfile: any, worksheet: Xlsx.Worksheet) {
       13: "thick",
     },
   };
-  //获取所有的单元格边框的信息
+
   const borderInfoCompute: IBorderInfoCompute = getBorderInfo(lucksheetfile);
   for (let x in borderInfoCompute) {
     let border: Partial<Xlsx.Border> | any = {};
@@ -81,7 +81,7 @@ var getBorderInfo = function (luckysheetfile: any) {
   if (!cfg || !data) return {};
 
   let borderInfo = cfg["borderInfo"];
-  //设置需要计算边框的区域
+
   let dataset_row_st = 0,
     dataset_row_ed = data.length,
     dataset_col_st = 0,
@@ -1384,7 +1384,6 @@ var getBorderInfo = function (luckysheetfile: any) {
               });
 
             if (value.l != null && bd_c == mc.c) {
-              //左边框
               borderInfoCompute[bd_r + "_" + bd_c].l = {
                 color: value.l.color,
                 style: value.l.style,
@@ -1421,7 +1420,6 @@ var getBorderInfo = function (luckysheetfile: any) {
             }
 
             if (value.r != null && bd_c == mc.c + mc.cs - 1) {
-              //右边框
               borderInfoCompute[bd_r + "_" + bd_c].r = {
                 color: value.r.color,
                 style: value.r.style,
@@ -1461,7 +1459,6 @@ var getBorderInfo = function (luckysheetfile: any) {
             }
 
             if (value.t != null && bd_r == mc.r) {
-              //上边框
               borderInfoCompute[bd_r + "_" + bd_c].t = {
                 color: value.t.color,
                 style: value.t.style,
@@ -1497,7 +1494,6 @@ var getBorderInfo = function (luckysheetfile: any) {
             }
 
             if (value.b != null && bd_r == mc.r + mc.rs - 1) {
-              //下边框
               borderInfoCompute[bd_r + "_" + bd_c].b = {
                 color: value.b.color,
                 style: value.b.style,
@@ -1537,7 +1533,6 @@ var getBorderInfo = function (luckysheetfile: any) {
             }
           } else {
             if (value.l != null) {
-              //左边框
               borderInfoCompute[bd_r + "_" + bd_c].l = {
                 color: value.l.color,
                 style: value.l.style,
@@ -1574,7 +1569,6 @@ var getBorderInfo = function (luckysheetfile: any) {
             }
 
             if (value.r != null) {
-              //右边框
               borderInfoCompute[bd_r + "_" + bd_c].r = {
                 color: value.r.color,
                 style: value.r.style,
@@ -1614,7 +1608,6 @@ var getBorderInfo = function (luckysheetfile: any) {
             }
 
             if (value.t != null) {
-              //上边框
               borderInfoCompute[bd_r + "_" + bd_c].t = {
                 color: value.t.color,
                 style: value.t.style,
@@ -1650,7 +1643,6 @@ var getBorderInfo = function (luckysheetfile: any) {
             }
 
             if (value.b != null) {
-              //下边框
               borderInfoCompute[bd_r + "_" + bd_c].b = {
                 color: value.b.color,
                 style: value.b.style,

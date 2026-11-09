@@ -51,7 +51,6 @@ export function refreshFilterFormulas(ctx: Context) {
   }
 }
 
-// 筛选配置状态
 export function labelFilterOptionState(
   ctx: Context,
   optionstate: boolean,
@@ -78,7 +77,7 @@ export function labelFilterOptionState(
   if (ctx.filter == null) ctx.filter = {};
   if (optionstate) {
     ctx.filter[cindex - stc] = param;
-    // 条件格式参数
+
     if (caljs != null) {
     }
   } else {
@@ -106,7 +105,6 @@ export function labelFilterOptionState(
   }
 }
 
-// 筛选排序
 export function orderbydatafiler(
   ctx: Context,
   str: number,
@@ -122,7 +120,7 @@ export function orderbydatafiler(
   }
   str += 1;
 
-  let hasMc = false; // 排序选区是否有合并单元格
+  let hasMc = false;
   const data: CellMatrix = [];
 
   for (let r = str; r <= edr; r += 1) {
@@ -155,7 +153,6 @@ export function orderbydatafiler(
   return null;
 }
 
-// 创建筛选配置
 export function createFilterOptions(
   ctx: Context,
   luckysheet_filter_save:
@@ -419,14 +416,13 @@ export function getFilterColumnValues(
   );
   const visibleRows: number[] = [];
   const flattenValues: string[] = [];
-  // 日期值
+
   const dates: FilterDate[] = [];
   const datesUncheck = new Set<string>();
   const dateRowMap: Record<string, number[]> = {};
   const dateNodes = new Map<string, FilterDate>();
   const dateStrings = new Map<unknown, string>();
 
-  // 除日期以外的值
   const valuesMap = new Map<string, FilterValue | Map<unknown, FilterValue>>();
   const valuesUncheck = new Set<string>();
   const valueRowMap: Record<string, number[]> = {};
@@ -457,7 +453,6 @@ export function getFilterColumnValues(
     const hasValue = cell != null && !isRealNull(cell.v);
 
     if (hasValue && cell.ct != null && cell.ct.t === "d") {
-      // 单元格是日期
       const dateStr: string =
         dateStrings.get(cell.v) ?? update("YYYY-MM-DD", cell.v);
       dateStrings.set(cell.v, dateStr);

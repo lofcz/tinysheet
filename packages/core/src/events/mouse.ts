@@ -379,7 +379,7 @@ export function handleCellAreaMouseDown(
   ctx.filterContextMenu = undefined;
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;
-  // //有批注在编辑时
+
   removeEditingComment(ctx, globalCache);
   // TODO set MouseDown state to context
   // const mouse = mousePosition(
@@ -431,7 +431,7 @@ export function handleCellAreaMouseDown(
     return;
   }
   showLinkCard(ctx, row_index, col_index, false, true);
-  // //单元格单击之前
+
   if (
     ctx.hooks.beforeCellMouseDown?.(flowdata[row_index]?.[col_index], {
       row: row_index,
@@ -445,7 +445,6 @@ export function handleCellAreaMouseDown(
     return;
   }
 
-  // //数据验证 单元格聚焦
   cellFocus(ctx, row_index, col_index, true);
   // A press on the chevron of a list cell opens its list with this click.
   if (
@@ -480,7 +479,6 @@ export function handleCellAreaMouseDown(
     return;
   }
 
-  // 若点击单元格部分不在视图内
   if (!inHorizontalFreeze && !inVerticalFreeze) {
     if (col_pre < ctx.scrollLeft) {
       ctx.scrollLeft = col_pre;
@@ -491,11 +489,9 @@ export function handleCellAreaMouseDown(
     }
   }
 
-  // //mousedown是右键
   if (e.button === 2) {
     // $("#luckysheet-dataVerification-showHintBox").hide();
 
-    // 如果右键在选区内, 停止mousedown处理
     const isInSelection = _.some(
       ctx.luckysheet_select_save,
       (obj_s) =>
@@ -508,7 +504,6 @@ export function handleCellAreaMouseDown(
     if (isInSelection) return;
   }
 
-  // //单元格数据下钻
   // if (
   //   ctx.flowdata[row_index] != null &&
   //   ctx.flowdata[row_index][col_index] != null &&
@@ -525,7 +520,6 @@ export function handleCellAreaMouseDown(
   //   }
   // }
 
-  // //链接 单元格聚焦
   // if (
   //   hyperlinkCtrl.hyperlink &&
   //   hyperlinkCtrl.hyperlink[row_index + "_" + col_index] &&
@@ -537,7 +531,6 @@ export function handleCellAreaMouseDown(
 
   ctx.luckysheet_scroll_status = true;
 
-  // 公式相关
   if (ctx.luckysheetCellUpdate.length > 0) {
     // Point mode: clicking a cell puts its reference into the formula
     const [editor, copyTo] = activeEditors(cellInput, fxInput);
@@ -585,7 +578,6 @@ export function handleCellAreaMouseDown(
     ctx.luckysheet_select_status = true;
   }
 
-  // //条件格式 应用范围可选择多个单元格
   // if ($("#luckysheet-multiRange-dialog").is(":visible")) {
   //   conditionformat.selectStatus = true;
   //   ctx.luckysheet_select_status = false;
@@ -720,7 +712,6 @@ export function handleCellAreaMouseDown(
   //   conditionformat.selectRange = [];
   // }
 
-  // //条件格式 条件值只能选择单个单元格
   // if ($("#luckysheet-singleRange-dialog").is(":visible")) {
   //   ctx.luckysheet_select_status = false;
 
@@ -738,7 +729,6 @@ export function handleCellAreaMouseDown(
   //   return;
   // }
 
-  // //数据验证 单元格范围选择
   // if ($("#luckysheet-dataVerificationRange-dialog").is(":visible")) {
   //   dataVerificationCtrl.selectStatus = true;
   //   ctx.luckysheet_select_status = false;
@@ -869,14 +859,13 @@ export function handleCellAreaMouseDown(
   //   dataVerificationCtrl.selectRange = [];
   // }
 
-  // //if公式生成器
   // if (ifFormulaGenerator.singleRangeFocus) {
   //   $("#luckysheet-ifFormulaGenerator-dialog .singRange").click();
   // }
   // if (
   //   $("#luckysheet-ifFormulaGenerator-singleRange-dialog").is(":visible")
   // ) {
-  //   //选择单个单元格
+
   //   ctx.luckysheet_select_status = false;
   //   formula.rangestart = false;
 
@@ -902,7 +891,7 @@ export function handleCellAreaMouseDown(
   // if (
   //   $("#luckysheet-ifFormulaGenerator-multiRange-dialog").is(":visible")
   // ) {
-  //   //选择范围
+
   //   ctx.luckysheet_select_status = false;
   //   formula.func_selectedrange = {
   //     left: col_pre,
@@ -945,9 +934,8 @@ export function handleCellAreaMouseDown(
 
   if (ctx.luckysheet_select_status) {
     if (e.shiftKey) {
-      // 按住shift点击，选择范围
       const last =
-        ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1]; // 选区最后一个
+        ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
       if (
         last &&
         last.top != null &&
@@ -1023,7 +1011,7 @@ export function handleCellAreaMouseDown(
         last.height_move = height;
         ctx.luckysheet_select_save![ctx.luckysheet_select_save!.length - 1] =
           last;
-        // // 交替颜色选择范围
+
         // if ($("#luckysheet-alternateformat-rangeDialog").is(":visible")) {
         //   $("#luckysheet-alternateformat-rangeDialog input").val(
         //     getRangetxt(ctx.currentSheetId, ctx.luckysheet_select_save)
@@ -1042,7 +1030,6 @@ export function handleCellAreaMouseDown(
         //   );
       }
     } else if (e.ctrlKey || e.metaKey) {
-      // 选区添加
       ctx.luckysheet_select_save?.push({
         left: col_pre,
         width: col - col_pre - 1,
@@ -1076,9 +1063,8 @@ export function handleCellAreaMouseDown(
         },
       ];
 
-      // 单元格格式icon对应
       //   menuButton.menuButtonFocus(ctx.flowdata, row_index, col_index);
-      //   // 函数公式显示栏
+
       //   formula.fucntionboxshow(row_index, col_index);
     }
   }
@@ -1093,11 +1079,10 @@ export function handleCellAreaMouseDown(
   //   }
 
   //   if (!browser.mobilecheck()) {
-  //     // 非移动端聚焦输入框
+
   //     luckysheetactiveCell();
   //   }
 
-  //   // 允许编辑后的后台更新时
   //   server.saveParam(
   //     "mv",
   //     ctx.currentSheetId,
@@ -1105,7 +1090,6 @@ export function handleCellAreaMouseDown(
   //   );
   // }
 
-  // // 交替颜色
   // if (alternateformat.rangefocus) {
   //   alternateformat.rangefocus = false;
   //   $("#luckysheet-alternateformat-range .fa-table").click();
@@ -1114,13 +1098,12 @@ export function handleCellAreaMouseDown(
   // $("#luckysheet-row-count-show, #luckysheet-column-count-show").hide();
 
   // if (!isEditMode()) {
-  //   // chartMix 隐藏当前页的数据选择区域高亮
+
   //   hideAllNeedRangeShow();
   // }
 
   // // selectHelpboxFill();
 
-  // // 数据透视表
   // pivotTable.pivotclick(row_index, col_index, ctx.currentSheetId);
 
   // luckysheetContainerFocus();
@@ -1165,7 +1148,7 @@ export function handleCellAreaDoubleClick(
   ) {
     return;
   }
-  // 禁止前台编辑(只可 框选单元格、滚动查看表格)
+
   const allowEdit = isAllowEdit(ctx);
   if (!allowEdit) {
     checkProtection(ctx, "editCells");
@@ -1203,7 +1186,6 @@ export function handleCellAreaDoubleClick(
   const col_location = colLocation(x, ctx.visibledatacolumn);
   let col_index = col_location[2];
 
-  // 如果当前单元格是复选框则取消双击事件不让编辑
   const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
   const { dataVerification } = ctx.luckysheetfile[index];
 
@@ -1223,81 +1205,11 @@ export function handleCellAreaDoubleClick(
     [, , col_index] = margeset.column;
   }
 
-  /*
-        if (pivotTable.isPivotRange(row_index, col_index)) {
-          // 数据透视表没有 任何数据
-          if (
-            (pivotTable.filter == null || pivotTable.filter.length == 0) &&
-            (pivotTable.row == null || pivotTable.row.length == 0) &&
-            (pivotTable.column == null || pivotTable.column.length == 0) &&
-            (pivotTable.values == null || pivotTable.values.length == 0)
-          ) {
-            return;
-          }
-  
-          // 数据透视表没有 数值数据
-          if (pivotTable.values == null || pivotTable.values.length == 0) {
-            return;
-          }
-  
-          // 点击位置不是 数值数据 所在区域
-          if (row_index == 0 || col_index == 0) {
-            return;
-          }
-  
-          if (pivotTable.column != null && pivotTable.column.length > 0) {
-            if (
-              pivotTable.values.length >= 2 &&
-              pivotTable.showType == "column"
-            ) {
-              if (
-                row_index <= pivotTable.column.length ||
-                col_index >=
-                  pivotTable.pivotDatas[0].length - pivotTable.values.length
-              ) {
-                return;
-              }
-            } else {
-              if (
-                row_index <= pivotTable.column.length - 1 ||
-                col_index >= pivotTable.pivotDatas[0].length - 1
-              ) {
-                return;
-              }
-            }
-          }
-  
-          if (pivotTable.row != null && pivotTable.row.length > 0) {
-            if (pivotTable.values.length >= 2 && pivotTable.showType == "row") {
-              if (
-                col_index <= pivotTable.row.length ||
-                row_index >=
-                  pivotTable.pivotDatas.length - pivotTable.values.length
-              ) {
-                return;
-              }
-            } else {
-              if (
-                col_index <= pivotTable.row.length - 1 ||
-                row_index >= pivotTable.pivotDatas.length - 1
-              ) {
-                return;
-              }
-            }
-          }
-  
-          sheetmanage.addNewSheet(event);
-  
-          pivotTable.drillDown(row_index, col_index);
-          return;
-        }
-        */
-
   // if (
   //   $("#luckysheet-search-formula-parm").is(":visible") ||
   //   $("#luckysheet-search-formula-parm-select").is(":visible")
   // ) {
-  //   // 公式参数栏显示
+
   //   $("#luckysheet-cell-selected").hide();
   // } else if (
   //   $("#luckysheet-conditionformat-dialog").is(":visible") ||
@@ -1307,18 +1219,17 @@ export function handleCellAreaDoubleClick(
   //   $("#luckysheet-singleRange-dialog").is(":visible") ||
   //   $("#luckysheet-multiRange-dialog").is(":visible")
   // ) {
-  //   // 条件格式
+
   // } else if (
   //   $("#luckysheet-modal-dialog-slider-alternateformat").is(":visible") ||
   //   $("#luckysheet-alternateformat-rangeDialog").is(":visible")
   // ) {
-  //   // 交替颜色
+
   // } else {
   //   if (menuButton.luckysheetPaintModelOn) {
   //     menuButton.cancelPaintModel();
   //   }
 
-  // 检查当前坐标和焦点坐标是否一致，如果不一致那么进行修正
   const { column_focus, row_focus } = ctx.luckysheet_select_save![0];
   if (
     !_.isNil(column_focus) &&
@@ -1348,7 +1259,7 @@ export function handleContextMenu(
   if (!flowdata) return;
 
   // if (isEditMode()) {
-  //   //非编辑模式下禁止右键功能框
+
   //   return;
   // }
   const workbookRect = workbookContainer.getBoundingClientRect();
@@ -1365,7 +1276,6 @@ export function handleContextMenu(
   //   "#luckysheet-cols-rows-handleincell .luckysheet-menuseparator"
   // ).style.display = "block";
 
-  // 如果全部按钮都隐藏，则整个菜单容器也要隐藏
   if (_.isEmpty(cellContextMenu)) {
     return;
   }
@@ -1405,7 +1315,7 @@ export function handleContextMenu(
     const col = col_location[1];
     const col_pre = col_location[0];
     const col_index = col_location[2];
-    // 如果右键点击在选区内则不做选区处理
+
     const isInSelection = _.some(
       ctx.luckysheet_select_save,
       (obj_s) =>
@@ -1416,9 +1326,7 @@ export function handleContextMenu(
         col_index <= obj_s.column[1]
     );
     if (!isInSelection && (e.metaKey || e.ctrlKey)) {
-      // 选区添加
       if (flowdata[row_index][col_index]?.mc) {
-        // 处理合并单元格
         const changeparam = mergeMoveMain(
           ctx,
           [col_index, col_index],
@@ -1470,7 +1378,6 @@ export function handleContextMenu(
     const row_index_ed = row_index;
     const col_index_ed = col_index;
     if (flowdata[row_index][col_index]?.mc) {
-      // 处理合并单元格
       const changeparam = mergeMoveMain(
         ctx,
         [col_index, col_index],
@@ -1536,7 +1443,7 @@ export function handleContextMenu(
     const row = row_location[1];
     const row_pre = row_location[0];
     const row_index = row_location[2];
-    // 如果右键点击在选区内则不做选区处理
+
     const isInSelection = _.some(
       ctx.luckysheet_select_save,
       (obj_s) =>
@@ -1591,7 +1498,7 @@ export function handleContextMenu(
     const col = col_location[1];
     const col_pre = col_location[0];
     const col_index = col_location[2];
-    // 如果右键点击在选区内则不做选区处理
+
     const isInSelection = _.some(
       ctx.luckysheet_select_save,
       (obj_s) =>
@@ -1641,11 +1548,10 @@ function mouseRender(
   // by the view (see getDragAutoScroll), not by pointer moves.
   const rect = container.getBoundingClientRect();
 
-  // 判断选区坐标功能是否为单选模式
   if (ctx.rangeDialog?.singleSelect) {
     return;
   }
-  // 拖动选择
+
   if (ctx.luckysheet_select_status) {
     const anchor = _.last(ctx.luckysheet_select_save);
     // past the grid's edge: the first/last visible row or column
@@ -1775,7 +1681,6 @@ function mouseRender(
     last.top_move = top;
     last.height_move = height;
 
-    // 判断当前是不去选择整行
     const isMaxColumn =
       ctx.luckysheet_select_save![ctx.luckysheet_select_save!.length - 1]
         .column;
@@ -1785,7 +1690,6 @@ function mouseRender(
       last.width_move = ctx.visibledatacolumn[colMax] - 1;
     }
 
-    // 判断当前是不是去选择整列
     const isMaxRow =
       ctx.luckysheet_select_save![ctx.luckysheet_select_save!.length - 1].row;
     const rowMax = ctx.visibledatarow.length - 1;
@@ -1801,7 +1705,6 @@ function mouseRender(
 
     // selectHelpboxFill();
 
-    // 交替颜色选择范围
     // if ($("#luckysheet-alternateformat-rangeDialog").is(":visible")) {
     //   $("#luckysheet-alternateformat-rangeDialog input").val(
     //     getRangetxt(
@@ -2266,7 +2169,6 @@ function mouseRender(
       globalCache.freezen?.[ctx.currentSheetId]
     );
   } else if (ctx.luckysheet_cols_change_size) {
-    // 调整列宽拖动: the border follows the pointer
     const [startX, index] = ctx.luckysheet_cols_change_size_start;
     const edge = resizedEdge(
       ctx.visibledatacolumn,
@@ -2283,7 +2185,6 @@ function mouseRender(
       (changeSizeCol as HTMLDivElement).style.left = `${edge - 5}px`;
     }
   } else if (ctx.luckysheet_rows_change_size) {
-    // 调整行高拖动: the border follows the pointer
     const [startY, index] = ctx.luckysheet_rows_change_size_start;
     const edge = resizedEdge(
       ctx.visibledatarow,
@@ -2300,7 +2201,6 @@ function mouseRender(
       (changeSizeRow as HTMLDivElement).style.top = `${edge - 2}px`;
     }
   } else if (ctx.luckysheet_cols_freeze_drag) {
-    // 调整列冻结
     const x =
       e.pageX -
       rect.left -
@@ -2331,7 +2231,6 @@ function mouseRender(
       }
     }
   } else if (ctx.luckysheet_rows_freeze_drag) {
-    // 调整行冻结
     const y =
       e.pageY -
       rect.top -
@@ -2362,918 +2261,6 @@ function mouseRender(
       }
     }
   }
-  /*
-    // chart move
-    else if (ctx.chartparam.luckysheetCurrentChartMove) {
-      const mouse = mouseposition(event.pageX, event.pageY);
-      const x = mouse[0] + $("#luckysheet-cell-main").scrollLeft();
-      const y = mouse[1] + $("#luckysheet-cell-main").scrollTop();
-  
-      const myh = ctx.chartparam.luckysheetCurrentChartMoveObj.height();
-      const myw = ctx.chartparam.luckysheetCurrentChartMoveObj.width();
-      let top = y - ctx.chartparam.luckysheetCurrentChartMoveXy[1];
-      let left = x - ctx.chartparam.luckysheetCurrentChartMoveXy[0];
-  
-      if (top < 0) {
-        top = 0;
-      }
-  
-      if (top + myh + 42 + 6 > ctx.chartparam.luckysheetCurrentChartMoveWinH) {
-        top = ctx.chartparam.luckysheetCurrentChartMoveWinH - myh - 42 - 6;
-      }
-  
-      if (left < 0) {
-        left = 0;
-      }
-  
-      if (left + myw + 22 + 36 > ctx.chartparam.luckysheetCurrentChartMoveWinW) {
-        left = ctx.chartparam.luckysheetCurrentChartMoveWinW - myw - 22 - 36;
-      }
-  
-      ctx.chartparam.luckysheetCurrentChartMoveObj.css({
-        top,
-        left,
-      });
-  
-      if (
-        luckysheetFreezen.freezenhorizontaldata != null ||
-        luckysheetFreezen.freezenverticaldata != null
-      ) {
-        luckysheetFreezen.scrollAdapt();
-  
-        const toffset = ctx.chartparam.luckysheetCurrentChartMoveObj.offset();
-        const tpsition = ctx.chartparam.luckysheetCurrentChartMoveObj.position();
-        ctx.chartparam.luckysheetCurrentChartMoveXy = [
-          event.pageX - toffset.left,
-          event.pageY - toffset.top,
-          tpsition.left,
-          tpsition.top,
-          $("#luckysheet-scrollbar-x").scrollLeft(),
-          $("#luckysheet-scrollbar-y").scrollTop(),
-        ];
-      }
-    }
-    // chart resize
-    else if (ctx.chartparam.luckysheetCurrentChartResize) {
-      const scrollTop = $("#luckysheet-cell-main").scrollTop();
-      const scrollLeft = $("#luckysheet-cell-main").scrollLeft();
-      const mouse = mouseposition(event.pageX, event.pageY);
-      const x = mouse[0] + scrollLeft;
-      const y = mouse[1] + scrollTop;
-  
-      if (x < 0 || y < 0) {
-        return false;
-      }
-  
-      const myh = ctx.chartparam.luckysheetCurrentChartResizeObj.height();
-      const myw = ctx.chartparam.luckysheetCurrentChartResizeObj.width();
-      const topchange = y - ctx.chartparam.luckysheetCurrentChartResizeXy[1];
-      const leftchange = x - ctx.chartparam.luckysheetCurrentChartResizeXy[0];
-  
-      let top = ctx.chartparam.luckysheetCurrentChartResizeXy[5];
-      let height = ctx.chartparam.luckysheetCurrentChartResizeXy[3];
-      let left = ctx.chartparam.luckysheetCurrentChartResizeXy[4];
-      let width = ctx.chartparam.luckysheetCurrentChartResizeXy[2];
-  
-      if (
-        ctx.chartparam.luckysheetCurrentChartResize == "lm" ||
-        ctx.chartparam.luckysheetCurrentChartResize == "lt" ||
-        ctx.chartparam.luckysheetCurrentChartResize == "lb"
-      ) {
-        left = x;
-        width = ctx.chartparam.luckysheetCurrentChartResizeXy[2] - leftchange;
-        if (
-          left >
-          ctx.chartparam.luckysheetCurrentChartResizeXy[2] +
-            ctx.chartparam.luckysheetCurrentChartResizeXy[4] -
-            60
-        ) {
-          left =
-            ctx.chartparam.luckysheetCurrentChartResizeXy[2] +
-            ctx.chartparam.luckysheetCurrentChartResizeXy[4] -
-            60;
-          width =
-            ctx.chartparam.luckysheetCurrentChartResizeXy[2] -
-            (ctx.chartparam.luckysheetCurrentChartResizeXy[2] +
-              ctx.chartparam.luckysheetCurrentChartResizeXy[4] -
-              60 -
-              ctx.chartparam.luckysheetCurrentChartResizeXy[0]);
-        } else if (left <= 0) {
-          left = 0;
-          width =
-            ctx.chartparam.luckysheetCurrentChartResizeXy[2] +
-            ctx.chartparam.luckysheetCurrentChartResizeXy[0];
-        }
-      }
-  
-      if (
-        ctx.chartparam.luckysheetCurrentChartResize == "rm" ||
-        ctx.chartparam.luckysheetCurrentChartResize == "rt" ||
-        ctx.chartparam.luckysheetCurrentChartResize == "rb"
-      ) {
-        width = ctx.chartparam.luckysheetCurrentChartResizeXy[2] + leftchange;
-        if (width < 60) {
-          width = 60;
-        } else if (
-          width >=
-          ctx.chartparam.luckysheetCurrentChartResizeWinW -
-            ctx.chartparam.luckysheetCurrentChartResizeXy[4] -
-            22 -
-            36
-        ) {
-          width =
-            ctx.chartparam.luckysheetCurrentChartResizeWinW -
-            ctx.chartparam.luckysheetCurrentChartResizeXy[4] -
-            22 -
-            36;
-        }
-      }
-  
-      if (
-        ctx.chartparam.luckysheetCurrentChartResize == "mt" ||
-        ctx.chartparam.luckysheetCurrentChartResize == "lt" ||
-        ctx.chartparam.luckysheetCurrentChartResize == "rt"
-      ) {
-        top = y;
-        height = ctx.chartparam.luckysheetCurrentChartResizeXy[3] - topchange;
-        if (
-          top >
-          ctx.chartparam.luckysheetCurrentChartResizeXy[3] +
-            ctx.chartparam.luckysheetCurrentChartResizeXy[5] -
-            60
-        ) {
-          top =
-            ctx.chartparam.luckysheetCurrentChartResizeXy[3] +
-            ctx.chartparam.luckysheetCurrentChartResizeXy[5] -
-            60;
-          height =
-            ctx.chartparam.luckysheetCurrentChartResizeXy[3] -
-            (ctx.chartparam.luckysheetCurrentChartResizeXy[3] +
-              ctx.chartparam.luckysheetCurrentChartResizeXy[5] -
-              60 -
-              ctx.chartparam.luckysheetCurrentChartResizeXy[1]);
-        } else if (top <= 0) {
-          top = 0;
-          height =
-            ctx.chartparam.luckysheetCurrentChartResizeXy[3] +
-            ctx.chartparam.luckysheetCurrentChartResizeXy[1];
-        }
-      }
-  
-      if (
-        ctx.chartparam.luckysheetCurrentChartResize == "mb" ||
-        ctx.chartparam.luckysheetCurrentChartResize == "lb" ||
-        ctx.chartparam.luckysheetCurrentChartResize == "rb"
-      ) {
-        height = ctx.chartparam.luckysheetCurrentChartResizeXy[3] + topchange;
-        if (height < 60) {
-          height = 60;
-        } else if (
-          height >=
-          ctx.chartparam.luckysheetCurrentChartResizeWinH -
-            ctx.chartparam.luckysheetCurrentChartResizeXy[5] -
-            42 -
-            6
-        ) {
-          height =
-            ctx.chartparam.luckysheetCurrentChartResizeWinH -
-            ctx.chartparam.luckysheetCurrentChartResizeXy[5] -
-            42 -
-            6;
-        }
-      }
-  
-      const resizedata = {
-        top,
-        left,
-        height,
-        width,
-      };
-      ctx.chartparam.luckysheetCurrentChartResizeObj.css(resizedata);
-      // resize chart
-      ctx.resizeChart(ctx.chartparam.luckysheetCurrentChart);
-    }
-    // image move
-    else if (imageCtrl.move) {
-      const mouse = mouseposition(event.pageX, event.pageY);
-  
-      let x = mouse[0] + $("#luckysheet-cell-main").scrollLeft();
-      let y = mouse[1] + $("#luckysheet-cell-main").scrollTop();
-  
-      const imgItem = imageCtrl.images[imageCtrl.currentImgId];
-      if (imgItem.isFixedPos) {
-        x = event.pageX;
-        y = event.pageY;
-      }
-  
-      const myh = $("#luckysheet-modal-dialog-activeImage").height();
-      const myw = $("#luckysheet-modal-dialog-activeImage").width();
-  
-      let top = y - imageCtrl.moveXY[1];
-      let left = x - imageCtrl.moveXY[0];
-  
-      let minTop = 0;
-      let maxTop = imageCtrl.currentWinH - myh - 42 - 6;
-      let minLeft = 0;
-      let maxLeft = imageCtrl.currentWinW - myw - 22 - 36;
-  
-      if (imgItem.isFixedPos) {
-        minTop =
-          ctx.infobarHeight +
-          ctx.toolbarHeight +
-          ctx.calculatebarHeight +
-          ctx.columnHeaderHeight;
-        maxTop = minTop + ctx.cellmainHeight - ctx.cellMainSrollBarSize - myh;
-        minLeft = ctx.rowHeaderWidth;
-        maxLeft = minLeft + ctx.cellmainWidth - ctx.cellMainSrollBarSize - myw;
-      }
-  
-      if (top < minTop) {
-        top = minTop;
-      }
-  
-      if (top > maxTop) {
-        top = maxTop;
-      }
-  
-      if (left < minLeft) {
-        left = minLeft;
-      }
-  
-      if (left > maxLeft) {
-        left = maxLeft;
-      }
-  
-      $("#luckysheet-modal-dialog-activeImage").css({ left, top });
-    }
-    // image resize
-    else if (imageCtrl.resize) {
-      const mouse = mouseposition(event.pageX, event.pageY);
-      const scrollLeft = $("#luckysheet-cell-main").scrollLeft();
-      const scrollTop = $("#luckysheet-cell-main").scrollTop();
-      const x = mouse[0] + scrollLeft;
-      const y = mouse[1] + scrollTop;
-  
-      if (x < 0 || y < 0) {
-        return false;
-      }
-  
-      const { resizeXY } = imageCtrl;
-  
-      const topchange = y - resizeXY[1];
-      const leftchange = x - resizeXY[0];
-  
-      let top = resizeXY[5];
-      let height = resizeXY[3];
-      let left = resizeXY[4];
-      let width = resizeXY[2];
-  
-      const { resize } = imageCtrl;
-      const imgItem = imageCtrl.images[imageCtrl.currentImgId];
-  
-      if (imgItem.isFixedPos) {
-        const minTop =
-          ctx.infobarHeight +
-          ctx.toolbarHeight +
-          ctx.calculatebarHeight +
-          ctx.columnHeaderHeight;
-        const minLeft = ctx.rowHeaderWidth;
-  
-        if (resize == "lt") {
-          // 左上
-          left = resizeXY[4] - resizeXY[6] + leftchange;
-  
-          if (left < minLeft) {
-            left = minLeft;
-          }
-  
-          if (left > resizeXY[4] - resizeXY[6] + resizeXY[2] - 1) {
-            left = resizeXY[4] - resizeXY[6] + resizeXY[2] - 1;
-          }
-  
-          width = resizeXY[4] - resizeXY[6] + resizeXY[2] - left;
-  
-          height = Math.round(width * (resizeXY[3] / resizeXY[2]));
-          top = resizeXY[5] - resizeXY[7] + resizeXY[3] - height;
-  
-          if (top < minTop) {
-            top = minTop;
-            height = resizeXY[5] - resizeXY[7] + resizeXY[3] - top;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-            left = resizeXY[4] - resizeXY[6] + resizeXY[2] - width;
-          }
-  
-          if (top > resizeXY[5] - resizeXY[7] + resizeXY[3] - 1) {
-            top = resizeXY[5] - resizeXY[7] + resizeXY[3] - 1;
-            height = resizeXY[5] - resizeXY[7] + resizeXY[3] - top;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-            left = resizeXY[4] - resizeXY[6] + resizeXY[2] - width;
-          }
-        } else if (resize == "lm") {
-          // 左中
-          left = resizeXY[4] - resizeXY[6] + leftchange;
-  
-          if (left < minLeft) {
-            left = minLeft;
-          }
-  
-          if (left > resizeXY[4] - resizeXY[6] + resizeXY[2] - 1) {
-            left = resizeXY[4] - resizeXY[6] + resizeXY[2] - 1;
-          }
-  
-          width = resizeXY[4] - resizeXY[6] + resizeXY[2] - left;
-  
-          top = resizeXY[5] - resizeXY[7];
-          height = resizeXY[3];
-        } else if (resize == "lb") {
-          // 左下
-          left = resizeXY[4] - resizeXY[6] + leftchange;
-  
-          if (left < minLeft) {
-            left = minLeft;
-          }
-  
-          if (left > resizeXY[4] - resizeXY[6] + resizeXY[2] - 1) {
-            left = resizeXY[4] - resizeXY[6] + resizeXY[2] - 1;
-          }
-  
-          width = resizeXY[4] - resizeXY[6] + resizeXY[2] - left;
-  
-          height = Math.round(width * (resizeXY[3] / resizeXY[2]));
-  
-          top = resizeXY[5] - resizeXY[7];
-  
-          if (height < 1) {
-            height = 1;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-            left = resizeXY[4] - resizeXY[6] + resizeXY[2] - width;
-          }
-  
-          if (
-            height >
-            minTop + ctx.cellmainHeight - ctx.cellMainSrollBarSize - top
-          ) {
-            height = minTop + ctx.cellmainHeight - ctx.cellMainSrollBarSize - top;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-            left = resizeXY[4] - resizeXY[6] + resizeXY[2] - width;
-          }
-        } else if (resize == "rt") {
-          // 右上
-          left = resizeXY[4] - resizeXY[6];
-  
-          width = resizeXY[2] + leftchange;
-  
-          if (width < 1) {
-            width = 1;
-          }
-  
-          if (
-            width >
-            minLeft + ctx.cellmainWidth - ctx.cellMainSrollBarSize - left
-          ) {
-            width = minLeft + ctx.cellmainWidth - ctx.cellMainSrollBarSize - left;
-          }
-  
-          height = Math.round(width * (resizeXY[3] / resizeXY[2]));
-          top = resizeXY[5] - resizeXY[7] + resizeXY[3] - height;
-  
-          if (top < minTop) {
-            top = minTop;
-            height = resizeXY[5] - resizeXY[7] + resizeXY[3] - top;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-          }
-  
-          if (top > resizeXY[5] - resizeXY[7] + resizeXY[3] - 1) {
-            top = resizeXY[5] - resizeXY[7] + resizeXY[3] - 1;
-            height = resizeXY[5] - resizeXY[7] + resizeXY[3] - top;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-          }
-        } else if (resize == "rm") {
-          // 右中
-          left = resizeXY[4] - resizeXY[6];
-  
-          width = resizeXY[2] + leftchange;
-  
-          if (width < 1) {
-            width = 1;
-          }
-  
-          if (
-            width >
-            minLeft + ctx.cellmainWidth - ctx.cellMainSrollBarSize - left
-          ) {
-            width = minLeft + ctx.cellmainWidth - ctx.cellMainSrollBarSize - left;
-          }
-  
-          top = resizeXY[5] - resizeXY[7];
-          height = resizeXY[3];
-        } else if (resize == "rb") {
-          // 右下
-          left = resizeXY[4] - resizeXY[6];
-  
-          width = resizeXY[2] + leftchange;
-  
-          if (width < 1) {
-            width = 1;
-          }
-  
-          if (
-            width >
-            minLeft + ctx.cellmainWidth - ctx.cellMainSrollBarSize - left
-          ) {
-            width = minLeft + ctx.cellmainWidth - ctx.cellMainSrollBarSize - left;
-          }
-  
-          height = Math.round(width * (resizeXY[3] / resizeXY[2]));
-          top = resizeXY[5] - resizeXY[7];
-  
-          if (height < 1) {
-            height = 1;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-          }
-  
-          if (
-            height >
-            minTop + ctx.cellmainHeight - ctx.cellMainSrollBarSize - top
-          ) {
-            height = minTop + ctx.cellmainHeight - ctx.cellMainSrollBarSize - top;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-          }
-        } else if (resize == "mt") {
-          // 中上
-          left = resizeXY[4] - resizeXY[6];
-          width = resizeXY[2];
-  
-          top = resizeXY[5] - resizeXY[7] + topchange;
-  
-          if (top < minTop) {
-            top = minTop;
-          }
-  
-          if (top > resizeXY[5] - resizeXY[7] + resizeXY[3] - 1) {
-            top = resizeXY[5] - resizeXY[7] + resizeXY[3] - 1;
-          }
-  
-          height = resizeXY[5] - resizeXY[7] + resizeXY[3] - top;
-        } else if (resize == "mb") {
-          // 中下
-          left = resizeXY[4] - resizeXY[6];
-          width = resizeXY[2];
-  
-          top = resizeXY[5] - resizeXY[7];
-  
-          height = resizeXY[3] + topchange;
-  
-          if (height < 1) {
-            height = 1;
-          }
-  
-          if (
-            height >
-            minTop + ctx.cellmainHeight - ctx.cellMainSrollBarSize - top
-          ) {
-            height = minTop + ctx.cellmainHeight - ctx.cellMainSrollBarSize - top;
-          }
-        }
-      } else {
-        if (resize == "lt") {
-          // 左上
-          left = x;
-          width = resizeXY[2] - leftchange;
-  
-          if (left > resizeXY[2] + resizeXY[4] - 1) {
-            left = resizeXY[2] + resizeXY[4] - 1;
-            width = resizeXY[2] + resizeXY[0] - (resizeXY[2] + resizeXY[4] - 1);
-          } else if (left <= 0) {
-            left = 0;
-            width = resizeXY[2] + resizeXY[0];
-          }
-  
-          height = Math.round(width * (resizeXY[3] / resizeXY[2]));
-          top = resizeXY[3] + resizeXY[1] - height;
-  
-          if (top > resizeXY[3] + resizeXY[5] - 1) {
-            top = resizeXY[3] + resizeXY[5] - 1;
-            height = resizeXY[3] + resizeXY[1] - (resizeXY[3] + resizeXY[5] - 1);
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-            left = resizeXY[2] + resizeXY[0] - width;
-          } else if (top <= 0) {
-            top = 0;
-            height = resizeXY[3] + resizeXY[1];
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-            left = resizeXY[2] + resizeXY[0] - width;
-          }
-        } else if (resize == "lm") {
-          // 左中
-          left = x;
-          width = resizeXY[2] - leftchange;
-  
-          if (left > resizeXY[2] + resizeXY[4] - 1) {
-            left = resizeXY[2] + resizeXY[4] - 1;
-            width = resizeXY[2] + resizeXY[0] - (resizeXY[2] + resizeXY[4] - 1);
-          } else if (left <= 0) {
-            left = 0;
-            width = resizeXY[2] + resizeXY[0];
-          }
-        } else if (resize == "lb") {
-          // 左下
-          left = x;
-          width = resizeXY[2] - leftchange;
-  
-          if (left > resizeXY[2] + resizeXY[4] - 1) {
-            left = resizeXY[2] + resizeXY[4] - 1;
-            width = resizeXY[2] + resizeXY[0] - (resizeXY[2] + resizeXY[4] - 1);
-          } else if (left <= 0) {
-            left = 0;
-            width = resizeXY[2] + resizeXY[0];
-          }
-  
-          height = Math.round(width * (resizeXY[3] / resizeXY[2]));
-  
-          if (height < 1) {
-            height = 1;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-            left = resizeXY[2] + resizeXY[0] - width;
-          } else if (height >= imageCtrl.currentWinH - resizeXY[5] - 42 - 6) {
-            height = imageCtrl.currentWinH - resizeXY[5] - 42 - 6;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-            left = resizeXY[2] + resizeXY[0] - width;
-          }
-        } else if (resize == "rt") {
-          // 右上
-          width = resizeXY[2] + leftchange;
-  
-          if (width < 1) {
-            width = 1;
-          } else if (width >= imageCtrl.currentWinW - resizeXY[4] - 22 - 36) {
-            width = imageCtrl.currentWinW - resizeXY[4] - 22 - 36;
-          }
-  
-          height = Math.round(width * (resizeXY[3] / resizeXY[2]));
-          top = resizeXY[3] + resizeXY[1] - height;
-  
-          if (top > resizeXY[3] + resizeXY[5] - 1) {
-            top = resizeXY[3] + resizeXY[5] - 1;
-            height = resizeXY[3] + resizeXY[1] - (resizeXY[3] + resizeXY[5] - 1);
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-          } else if (top <= 0) {
-            top = 0;
-            height = resizeXY[3] + resizeXY[1];
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-          }
-        } else if (resize == "rm") {
-          // 右中
-          width = resizeXY[2] + leftchange;
-  
-          if (width < 1) {
-            width = 1;
-          } else if (width >= imageCtrl.currentWinW - resizeXY[4] - 22 - 36) {
-            width = imageCtrl.currentWinW - resizeXY[4] - 22 - 36;
-          }
-        } else if (resize == "rb") {
-          // 右下
-          width = resizeXY[2] + leftchange;
-  
-          if (width < 1) {
-            width = 1;
-          } else if (width >= imageCtrl.currentWinW - resizeXY[4] - 22 - 36) {
-            width = imageCtrl.currentWinW - resizeXY[4] - 22 - 36;
-          }
-  
-          height = Math.round(width * (resizeXY[3] / resizeXY[2]));
-  
-          if (height < 1) {
-            height = 1;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-          } else if (height >= imageCtrl.currentWinH - resizeXY[5] - 42 - 6) {
-            height = imageCtrl.currentWinH - resizeXY[5] - 42 - 6;
-  
-            width = Math.round(height * (resizeXY[2] / resizeXY[3]));
-          }
-        } else if (resize == "mt") {
-          // 中上
-          top = y;
-          height = resizeXY[3] - topchange;
-  
-          if (top > resizeXY[3] + resizeXY[5] - 1) {
-            top = resizeXY[3] + resizeXY[5] - 1;
-            height = resizeXY[3] + resizeXY[1] - (resizeXY[3] + resizeXY[5] - 1);
-          } else if (top <= 0) {
-            top = 0;
-            height = resizeXY[3] + resizeXY[1];
-          }
-        } else if (resize == "mb") {
-          // 中下
-          height = resizeXY[3] + topchange;
-  
-          if (height < 1) {
-            height = 1;
-          } else if (height >= imageCtrl.currentWinH - resizeXY[5] - 42 - 6) {
-            height = imageCtrl.currentWinH - resizeXY[5] - 42 - 6;
-          }
-        }
-      }
-  
-      $("#luckysheet-modal-dialog-activeImage").css({
-        width,
-        height,
-        left,
-        top,
-      });
-  
-      const scaleX = width / imgItem.crop.width;
-      const scaleY = height / imgItem.crop.height;
-      const defaultWidth = Math.round(imgItem.default.width * scaleX);
-      const defaultHeight = Math.round(imgItem.default.height * scaleY);
-      const offsetLeft = Math.round(imgItem.crop.offsetLeft * scaleX);
-      const offsetTop = Math.round(imgItem.crop.offsetTop * scaleY);
-  
-      $(
-        "#luckysheet-modal-dialog-activeImage .luckysheet-modal-dialog-content"
-      ).css({
-        "background-size": `${defaultWidth}px ${defaultHeight}px`,
-        "background-position": `${-offsetLeft}px ${-offsetTop}px`,
-      });
-    }
-    // image cropChange
-    else if (imageCtrl.cropChange) {
-      const mouse = mouseposition(event.pageX, event.pageY);
-      const x = mouse[0] + $("#luckysheet-cell-main").scrollLeft();
-      const y = mouse[1] + $("#luckysheet-cell-main").scrollTop();
-  
-      if (x < 0 || y < 0) {
-        return false;
-      }
-  
-      const { cropChangeXY } = imageCtrl;
-  
-      const topchange = y - cropChangeXY[1];
-      const leftchange = x - cropChangeXY[0];
-  
-      const imgItem = imageCtrl.images[imageCtrl.currentImgId];
-      const { cropChange } = imageCtrl;
-      let width;
-      let height;
-      let offsetLeft;
-      let offsetTop;
-  
-      if (cropChange == "lt") {
-        // 左上
-        offsetLeft = imgItem.crop.offsetLeft + leftchange;
-  
-        if (offsetLeft < 0) {
-          offsetLeft = 0;
-        }
-  
-        if (offsetLeft > imgItem.crop.width + imgItem.crop.offsetLeft - 1) {
-          offsetLeft = imgItem.crop.width + imgItem.crop.offsetLeft - 1;
-        }
-  
-        width = imgItem.crop.width + imgItem.crop.offsetLeft - offsetLeft;
-  
-        offsetTop = imgItem.crop.offsetTop + topchange;
-  
-        if (offsetTop < 0) {
-          offsetTop = 0;
-        }
-  
-        if (offsetTop > imgItem.crop.height + imgItem.crop.offsetTop - 1) {
-          offsetTop = imgItem.crop.height + imgItem.crop.offsetTop - 1;
-        }
-  
-        height = imgItem.crop.height + imgItem.crop.offsetTop - offsetTop;
-      } else if (cropChange == "lm") {
-        // 左中
-        offsetLeft = imgItem.crop.offsetLeft + leftchange;
-  
-        if (offsetLeft < 0) {
-          offsetLeft = 0;
-        }
-  
-        if (offsetLeft > imgItem.crop.width + imgItem.crop.offsetLeft - 1) {
-          offsetLeft = imgItem.crop.width + imgItem.crop.offsetLeft - 1;
-        }
-  
-        width = imgItem.crop.width + imgItem.crop.offsetLeft - offsetLeft;
-  
-        offsetTop = imgItem.crop.offsetTop;
-        height = imgItem.crop.height;
-      } else if (cropChange == "lb") {
-        // 左下
-        offsetLeft = imgItem.crop.offsetLeft + leftchange;
-  
-        if (offsetLeft < 0) {
-          offsetLeft = 0;
-        }
-  
-        if (offsetLeft > imgItem.crop.width + imgItem.crop.offsetLeft - 1) {
-          offsetLeft = imgItem.crop.width + imgItem.crop.offsetLeft - 1;
-        }
-  
-        width = imgItem.crop.width + imgItem.crop.offsetLeft - offsetLeft;
-  
-        offsetTop = imgItem.crop.offsetTop;
-  
-        height = imgItem.crop.height + topchange;
-  
-        if (height < 1) {
-          height = 1;
-        }
-  
-        if (height > imgItem.default.height - offsetTop) {
-          height = imgItem.default.height - offsetTop;
-        }
-      } else if (cropChange == "rt") {
-        // 右上
-        offsetLeft = imgItem.crop.offsetLeft;
-  
-        width = imgItem.crop.width + leftchange;
-  
-        if (width < 1) {
-          width = 1;
-        }
-  
-        if (width > imgItem.default.width - offsetLeft) {
-          width = imgItem.default.width - offsetLeft;
-        }
-  
-        offsetTop = imgItem.crop.offsetTop + topchange;
-  
-        if (offsetTop < 0) {
-          offsetTop = 0;
-        }
-  
-        if (offsetTop > imgItem.crop.height + imgItem.crop.offsetTop - 1) {
-          offsetTop = imgItem.crop.height + imgItem.crop.offsetTop - 1;
-        }
-  
-        height = imgItem.crop.height + imgItem.crop.offsetTop - offsetTop;
-      } else if (cropChange == "rm") {
-        // 右中
-        offsetLeft = imgItem.crop.offsetLeft;
-  
-        width = imgItem.crop.width + leftchange;
-  
-        if (width < 1) {
-          width = 1;
-        }
-  
-        if (width > imgItem.default.width - offsetLeft) {
-          width = imgItem.default.width - offsetLeft;
-        }
-  
-        offsetTop = imgItem.crop.offsetTop;
-        height = imgItem.crop.height;
-      } else if (cropChange == "rb") {
-        // 右下
-        offsetLeft = imgItem.crop.offsetLeft;
-  
-        width = imgItem.crop.width + leftchange;
-  
-        if (width < 1) {
-          width = 1;
-        }
-  
-        if (width > imgItem.default.width - offsetLeft) {
-          width = imgItem.default.width - offsetLeft;
-        }
-  
-        offsetTop = imgItem.crop.offsetTop;
-  
-        height = imgItem.crop.height + topchange;
-  
-        if (height < 1) {
-          height = 1;
-        }
-  
-        if (height > imgItem.default.height - offsetTop) {
-          height = imgItem.default.height - offsetTop;
-        }
-      } else if (cropChange == "mt") {
-        // 中上
-        offsetLeft = imgItem.crop.offsetLeft;
-        width = imgItem.crop.width;
-  
-        offsetTop = imgItem.crop.offsetTop + topchange;
-  
-        if (offsetTop < 0) {
-          offsetTop = 0;
-        }
-  
-        if (offsetTop > imgItem.crop.height + imgItem.crop.offsetTop - 1) {
-          offsetTop = imgItem.crop.height + imgItem.crop.offsetTop - 1;
-        }
-  
-        height = imgItem.crop.height + imgItem.crop.offsetTop - offsetTop;
-      } else if (cropChange == "mb") {
-        // 中下
-        offsetLeft = imgItem.crop.offsetLeft;
-        width = imgItem.crop.width;
-  
-        offsetTop = imgItem.crop.offsetTop;
-  
-        height = imgItem.crop.height + topchange;
-  
-        if (height < 1) {
-          height = 1;
-        }
-  
-        if (height > imgItem.default.height - offsetTop) {
-          height = imgItem.default.height - offsetTop;
-        }
-      }
-  
-      let left = imgItem.default.left + offsetLeft;
-      let top = imgItem.default.top + offsetTop;
-  
-      if (imgItem.isFixedPos) {
-        left = imgItem.fixedLeft + offsetLeft;
-        top = imgItem.fixedTop + offsetTop;
-      }
-  
-      $("#luckysheet-modal-dialog-cropping").show().css({
-        width,
-        height,
-        left,
-        top,
-      });
-  
-      const imageUrlHandle =
-        ctx.toJsonOptions && ctx.toJsonOptions.imageUrlHandle;
-      const imgSrc =
-        typeof imageUrlHandle === "function"
-          ? imageUrlHandle(imgItem.src)
-          : imgItem.src;
-  
-      $("#luckysheet-modal-dialog-cropping .cropping-mask").css({
-        width: imgItem.default.width,
-        height: imgItem.default.height,
-        "background-image": `url(${imgSrc})`,
-        left: -offsetLeft,
-        top: -offsetTop,
-      });
-  
-      $("#luckysheet-modal-dialog-cropping .cropping-content").css({
-        "background-image": `url(${imgSrc})`,
-        "background-size": `${imgItem.default.width}px ${imgItem.default.height}px`,
-        "background-position": `${-offsetLeft}px ${-offsetTop}px`,
-      });
-  
-      imageCtrl.cropChangeObj = {
-        width,
-        height,
-        offsetLeft,
-        offsetTop,
-      };
-    } else if (formula.rangeResize) {
-      formula.rangeResizeDraging(
-        event,
-        formula.rangeResizeObj,
-        formula.rangeResizexy,
-        formula.rangeResize,
-        formula.rangeResizeWinW,
-        formula.rangeResizeWinH,
-        ctx.ch_width,
-        ctx.rh_height
-      );
-    } else if (formula.rangeMove) {
-      formula.rangeMoveDraging(
-        event,
-        formula.rangeMovexy,
-        formula.rangeMoveObj.data("range"),
-        formula.rangeMoveObj,
-        ctx.sheetBarHeight,
-        ctx.statisticBarHeight
-      );
-    } else if (ctx.chart_selection.rangeResize) {
-      ctx.chart_selection.rangeResizeDraging(
-        event,
-        ctx.sheetBarHeight,
-        ctx.statisticBarHeight
-      );
-    } else if (ctx.chart_selection.rangeMove) {
-      ctx.chart_selection.rangeMoveDraging(
-        event,
-        ctx.sheetBarHeight,
-        ctx.statisticBarHeight
-      );
-    }
-    */
 
   // ctx.jfautoscrollTimeout = window.requestAnimationFrame(mouseRender);
 }
@@ -3304,10 +2291,9 @@ export function handleOverlayMouseMove(
   if (onImageMove(ctx, globalCache, e)) return;
   if (onImageResize(ctx, globalCache, e)) return;
   onCellsMove(ctx, globalCache, e, scrollX, scrollY, container);
-  overShowComment(ctx, e, scrollX, scrollY, container); // 有批注显示
+  overShowComment(ctx, e, scrollX, scrollY, container);
   onSearchDialogMove(globalCache, e);
   onRangeSelectionModalMove(globalCache, e);
-  // hyperlinkCtrl.overshow(event); // 链接提示显示
 
   // window.cancelAnimationFrame(ctx.jfautoscrollTimeout);
 
@@ -3660,7 +2646,7 @@ export function handleOverlayMouseUp(
 ) {
   const rect = container.getBoundingClientRect();
   endReferenceDrag(ctx);
-  // 批注框 移动结束
+
   onImageMoveEnd(ctx, globalCache);
   onImageResizeEnd(ctx, globalCache);
   onCommentBoxMoveEnd(ctx, globalCache);
@@ -3758,17 +2744,15 @@ export function handleOverlayMouseUp(
   //   // }
   // }
 
-  // 数据窗格主体
   if (ctx.luckysheet_select_status) {
     // clearTimeout(ctx.countfuncTimeout);
     // ctx.countfuncTimeout = setTimeout(function () {
     //   countfunc();
     // }, 0);
-    // 格式刷
+
     if (ctx.luckysheetPaintModelOn) {
       pasteHandlerOfPaintModel(ctx, ctx.luckysheet_copy_save);
       if (ctx.luckysheetPaintSingle) {
-        // 单次 格式刷
         cancelPaintModel(ctx);
       }
     }
@@ -3787,237 +2771,12 @@ export function handleOverlayMouseUp(
   //   "#luckysheet-cell-main, #luckysheetTableContent, #luckysheet-sheettable_0"
   // ).css("cursor", "default");
 
-  // 行标题窗格主体
   ctx.luckysheet_rows_selected_status = false;
 
-  // 列标题窗格主体
   ctx.luckysheet_cols_selected_status = false;
 
   ctx.luckysheet_model_move_state = false;
 
-  /*
-    if (formula.functionResizeStatus) {
-      formula.functionResizeStatus = false;
-      $("#luckysheet-wa-calculate-size").removeAttr("style");
-    }
-  
-    if (luckysheetFreezen.horizontalmovestate) {
-      luckysheetFreezen.horizontalmovestate = false;
-      $("#luckysheet-freezebar-horizontal").removeClass(
-        "luckysheet-freezebar-active"
-      );
-      $("#luckysheet-freezebar-horizontal")
-        .find(".luckysheet-freezebar-horizontal-handle")
-        .css("cursor", "-webkit-grab");
-      if (
-        luckysheetFreezen.freezenhorizontaldata[4] <= ctx.columnHeaderHeight
-      ) {
-        luckysheetFreezen.cancelFreezenHorizontal();
-      }
-      luckysheetFreezen.createAssistCanvas();
-      luckysheetrefreshgrid();
-    }
-  
-    if (luckysheetFreezen.verticalmovestate) {
-      luckysheetFreezen.verticalmovestate = false;
-      $("#luckysheet-freezebar-vertical").removeClass(
-        "luckysheet-freezebar-active"
-      );
-      $("#luckysheet-freezebar-vertical")
-        .find(".luckysheet-freezebar-vertical-handle")
-        .css("cursor", "-webkit-grab");
-      if (luckysheetFreezen.freezenverticaldata[4] <= ctx.rowHeaderWidth) {
-        luckysheetFreezen.cancelFreezenVertical();
-      }
-      luckysheetFreezen.createAssistCanvas();
-      luckysheetrefreshgrid();
-    }
-  
-    if (!!pivotTable && pivotTable.movestate) {
-      $("#luckysheet-modal-dialog-slider-pivot-move").remove();
-      pivotTable.movestate = false;
-      $(
-        "#luckysheet-modal-dialog-pivotTable-list, #luckysheet-modal-dialog-config-filter, #luckysheet-modal-dialog-config-row, #luckysheet-modal-dialog-config-column, #luckysheet-modal-dialog-config-value"
-      ).css("cursor", "default");
-      if (
-        pivotTable.movesave.containerid !=
-        "luckysheet-modal-dialog-pivotTable-list"
-      ) {
-        const $cur = $(event.target).closest(
-          ".luckysheet-modal-dialog-slider-config-list"
-        );
-        if ($cur.length == 0) {
-          if (
-            pivotTable.movesave.containerid ==
-            "luckysheet-modal-dialog-config-value"
-          ) {
-            pivotTable.resetOrderby(pivotTable.movesave.obj);
-          }
-  
-          pivotTable.movesave.obj.remove();
-          pivotTable.showvaluecolrow();
-          $("#luckysheet-modal-dialog-pivotTable-list")
-            .find(".luckysheet-modal-dialog-slider-list-item")
-            .each(function () {
-              $(this)
-                .find(".luckysheet-slider-list-item-selected")
-                .find("i")
-                .remove();
-            });
-  
-          $(
-            "#luckysheet-modal-dialog-config-filter, #luckysheet-modal-dialog-config-row, #luckysheet-modal-dialog-config-column, #luckysheet-modal-dialog-config-value"
-          )
-            .find(".luckysheet-modal-dialog-slider-config-item")
-            .each(function () {
-              const index = $(this).data("index");
-  
-              $("#luckysheet-modal-dialog-pivotTable-list")
-                .find(".luckysheet-modal-dialog-slider-list-item")
-                .each(function () {
-                  const $seleted = $(this).find(
-                    ".luckysheet-slider-list-item-selected"
-                  );
-                  if (
-                    $(this).data("index") == index &&
-                    $seleted.find("i").length == 0
-                  ) {
-                    $seleted.append(
-                      '<i class="fa fa-check luckysheet-mousedown-cancel"></i>'
-                    );
-                  }
-                });
-            });
-  
-          pivotTable.refreshPivotTable();
-        }
-      }
-    }
-  
-    if (ctx.luckysheet_sheet_move_status) {
-      ctx.luckysheet_sheet_move_status = false;
-      ctx.luckysheet_sheet_move_data.activeobject.insertBefore(
-        $("#luckysheet-sheets-item-clone")
-      );
-      ctx.luckysheet_sheet_move_data.activeobject.removeAttr("style");
-      $("#luckysheet-sheets-item-clone").remove();
-      ctx.luckysheet_sheet_move_data.cursorobject.css({ cursor: "pointer" });
-      ctx.luckysheet_sheet_move_data = {};
-      sheetmanage.reOrderAllSheet();
-    }
-  
-    // chart move debounce timer clear
-    clearTimeout(ctx.chartparam.luckysheetCurrentChartMoveTimeout);
-  
-    // 图表拖动 chartMix
-    if (ctx.chartparam.luckysheetCurrentChartMove) {
-      ctx.chartparam.luckysheetCurrentChartMove = false;
-      if (ctx.chartparam.luckysheetInsertChartTosheetChange) {
-        // myTop, myLeft: 本次的chart框位置，scrollLeft,scrollTop: 上一次的滚动条位置
-        var myTop = ctx.chartparam.luckysheetCurrentChartMoveObj.css("top");
-        var myLeft = ctx.chartparam.luckysheetCurrentChartMoveObj.css("left");
-        var scrollLeft = $("#luckysheet-cell-main").scrollLeft();
-        var scrollTop = $("#luckysheet-cell-main").scrollTop();
-  
-        // 点击时候存储的信息，即上一次操作结束的图表信息，x,y: chart框位置，scrollLeft1,scrollTop1: 滚动条位置
-        var x = ctx.chartparam.luckysheetCurrentChartMoveXy[2];
-        var y = ctx.chartparam.luckysheetCurrentChartMoveXy[3];
-  
-        var scrollLeft1 = ctx.chartparam.luckysheetCurrentChartMoveXy[4];
-        var scrollTop1 = ctx.chartparam.luckysheetCurrentChartMoveXy[5];
-  
-        var chart_id = ctx.chartparam.luckysheetCurrentChartMoveObj
-          .find(".luckysheet-modal-dialog-content")
-          .attr("id");
-  
-        // 去除chartobj,改用chart_id代替即可定位到此图表
-        ctx.jfredo.push({
-          type: "moveChart",
-          chart_id,
-          sheetId: ctx.currentSheetId,
-          myTop,
-          myLeft,
-          scrollTop,
-          scrollLeft,
-          x,
-          y,
-          scrollTop1,
-          scrollLeft1,
-        });
-  
-        // luckysheet.sheetmanage.saveChart({ "chart_id": chart_id, "sheetId": sheetId, "top": myTop, "left": myLeft });
-        // 存储滚动条位置//协同编辑时可能影响用户操作，可以考虑不存储滚动条位置,或者滚动条信息仅仅保存到后台，但是不分发到其他设备（google sheet没有存储滚动条位置）
-        // ctx.server.saveParam("c", sheetId, { "left":myLeft, "top":myTop,"scrollTop": scrollTop, "scrollLeft": scrollLeft }, { "op":"xy", "cid": chart_id});
-      }
-    }
-  
-    // 图表改变大小 chartMix
-    if (ctx.chartparam.luckysheetCurrentChartResize) {
-      ctx.chartparam.luckysheetCurrentChartResize = null;
-      if (ctx.chartparam.luckysheetInsertChartTosheetChange) {
-        const myHeight =
-          ctx.chartparam.luckysheetCurrentChartResizeObj.height();
-        const myWidth = ctx.chartparam.luckysheetCurrentChartResizeObj.width();
-        var scrollLeft = $("#luckysheet-cell-main").scrollLeft();
-        var scrollTop = $("#luckysheet-cell-main").scrollTop();
-  
-        var myTop = ctx.chartparam.luckysheetCurrentChartMoveObj.css("top");
-        var myLeft = ctx.chartparam.luckysheetCurrentChartMoveObj.css("left");
-  
-        var chart_id = ctx.chartparam.luckysheetCurrentChartResizeObj
-          .find(".luckysheet-modal-dialog-content")
-          .attr("id");
-  
-        const myWidth1 = ctx.chartparam.luckysheetCurrentChartResizeXy[2];
-        const myHeight1 = ctx.chartparam.luckysheetCurrentChartResizeXy[3];
-        var x = ctx.chartparam.luckysheetCurrentChartResizeXy[4]; // 增加上一次的位置x，y
-        var y = ctx.chartparam.luckysheetCurrentChartResizeXy[5];
-        var scrollLeft1 = ctx.chartparam.luckysheetCurrentChartResizeXy[6];
-        var scrollTop1 = ctx.chartparam.luckysheetCurrentChartResizeXy[7];
-  
-        ctx.jfredo.push({
-          type: "resizeChart",
-          chart_id,
-          sheetId: ctx.currentSheetId,
-          myTop,
-          myLeft,
-          myHeight,
-          myWidth,
-          scrollTop,
-          scrollLeft,
-          x,
-          y,
-          myWidth1,
-          myHeight1,
-          scrollTop1,
-          scrollLeft1,
-        });
-  
-        // 加上滚动条的位置
-        // luckysheet.sheetmanage.saveChart({ "chart_id": chart_id, "sheetId": sheetId, "height": myHeight, "width": myWidth, "top": myTop, "left": myLeft, "scrollTop": scrollTop, "scrollLeft": scrollLeft });
-  
-        // ctx.server.saveParam("c", sheetId, { "width":myWidth, "height":myHeight, "top": myTop, "left": myLeft, "scrollTop": scrollTop, "scrollLeft": scrollLeft}, { "op":"wh", "cid": chart_id});
-      }
-    }
-  
-    if (formula.rangeResize) {
-      formula.rangeResizeDragged(
-        event,
-        formula.rangeResizeObj,
-        formula.rangeResize,
-        formula.rangeResizexy,
-        formula.rangeResizeWinW,
-        formula.rangeResizeWinH
-      );
-    }
-    
-    // image cropChange
-    if (imageCtrl.cropChange) {
-      imageCtrl.cropChangeImgItem();
-    }
-    */
-
-  // 改变行高
   if (ctx.luckysheet_rows_change_size) {
     ctx.luckysheet_rows_change_size = false;
     const [startY, changeRowIndex] = ctx.luckysheet_rows_change_size_start;
@@ -4066,7 +2825,6 @@ export function handleOverlayMouseUp(
     }
   }
 
-  // 改变列宽
   if (ctx.luckysheet_cols_change_size) {
     ctx.luckysheet_cols_change_size = false;
     const [startX, changeColumnIndex] = ctx.luckysheet_cols_change_size_start;
@@ -4114,7 +2872,6 @@ export function handleOverlayMouseUp(
     }
   }
 
-  // 列冻结拖动结束
   if (ctx.luckysheet_cols_freeze_drag) {
     ctx.luckysheet_cols_freeze_drag = false;
 
@@ -4168,7 +2925,6 @@ export function handleOverlayMouseUp(
     }
   }
 
-  // 行冻结拖动结束
   if (ctx.luckysheet_rows_freeze_drag) {
     ctx.luckysheet_rows_freeze_drag = false;
 
@@ -4220,19 +2976,6 @@ export function handleOverlayMouseUp(
   //   formula.rangeMoveDragged(formula.rangeMoveObj);
   // }
 
-  /*
-    // 图表选区拖拽移动
-    if (ctx.chart_selection.rangeMove) {
-      ctx.chart_selection.rangeMoveDragged();
-    }
-  
-    // 图表选区拖拽拉伸
-    if (ctx.chart_selection.rangeResize) {
-      ctx.chart_selection.rangeResizeDragged();
-    }
-    */
-
-  // 选区下拉
   if (ctx.luckysheet_cell_selected_extend) {
     onDropCellSelectEnd(
       ctx,
@@ -4254,10 +2997,9 @@ export function handleRowHeaderMouseDown(
   if (!checkProtectionAllSelected(ctx, ctx.currentSheetId)) {
     return;
   }
-  // 有批注在编辑时
+
   removeEditingComment(ctx, globalCache);
 
-  // 图片 active/cropping
   // if (
   //   $("#luckysheet-modal-dialog-activeImage").is(":visible") ||
   //   $("#luckysheet-modal-dialog-cropping").is(":visible")
@@ -4283,9 +3025,7 @@ export function handleRowHeaderMouseDown(
   // $("#luckysheet-rightclick-menu").hide();
   // $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide();
 
-  // mousedown是右键
   if (e.button === 2) {
-    // 如果右键在选区内, 停止mousedown处理
     const flowdata = getFlowdata(ctx);
     const isInSelection = _.some(
       ctx.luckysheet_select_save,
@@ -4305,7 +3045,6 @@ export function handleRowHeaderMouseDown(
 
   ctx.luckysheet_scroll_status = true;
 
-  // 公式相关
   if (!_.isEmpty(ctx.luckysheetCellUpdate)) {
     // Point mode: clicking a row header puts `2:2` into the formula
     const [editor, copyTo] = activeEditors(cellInput, fxInput);
@@ -4339,10 +3078,9 @@ export function handleRowHeaderMouseDown(
 
   if (ctx.luckysheet_rows_selected_status) {
     if (e.shiftKey) {
-      // 按住shift点击行索引选取范围
       const last = _.cloneDeep(
         ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1]
-      ); // 选区最后一个
+      );
       if (
         !last ||
         _.isNil(last.top) ||
@@ -4425,16 +3163,12 @@ export function handleRowHeaderMouseDown(
         column_focus: 0,
         row_select: true,
       });
-      /**
-       * 令ctx.luckysheet_select_status = true，当鼠标按下的时候还可以继续选择
-       * 令ctx.luckysheet_scroll_status = true，可以多选的时候进行下滑滑动条
-       * 当luckysheet_select_status为true的时候，就会执行mouse.ts中的mouseRender
-       */
+
       ctx.luckysheet_select_status = true;
       ctx.luckysheet_scroll_status = true;
     }
     // selectHightlightShow();
-    // 允许编辑后的后台更新时
+
     // server.saveParam("mv", ctx.currentSheetId, ctx.luckysheet_select_save);
   }
 }
@@ -4450,10 +3184,9 @@ export function handleColumnHeaderMouseDown(
   if (!checkProtectionAllSelected(ctx, ctx.currentSheetId)) {
     return;
   }
-  // 有批注在编辑时
+
   removeEditingComment(ctx, globalCache);
 
-  // 图片 active/cropping
   // if (
   //   $("#luckysheet-modal-dialog-activeImage").is(":visible") ||
   //   $("#luckysheet-modal-dialog-cropping").is(":visible")
@@ -4475,13 +3208,12 @@ export function handleColumnHeaderMouseDown(
   const col_pre = col_location[0];
   const col_index = col_location[2];
 
-  ctx.orderbyindex = col_index; // 排序全局函数
+  ctx.orderbyindex = col_index;
 
   // $("#luckysheet-rightclick-menu").hide();
   // $("#luckysheet-sheet-list, #luckysheet-rightclick-sheet-menu").hide();
   // $("#luckysheet-filter-menu, #luckysheet-filter-submenu").hide();
 
-  // mousedown是右键
   if (e.button === 2) {
     const flowdata = getFlowdata(ctx);
     const isInSelection = _.some(
@@ -4502,7 +3234,6 @@ export function handleColumnHeaderMouseDown(
 
   ctx.luckysheet_scroll_status = true;
 
-  // 公式相关
   if (!_.isEmpty(ctx.luckysheetCellUpdate)) {
     // Point mode: clicking a column header puts `B:B` into the formula
     const [editor, copyTo] = activeEditors(cellInput, fxInput);
@@ -4536,10 +3267,9 @@ export function handleColumnHeaderMouseDown(
 
   if (ctx.luckysheet_cols_selected_status) {
     if (e.shiftKey) {
-      // 按住shift点击列索引选取范围
       const last = _.cloneDeep(
         ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1]
-      ); // 选区最后一个
+      );
 
       let _left = 0;
       let _width = 0;
@@ -4586,7 +3316,6 @@ export function handleColumnHeaderMouseDown(
       ctx.luckysheet_select_save![ctx.luckysheet_select_save!.length - 1] =
         last;
     } else if (e.ctrlKey || e.metaKey) {
-      // 选区添加
       ctx.luckysheet_select_save?.push({
         left,
         width,
@@ -4625,18 +3354,13 @@ export function handleColumnHeaderMouseDown(
         column_focus: col_index,
         column_select: true,
       });
-      /**
-       * 令ctx.luckysheet_select_status = true，当鼠标按下的时候还可以继续选择
-       * 令ctx.luckysheet_scroll_status = true，可以多选的时候进行下滑滑动条
-       * 当luckysheet_select_status为true的时候，就会执行mouse.ts中的mouseRender
-       */
+
       ctx.luckysheet_select_status = true;
       ctx.luckysheet_scroll_status = true;
     }
 
     // selectHightlightShow();
 
-    // // 允许编辑后的后台更新时
     // server.saveParam("mv", ctx.currentSheetId, ctx.luckysheet_select_save);
   }
 }
@@ -4666,7 +3390,6 @@ export function handleColSizeHandleMouseDown(
   cellArea: HTMLDivElement,
   index?: number
 ) {
-  // //有批注在编辑时
   removeEditingComment(ctx, globalCache);
   cancelActiveImgItem(ctx, globalCache);
 
@@ -4710,7 +3433,6 @@ export function handleRowSizeHandleMouseDown(
   cellArea: HTMLDivElement,
   index?: number
 ) {
-  // 有批注在编辑时
   removeEditingComment(ctx, globalCache);
   cancelActiveImgItem(ctx, globalCache);
 
@@ -4760,7 +3482,6 @@ export function handleColFreezeHandleMouseDown(
   workbookContainer: HTMLDivElement,
   cellArea: HTMLDivElement
 ) {
-  // 有批注在编辑时
   removeEditingComment(ctx, globalCache);
   cancelActiveImgItem(ctx, globalCache);
 
@@ -4815,7 +3536,6 @@ export function handleRowFreezeHandleMouseDown(
   workbookContainer: HTMLDivElement,
   cellArea: HTMLDivElement
 ) {
-  // 有批注在编辑时
   removeEditingComment(ctx, globalCache);
   cancelActiveImgItem(ctx, globalCache);
 

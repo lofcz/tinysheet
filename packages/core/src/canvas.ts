@@ -51,7 +51,6 @@ export const defaultStyle = {
   textAlign: "center",
 };
 
-// 是否是纯数字
 function isRealNum(val: any) {
   return !Number.isNaN(Number(val));
 }
@@ -315,7 +314,7 @@ export class Canvas {
     const headerFont = this.headerFont();
     renderCtx.font = headerFont;
     // @ts-ignore
-    renderCtx.textBaseline = defaultStyle.textBaseline; // 基准线 垂直居中
+    renderCtx.textBaseline = defaultStyle.textBaseline;
     renderCtx.fillStyle = defaultStyle.fillStyle;
 
     let dataset_row_st;
@@ -355,7 +354,7 @@ export class Canvas {
 
       const firstOffset = dataset_row_st === r ? -2 : 0;
       const lastOffset = dataset_row_ed === r ? -2 : 0;
-      // 行标题单元格渲染前触发，return false 则不渲染该单元格
+
       if (
         this.sheetCtx.hooks.beforeRenderRowHeaderCell?.(
           `${r + 1}`,
@@ -391,7 +390,6 @@ export class Canvas {
               ? theme.headerSelectedText
               : theme.headerText;
 
-        // 行标题栏序列号 (the label, centred on whole device pixels)
         renderCtx.save(); // save scale before draw text
         renderCtx.scale(zoomRatio, zoomRatio);
         const textMetrics = getMeasureText(
@@ -424,7 +422,6 @@ export class Canvas {
       renderCtx.lineTo(rowHeaderWidth - 2 + bodrder05, end_r + offsetTop - 2);
       renderCtx.stroke();
 
-      // 行标题栏横线,horizen (a hidden row below shows as a double line)
       if (rowhidden && rowhidden[r] == null && rowhidden[r + 1] != null) {
         renderCtx.beginPath();
         renderCtx.moveTo(-1, end_r + offsetTop - 4 + bodrder05);
@@ -501,7 +498,7 @@ export class Canvas {
     const headerFont = this.headerFont();
     renderCtx.font = headerFont;
     // @ts-ignore
-    renderCtx.textBaseline = defaultStyle.textBaseline; // 基准线 垂直居中
+    renderCtx.textBaseline = defaultStyle.textBaseline;
     renderCtx.fillStyle = defaultStyle.fillStyle;
 
     let dataset_col_st;
@@ -542,7 +539,7 @@ export class Canvas {
       end_c = this.sheetCtx.visibledatacolumn[c] - scrollWidth;
 
       const abc = indexToColumnChar(c);
-      // 列标题单元格渲染前触发，return false 则不渲染该单元格
+
       if (
         this.sheetCtx.hooks.beforeRenderColumnHeaderCell?.(
           abc,
@@ -578,7 +575,6 @@ export class Canvas {
               ? theme.headerSelectedText
               : theme.headerText;
 
-        // 列标题栏序列号 (the label, centred on whole device pixels)
         renderCtx.save(); // save scale before draw text
         renderCtx.scale(zoomRatio, zoomRatio);
 
@@ -609,7 +605,6 @@ export class Canvas {
       renderCtx.lineWidth = 1;
       renderCtx.strokeStyle = theme.headerLine;
 
-      // 列标题栏竖线 vertical (a hidden column shows as a double line)
       if (colhidden && colhidden[c] != null && colhidden[c + 1] != null) {
         renderCtx.beginPath();
         renderCtx.moveTo(end_c + offsetLeft - 4 + bodrder05, 0);
@@ -702,7 +697,6 @@ export class Canvas {
       return;
     }
 
-    // 参数未定义处理
     if (drawWidth === undefined) {
       [drawWidth] = this.sheetCtx.luckysheetTableContentHW;
     }
@@ -724,7 +718,6 @@ export class Canvas {
       rowOffsetCell = 0;
     }
 
-    // //表格canvas
     // let renderCtx = null;
     // if (_.isNil(mycanvas)) {
     //   renderCtx = $("#renderCtx")
@@ -760,7 +753,6 @@ export class Canvas {
       );
     }
 
-    // 表格渲染区域, 起止行列index
     let rowStart: number;
     let rowEnd: number;
     let colStart: number;
@@ -810,11 +802,9 @@ export class Canvas {
       colEnd = this.sheetCtx.visibledatacolumn.length - 1;
     }
 
-    // 表格渲染区域 起止行列坐标
     const rowEndY = this.sheetCtx.visibledatarow[rowEnd];
     const colEndX = this.sheetCtx.visibledatacolumn[colEnd];
 
-    // 表格canvas 初始化处理
     renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).cellBackground;
     renderCtx.fillRect(
       offsetLeft - 1,
@@ -828,7 +818,6 @@ export class Canvas {
     );
     renderCtx.fillStyle = defaultStyle.fillStyle;
 
-    // 表格渲染区域 非空单元格行列 起止坐标
     const cellupdate: {
       r: number;
       c: number;
@@ -964,7 +953,6 @@ export class Canvas {
       }
     }
 
-    // 动态数组公式计算
     // const dynamicArrayCompute = dynamicArrayCompute(
     //   this.sheetCtx.luckysheetfile[
     //     getSheetIndex(this.sheetCtx.currentSheetId)
@@ -972,15 +960,12 @@ export class Canvas {
     // );
     const dynamicArrayCompute: any = {};
 
-    // 交替颜色计算
     // const afCompute = alternateformat.getComputeMap();
     const afCompute: any = {};
 
-    // 条件格式计算
     // const cfCompute = conditionformat.getComputeMap();
     const cfCompute: any = getComputeMap(this.sheetCtx);
 
-    // 表格渲染区域 溢出单元格配置保存
     const cellOverflowMap = this.getCellOverflowMap(
       renderCtx,
       colStart,
@@ -1005,7 +990,6 @@ export class Canvas {
       }
 
       if (_.isNil(flowdata[r][c])) {
-        // 空单元格
         this.nullCellRender(
           r,
           c,
@@ -1059,7 +1043,6 @@ export class Canvas {
             bodrder05
           );
 
-          // sparklines渲染
           // const borderfix = getBorderFix(flowdata, r, c);
           // const cellsize = [
           //   startX + offsetLeft + borderfix[0],
@@ -1077,7 +1060,6 @@ export class Canvas {
           // );
         } else {
           if (`${r}_${c}` in dynamicArrayCompute) {
-            // 动态数组公式
             value = dynamicArrayCompute[`${r}_${c}`].v;
           }
 
@@ -1129,7 +1111,6 @@ export class Canvas {
       mcArr.push({ r, c });
     }
 
-    // 合并单元格再处理
     for (let m = 0; m < mcArr.length; m += 1) {
       const item = mcArr[m];
       let { r } = item;
@@ -1196,7 +1177,6 @@ export class Canvas {
           true
         );
 
-        // sparklines渲染
         // const borderfix = getBorderFix(flowdata, r, c);
         // const cellsize = [
         //   startX + offsetLeft + borderfix[0],
@@ -1214,7 +1194,6 @@ export class Canvas {
         // );
       } else {
         if (`${r}_${c}` in dynamicArrayCompute) {
-          // 动态数组公式
           value = dynamicArrayCompute[`${r}_${c}`].v;
         }
         this.cellRender(
@@ -1242,121 +1221,10 @@ export class Canvas {
       }
     }
 
-    // 数据透视表边框渲染
-    /*
-    for (let r = rowStart; r <= rowEnd; r += 1) {
-      let startY;
-      if (r === 0) {
-        startY = -scrollHeight - 1;
-      } else {
-        startY = this.sheetCtx.visibledatarow[r - 1] - scrollHeight - 1;
-      }
-
-      const endY = this.sheetCtx.visibledatarow[r] - scrollHeight;
-
-      for (let c = colStart; c <= colEnd; c += 1) {
-        let startX;
-        if (c === 0) {
-          startX = -scrollWidth;
-        } else {
-          startX = this.sheetCtx.visibledatacolumn[c - 1] - scrollWidth;
-        }
-
-        const endX = this.sheetCtx.visibledatacolumn[c] - scrollWidth;
-
-        // 数据透视表
-        if (
-          !!this.sheetCtx.luckysheetcurrentisPivotTable &&
-          pivotTable.drawPivotTable
-        ) {
-          if ((c === 0 || c === 5) && r <= 11) {
-            renderCtx.beginPath();
-            renderCtx.moveTo(
-              endX - 2 + bodrder05 + offsetLeft,
-              startY + offsetTop
-            );
-            renderCtx.lineTo(
-              endX - 2 + bodrder05 + offsetLeft,
-              endY - 2 + bodrder05 + offsetTop
-            );
-            renderCtx.lineWidth = 1;
-            renderCtx.strokeStyle = "#000000";
-            renderCtx.closePath();
-            renderCtx.stroke();
-          }
-
-          if ((r === 2 || r === 11) && c <= 5) {
-            renderCtx.beginPath();
-            renderCtx.moveTo(
-              startX - 1 + offsetLeft,
-              endY - 2 + bodrder05 + offsetTop
-            );
-            renderCtx.lineTo(
-              endX - 2 + bodrder05 + offsetLeft,
-              endY - 2 + bodrder05 + offsetTop
-            );
-            renderCtx.lineWidth = 1;
-            renderCtx.strokeStyle = "#000000";
-            renderCtx.closePath();
-            renderCtx.stroke();
-          }
-
-          if (r === 6 && c === 3) {
-            renderCtx.save();
-            renderCtx.font = "bold 30px Arial";
-            renderCtx.fillStyle = "#626675";
-            renderCtx.textAlign = "center";
-            renderCtx.fillText(
-              locale().pivotTable.title,
-              startX + (endX - startX) / 2 + 4 + offsetLeft,
-              startY + (endY - startY) / 2 - 1 + offsetTop
-            );
-            renderCtx.restore();
-          }
-        } else if (this.sheetCtx.luckysheetcurrentisPivotTable) {
-          if (
-            c < pivotTable.pivotTableBoundary[1] &&
-            r < pivotTable.pivotTableBoundary[0]
-          ) {
-            renderCtx.beginPath();
-            renderCtx.moveTo(
-              endX - 2 + bodrder05 + offsetLeft,
-              startY + offsetTop
-            );
-            renderCtx.lineTo(
-              endX - 2 + bodrder05 + offsetLeft,
-              endY - 2 + bodrder05 + offsetTop
-            );
-            renderCtx.lineWidth = 1;
-            renderCtx.strokeStyle = "#000000";
-            renderCtx.closePath();
-            renderCtx.stroke();
-
-            renderCtx.beginPath();
-            renderCtx.moveTo(
-              startX - 1 + offsetLeft,
-              endY - 2 + bodrder05 + offsetTop
-            );
-            renderCtx.lineTo(
-              endX - 2 + offsetLeft,
-              endY - 2 + bodrder05 + offsetTop
-            );
-            renderCtx.lineWidth = 1;
-            renderCtx.strokeStyle = "#000000";
-            renderCtx.closePath();
-            renderCtx.stroke();
-          }
-        }
-      }
-    }
-    */
-
     // default grid lines go under explicit cell borders
     this.flushGridLines(renderCtx);
 
-    // 边框单独渲染
     if ((this.sheetCtx.config?.borderInfo?.length ?? 0) > 0) {
-      // 边框渲染
       type BorderRender = (
         style: any,
         color: string,
@@ -1631,7 +1499,7 @@ export class Canvas {
       });
     }
 
-    // 渲染表格时有尾列时，清除右边灰色区域，防止表格有值溢出
+    // Clear the gutter after the final column so cell contents cannot overflow into it.
     if (colEnd === this.sheetCtx.visibledatacolumn.length - 1) {
       renderCtx.clearRect(
         colEndX - scrollWidth + offsetLeft - 1,
@@ -1689,7 +1557,6 @@ export class Canvas {
     renderCtx.stroke();
   }
 
-  // 获取表格渲染范围 溢出单元格
   getCellOverflowMap(
     canvas: CanvasRenderingContext2D,
     colStart: number,
@@ -1734,7 +1601,6 @@ export class Canvas {
           _.isNil(cell.mc) &&
           cell.tb === "1"
         ) {
-          // 水平对齐
           const horizonAlign = normalizedAttr(data, r, c, "ht");
 
           const textMetricsObj = getCellTextInfo(cell, canvas, this.sheetCtx, {
@@ -1756,7 +1622,6 @@ export class Canvas {
 
           if (endX - startX < textMetrics) {
             if (horizonAlign === "0") {
-              // 居中对齐
               const trace_forward = this.cellOverflow_trace(
                 r,
                 c,
@@ -1786,7 +1651,6 @@ export class Canvas {
                 edc = trace_backward.c - 1;
               }
             } else if (horizonAlign === "1") {
-              // 左对齐
               const trace = this.cellOverflow_trace(
                 r,
                 c,
@@ -1803,7 +1667,6 @@ export class Canvas {
                 edc = trace.c - 1;
               }
             } else if (horizonAlign === "2") {
-              // 右对齐
               const trace = this.cellOverflow_trace(
                 r,
                 c,
@@ -1851,7 +1714,6 @@ export class Canvas {
     return map;
   }
 
-  // 空白单元格渲染
   /** Arguments for registered cell decorators (modules/extensions.ts). */
   decoratorArgs(
     renderCtx: CanvasRenderingContext2D,
@@ -1900,28 +1762,25 @@ export class Canvas {
     bodrder05: any,
     isMerge = false
   ) {
-    // const checksAF = alternateformat.checksAF(r, c, afCompute); // 交替颜色
-    const checksCF = checkCF(r, c, cfCompute); // 条件格式
+    const checksCF = checkCF(r, c, cfCompute);
     const flowdata = getFlowdata(this.sheetCtx);
     if (!flowdata) return;
 
     const borderfix = getBorderFix();
 
-    // // 背景色
     let fillStyle = normalizedAttr(flowdata, r, c, "bg");
 
     // if (checksAF?.[1] {
-    //   // 交替颜色
+
     //   fillStyle = checksAF[1];
     // }
 
     if (!_.isNil(checksCF) && !_.isNil(checksCF.cellColor)) {
-      // 条件格式
       fillStyle = checksCF.cellColor;
     }
 
     // if (flowdata?.[r]?.[c]?.tc) {
-    //   // 标题色
+
     //   fillStyle = flowdata[r][c].tc;
     // }
 
@@ -1936,7 +1795,6 @@ export class Canvas {
       endY - startY + borderfix[3],
     ];
 
-    // 单元格渲染前，考虑到合并单元格会再次渲染一遍，统一放到这里
     if (
       this.sheetCtx.hooks.beforeRenderCell?.(
         flowdata[r][c],
@@ -1987,17 +1845,15 @@ export class Canvas {
       const value = dynamicArrayCompute[`${r}_${c}`].v;
 
       renderCtx.fillStyle = getCanvasTheme(this.sheetCtx).cellText;
-      // 文本宽度和高度
+
       const fontset = defaultFont(
         this.sheetCtx.defaultFontSize,
         defaultFontFamily(this.sheetCtx)
       );
       renderCtx.font = fontset;
 
-      // 水平对齐 (默认为1，左对齐)
       const horizonAlignPos = startX + 4 + offsetLeft;
 
-      // 垂直对齐 (默认为2，下对齐)
       const verticalAlignPos = endY + offsetTop - 2;
       renderCtx.textBaseline = "bottom";
 
@@ -2049,7 +1905,6 @@ export class Canvas {
       );
     }
 
-    // 若单元格有批注
     if (flowdata?.[r]?.[c]?.ps) {
       drawCornerMark(
         renderCtx,
@@ -2062,7 +1917,6 @@ export class Canvas {
       );
     }
 
-    // 此单元格 与  溢出单元格关系
     const cellOverflow_colInObj = this.cellOverflow_colIn(
       cellOverflowMap,
       r,
@@ -2071,7 +1925,6 @@ export class Canvas {
       colEnd
     );
 
-    // 此单元格 为 溢出单元格渲染范围最后一列，绘制溢出单元格内容
     if (
       cellOverflow_colInObj.colLast &&
       !_.isNil(cellOverflow_colInObj.rowIndex) &&
@@ -2094,10 +1947,7 @@ export class Canvas {
       );
     }
 
-    // 即溢出单元格跨此单元格，此单元格不绘制右边框
     if (!cellOverflow_colInObj.colIn || cellOverflow_colInObj.colLast) {
-      // 右边框
-      // 无论是否有背景色，都默认绘制右边框
       if (
         !this.sheetCtx.luckysheetcurrentisPivotTable &&
         this.sheetCtx.showGridLines
@@ -2112,8 +1962,6 @@ export class Canvas {
       }
     }
 
-    // 下边框
-    // 无论是否有背景色，都默认绘制下边框
     if (
       !this.sheetCtx.luckysheetcurrentisPivotTable &&
       this.sheetCtx.showGridLines
@@ -2129,7 +1977,6 @@ export class Canvas {
 
     if (decor) drawCellForegroundDecorators(decor);
 
-    // 单元格渲染后
     this.sheetCtx.hooks.afterRenderCell?.(
       flowdata[r][c],
       {
@@ -2174,27 +2021,23 @@ export class Canvas {
     const cellWidth = endX - startX - 2;
     const cellHeight = endY - startY - 2;
     const space_width = 2;
-    const space_height = 2; // 宽高方向 间隙
+    const space_height = 2;
 
-    // 水平对齐
     const horizonAlign = Number(normalizedAttr(flowdata, r, c, "ht"));
-    // 垂直对齐
+
     const verticalAlign = Number(normalizedAttr(flowdata, r, c, "vt"));
 
-    // 交替颜色
     // const checksAF = alternateformat.checksAF(r, c, afCompute);
     const checksAF: any = {};
-    // 条件格式
+
     const checksCF = checkCF(r, c, cfCompute);
 
-    // 单元格 背景颜色
     let fillStyle = normalizedAttr(flowdata, r, c, "bg");
     // if (checksAF?.[1]) {
-    //   // 若单元格有交替颜色 背景颜色
+
     //   fillStyle = checksAF[1];
     // }
     if (!_.isNil(checksCF) && !_.isNil(checksCF.cellColor)) {
-      // 若单元格有条件格式 背景颜色
       fillStyle = checksCF.cellColor;
     }
     renderCtx.fillStyle =
@@ -2210,7 +2053,6 @@ export class Canvas {
       endY - startY + borderfix[3],
     ];
 
-    // 单元格渲染前，考虑到合并单元格会再次渲染一遍，统一放到这里
     if (
       this.sheetCtx.hooks.beforeRenderCell?.(
         flowdata[r][c],
@@ -2268,7 +2110,6 @@ export class Canvas {
       );
     }
 
-    // 若单元格有批注（单元格右上角红色小三角标示）
     if (cell?.ps) {
       drawCornerMark(
         renderCtx,
@@ -2281,7 +2122,6 @@ export class Canvas {
       );
     }
 
-    // 若单元格强制为字符串，则显示绿色小三角
     if (cell?.qp === 1 && isRealNum(cell?.v)) {
       drawCornerMark(
         renderCtx,
@@ -2294,8 +2134,7 @@ export class Canvas {
       );
     }
 
-    // 溢出单元格
-    let cellOverflow_bd_r_render = true; // 溢出单元格右边框是否需要绘制
+    let cellOverflow_bd_r_render = true;
     const cellOverflow_colInObj = this.cellOverflow_colIn(
       cellOverflowMap,
       r,
@@ -2309,7 +2148,6 @@ export class Canvas {
     let cellDecor: CellDecoratorArgs | null = null;
     let textPending = false;
     if (cell?.tb === "1" && cellOverflow_colInObj.colIn) {
-      // 此单元格 为 溢出单元格渲染范围最后一列，绘制溢出单元格内容
       if (
         cellOverflow_colInObj.colLast &&
         !_.isNil(cellOverflow_colInObj.rowIndex) &&
@@ -2333,9 +2171,7 @@ export class Canvas {
       } else {
         cellOverflow_bd_r_render = false;
       }
-    }
-    // 数据验证 复选框
-    else if (dataVerification?.[`${r}_${c}`]?.type === "checkbox") {
+    } else if (dataVerification?.[`${r}_${c}`]?.type === "checkbox") {
       const pos_x = startX + offsetLeft;
       const pos_y = startY + offsetTop + 1;
 
@@ -2357,31 +2193,27 @@ export class Canvas {
         measureText.actualBoundingBoxDescent +
         measureText.actualBoundingBoxAscent;
 
-      let horizonAlignPos = pos_x + space_width; // 默认为1，左对齐
+      let horizonAlignPos = pos_x + space_width;
       if (horizonAlign === 0) {
-        // 居中对齐
         horizonAlignPos = pos_x + cellWidth / 2 - textMetrics / 2;
       } else if (horizonAlign === 2) {
-        // 右对齐
         horizonAlignPos = pos_x + cellWidth - space_width - textMetrics;
       }
 
       const verticalCellHeight =
         cellHeight > oneLineTextHeight ? cellHeight : oneLineTextHeight;
 
-      let verticalAlignPos_text = pos_y + verticalCellHeight - space_height; // 文本垂直方向基准线
+      let verticalAlignPos_text = pos_y + verticalCellHeight - space_height;
       renderCtx.textBaseline = "bottom";
       let verticalAlignPos_checkbox =
         verticalAlignPos_text - 13 * this.sheetCtx.zoomRatio;
 
       if (verticalAlign === 0) {
-        // 居中对齐
         verticalAlignPos_text = pos_y + verticalCellHeight / 2;
         renderCtx.textBaseline = "middle";
         verticalAlignPos_checkbox =
           verticalAlignPos_text - 6 * this.sheetCtx.zoomRatio;
       } else if (verticalAlign === 1) {
-        // 上对齐
         verticalAlignPos_text = pos_y + space_height;
         renderCtx.textBaseline = "top";
         verticalAlignPos_checkbox =
@@ -2392,7 +2224,6 @@ export class Canvas {
       verticalAlignPos_text /= this.sheetCtx.zoomRatio;
       verticalAlignPos_checkbox /= this.sheetCtx.zoomRatio;
 
-      // 复选框
       renderCtx.lineWidth = 1;
       renderCtx.strokeStyle = getCanvasTheme(this.sheetCtx).checkboxStroke;
       renderCtx.strokeRect(horizonAlignPos, verticalAlignPos_checkbox, 10, 10);
@@ -2406,7 +2237,6 @@ export class Canvas {
         renderCtx.closePath();
       }
 
-      // 文本
       renderCtx.fillStyle = resolveCellTextColor(
         this.sheetCtx,
         normalizedAttr(flowdata, r, c, "fc"),
@@ -2494,18 +2324,16 @@ export class Canvas {
         renderCtx.scale(zoomRatio, zoomRatio);
       }
 
-      // 单元格 文本颜色
       renderCtx.fillStyle = resolveCellTextColor(
         this.sheetCtx,
         normalizedAttr(flowdata, r, c, "fc"),
         fillStyle
       );
 
-      // 若单元格有交替颜色 文本颜色
       if (checksAF?.[0]) {
         [renderCtx.fillStyle] = checksAF;
       }
-      // 若单元格有条件格式 文本颜色
+
       if (checksCF?.textColor) {
         renderCtx.fillStyle = resolveCellTextColor(
           this.sheetCtx,
@@ -2537,7 +2365,6 @@ export class Canvas {
     }
 
     if (cellOverflow_bd_r_render) {
-      // 右边框
       if (
         !this.sheetCtx.luckysheetcurrentisPivotTable &&
         this.sheetCtx.showGridLines
@@ -2552,7 +2379,6 @@ export class Canvas {
       }
     }
 
-    // 下边框
     if (
       !this.sheetCtx.luckysheetcurrentisPivotTable &&
       this.sheetCtx.showGridLines
@@ -2568,7 +2394,6 @@ export class Canvas {
 
     if (cellDecor) drawCellForegroundDecorators(cellDecor);
 
-    // 单元格渲染后
     this.sheetCtx.hooks.afterRenderCell?.(
       flowdata[r]?.[c],
       {
@@ -2583,7 +2408,6 @@ export class Canvas {
     );
   }
 
-  // 溢出单元格渲染
   cellOverflowRender(
     r: number,
     c: number,
@@ -2599,7 +2423,6 @@ export class Canvas {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     cfCompute: any
   ) {
-    // 溢出单元格 起止行列坐标
     let startY;
     if (r === 0) {
       startY = -scrollHeight - 1;
@@ -2627,7 +2450,7 @@ export class Canvas {
     const cellWidth = endX - startX - 2;
     const cellHeight = endY - startY - 2;
     const space_width = 2;
-    const space_height = 2; // 宽高方向 间隙
+    const space_height = 2;
 
     const pos_x = startX + offsetLeft;
     const pos_y = startY + offsetTop + 1;
@@ -2662,25 +2485,22 @@ export class Canvas {
         )
       : undefined;
 
-    // 交替颜色
     // const checksAF = alternateformat.checksAF(r, c, afCompute);
     const checksAF: any = {};
-    // 条件格式
+
     // const checksCF = conditionformat.checksCF(r, c, cfCompute);
     const checksCF: any = checkCF(r, c, cfCompute);
 
-    // 单元格 文本颜色
     renderCtx.fillStyle = resolveCellTextColor(
       this.sheetCtx,
       normalizedAttr(flowdata, r, c, "fc"),
       cell?.bg
     );
 
-    // 若单元格有交替颜色 文本颜色
     if (checksAF?.[0]) {
       [renderCtx.fillStyle] = checksAF;
     }
-    // 若单元格有条件格式 文本颜色
+
     if (checksCF?.textColor) {
       renderCtx.fillStyle = resolveCellTextColor(
         this.sheetCtx,
@@ -2710,7 +2530,6 @@ export class Canvas {
     if (!flowdata) return {};
     const data = flowdata;
 
-    // 追溯单元格列超出数组范围 则追溯终止
     if (traceDir === "forward" && traceC < 0) {
       return {
         success: false,
@@ -2727,7 +2546,6 @@ export class Canvas {
       };
     }
 
-    // 追溯单元格是 非空单元格或合并单元格 则追溯终止
     const cell = data[r][traceC];
     if (cell && (!_.isEmpty(cell.v) || cell.mc)) {
       return {
@@ -2744,14 +2562,11 @@ export class Canvas {
     const w = textMetrics - (end_curC - start_curC);
 
     if (horizonAlign === "0") {
-      // 居中对齐
       start_curC -= w / 2;
       end_curC += w / 2;
     } else if (horizonAlign === "1") {
-      // 左对齐
       end_curC += w;
     } else if (horizonAlign === "2") {
-      // 右对齐
       start_curC -= w;
     }
 
@@ -2818,10 +2633,10 @@ export class Canvas {
     col_st: number,
     col_ed: number
   ) {
-    let colIn = false; // 此单元格 是否在 某个溢出单元格的渲染范围
-    let colLast = false; // 此单元格 是否是 某个溢出单元格的渲染范围的最后一列
-    let rowIndex: number | undefined; // 溢出单元格 行下标
-    let colIndex: number | undefined; // 溢出单元格 列下标
+    let colIn = false;
+    let colLast = false;
+    let rowIndex: number | undefined;
+    let colIndex: number | undefined;
     let stc: number | undefined;
     let edc: number | undefined;
 
@@ -2903,7 +2718,6 @@ export class Canvas {
         ctx.font = word.style;
       }
 
-      // 暂时未排查到word.content第一次会是object，先做下判断来渲染，后续找到问题再复原
       const txt = _.isPlainObject(word.content) ? word.content.m : word.content;
       ctx.fillText(
         txt,

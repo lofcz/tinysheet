@@ -45,16 +45,15 @@ export function jfrefreshgrid(
 
   // clearTimeout(refreshCanvasTimeOut);
 
-  // 更新数据的范围
   // for (let s = 0; s < range.length; s += 1) {
   //   const r1 = range[s].row[0];
   //   const c1 = range[s].column[0];
 
   //   if (server.allowUpdate) {
-  //     // 共享编辑模式
+
   //     server.historyParam(ctx.flowdata, ctx.currentSheetIndex, range[s]);
   //   }
-  //   // 刷新图表
+
   //   if (typeof ctx.chartparam.jfrefreshchartall === "function") {
   //     ctx.chartparam.jfrefreshchartall(
   //       ctx.flowdata,
@@ -66,11 +65,9 @@ export function jfrefreshgrid(
   //   }
   // }
 
-  // 单元格数据更新联动
   if (isRunExecFunction) {
     runExecFunction(ctx, range, ctx.currentSheetId, data);
   }
 
-  /* 选区同步 */
   // selectHightlightShow();
 }

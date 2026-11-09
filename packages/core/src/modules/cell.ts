@@ -223,7 +223,6 @@ export function setCellValue(
   }
   if (!d) return;
 
-  // 若采用深拷贝，初始化时的单元格属性丢失
   // let cell = $.extend(true, {}, d[r][c]);
   let cell = d[r][c];
 
@@ -278,8 +277,6 @@ export function setCellValue(
     return;
   }
 
-  // 1.为null
-  // 2.数据透视表的数据，flowdata的每个数据可能为字符串，结果就是cell === v === 一个字符串或者数字数据
   if (
     isRealNull(cell) ||
     ((_.isString(cell) || _.isNumber(cell)) && cell === v)
@@ -500,14 +497,12 @@ function mergeMove(
       const col_pre = margeset.column[0];
 
       if (!(columnseleted[1] < col_st || columnseleted[0] > col_ed)) {
-        // 向上滑动
         if (rowseleted[0] <= row_ed && rowseleted[0] >= row_st) {
           height += top - row_pre;
           top = row_pre;
           rowseleted[0] = row_st;
         }
 
-        // 向下滑动或者居中时往上滑动的向下补齐
         if (rowseleted[1] >= row_st && rowseleted[1] <= row_ed) {
           if (s.row_focus! >= row_st && s.row_focus! <= row_ed) {
             height = row - top;
@@ -526,7 +521,6 @@ function mergeMove(
           columnseleted[0] = col_st;
         }
 
-        // 向右滑动或者居中时往左滑动的向下补齐
         if (columnseleted[1] >= col_st && columnseleted[1] <= col_ed) {
           if (s.column_focus! >= col_st && s.column_focus! <= col_ed) {
             width = col - left;
@@ -660,7 +654,6 @@ export function updateCell(
   //   return;
   // }
 
-  // 数据验证: invalid input raises the rule's error alert instead
   if (!checkDataVerificationInput(ctx, r, c, inputText ?? value)) {
     cancelNormalSelected(ctx);
     return;
@@ -798,7 +791,7 @@ export function updateCell(
 
   const d = flowdata; // TODO const d = editor.deepCopyFlowData(flowdata);
   // oxlint-disable-next-line no-unused-vars -- legacy flags, set but unread
-  let dynamicArrayItem = null; // 动态数组
+  let dynamicArrayItem = null;
 
   if (_.isPlainObject(curv)) {
     if (!isCurInline) {
@@ -935,7 +928,6 @@ export function updateCell(
   // (measured on an offscreen canvas when the caller has none)
   autoGrowRowAfterEdit(ctx, r, c, { renderCtx: canvas });
 
-  // 动态数组
   /*
   let dynamicArray = null;
   if (dynamicArrayItem) {
@@ -1030,12 +1022,10 @@ export function getFlattenedRange(ctx: Context, range?: Range) {
   const result: { r: number; c: number }[] = [];
 
   range.forEach((ele) => {
-    // 这个data可能是个范围或者是单个cell
     const rs = ele.row;
     const cs = ele.column;
     for (let r = rs[0]; r <= rs[1]; r += 1) {
       for (let c = cs[0]; c <= cs[1]; c += 1) {
-        // r c 当前的r和当前的c
         result.push({ r, c });
       }
     }
@@ -1043,7 +1033,6 @@ export function getFlattenedRange(ctx: Context, range?: Range) {
   return result;
 }
 
-// 把选区范围数组转为string A1:A2
 export function getRangetxt(
   ctx: Context,
   sheetId: string,
@@ -1057,11 +1046,10 @@ export function getRangetxt(
   }
 
   if (sheetId !== currentId) {
-    // sheet名字包含'的，引用时应该替换为''
     const index = getSheetIndex(ctx, sheetId);
     if (index == null) return "";
     sheettxt = ctx.luckysheetfile[index].name.replace(/'/g, "''");
-    // 如果包含除a-z、A-Z、0-9、下划线等以外的字符那么就用单引号包起来
+
     if (
       // eslint-disable-next-line no-misleading-character-class
       /^[:A-Z_a-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD][:A-Z_a-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\-.0-9\u00B7\u0300-\u036F\u203F-\u2040]*$/.test(
@@ -1100,7 +1088,6 @@ export function getRangetxt(
   }:${indexToColumnChar(column1)}${row1 + 1}`;
 }
 
-// 把string A1:A2转为选区数组
 export function getRangeByTxt(ctx: Context, txt: string) {
   let range: (FormulaDependency | null)[] = [];
   if (txt.indexOf(",") !== -1) {
@@ -1164,7 +1151,7 @@ export function isAllSelectedCellsInStatus(
       }
     }
   }
-  /* 获取选区内所有的单元格-扁平后的处理 */
+
   const cells = getFlattenedRange(ctx);
   const flowdata = getFlowdata(ctx);
 
@@ -1253,11 +1240,10 @@ export function getStyleByCell(
 ) {
   let style: any = {};
 
-  // 交替颜色
   //   const af_compute = alternateformat.getComputeMap();
   //   const checksAF = alternateformat.checksAF(r, c, af_compute);
   const checksAF: any = [];
-  // 条件格式
+
   const cf_compute = getComputeMap(ctx);
   const checksCF = checkCF(r, c, cf_compute);
 
@@ -1374,112 +1360,6 @@ export function getQKBorder(width: string, type: string, color: string) {
   return [style, color];
 }
 
-/**
- * 计算范围行高
- *
- * @param d 原始数据
- * @param r1 起始行
- * @param r2 截至行
- * @param cfg 配置
- * @returns 计算后的配置
- */
-/*
-export function rowlenByRange(
-  ctx: Context,
-  d: CellMatrix,
-  r1: number,
-  r2: number,
-  cfg: any
-) {
-  const cfg_clone = _.cloneDeep(cfg);
-  if (cfg_clone.rowlen == null) {
-    cfg_clone.rowlen = {};
-  }
-
-  if (cfg_clone.customHeight == null) {
-    cfg_clone.customHeight = {};
-  }
-
-  const canvas = $("#luckysheetTableContent").get(0).getContext("2d");
-  canvas.textBaseline = "top"; // textBaseline以top计算
-
-  for (let r = r1; r <= r2; r += 1) {
-    if (cfg_clone.rowhidden != null && cfg_clone.rowhidden[r] != null) {
-      continue;
-    }
-
-    let currentRowLen = ctx.defaultrowlen;
-
-    if (cfg_clone.customHeight[r] === 1) {
-      continue;
-    }
-
-    delete cfg_clone.rowlen[r];
-
-    for (let c = 0; c < d[r].length; c += 1) {
-      const cell = d[r][c];
-
-      if (cell == null) {
-        continue;
-      }
-
-      if (cell != null && (cell.v != null || isInlineStringCell(cell))) {
-        let cellWidth;
-        if (cell.mc) {
-          if (c === cell.mc.c) {
-            const st_cellWidth = colLocationByIndex(
-              c,
-              ctx.visibledatacolumn
-            )[0];
-            const ed_cellWidth = colLocationByIndex(
-              cell.mc.c + cell.mc.cs - 1,
-              ctx.visibledatacolumn
-            )[1];
-            cellWidth = ed_cellWidth - st_cellWidth - 2;
-          } else {
-            continue;
-          }
-        } else {
-          cellWidth =
-            colLocationByIndex(c, ctx.visibledatacolumn)[1] -
-            colLocationByIndex(c, ctx.visibledatacolumn)[0] -
-            2;
-        }
-
-       const textInfo = getCellTextInfo(cell, canvas, {
-          r,
-          c,
-          cellWidth,
-        });
-
-        let computeRowlen = 0;
-
-        if (textInfo != null) {
-          computeRowlen = textInfo.textHeightAll + 2;
-        }
-
-        // 比较计算高度和当前高度取最大高度
-        if (computeRowlen > currentRowLen) {
-          currentRowLen = computeRowlen;
-        }
-      }
-    }
-
-    currentRowLen /= ctx.zoomRatio;
-
-    if (currentRowLen !== ctx.defaultrowlen) {
-      cfg_clone.rowlen[r] = currentRowLen;
-    } else {
-      if (cfg.rowlen?.[r]) {
-        cfg_clone.rowlen[r] = cfg.rowlen[r];
-      }
-    }
-  }
-
-  return cfg_clone;
-}
-*/
-
 export function getdatabyselection(
   ctx: Context,
   range: Selection | undefined,
@@ -1495,7 +1375,6 @@ export function getdatabyselection(
     return [];
   }
 
-  // 取数据
   let d;
   let cfg;
   if (sheetId != null && sheetId !== ctx.currentSheetId) {

@@ -278,7 +278,6 @@ export function patchToOp(
       (op) => op.path.length === 0 && op.op === "add"
     );
     if (undo) {
-      // 撤消增表
       const index = getSheetIndex(
         ctx,
         options.addSheet!.id as string
@@ -305,7 +304,6 @@ export function patchToOp(
         });
       }
     } else {
-      // 正常增表
       ops = otherOps;
       ops.push({
         op: "addSheet",
@@ -316,7 +314,6 @@ export function patchToOp(
     }
   } else if (options?.deleteSheetOp) {
     if (undo) {
-      // 撤销删表
       ops = [
         {
           op: "addSheet",
@@ -346,7 +343,6 @@ export function patchToOp(
         });
       });
     } else {
-      // 正常删表
       ops = [
         {
           op: "deleteSheet",

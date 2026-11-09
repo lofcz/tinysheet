@@ -34,15 +34,6 @@ const refreshLocalMergeData = (merge_new: Record<string, any>, file: Sheet) => {
   });
 };
 
-/**
- * 增加行列
- * @param {string} type 行或列 ['row', 'column'] 之一
- * @param {number} index 插入的位置 index
- * @param {number} count 插入 多少 行（列）
- * @param {string} direction 哪个方向插入 ['lefttop','rightbottom'] 之一
- * @param {string | number} id 操作的 sheet 的 id
- * @returns
- */
 export function insertRowCol(
   ctx: Context,
   op: {
@@ -96,7 +87,6 @@ export function insertRowCol(
 
   count = Math.floor(count);
 
-  // 合并单元格配置变动
   if (cfg.merge == null) {
     cfg.merge = {};
   }
@@ -164,7 +154,6 @@ export function insertRowCol(
   });
   cfg.merge = merge_new;
 
-  // 公式配置变动: rewrite every reference in the workbook (Excel semantics),
   // then move the calcChain entries of this sheet
   adjustReferences(ctx, {
     type: "insert",
@@ -190,7 +179,6 @@ export function insertRowCol(
     }
   }
 
-  // 筛选配置变动
   const { filter_select } = file;
   const { filter } = file;
   let newFilterObj: any = null;
@@ -293,7 +281,6 @@ export function insertRowCol(
   // rows hidden by the filter are in cfg.rowhidden, which is shifted below
   // (adding their new positions here would shift them twice)
 
-  // 条件格式配置变动
   const CFarr = file.luckysheet_conditionformat_save;
   const newCFarr = [];
   if (CFarr != null && CFarr.length > 0) {
@@ -355,7 +342,6 @@ export function insertRowCol(
     }
   }
 
-  // 交替颜色配置变动
   const AFarr = file.luckysheet_alternateformat_save;
   const newAFarr = [];
   if (AFarr != null && AFarr.length > 0) {
@@ -419,7 +405,6 @@ export function insertRowCol(
     count
   );
 
-  // 数据验证配置变动
   const { dataVerification } = file;
   const newDataVerification: any = {};
   if (dataVerification != null) {
@@ -472,7 +457,6 @@ export function insertRowCol(
     });
   }
 
-  // 超链接配置变动
   const { hyperlink } = file;
   const newHyperlink: any = {};
   if (hyperlink != null) {
@@ -514,7 +498,6 @@ export function insertRowCol(
   if (type === "row") {
     type1 = "r";
 
-    // 行高配置变动
     if (cfg.rowlen != null) {
       const rowlen_new: any = {};
       const rowReadOnly_new: Record<number, number> = {};
@@ -547,7 +530,6 @@ export function insertRowCol(
       cfg.rowReadOnly = rowReadOnly_new;
     }
 
-    // 自定义行高配置变动
     if (cfg.customHeight != null) {
       const customHeight_new: any = {};
 
@@ -570,7 +552,6 @@ export function insertRowCol(
       cfg.customHeight = customHeight_new;
     }
 
-    // 自定义行高配置变动
     if (cfg.customHeight != null) {
       const customHeight_new: any = {};
 
@@ -593,7 +574,6 @@ export function insertRowCol(
       cfg.customHeight = customHeight_new;
     }
 
-    // 隐藏行配置变动
     if (cfg.rowhidden != null) {
       const rowhidden_new: any = {};
 
@@ -616,7 +596,6 @@ export function insertRowCol(
       cfg.rowhidden = rowhidden_new;
     }
 
-    // 空行模板
     const row = [];
     const curRow = [...d][index];
     for (let c = 0; c < d[0].length; c += 1) {
@@ -638,7 +617,7 @@ export function insertRowCol(
       row.push(templateCell);
     }
     const cellBorderConfig = [];
-    // 边框
+
     if (cfg.borderInfo && cfg.borderInfo.length > 0) {
       const borderInfo = [];
 
@@ -691,7 +670,7 @@ export function insertRowCol(
           }
         } else if (rangeType === "cell") {
           let { row_index } = cfg.borderInfo[i].value;
-          // 位置相同标识边框相关 先缓存
+
           if (row_index === index) {
             cellBorderConfig.push(
               JSON.parse(JSON.stringify(cfg.borderInfo[i]))
@@ -719,15 +698,13 @@ export function insertRowCol(
     const arr = [];
     for (let r = 0; r < count; r += 1) {
       arr.push(JSON.stringify(row));
-      // 同步拷贝 type 为 cell 类型的边框
+
       if (cellBorderConfig.length) {
         const cellBorderConfigCopy = _.cloneDeep(cellBorderConfig);
         cellBorderConfigCopy.forEach((item) => {
           if (direction === "rightbottom") {
-            // 向下插入时 基于模板行位置直接递增即可
             item.value.row_index += r + 1;
           } else if (direction === "lefttop") {
-            // 向上插入时 目标行移动到后面 新增n行到前面 对于新增的行来说 也是递增，不过是从0开始
             item.value.row_index += r;
           }
         });
@@ -750,7 +727,6 @@ export function insertRowCol(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     type1 = "c";
 
-    // 列宽配置变动
     if (cfg.columnlen != null) {
       const columnlen_new: any = {};
       const columnReadOnly_new: any = {};
@@ -784,7 +760,6 @@ export function insertRowCol(
       cfg.colReadOnly = columnReadOnly_new;
     }
 
-    // 自定义列宽配置变动
     if (cfg.customWidth != null) {
       const customWidth_new: any = {};
 
@@ -807,7 +782,6 @@ export function insertRowCol(
       cfg.customWidth = customWidth_new;
     }
 
-    // 自定义列宽配置变动
     if (cfg.customWidth != null) {
       const customWidth_new: any = {};
 
@@ -830,7 +804,6 @@ export function insertRowCol(
       cfg.customWidth = customWidth_new;
     }
 
-    // 隐藏列配置变动
     if (cfg.colhidden != null) {
       const colhidden_new: any = {};
 
@@ -853,7 +826,6 @@ export function insertRowCol(
       cfg.colhidden = colhidden_new;
     }
 
-    // 空列模板
     const col = [];
     const curd = [...d];
     for (let r = 0; r < d.length; r += 1) {
@@ -875,7 +847,7 @@ export function insertRowCol(
       col.push(templateCell);
     }
     const cellBorderConfig = [];
-    // 边框
+
     if (cfg.borderInfo && cfg.borderInfo.length > 0) {
       const borderInfo = [];
 
@@ -928,7 +900,7 @@ export function insertRowCol(
           }
         } else if (rangeType === "cell") {
           let { col_index } = cfg.borderInfo[i].value;
-          // 位置相同标识边框相关 先缓存
+
           if (col_index === index) {
             cellBorderConfig.push(
               JSON.parse(JSON.stringify(cfg.borderInfo[i]))
@@ -953,16 +925,13 @@ export function insertRowCol(
       cfg.borderInfo = borderInfo;
     }
 
-    // 处理相关的 type 为 cell 类型的边框
     if (cellBorderConfig.length) {
       for (let i = 0; i < count; i += 1) {
         const cellBorderConfigCopy = _.cloneDeep(cellBorderConfig);
         cellBorderConfigCopy.forEach((item) => {
           if (direction === "rightbottom") {
-            // 向右插入时 基于模板列位置直接递增即可
             item.value.col_index += i + 1;
           } else if (direction === "lefttop") {
-            // 向左插入时 目标列移动到后面 新增n列到前面 对于新增的列来说 也是递增，不过是从0开始
             item.value.col_index += i;
           }
         });
@@ -987,7 +956,6 @@ export function insertRowCol(
     }
   }
 
-  // 修改当前sheet页时刷新
   file.data = d;
   file.config = cfg;
   file.calcChain = newCalcChain;
@@ -1159,7 +1127,6 @@ export function deleteRowCol(
 
   const slen = end - start + 1;
 
-  // 合并单元格配置变动
   if (cfg.merge == null) {
     cfg.merge = {};
   }
@@ -1217,7 +1184,6 @@ export function deleteRowCol(
   });
   cfg.merge = merge_new;
 
-  // 公式配置变动: rewrite every reference in the workbook (Excel semantics:
   // ranges shrink, references to deleted cells become #REF!), then drop or
   // move the calcChain entries of this sheet
   adjustReferences(ctx, {
@@ -1243,7 +1209,6 @@ export function deleteRowCol(
     }
   }
 
-  // 筛选配置变动
   const { filter_select } = file;
   const { filter } = file;
   let newFilterObj: any = null;
@@ -1368,7 +1333,6 @@ export function deleteRowCol(
   // rows hidden by the filter are in cfg.rowhidden, which is shifted below
   // (adding their new positions here would shift them twice)
 
-  // 条件格式配置变动
   const CFarr = file.luckysheet_conditionformat_save;
   const newCFarr = [];
   if (CFarr != null && CFarr.length > 0) {
@@ -1436,7 +1400,6 @@ export function deleteRowCol(
     }
   }
 
-  // 交替颜色配置变动
   const AFarr = file.luckysheet_alternateformat_save;
   const newAFarr = [];
   if (AFarr != null && AFarr.length > 0) {
@@ -1503,7 +1466,6 @@ export function deleteRowCol(
   // frozen panes stay on the same rows/columns
   adjustFrozenForDelete(file, type, start, end);
 
-  // 数据验证配置变动
   const { dataVerification } = file;
   const newDataVerification: any = {};
   if (dataVerification != null) {
@@ -1528,7 +1490,6 @@ export function deleteRowCol(
     });
   }
 
-  // 超链接配置变动
   const { hyperlink } = file;
   const newHyperlink: any = {};
   if (hyperlink != null) {
@@ -1553,13 +1514,11 @@ export function deleteRowCol(
     });
   }
 
-  // 主逻辑
   // oxlint-disable-next-line no-unused-vars -- legacy, kept for the commented-out rc payload
   let type1;
   if (type === "row") {
     type1 = "r";
 
-    // 行高配置变动
     if (cfg.rowlen == null) {
       cfg.rowlen = {};
     }
@@ -1586,7 +1545,6 @@ export function deleteRowCol(
     cfg.rowlen = rowlen_new;
     cfg.rowReadOnly = rowReadOnly_new;
 
-    // 隐藏行配置变动
     if (cfg.rowhidden == null) {
       cfg.rowhidden = {};
     }
@@ -1601,7 +1559,6 @@ export function deleteRowCol(
       }
     });
 
-    // 自定义行高配置变动
     if (cfg.customHeight == null) {
       cfg.customHeight = {};
 
@@ -1618,7 +1575,6 @@ export function deleteRowCol(
       cfg.customHeight = customHeight_new;
     }
 
-    // 自定义行高配置变动
     if (cfg.customHeight == null) {
       cfg.customHeight = {};
 
@@ -1637,7 +1593,6 @@ export function deleteRowCol(
 
     cfg.rowhidden = rowhidden_new;
 
-    // 边框配置变动
     if (cfg.borderInfo && cfg.borderInfo.length > 0) {
       const borderInfo = [];
 
@@ -1696,32 +1651,24 @@ export function deleteRowCol(
       cfg.borderInfo = borderInfo;
     }
 
-    // 备注：该处理方式会在删除多行的时候会存在bug
-    // 说明：删除多行后，会把同一个row空数组(引用类型)添加成为data多行的数据源，导致设置这些行数据时产生错误。
-    // 空白行模板
     // let row = [];
     // for (let c = 0; c < d[0].length; c++) {
     //     row.push(null);
     // }
 
-    // //删除选中行
     // d.splice(st, slen);
 
-    // //删除多少行，增加多少行空白行
     // for (let r = 0; r < slen; r++) {
     //     d.push(row);
     // }
 
-    // 删除选中行
     d.splice(start, slen);
 
-    // 删除行后，调整行数
     file.row = d.length;
   } else {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     type1 = "c";
 
-    // 列宽配置变动
     if (cfg.columnlen == null) {
       cfg.columnlen = {};
     }
@@ -1748,7 +1695,6 @@ export function deleteRowCol(
     cfg.columnlen = columnlen_new;
     cfg.colReadOnly = columnReadOnly_new;
 
-    // 自定义列宽配置变动
     if (cfg.customWidth == null) {
       cfg.customWidth = {};
 
@@ -1766,7 +1712,6 @@ export function deleteRowCol(
     }
     cfg.colReadOnly = columnReadOnly_new;
 
-    // 隐藏列配置变动
     if (cfg.colhidden == null) {
       cfg.colhidden = {};
     }
@@ -1783,7 +1728,6 @@ export function deleteRowCol(
 
     cfg.colhidden = colhidden_new;
 
-    // 边框配置变动
     if (cfg.borderInfo && cfg.borderInfo.length > 0) {
       const borderInfo = [];
 
@@ -1843,18 +1787,14 @@ export function deleteRowCol(
     }
 
     for (let r = 0; r < d.length; r += 1) {
-      // 删除选中列
       d[r].splice(start, slen);
     }
 
-    // 删除列后，调整列数
     file.column = d[0]?.length;
   }
 
-  // 选中元素被删取消选区
   ctx.luckysheet_select_save = undefined;
 
-  // 修改当前sheet页时刷新
   file.data = d;
   file.config = cfg;
   file.calcChain = newCalcChain;
@@ -1895,7 +1835,6 @@ export function deleteRowCol(
   );
 }
 
-// 计算表格行高数组
 export function computeRowlenArr(ctx: Context, rowHeight: number, cfg: any) {
   const rowlenArr = [];
   let rh_height = 0;
@@ -1915,13 +1854,12 @@ export function computeRowlenArr(ctx: Context, rowHeight: number, cfg: any) {
       rh_height += rowlen + 1;
     }
 
-    rowlenArr.push(rh_height); // 行的临时长度分布
+    rowlenArr.push(rh_height);
   }
 
   return rowlenArr;
 }
 
-// 隐藏选中行列
 export function hideSelected(ctx: Context, type: string) {
   if (!ctx.luckysheet_select_save || ctx.luckysheet_select_save.length > 1)
     return "noMulti";
@@ -1929,14 +1867,8 @@ export function hideSelected(ctx: Context, type: string) {
     return "protected";
   }
   const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-  // 隐藏行
+
   if (type === "row") {
-    /* TODO: 工作表保护判断
-    if (
-      !checkProtectionAuthorityNormal(Store.currentSheetIndex, "formatRows")
-    ) {
-      return ;
-    } */
     const rowhidden = ctx.config.rowhidden ?? {};
     const r1 = ctx.luckysheet_select_save[0].row[0];
     const r2 = ctx.luckysheet_select_save[0].row[1];
@@ -1944,24 +1876,10 @@ export function hideSelected(ctx: Context, type: string) {
     for (let r = r1; r <= r2; r += 1) {
       rowhidden[r] = 0;
     }
-    /* 保存撤销,luck中保存撤销用以下方式实现，而在本项目中不需要另外处理
-      if(Store.clearjfundo){
-        let redo = {};
-        redo["type"] = "showHidRows";
-        redo["sheetIndex"] = Store.currentSheetIndex;
-        redo["config"] = $.extend(true, {}, Store.config);
-        redo["curconfig"] = cfg;
 
-        Store.jfundo.length  = 0;
-        Store.jfredo.push(redo);
-    } */
     ctx.config.rowhidden = rowhidden;
     const rowLen = ctx.luckysheetfile[index].data!.length;
-    /**
-     * 计算要隐藏的行是否是最后一列
-     * 符合最后一列的条件：要隐藏的index===表格的长度-1 或者
-     * 记录隐藏数组里面的数-1===要隐藏的index
-     */
+
     const isEndRow =
       rowLen - 1 === rowhiddenNumber ||
       Object.keys(rowhidden).findIndex(
@@ -1975,7 +1893,6 @@ export function hideSelected(ctx: Context, type: string) {
       ctx.luckysheet_select_save[0].row[1] += 1;
     }
   } else if (type === "column") {
-    // 隐藏列
     const colhidden = ctx.config.colhidden ?? {};
     const c1 = ctx.luckysheet_select_save[0].column[0];
     const c2 = ctx.luckysheet_select_save[0].column[1];
@@ -1985,7 +1902,7 @@ export function hideSelected(ctx: Context, type: string) {
     }
     ctx.config.colhidden = colhidden;
     const columnLen = ctx.luckysheetfile[index].data![0].length;
-    // 计算要隐藏的列是否是最后一列
+
     const isEndColumn =
       columnLen - 1 === colhiddenNumber ||
       Object.keys(colhidden).findIndex(
@@ -2003,7 +1920,6 @@ export function hideSelected(ctx: Context, type: string) {
   return "";
 }
 
-// 取消隐藏选中行列
 export function showSelected(ctx: Context, type: string) {
   if (!ctx.luckysheet_select_save || ctx.luckysheet_select_save.length > 1)
     return "noMulti";
@@ -2011,7 +1927,7 @@ export function showSelected(ctx: Context, type: string) {
     return "protected";
   }
   const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-  // 取消隐藏行
+
   if (type === "row") {
     const rowhidden = ctx.config.rowhidden ?? {};
     const r1 = ctx.luckysheet_select_save[0].row[0];
@@ -2021,7 +1937,6 @@ export function showSelected(ctx: Context, type: string) {
     }
     ctx.config.rowhidden = rowhidden;
   } else if (type === "column") {
-    // 取消隐藏列
     const colhidden = ctx.config.colhidden ?? {};
     const c1 = ctx.luckysheet_select_save[0].column[0];
     const c2 = ctx.luckysheet_select_save[0].column[1];
@@ -2034,14 +1949,13 @@ export function showSelected(ctx: Context, type: string) {
   return "";
 }
 
-// 判断当前选区是不是隐藏行列
 export function isShowHidenCR(ctx: Context): boolean {
   if (
     !ctx.luckysheet_select_save ||
     (!ctx.config.colhidden && !ctx.config.rowhidden)
   )
     return false;
-  // 如果当先选区处在隐藏行列的时候则不可编辑
+
   if (!!ctx.config.colhidden && _.size(ctx.config.colhidden) >= 1) {
     const ctxColumn = ctx.luckysheet_select_save[0]?.column?.[0];
     const isHidenColumn =
@@ -2065,7 +1979,6 @@ export function isShowHidenCR(ctx: Context): boolean {
   return false;
 }
 
-// 计算键盘选区中要经过的隐藏行列的个数
 export function hideCRCount(ctx: Context, type: string): number {
   let count = 1;
   if (!ctx.luckysheet_select_save) return 0;

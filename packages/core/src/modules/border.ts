@@ -42,7 +42,6 @@ function bordersInRows(borderInfo: any[], start: number, end: number) {
   return candidates.map((i) => borderInfo[i]);
 }
 
-// 获取表格边框数据计算值
 export function getBorderInfoComputeRange(
   ctx: Context,
   dataset_row_st: number,
@@ -1286,7 +1285,6 @@ export function getBorderInfoComputeRange(
           const mc = cfg.merge?.[`${cell?.mc?.r}_${cell?.mc?.c}`];
 
           if (!_.isNil(value.l) && bd_c === mc?.c) {
-            // 左边框
             borderInfoCompute[`${bd_r}_${bd_c}`].l = {
               color: value.l.color,
               style: value.l.style,
@@ -1319,7 +1317,6 @@ export function getBorderInfoComputeRange(
           }
 
           if (!_.isNil(value.r) && mc && bd_c === mc.c + mc.cs - 1) {
-            // 右边框
             borderInfoCompute[`${bd_r}_${bd_c}`].r = {
               color: value.r.color,
               style: value.r.style,
@@ -1355,7 +1352,6 @@ export function getBorderInfoComputeRange(
           }
 
           if (!_.isNil(value.t) && bd_r === mc?.r) {
-            // 上边框
             borderInfoCompute[`${bd_r}_${bd_c}`].t = {
               color: value.t.color,
               style: value.t.style,
@@ -1388,7 +1384,6 @@ export function getBorderInfoComputeRange(
           }
 
           if (!_.isNil(value.b) && mc && bd_r === mc.r + mc.rs - 1) {
-            // 下边框
             borderInfoCompute[`${bd_r}_${bd_c}`].b = {
               color: value.b.color,
               style: value.b.style,
@@ -1424,7 +1419,6 @@ export function getBorderInfoComputeRange(
           }
         } else {
           if (!_.isNil(value.l)) {
-            // 左边框
             borderInfoCompute[`${bd_r}_${bd_c}`].l = {
               color: value.l.color,
               style: value.l.style,
@@ -1457,7 +1451,6 @@ export function getBorderInfoComputeRange(
           }
 
           if (!_.isNil(value.r)) {
-            // 右边框
             borderInfoCompute[`${bd_r}_${bd_c}`].r = {
               color: value.r.color,
               style: value.r.style,
@@ -1497,7 +1490,6 @@ export function getBorderInfoComputeRange(
           }
 
           if (!_.isNil(value.t)) {
-            // 上边框
             borderInfoCompute[`${bd_r}_${bd_c}`].t = {
               color: value.t.color,
               style: value.t.style,
@@ -1530,7 +1522,6 @@ export function getBorderInfoComputeRange(
           }
 
           if (!_.isNil(value.b)) {
-            // 下边框
             borderInfoCompute[`${bd_r}_${bd_c}`].b = {
               color: value.b.color,
               style: value.b.style,

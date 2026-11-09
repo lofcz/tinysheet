@@ -133,7 +133,6 @@ const FilterMenu: React.FC = () => {
   const mouseHoverSubMenu = useRef<boolean>(false);
   contextRef.current = context;
 
-  // 点击其他区域的时候关闭FilterMenu
   const close = useCallback(() => {
     setContext((ctx) => {
       ctx.filterContextMenu = undefined;
@@ -505,7 +504,7 @@ const FilterMenu: React.FC = () => {
       return;
     }
     const menuW = rect.width;
-    // menu最小高度
+
     const menuH = 350;
     // below / right of the filter button; flipped when it does not fit, and
     // kept against the window edge when neither side fits
@@ -518,12 +517,12 @@ const FilterMenu: React.FC = () => {
     const top = place(filterContextMenu.y, menuH, workbookRect.top, winH);
     const hasOverflow =
       left !== filterContextMenu.x || top !== filterContextMenu.y;
-    // 适配小屏
+
     let containerH = winH - rect.top - 350;
     if (containerH < 0) {
       containerH = 100;
     }
-    // 防止Maximum update depth exceeded错误，如果当前值和前一个filterContextMenu值一样则不进行赋值
+    // Avoid an update loop when the menu position has not changed.
     if (
       filterContextMenu.x === left &&
       filterContextMenu.y === top &&

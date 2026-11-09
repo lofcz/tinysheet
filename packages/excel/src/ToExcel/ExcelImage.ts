@@ -1,4 +1,3 @@
-//获取图片在单元格的位置
 var getImagePosition = function (num: number, arr: number[]) {
   let index = 0;
   let minIndex;
@@ -29,16 +28,11 @@ var getImagePosition = function (num: number, arr: number[]) {
 
 var setImages = function (table: any, worksheet: any, workbook: any) {
   const localTable = { ...table };
-  let {
-    images,
-    visibledatacolumn, //所有行的位置
-    visibledatarow, //所有列的位置
-  } = localTable;
+  let { images, visibledatacolumn, visibledatarow } = localTable;
   if (typeof images != "object") return;
   for (let key in images) {
-    // 通过 base64  将图像添加到工作簿
     const myBase64Image = images[key].src;
-    //开始行 开始列 结束行 结束列
+
     const item = images[key];
     // Charts (chartSpec) are exported by the chart feature; SVG and remote
     // images cannot be embedded as pictures.
@@ -85,12 +79,12 @@ var setImages = function (table: any, worksheet: any, workbook: any) {
     const col_st = getImagePosition(item.left, visibledatacolumn);
     const row_st = getImagePosition(item.top, visibledatarow);
 
-    //模式1，图片左侧与luckysheet位置一样，像素比例保持不变，但是，右侧位置可能与原图所在单元格不一致
+    // Preserve the image origin and aspect ratio; its far edge may land in a different cell.
     worksheet.addImage(imageId, {
       tl: { col: col_st, row: row_st },
       ext: { width: item.width, height: item.height },
     });
-    //模式2,图片四个角位置没有变动，但是图片像素比例可能和原图不一样
+    // Preserve all four cell anchors, allowing the image aspect ratio to change.
     // const w_ed = item.default.left+item.default.width;
     // const h_ed = item.default.top+item.default.height;
     // const col_ed = getImagePosition(w_ed,visibledatacolumn);

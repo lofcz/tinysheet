@@ -125,14 +125,14 @@ export type Presence = {
 export type SheetConfig = {
   /** Read original borders from cells before applying the editor's border operations. */
   sourceBorders?: boolean;
-  merge?: Record<string, { r: number; c: number; rs: number; cs: number }>; // 合并单元格
-  rowlen?: Record<string, number>; // 表格行高
-  columnlen?: Record<string, number>; // 表格列宽
-  rowhidden?: Record<string, number>; // 隐藏行
-  colhidden?: Record<string, number>; // 隐藏列
+  merge?: Record<string, { r: number; c: number; rs: number; cs: number }>;
+  rowlen?: Record<string, number>;
+  columnlen?: Record<string, number>;
+  rowhidden?: Record<string, number>;
+  colhidden?: Record<string, number>;
   customHeight?: Record<string, number>;
   customWidth?: Record<string, number>;
-  borderInfo?: any[]; // 边框
+  borderInfo?: any[];
   /**
    * Sheet protection (Review › Protect Sheet), Luckysheet-compatible: see
    * `SheetProtection` and modules/protection.ts.

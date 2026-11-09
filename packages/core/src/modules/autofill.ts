@@ -302,7 +302,7 @@ export function numberToChinese(num: number) {
     num = Math.floor(num / 10000);
     unitPos += 1;
   }
-  // "一十二" reads as "十二"
+
   return chnStr.replace(/^一十/, "十");
 }
 
@@ -311,7 +311,7 @@ function isChnNumber(text: string) {
   const chars = text.split("");
   if (!chars.every((ch) => ch in chnNumChar || ch in chnNameValue))
     return false;
-  // a lone unit character (e.g. "万") is not a number
+
   return chars.some((ch) => ch in chnNumChar) || text === "十";
 }
 

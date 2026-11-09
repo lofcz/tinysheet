@@ -252,7 +252,6 @@ export function setCellFormat(
   const cellData = targetSheetData?.[row]?.[column] || {};
   const cfg = sheet.config || {};
 
-  // 特殊格式
   if (attr === "ct" && (!value || value.fa == null || value.t == null)) {
     throw new Error(
       "'fa' and 't' should be present in value when attr is 'ct'"

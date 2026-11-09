@@ -34,7 +34,6 @@ export {
   cfTextCell,
 } from "./cfDraw";
 
-// 得到历史的规则
 export function getHistoryRules(fileH: Sheet[]) {
   const historyRules = [];
   for (let h = 0; h < fileH.length; h += 1) {
@@ -46,7 +45,6 @@ export function getHistoryRules(fileH: Sheet[]) {
   return historyRules;
 }
 
-// 得到当前的规则
 export function getCurrentRules(fileC: Sheet[]) {
   const currentRules = [];
   for (let c = 0; c < fileC.length; c += 1) {
@@ -58,7 +56,6 @@ export function getCurrentRules(fileC: Sheet[]) {
   return currentRules;
 }
 
-// 设置规则
 export function setConditionRules(
   ctx: Context,
   protection: any,
@@ -70,13 +67,10 @@ export function setConditionRules(
     return;
   }
 
-  // 条件名称
   const conditionName = rules.rulesType;
 
-  // 条件单元格
   const conditionRange = [];
 
-  // 条件值
   const conditionValue = [];
 
   if (
@@ -87,7 +81,7 @@ export function setConditionRules(
   ) {
     let v = rules.rulesValue;
     const rangeArr = getRangeByTxt(ctx, v);
-    // 判断条件值是不是选区
+
     if (rangeArr.length > 1) {
       const r1 = rangeArr[0]?.row[0];
       const r2 = rangeArr[0]?.row[1];
@@ -116,7 +110,6 @@ export function setConditionRules(
     let v1 = rules.betweenValue.value1;
     let v2 = rules.betweenValue.value2;
 
-    // 值转为数组坐标
     const rangeArr1 = getRangeByTxt(ctx, v1);
     if (rangeArr1.length > 1) {
       ctx.warnDialog = conditionformat.onlySingleCell;
@@ -210,7 +203,6 @@ export function setConditionRules(
   //   conditionValue.push("belowAverage");
   // }
 
-  // 颜色
   let textColor = null;
   if (rules.textColor.check) {
     textColor = rules.textColor.color;
@@ -221,11 +213,9 @@ export function setConditionRules(
     cellColor = rules.cellColor.color;
   }
 
-  // 获得之前的规则
   // const fileH = ctx.luckysheetfile ?? [];
   // const historyRules = getHistoryRules(fileH);
 
-  // 构造现在的规则
   const rule = {
     type: "default",
     cellrange: ctx.luckysheet_select_save ?? [],
@@ -356,10 +346,7 @@ export function CFSplitRange(
     c1 >= range2.column[0] &&
     c2 <= range2.column[1]
   ) {
-    // 选区 包含 条件格式应用范围 全部
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         {
           row: [r1 + offset_r, r2 + offset_r],
@@ -367,10 +354,8 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [r1 + offset_r, r2 + offset_r],
@@ -384,10 +369,7 @@ export function CFSplitRange(
     c1 >= range2.column[0] &&
     c2 <= range2.column[1]
   ) {
-    // 选区 行贯穿 条件格式应用范围 上部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
         {
@@ -396,10 +378,8 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [{ row: [range2.row[1] + 1, r2], column: [c1, c2] }];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [r1 + offset_r, range2.row[1] + offset_r],
@@ -413,10 +393,7 @@ export function CFSplitRange(
     c1 >= range2.column[0] &&
     c2 <= range2.column[1]
   ) {
-    // 选区 行贯穿 条件格式应用范围 下部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         {
@@ -425,10 +402,8 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [{ row: [r1, range2.row[0] - 1], column: [c1, c2] }];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [range2.row[0] + offset_r, r2 + offset_r],
@@ -442,10 +417,7 @@ export function CFSplitRange(
     c1 >= range2.column[0] &&
     c2 <= range2.column[1]
   ) {
-    // 选区 行贯穿 条件格式应用范围 中间部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
@@ -455,13 +427,11 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [range2.row[0] + offset_r, range2.row[1] + offset_r],
@@ -475,10 +445,7 @@ export function CFSplitRange(
     r1 >= range2.row[0] &&
     r2 <= range2.row[1]
   ) {
-    // 选区 列贯穿 条件格式应用范围 左部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, r2], column: [range2.column[1] + 1, c2] },
         {
@@ -487,10 +454,8 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [{ row: [r1, r2], column: [range2.column[1] + 1, c2] }];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [r1 + offset_r, r2 + offset_r],
@@ -504,10 +469,7 @@ export function CFSplitRange(
     r1 >= range2.row[0] &&
     r2 <= range2.row[1]
   ) {
-    // 选区 列贯穿 条件格式应用范围 右部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, r2], column: [c1, range2.column[0] - 1] },
         {
@@ -516,10 +478,8 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [{ row: [r1, r2], column: [c1, range2.column[0] - 1] }];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [r1 + offset_r, r2 + offset_r],
@@ -533,10 +493,7 @@ export function CFSplitRange(
     r1 >= range2.row[0] &&
     r2 <= range2.row[1]
   ) {
-    // 选区 列贯穿 条件格式应用范围 中间部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, r2], column: [c1, range2.column[0] - 1] },
         { row: [r1, r2], column: [range2.column[1] + 1, c2] },
@@ -546,13 +503,11 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, r2], column: [c1, range2.column[0] - 1] },
         { row: [r1, r2], column: [range2.column[1] + 1, c2] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [r1 + offset_r, r2 + offset_r],
@@ -566,10 +521,7 @@ export function CFSplitRange(
     c1 >= range2.column[0] &&
     c1 <= range2.column[1]
   ) {
-    // 选区 包含 条件格式应用范围 左上角部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[1]], column: [range2.column[1] + 1, c2] },
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
@@ -579,13 +531,11 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, range2.row[1]], column: [range2.column[1] + 1, c2] },
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [r1 + offset_r, range2.row[1] + offset_r],
@@ -599,10 +549,7 @@ export function CFSplitRange(
     c2 >= range2.column[0] &&
     c2 <= range2.column[1]
   ) {
-    // 选区 包含 条件格式应用范围 右上角部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[1]], column: [c1, range2.column[0] - 1] },
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
@@ -612,13 +559,11 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, range2.row[1]], column: [c1, range2.column[0] - 1] },
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [r1 + offset_r, range2.row[1] + offset_r],
@@ -632,10 +577,7 @@ export function CFSplitRange(
     c1 >= range2.column[0] &&
     c1 <= range2.column[1]
   ) {
-    // 选区 包含 条件格式应用范围 左下角部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         { row: [range2.row[0], r2], column: [range2.column[1] + 1, c2] },
@@ -645,13 +587,11 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         { row: [range2.row[0], r2], column: [range2.column[1] + 1, c2] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [range2.row[0] + offset_r, r2 + offset_r],
@@ -665,10 +605,7 @@ export function CFSplitRange(
     c2 >= range2.column[0] &&
     c2 <= range2.column[1]
   ) {
-    // 选区 包含 条件格式应用范围 右下角部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         { row: [range2.row[0], r2], column: [c1, range2.column[0] - 1] },
@@ -678,13 +615,11 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         { row: [range2.row[0], r2], column: [c1, range2.column[0] - 1] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [range2.row[0] + offset_r, r2 + offset_r],
@@ -698,10 +633,7 @@ export function CFSplitRange(
     c1 >= range2.column[0] &&
     c1 <= range2.column[1]
   ) {
-    // 选区 包含 条件格式应用范围 左中间部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         {
@@ -715,7 +647,6 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         {
@@ -725,7 +656,6 @@ export function CFSplitRange(
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [range2.row[0] + offset_r, range2.row[1] + offset_r],
@@ -739,10 +669,7 @@ export function CFSplitRange(
     c2 >= range2.column[0] &&
     c2 <= range2.column[1]
   ) {
-    // 选区 包含 条件格式应用范围 右中间部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         {
@@ -756,7 +683,6 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         {
@@ -766,7 +692,6 @@ export function CFSplitRange(
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [range2.row[0] + offset_r, range2.row[1] + offset_r],
@@ -780,10 +705,7 @@ export function CFSplitRange(
     r1 >= range2.row[0] &&
     r1 <= range2.row[1]
   ) {
-    // 选区 包含 条件格式应用范围 上中间部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[1]], column: [c1, range2.column[0] - 1] },
         { row: [r1, range2.row[1]], column: [range2.column[1] + 1, c2] },
@@ -794,14 +716,12 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, range2.row[1]], column: [c1, range2.column[0] - 1] },
         { row: [r1, range2.row[1]], column: [range2.column[1] + 1, c2] },
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [r1 + offset_r, range2.row[1] + offset_r],
@@ -815,10 +735,7 @@ export function CFSplitRange(
     r2 >= range2.row[0] &&
     r2 <= range2.row[1]
   ) {
-    // 选区 包含 条件格式应用范围 下中间部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         { row: [range2.row[0], r2], column: [c1, range2.column[0] - 1] },
@@ -829,14 +746,12 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         { row: [range2.row[0], r2], column: [c1, range2.column[0] - 1] },
         { row: [range2.row[0], r2], column: [range2.column[1] + 1, c2] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [range2.row[0] + offset_r, r2 + offset_r],
@@ -850,10 +765,7 @@ export function CFSplitRange(
     c1 < range2.column[0] &&
     c2 > range2.column[1]
   ) {
-    // 选区 包含 条件格式应用范围 正中间部分
-
     if (type === "allPart") {
-      // 所有部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         {
@@ -871,7 +783,6 @@ export function CFSplitRange(
         },
       ];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [
         { row: [r1, range2.row[0] - 1], column: [c1, c2] },
         {
@@ -885,7 +796,6 @@ export function CFSplitRange(
         { row: [range2.row[1] + 1, r2], column: [c1, c2] },
       ];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [
         {
           row: [range2.row[0] + offset_r, range2.row[1] + offset_r],
@@ -894,16 +804,11 @@ export function CFSplitRange(
       ];
     }
   } else {
-    // 选区 在 条件格式应用范围 之外
-
     if (type === "allPart") {
-      // 所有部分
       range = [{ row: [r1, r2], column: [c1, c2] }];
     } else if (type === "restPart") {
-      // 剩余部分
       range = [{ row: [r1, r2], column: [c1, c2] }];
     } else if (type === "operatePart") {
-      // 操作部分
       range = [];
     }
   }

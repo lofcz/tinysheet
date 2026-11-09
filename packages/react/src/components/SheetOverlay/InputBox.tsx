@@ -176,7 +176,7 @@ const InputBox: React.FC = () => {
     }
   }, [context.formulaEditOrigin, context.luckysheetCellUpdate, setContext]);
 
-  // 当选中行列是处于隐藏状态的话则不允许编辑
+  // Hidden rows and columns cannot be edited through this overlay.
   useEffect(() => {
     setIsHidenRC(isShowHidenCR(context));
     // eslint-disable-next-line react-hooks/exhaustive-deps

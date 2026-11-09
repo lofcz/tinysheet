@@ -684,7 +684,6 @@ export const UpdateSheet: StoryFn<typeof Workbook> = () => {
   return (
     <ApiExecContainer
       onRun={() => {
-        // 更新样例
         ref.current?.updateSheet([
           {
             id: "1",

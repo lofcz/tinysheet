@@ -1,8 +1,5 @@
-// 缩放步长
-// const ZOOM_WHEEL_STEP = 0.02; // ctrl + 鼠标滚轮
-const ZOOM_STEP = 0.1; // 点击以及 Ctrl + +-
+const ZOOM_STEP = 0.1;
 
-// 缩放最大最小比例
 export const MAX_ZOOM_RATIO = 4;
 export const MIN_ZOOM_RATIO = 0.1;
 

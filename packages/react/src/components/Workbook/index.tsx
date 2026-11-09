@@ -602,10 +602,10 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           }
           if (_.isNil(mergedSettings.lang)) {
             const lang =
-              (navigator.languages && navigator.languages[0]) || // 兼容chromium内核浏览器
-              navigator.language || // 兼容剩余浏览器
+              (navigator.languages && navigator.languages[0]) ||
+              navigator.language ||
               // @ts-ignore
-              navigator.userLanguage; // 兼容IE浏览器
+              navigator.userLanguage;
             draftCtx.lang = lang;
           }
           // no currency set: the language's (Excel follows the locale)

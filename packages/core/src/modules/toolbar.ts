@@ -498,7 +498,6 @@ function backFormulaInput(
   // server.historyParam(d, ctx.currentSheetId, {
   //   row: [r, r],
   //   column: [c, c],
-  // }); 目前没有server
 }
 
 function singleFormulaInput(
@@ -653,7 +652,6 @@ function singleFormulaInput(
       cell = d[fix][ed_m + 1];
     }
 
-    /* 备注：在搜寻的时候排除自己以解决单元格函数引用自己的问题 */
     if (cell != null && cell.v != null && cell.v.toString().length > 0) {
       let c = ed_m + 1;
 
@@ -1114,9 +1112,6 @@ export function startFormatPainter(ctx: Context, sticky: boolean) {
     return;
   }
 
-  // *增加了对选区范围是否为部分合并单元格的校验，如果为部分合并单元格，就阻止格式刷的下一步
-  // TODO 这里也可以改为：判断到是合并单元格的一部分后，格式刷执行黏贴格式后删除范围单元格的 mc 值
-
   let has_PartMC = false;
 
   const r1 = ctx.luckysheet_select_save[0].row[0];
@@ -1128,8 +1123,6 @@ export function startFormatPainter(ctx: Context, sticky: boolean) {
   has_PartMC = hasPartMC(ctx, ctx.config, r1, r2, c1, c2);
 
   if (has_PartMC) {
-    // *提示后中止下一步
-    // tooltip.info('无法对部分合并单元格执行此操作', '');
     return;
   }
 
@@ -1204,7 +1197,6 @@ export function handleFormatPainter(ctx: Context) {
   startFormatPainter(ctx, false);
 }
 
-// 2022-10-10 废弃了handleClearFormat中的foreach写法，改为可跳出的every写法，以防止选区多次覆盖
 export function handleClearFormat(ctx: Context) {
   if (ctx.allowEdit === false) return;
   if (!checkProtection(ctx, "formatCells")) return;
@@ -1223,10 +1215,10 @@ export function handleClearFormat(ctx: Context) {
         flowdata[r][c] = _.pick(cell, "v", "m", "mc", "f", "ct");
       }
     }
-    // 清空表格样式时，清除边框样式
+
     const index = getSheetIndex(ctx, ctx.currentSheetId);
     if (index == null) return false;
-    // 表格边框为空时，不对表格进行操作
+
     if (ctx.config.borderInfo == null) return false;
     const cfg = ctx.config || {};
     if (cfg.borderInfo && cfg.borderInfo.length > 0) {
@@ -1307,7 +1299,6 @@ export function handleBorder(
   borderColor?: string,
   borderStyle?: string
 ) {
-  // *如果禁止前台编辑，则中止下一步操作
   // if (!checkIsAllowEdit()) {
   //   tooltip.info("", locale().pivotTable.errorNotAllowEdit);
   //   return;
@@ -1401,9 +1392,9 @@ export function handleMerge(ctx: Context, type: string) {
 
   if (selectIsOverlap(ctx)) {
     //   if (isEditMode()) {
-    //     alert("不能合并重叠区域");
+
     //   } else {
-    //     tooltip.info("不能合并重叠区域", "");
+
     //   }
     return;
   }
@@ -1426,9 +1417,9 @@ export function handleMerge(ctx: Context, type: string) {
 
     if (has_PartMC) {
       // if (isEditMode()) {
-      //   alert("无法对部分合并单元格执行此操作");
+
       // } else {
-      //   tooltip.info("无法对部分合并单元格执行此操作", "");
+
       // }
       return;
     }

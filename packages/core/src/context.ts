@@ -95,8 +95,8 @@ export type Context = {
   /** Paste Special dialog open (Ctrl+Alt+V, Ctrl+Shift+V) */
   showPasteSpecial?: boolean;
   linkCard?: LinkCardProps;
-  rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
-  // 提醒弹窗
+  rangeDialog?: RangeDialogProps;
+
   warnDialog?: string;
   /**
    * An edit refused by sheet/workbook protection (see checkProtection); the
@@ -143,11 +143,11 @@ export type Context = {
   dataVerification?: {
     selectStatus: boolean;
     selectRange: [];
-    dataRegulation?: DataRegulationProps; // 数据验证规则
+    dataRegulation?: DataRegulationProps;
     /** rule edited from the rules sidebar (see getDataVerificationRules) */
     editingRuleId?: string;
   };
-  // 数据验证下拉列表
+
   dataVerificationDropDownList?: boolean;
   /** pending data validation error alert (see checkDataVerificationInput) */
   dataVerificationAlert?: {
@@ -175,7 +175,7 @@ export type Context = {
   } | null;
   /** The Comments pane listing every threaded comment is open. */
   threadedCommentsPane?: boolean;
-  conditionRules: ConditionRulesProps; // 条件格式
+  conditionRules: ConditionRulesProps;
 
   contextMenu: {
     x?: number;
@@ -283,10 +283,10 @@ export type Context = {
     copyRange: { row: number[]; column: number[] }[];
     RowlChange: boolean;
     HasMC: boolean;
-  }; // 复制粘贴
+  };
   luckysheet_paste_iscut: boolean;
 
-  filterchage: boolean; // 筛选
+  filterchage: boolean;
   filterOptions?: FilterOptions;
   luckysheet_filter_save?: { row: number[]; column: number[] } | undefined;
   filter: Record<
@@ -309,7 +309,7 @@ export type Context = {
 
   luckysheetcurrentisPivotTable: boolean;
 
-  luckysheet_rows_selected_status: boolean; // 行列标题相关参
+  luckysheet_rows_selected_status: boolean;
   luckysheet_cols_selected_status: boolean;
   luckysheet_rows_change_size: boolean;
   luckysheet_rows_change_size_start: any[];
@@ -331,16 +331,16 @@ export type Context = {
 
   iscopyself: boolean;
 
-  orderbyindex: number; // 排序下标
+  orderbyindex: number;
 
-  luckysheet_model_move_state: boolean; // 模态框拖动
+  luckysheet_model_move_state: boolean;
   luckysheet_model_xy: number[];
   luckysheet_model_move_obj: any;
 
-  luckysheet_cell_selected_move: boolean; // 选区拖动替换
+  luckysheet_cell_selected_move: boolean;
   luckysheet_cell_selected_move_index: any[];
 
-  luckysheet_cell_selected_extend: boolean; // 选区下拉
+  luckysheet_cell_selected_extend: boolean;
   luckysheet_cell_selected_extend_index: any[];
 
   lang: string | null; // language
@@ -365,7 +365,6 @@ export type Context = {
   luckysheetPaintModelOn: boolean;
   luckysheetPaintSingle: boolean;
 
-  // 默认单元格
   defaultCell: Cell;
 
   groupValuesRefreshData: any[];
@@ -397,7 +396,7 @@ export type Context = {
    * columns (Shift+Alt+Right / Left): the UI asks which one (outline.ts).
    */
   outlinePrompt?: "group" | "ungroup";
-  // 只读模式公式被引用单元格强制高光
+
   forceFormulaRef?: boolean;
 
   sheetFocused: boolean; // property to track sheet focus for keyboard navigation
@@ -437,7 +436,7 @@ export function defaultContext(refs: RefValues): Context {
     currentSheetId: "",
     calculateSheetId: "",
     config: {},
-    // 提醒弹窗
+
     warnDialog: undefined,
     // empty: the locale's currency (see defaultCurrencySymbol)
     currency: "",
@@ -511,10 +510,10 @@ export function defaultContext(refs: RefValues): Context {
     functionCandidates: [],
     functionHint: null,
 
-    luckysheet_copy_save: undefined, // 复制粘贴
+    luckysheet_copy_save: undefined,
     luckysheet_paste_iscut: false,
 
-    filterchage: true, // 筛选
+    filterchage: true,
     filter: {},
 
     luckysheet_sheet_move_status: false,
@@ -523,7 +522,7 @@ export function defaultContext(refs: RefValues): Context {
 
     luckysheetcurrentisPivotTable: false,
 
-    luckysheet_rows_selected_status: false, // 行列标题相关参
+    luckysheet_rows_selected_status: false,
     luckysheet_cols_selected_status: false,
     luckysheet_rows_change_size: false,
     luckysheet_rows_change_size_start: [],
@@ -540,16 +539,16 @@ export function defaultContext(refs: RefValues): Context {
     iscopyself: true,
     activeImg: undefined,
 
-    orderbyindex: 0, // 排序下标
+    orderbyindex: 0,
 
-    luckysheet_model_move_state: false, // 模态框拖动
+    luckysheet_model_move_state: false,
     luckysheet_model_xy: [0, 0],
     luckysheet_model_move_obj: null,
 
-    luckysheet_cell_selected_move: false, // 选区拖动替换
+    luckysheet_cell_selected_move: false,
     luckysheet_cell_selected_move_index: [],
 
-    luckysheet_cell_selected_extend: false, // 选区下拉
+    luckysheet_cell_selected_extend: false,
     luckysheet_cell_selected_extend_index: [],
 
     lang: null, // language
@@ -569,7 +568,6 @@ export function defaultContext(refs: RefValues): Context {
 
     sheetFocused: true,
 
-    // 默认单元格
     defaultCell: {
       bl: 0,
       ct: { fa: "General", t: "n" },
@@ -613,8 +611,7 @@ function calcRowColSize(ctx: Context, rowCount: number, colCount: number) {
   // Frozen up front so immer's auto-freeze does not walk every entry.
   ctx.visibledatarow = Object.freeze(rows.positions) as number[];
 
-  // 如果增加行和回到顶部按钮隐藏，则减少底部空白区域，但是预留足够空间给单元格下拉按钮
-  ctx.rh_height = rows.total + (ctx.scrollPastEnd === false ? 0 : 80); // 最底部增加空白
+  ctx.rh_height = rows.total + (ctx.scrollPastEnd === false ? 0 : 80);
 
   const maxColumnlen = 120;
 

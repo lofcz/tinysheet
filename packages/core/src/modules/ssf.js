@@ -1740,7 +1740,7 @@ const make_ssf = function make_ssf(SSF) {
     if (l < 4 && lat > -1) --l;
     if (fmt.length > 4)
       throw new Error("cannot find right format for |" + fmt.join("|") + "|");
-    // 这行代码弃用，有可能v会有"1"的情况出现，并且需要排查true，false，‘ ’这些值所以需要使用parseFloat(v).toString()去判断是不是Number类型
+
     // if (typeof v !== "number")
     if (parseFloat(v).toString() == "NaN")
       return [4, fmt.length === 4 || lat > -1 ? fmt[fmt.length - 1] : "@"];
@@ -1800,8 +1800,6 @@ const make_ssf = function make_ssf(SSF) {
         break;
     }
 
-    //new runze 增加万 亿 格式
-    //注："w":2万2500  "w0":2万2500  "w0.0":2万2500.2  "w0.00":2万2500.23......自定义精确度
     var reg = /^(w|W)((0?)|(0\.0+))$/;
     if (!!sfmt.match(reg)) {
       if (isNaN(v)) {
@@ -1809,7 +1807,7 @@ const make_ssf = function make_ssf(SSF) {
       }
 
       //var v =300101886.436;
-      var acc = sfmt.slice(1); //取得0/0.0/0.00
+      var acc = sfmt.slice(1);
       var isNegative = false;
       if (!isNaN(v) && Number(v) < 0) {
         isNegative = true;
@@ -1820,18 +1818,18 @@ const make_ssf = function make_ssf(SSF) {
       var vlength = vInt.toString().length;
       if (vlength > 4) {
         if (vlength > 8) {
-          var y = parseInt(v / 100000000); //亿
-          var w = parseInt(parseFloat(v) - (y * 100000000) / 10000); //万
-          var q = parseFloat(v) - (y * 100000000 + w * 10000); //千以后
+          var y = parseInt(v / 100000000);
+          var w = parseInt(parseFloat(v) - (y * 100000000) / 10000);
+          var q = parseFloat(v) - (y * 100000000 + w * 10000);
           if (acc != "") {
-            q = numeral(q).format(acc); //处理精确度
+            q = numeral(q).format(acc);
           }
           v = y + "亿" + w + "万" + q;
         } else {
-          var w = parseInt(v / 10000); //万
-          var q = parseFloat(v) - w * 10000; //千以后
+          var w = parseInt(v / 10000);
+          var q = parseFloat(v) - w * 10000;
           if (acc != "") {
-            q = numeral(q).format(acc); //处理精确度
+            q = numeral(q).format(acc);
           }
           v = w + "万" + q;
         }
@@ -1844,9 +1842,7 @@ const make_ssf = function make_ssf(SSF) {
           v = v.replace("万0", "万");
         }
 
-        //舍弃正则后顾断言写法，旧浏览器不识别（360 V9）
         if (v.indexOf("亿") != -1 && v.indexOf("万") == -1) {
-          //1亿/1亿111 => 1亿/1亿0111
           var afterYi = v.substring(v.indexOf("亿") + 1);
           if (afterYi.substring(0, 1) !== "." && afterYi != "") {
             switch ((parseInt(afterYi) + "").length) {
@@ -1863,7 +1859,6 @@ const make_ssf = function make_ssf(SSF) {
             v = v.substring(0, v.indexOf("亿") + 1) + afterYi;
           }
         } else if (v.indexOf("亿") == -1 && v.indexOf("万") != -1) {
-          //3万0011
           var afterWan = v.substring(v.indexOf("万") + 1);
           if (afterWan.substring(0, 1) !== "." && afterWan != "") {
             switch ((parseInt(afterWan) + "").length) {
@@ -1880,7 +1875,6 @@ const make_ssf = function make_ssf(SSF) {
             v = v.substring(0, v.indexOf("万") + 1) + afterWan;
           }
         } else if (v.indexOf("亿") != -1 && v.indexOf("万") != -1) {
-          //1亿0053万0611
           var afterYi = v.substring(v.indexOf("亿") + 1, v.indexOf("万")),
             afterWan = v.substring(v.indexOf("万") + 1);
 
@@ -1917,7 +1911,7 @@ const make_ssf = function make_ssf(SSF) {
         }
       } else {
         if (acc != "") {
-          v = numeral(v).format(acc); //处理精确度
+          v = numeral(v).format(acc);
         }
       }
       if (isNegative) {

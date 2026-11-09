@@ -4,14 +4,14 @@ import { Context } from "../context";
 import { hasChinaword } from "./text";
 
 export const error = {
-  v: "#VALUE!", // 错误的参数或运算符
-  n: "#NAME?", // 公式名称错误
-  na: "#N/A", // 函数或公式中没有可用数值
-  r: "#REF!", // 删除了由其他公式引用的单元格
-  d: "#DIV/0!", // 除数是0或空单元格
-  nm: "#NUM!", // 当公式或函数中某个数字有问题时
-  nl: "#NULL!", // 交叉运算符（空格）使用不正确
-  sp: "#SPILL!", // 数组范围有其它值
+  v: "#VALUE!",
+  n: "#NAME?",
+  na: "#N/A",
+  r: "#REF!",
+  d: "#DIV/0!",
+  nm: "#NUM!",
+  nl: "#NULL!",
+  sp: "#SPILL!",
 };
 
 const errorValues = Object.values(error);
@@ -20,14 +20,12 @@ export function valueIsError(value: string) {
   return errorValues.includes(value);
 }
 
-// 是否是空值
 export function isRealNull(val: any) {
   if (val == null) return true;
   if (typeof val === "number" || typeof val === "boolean") return false;
   return val.toString().trim() === "";
 }
 
-// 是否是纯数字
 export function isRealNum(val: any) {
   if (_.isNil(val) || val.toString().replace(/\s/g, "") === "") {
     return false;
@@ -121,7 +119,6 @@ export function isdatatype(s: any) {
   return type;
 }
 
-// 范围是否只包含部分合并单元格
 export function hasPartMC(
   ctx: Context,
   cfg: any,

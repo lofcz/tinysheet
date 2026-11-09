@@ -27,8 +27,8 @@ function toPx(v: number) {
 }
 
 export const dropCellCache: Record<string, any> = {
-  copyRange: {}, // 复制范围
-  applyRange: {}, // 应用范围
+  copyRange: {},
+  applyRange: {},
   // 0 copy cells, 1 fill series, 2 formats only, 3 values only, 4 days,
   // 5 weekdays, 6 months, 7 years, 8 series (legacy Chinese numbers),
   // 9 growth trend. See FillType in ./autofill.
@@ -394,7 +394,6 @@ export function updateDropCell(ctx: Context) {
     file.dataVerification = dataVerification!;
   }
 
-  // 条件格式
   const cdformat = file.luckysheet_conditionformat_save;
   if (cdformat != null && cdformat.length > 0) {
     for (let i = 0; i < cdformat.length; i += 1) {
@@ -476,7 +475,6 @@ export function onDropCellSelectEnd(
     let col_s = last.column[0];
     let col_e = last.column[1];
 
-    // 复制范围
     dropCellCache.copyRange = _.cloneDeep(_.pick(last, ["row", "column"]));
     // Series detection happens per cell in generateFillSeries; plain text
     // is copied. Ctrl (Option on Mac) toggles between copy and series.
@@ -491,7 +489,6 @@ export function onDropCellSelectEnd(
     ) {
       if (!(row_index >= row_s && row_index <= row_e)) {
         if (top_move != null && top_move >= row_pre) {
-          // 当往上拖拽时
           dropCellCache.applyRange = {
             row: [row_index, last.row[0] - 1],
             column: last.column,
@@ -500,7 +497,6 @@ export function onDropCellSelectEnd(
 
           row_s -= last.row[0] - row_index;
         } else {
-          // 当往下拖拽时
           dropCellCache.applyRange = {
             row: [last.row[1] + 1, row_index],
             column: last.column,
@@ -515,7 +511,6 @@ export function onDropCellSelectEnd(
     } else {
       if (!(col_index >= col_s && col_index <= col_e)) {
         if (left_move != null && left_move >= col_pre) {
-          // 当往左拖拽时
           dropCellCache.applyRange = {
             row: last.row,
             column: [col_index, last.column[0] - 1],
@@ -524,7 +519,6 @@ export function onDropCellSelectEnd(
 
           col_s -= last.column[0] - col_index;
         } else {
-          // 当往右拖拽时
           dropCellCache.applyRange = {
             row: last.row,
             column: [last.column[1] + 1, col_index],

@@ -20,7 +20,6 @@ const RangeDialog: React.FC = () => {
 
   const close = useCallback(() => {
     setContext((ctx) => {
-      // 开启选区
       // globalCache.doNotUpdateCell = false;
       // ctx.formulaCache.rangestart = false;
       // ctx.formulaCache.rangedrag_column_start = false;
@@ -47,7 +46,6 @@ const RangeDialog: React.FC = () => {
     showDialog(<DataVerification />);
   }, [context.rangeDialog, setContext, showDialog]);
 
-  // 得到选区坐标
   useEffect(() => {
     setRangeTxt2((r) => {
       if (context.luckysheet_select_save) {

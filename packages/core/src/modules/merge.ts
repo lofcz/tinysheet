@@ -74,7 +74,7 @@ export function mergeCells(
       }
     }
   } else {
-    let isHasMc = false; // 选区是否含有 合并的单元格
+    let isHasMc = false;
 
     for (let i = 0; i < ranges.length; i += 1) {
       const range = ranges[i];
@@ -96,7 +96,6 @@ export function mergeCells(
     }
 
     if (isHasMc) {
-      // 选区有合并单元格（选区都执行 取消合并）
       for (let i = 0; i < ranges.length; i += 1) {
         const range = ranges[i];
         const r1 = range.row[0];

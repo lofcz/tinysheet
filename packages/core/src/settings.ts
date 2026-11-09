@@ -335,23 +335,23 @@ export type RibbonTabConfig = {
 };
 
 export const defaultSettings: Required<Settings> = {
-  column: 60, // 空表格默认的列数量
-  row: 84, // 空表格默认的行数据量
+  column: 60,
+  row: 84,
   addRows: 50, // It will add the rows when we click on add row button
-  showToolbar: true, // 是否显示工具栏
+  showToolbar: true,
   defaultRibbonPinned: true,
-  showFormulaBar: true, // 是否显示公式栏
-  showSheetTabs: true, // 是否显示底部表格名称区域
-  showStatsBar: true, // 是否显示底部选区统计（关闭可显著降低拖拽选区时的开销）
+  showFormulaBar: true,
+  showSheetTabs: true,
+  showStatsBar: true,
   showAddRows: true,
   selectionOnLoad: true,
   scrollPastEnd: true,
-  data: [], // 客户端sheet数据[sheet1, sheet2, sheet3]
-  config: {}, // 表格行高、列宽、合并单元格、公式等设置
-  devicePixelRatio: 0, // 设备比例，比例越大表格分标率越高，0表示自动
-  allowEdit: true, // 是否允许前台编辑
+  data: [],
+  config: {},
+  devicePixelRatio: 0,
+  allowEdit: true,
   lang: null, // language
-  forceCalculation: false, // 强制刷新公式，公式较多会有性能问题，慎用
+  forceCalculation: false,
   rowHeaderWidth: 46,
   columnHeaderHeight: 20,
   defaultColWidth: 73,
@@ -445,7 +445,7 @@ export const defaultSettings: Required<Settings> = {
     // View options / Review › Protection (react/src/components/Protection)
     "view-options",
     "protection",
-  ], // 自定义工具栏
+  ],
   // Excel's cell menu. Entries backed by other modules ("paste-special",
   // "cell-format", "define-name", "chart") appear once registered; see
   // react/src/components/ContextMenu/actions.ts. Also available:
@@ -485,7 +485,7 @@ export const defaultSettings: Required<Settings> = {
     "|",
     "formula-auditing", // Trace Precedents / Dependents, Evaluate, Watch…
     "sparkline", // Sparklines submenu on cells with sparklines
-  ], // 自定义单元格右键菜单
+  ],
   // row / column header menu
   headerContextMenu: [
     "cut",
@@ -503,7 +503,7 @@ export const defaultSettings: Required<Settings> = {
     "autofit",
     "hide-row", // Hide / Unhide
     "hide-column",
-  ], // header菜单
+  ],
   sheetTabContextMenu: [
     "insert",
     "delete",
@@ -515,7 +515,7 @@ export const defaultSettings: Required<Settings> = {
     "|",
     "move",
     // "focus",
-  ], // 自定义底部sheet页右击菜单
+  ],
   filterContextMenu: [
     "sort-by-asc",
     "sort-by-desc",
@@ -525,7 +525,7 @@ export const defaultSettings: Required<Settings> = {
     "filter-by-condition",
     "|",
     "filter-by-value",
-  ], // 筛选菜单
+  ],
   generateSheetId: () => uuidv4(),
   hooks: {},
   customToolbarItems: [],

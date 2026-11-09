@@ -414,7 +414,6 @@ export function handleWithCtrlOrMetaKey(
         e.keyCode
       );
     } else if (e.code === "KeyZ") {
-      // Ctrl + shift + z 重做
       handleRedo();
       e.stopPropagation();
       return;
@@ -465,7 +464,6 @@ export function handleWithCtrlOrMetaKey(
   } else if (e.key === "Backspace") {
     nav.scrollToActiveCell(ctx);
   } else if (e.code === "KeyB") {
-    // Ctrl + B  加粗
     handleBold(ctx, cellInput);
   } else if (e.code === "KeyI") {
     handleItalic(ctx, cellInput);
@@ -476,19 +474,15 @@ export function handleWithCtrlOrMetaKey(
   } else if (e.code === "Digit1" || e.code === "Numpad1") {
     openFormatCells(ctx); // Ctrl+1: Format Cells
   } else if (e.code === "KeyC") {
-    // Ctrl + C  复制
     handleCopy(ctx);
     // luckysheetactiveCell();
     e.stopPropagation();
     return;
   } else if (e.code === "KeyF") {
-    // Ctrl + F  查找
     ctx.showSearch = true;
   } else if (e.code === "KeyH") {
-    // Ctrl + H  替换
     ctx.showReplace = true;
   } else if (e.code === "KeyV") {
-    // Ctrl + V  粘贴
     if ((ctx.luckysheet_select_save?.length ?? 0) > 1) {
       return;
     }
@@ -504,8 +498,6 @@ export function handleWithCtrlOrMetaKey(
     e.stopPropagation();
     return;
   } else if (e.code === "KeyX") {
-    // Ctrl + X  剪切
-    // 复制时存在格式刷状态，取消格式刷
     if (ctx.luckysheetPaintModelOn) {
       cancelPaintModel(ctx);
     }
@@ -515,7 +507,6 @@ export function handleWithCtrlOrMetaKey(
       return;
     }
 
-    // 复制范围内包含部分合并单元格，提示
     if (ctx.config.merge != null) {
       let has_PartMC = false;
 
@@ -537,7 +528,6 @@ export function handleWithCtrlOrMetaKey(
       }
     }
 
-    // 多重选区时 提示
     if (selection.length > 1) {
       return;
     }
@@ -550,7 +540,6 @@ export function handleWithCtrlOrMetaKey(
     e.stopPropagation();
     return;
   } else if (e.code === "KeyZ") {
-    // Ctrl + Z  撤销
     handleUndo();
     e.stopPropagation();
     return;
@@ -608,7 +597,6 @@ function handleShiftWithArrowKey(ctx: Context, e: KeyboardEvent) {
   );
   ctx.luckysheet_shiftkeydown = true;
 
-  // shift + 方向键 调整选区
   const arrow = ARROW_DIRECTIONS[e.key];
   if (arrow) nav.extendSelection(ctx, arrow);
 
@@ -1166,7 +1154,6 @@ export function handleGlobalKeyDown(
         kstr !== "Win" &&
         kcode !== 18
       ) {
-        // 激活输入框，并将按键输入到输入框
         const last =
           ctx.luckysheet_select_save![ctx.luckysheet_select_save!.length - 1];
 

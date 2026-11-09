@@ -229,7 +229,6 @@ export function getFontSet(
   return defaultFont(defaultFontSize, defaultFontFamily(ctx));
 }
 
-// 获取有值单元格文本大小
 // let measureTextCache = {}, measureTextCacheTimeOut = null;
 export function getMeasureText(
   value: any,
@@ -440,7 +439,7 @@ function computeCellTextInfo(
 
   // let cell = sheetCtx.flowdata[r][c];
   let { space_width } = option;
-  let { space_height } = option; // 宽高方向 间隙
+  let { space_height } = option;
 
   if (space_width === undefined) {
     space_width = 2;
@@ -450,9 +449,8 @@ function computeCellTextInfo(
     space_height = 2;
   }
 
-  // 水平对齐
   const horizonAlign = normalizedCellAttr(cell, "ht");
-  // 垂直对齐
+
   const verticalAlign = normalizedCellAttr(cell, "vt");
 
   const tb = normalizedCellAttr(cell, "tb"); // wrap overflow
@@ -607,7 +605,7 @@ function computeCellTextInfo(
     // vertical text
     renderCtx.textBaseline = "top";
 
-    let textW_all = 0; // 拆分后宽高度合计
+    let textW_all = 0;
     let textH_all = 0;
     let colIndex = 0;
     let textH_all_cache = 0;
@@ -842,7 +840,7 @@ function computeCellTextInfo(
     if (tb === "2" || isInline) {
       // wrap
 
-      let textW_all = 0; // 拆分后宽高度合计
+      let textW_all = 0;
       let textH_all = 0;
       let textW_all_inner = 0;
 
@@ -1843,13 +1841,11 @@ function computeCellTextInfo(
       const width = textWidthAll;
       const height = textHeightAll;
 
-      let left = space_width + textHeight * Math.sin(rtPI) * isRotateUp; // 默认为1，左对齐
+      let left = space_width + textHeight * Math.sin(rtPI) * isRotateUp;
       if (horizonAlign === "0") {
-        // 居中对齐
         left =
           cellWidth / 2 - width / 2 + textHeight * Math.sin(rtPI) * isRotateUp;
       } else if (horizonAlign === "2") {
-        // 右对齐
         left =
           cellWidth -
           space_width -
@@ -1862,16 +1858,14 @@ function computeCellTextInfo(
         space_height -
         height +
         measureText.actualBoundingBoxAscent * Math.cos(rtPI) +
-        textWidth * Math.sin(rtPI) * isRotateUp; // 默认为2，下对齐
+        textWidth * Math.sin(rtPI) * isRotateUp;
       if (verticalAlign === "0") {
-        // 居中对齐
         top =
           cellHeight / 2 -
           height / 2 +
           measureText.actualBoundingBoxAscent * Math.cos(rtPI) +
           textWidth * Math.sin(rtPI) * isRotateUp;
       } else if (verticalAlign === "1") {
-        // 上对齐
         top =
           space_height +
           measureText.actualBoundingBoxAscent * Math.cos(rtPI) +
@@ -1960,7 +1954,6 @@ function cellTextInfoKey(
   ].join(SEP);
 }
 
-// 获取单元格文本内容的渲染信息
 // option {cellWidth,cellHeight,space_width,space_height}
 // Layouts are cached by content, style and cell size (not position), so
 // scrolling and redraws reuse them. The returned object is shared and must

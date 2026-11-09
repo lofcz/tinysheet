@@ -190,7 +190,6 @@ const DropDownList: React.FC = () => {
     };
   }, [close]);
 
-  // 初始化
   useEffect(() => {
     // Wrap all state updates to avoid updating during render
     const updateState = () => {
@@ -276,7 +275,6 @@ const DropDownList: React.FC = () => {
     return () => observer.disconnect();
   }, [context.luckysheetCellUpdate]);
 
-  // 设置下拉列表的值
   useEffect(() => {
     if (!context.luckysheet_select_save) return;
     const last =

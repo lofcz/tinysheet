@@ -333,10 +333,10 @@ export function getDropdownList(
   )[];
 }
 
-// TODO: 后期增加鼠标可以选择多个选区
-// 开启范围选区
-// TODO: 后期增加鼠标可以选择多个选区
-// 开启范围选区
+// TODO: Allow selecting multiple ranges with the mouse.
+
+// TODO: Allow selecting multiple ranges with the mouse.
+
 export function dataRangeSelection(
   ctx: Context,
   cache: GlobalCache,
@@ -381,34 +381,29 @@ export function dataRangeSelection(
   // ctx.formulaCache.rangechangeindex = 0;
 }
 
-// 身份证
-// 身份证
 export function validateIdCard(ctx: Context, idCard: string) {
-  // 15位和18位身份证号码的正则表达式
   const regIdCard =
     /^(^[1-9]\d{7}((0\d)|(1[0-2]))(([0|1|2]\d)|3[0-1])\d{3}$)|(^[1-9]\d{5}[1-9]\d{3}((0\d)|(1[0-2]))(([0|1|2]\d)|3[0-1])((\d{4})|\d{3}[Xx])$)$/;
 
-  // 如果通过该验证，说明身份证格式正确，但准确性还需计算
   if (regIdCard.test(idCard)) {
     if (idCard.length === 18) {
-      const idCardWi = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]; // 将前17位加权因子保存在数组里
-      const idCardY = [1, 0, 10, 9, 8, 7, 6, 5, 4, 3, 2]; // 这是除以11后，可能产生的11位余数、验证码，也保存成数组
-      let idCardWiSum = 0; // 用来保存前17位各自乖以加权因子后的总和
+      const idCardWi = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2];
+      const idCardY = [1, 0, 10, 9, 8, 7, 6, 5, 4, 3, 2];
+      let idCardWiSum = 0;
       for (let i = 0; i < 17; i += 1) {
         idCardWiSum += Number(idCard.substring(i, i + 1)) * idCardWi[i];
       }
 
-      const idCardMod = idCardWiSum % 11; // 计算出校验码所在数组的位置
-      const idCardLast = idCard.substring(17); // 得到最后一位身份证号码
+      const idCardMod = idCardWiSum % 11;
+      const idCardLast = idCard.substring(17);
 
-      // 如果等于2，则说明校验码是10，身份证号码最后一位应该是X
       if (idCardMod === 2) {
         if (idCardLast === "X" || idCardLast === "x") {
           return true;
         }
         return false;
       }
-      // 用计算出的验证码与最后一位身份证号码匹配，如果一致，说明通过，否则是无效的身份证号码
+
       if (idCardLast === idCardY[idCardMod].toString()) {
         return true;
       }
@@ -1105,8 +1100,6 @@ export function retryDataVerificationAlert(ctx: Context): string | null {
   return alert.value;
 }
 
-// 复选框处理
-// 复选框处理
 export function checkboxChange(ctx: Context, r: number, c: number) {
   const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
   // let historyDataVerification = $.extend(true, {}, _this.dataVerification);
@@ -1122,8 +1115,6 @@ export function checkboxChange(ctx: Context, r: number, c: number) {
   setCellValue(ctx, r, c, d, value);
 }
 
-// 数据无效时的提示信息
-// 数据无效时的提示信息
 function validationDescription(ctx: Context, item: any) {
   const tools = dataToolsLocale(ctx).dataValidation;
   const op = DATE_OPERATOR_ALIASES[item.type2] ?? item.type2;
@@ -1157,7 +1148,6 @@ export function getHintText(ctx: Context, item: any) {
   return LL.inputHint(validationDescription(ctx, item));
 }
 
-// 单元格聚焦处理: dropdown arrow, input message and invalid-value hint
 export function cellFocus(
   ctx: Context,
   r: number,
@@ -1197,13 +1187,11 @@ export function cellFocus(
   const item = dataVerification[`${r}_${c}`];
   if (!item) return;
 
-  // 单元格数据验证 类型是 复选
   if (clickMode && item.type === "checkbox") {
     // eslint-disable-next-line no-use-before-define
     checkboxChange(ctx, r, c);
   }
 
-  // 单元格数据验证 类型是 下拉列表
   if (item.type === "dropdown" && item.showDropdown !== false) {
     dropDownBtn.style.display = "block";
     dropDownBtn.style.maxWidth = `${col - col_pre}px`;
@@ -1240,7 +1228,6 @@ export function cellFocus(
     }
   }
 
-  // 数据验证未通过,失效提醒
   const cellValue = validationValue(d[r]?.[c]);
   if (isBlankValue(cellValue)) return;
   if (!validateCellData(ctx, item, cellValue, r, c)) {
@@ -1284,7 +1271,6 @@ export function dropdownArrowPressed(
   return true;
 }
 
-// 设置下拉列表的值
 export function setDropcownValue(ctx: Context, value: string, arr: any) {
   if (!ctx.luckysheet_select_save) return;
   const d = getFlowdata(ctx);
@@ -1333,7 +1319,6 @@ function isDateOrTimeLike(v: any) {
   return !!parsed && typeof parsed[2] === "number";
 }
 
-// 输入数据验证: check the dialog's settings before applying them
 export function confirmMessage(
   ctx: Context,
   generalDialog: any,

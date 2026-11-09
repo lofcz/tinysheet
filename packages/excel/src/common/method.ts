@@ -104,7 +104,6 @@ export function getcellrange(
   }
 }
 
-//列下标  字母转数字
 function ABCatNum(abc: string) {
   abc = abc.toUpperCase();
 
@@ -130,7 +129,6 @@ function ABCatNum(abc: string) {
   return ret;
 }
 
-//列下标  数字转字母
 function chatatABC(index: number) {
   let wordlen = columeHeader_word.length;
 
@@ -245,9 +243,8 @@ export function LightenDarkenColor(sixColor: string, tint: number) {
 }
 
 function rgbToHex(rgb: string) {
-  //十六进制颜色值的正则表达式
   var reg = /^#([0-9a-fA-f]{3}|[0-9a-fA-f]{6})$/;
-  // 如果是rgb颜色表示
+
   if (/^(rgb|RGB)/.test(rgb)) {
     var aColor = rgb.replace(/(?:\(|\)|rgb|RGB)*/g, "").split(",");
     var strHex = "#";
@@ -279,9 +276,9 @@ function rgbToHex(rgb: string) {
 
 function hexToRgbArray(hex: string) {
   var sColor = hex?.toLowerCase();
-  //十六进制颜色值的正则表达式
+
   var reg = /^#([0-9a-fA-f]{3}|[0-9a-fA-f]{6})$/;
-  // 如果是16进制颜色
+
   if (sColor && reg.test(sColor)) {
     if (sColor.length === 4) {
       var sColorNew = "#";
@@ -290,7 +287,7 @@ function hexToRgbArray(hex: string) {
       }
       sColor = sColorNew;
     }
-    //处理六位的颜色值
+
     var sColorChange: number[] = [];
     for (var i = 1; i < 7; i += 2) {
       sColorChange.push(parseInt("0x" + sColor.slice(i, i + 2)));
@@ -300,17 +297,6 @@ function hexToRgbArray(hex: string) {
   return null;
 }
 
-/**
- * HSL颜色值转换为RGB.
- * 换算公式改编自 http://en.wikipedia.org/wiki/HSL_color_space.
- * h, s, 和 l 设定在 [0, 1] 之间
- * 返回的 r, g, 和 b 在 [0, 255]之间
- *
- * @param   Number  h       色相
- * @param   Number  s       饱和度
- * @param   Number  l       亮度
- * @return  Array           RGB色值数值
- */
 function hslToRgb(h: number, s: number, l: number) {
   var r, g, b;
 
@@ -336,17 +322,6 @@ function hslToRgb(h: number, s: number, l: number) {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
-/**
- * RGB 颜色值转换为 HSL.
- * 转换公式参考自 http://en.wikipedia.org/wiki/HSL_color_space.
- * r, g, 和 b 需要在 [0, 255] 范围内
- * 返回的 h, s, 和 l 在 [0, 1] 之间
- *
- * @param   Number  r       红色色值
- * @param   Number  g       绿色色值
- * @param   Number  b       蓝色色值
- * @return  Array           HSL各值数组
- */
 function rgbToHsl(r: number, g: number, b: number) {
   ((r /= 255), (g /= 255), (b /= 255));
   var max = Math.max(r, g, b),
@@ -537,14 +512,14 @@ export function escapeCharacter(str: string) {
 export class fromulaRef {
   static operator = "==|!=|<>|<=|>=|=|+|-|>|<|/|*|%|&|^";
   static error = {
-    v: "#VALUE!", //错误的参数或运算符
-    n: "#NAME?", //公式名称错误
-    na: "#N/A", //函数或公式中没有可用数值
-    r: "#REF!", //删除了由其他公式引用的单元格
-    d: "#DIV/0!", //除数是0或空单元格
-    nm: "#NUM!", //当公式或函数中某个数字有问题时
-    nl: "#NULL!", //交叉运算符（空格）使用不正确
-    sp: "#SPILL!", //数组范围有其它值
+    v: "#VALUE!",
+    n: "#NAME?",
+    na: "#N/A",
+    r: "#REF!",
+    d: "#DIV/0!",
+    nm: "#NUM!",
+    nl: "#NULL!",
+    sp: "#SPILL!",
   };
 
   static operatorjson: stringToNum = null;
@@ -845,7 +820,6 @@ export class fromulaRef {
   }
 
   static iscelldata(txt: string) {
-    //判断是否为单元格格式
     let val = txt.split("!"),
       rangetxt;
 
@@ -855,9 +829,9 @@ export class fromulaRef {
       rangetxt = val[0];
     }
 
-    let reg_cell = /^(([a-zA-Z]+)|([$][a-zA-Z]+))(([0-9]+)|([$][0-9]+))$/g; //增加正则判断单元格为字母+数字的格式：如 A1:B3
+    let reg_cell = /^(([a-zA-Z]+)|([$][a-zA-Z]+))(([0-9]+)|([$][0-9]+))$/g;
     let reg_cellRange =
-      /^(((([a-zA-Z]+)|([$][a-zA-Z]+))(([0-9]+)|([$][0-9]+)))|((([a-zA-Z]+)|([$][a-zA-Z]+))))$/g; //增加正则判断单元格为字母+数字或字母的格式：如 A1:B3，A:A
+      /^(((([a-zA-Z]+)|([$][a-zA-Z]+))(([0-9]+)|([$][0-9]+)))|((([a-zA-Z]+)|([$][a-zA-Z]+))))$/g;
 
     if (rangetxt.indexOf(":") == -1) {
       let row = parseInt(rangetxt.replace(/[^0-9]/g, "")) - 1;
@@ -1203,15 +1177,12 @@ export function getMultiFormulaValue(value: string): string[] {
 export var setMerge = function (luckyMerge = {}, worksheet: Xlsx.Worksheet) {
   const mergearr = Object.values(luckyMerge);
   mergearr.forEach(function (elem: any) {
-    // elem格式：{r: 0, c: 0, rs: 1, cs: 2}
-    // 按开始行，开始列，结束行，结束列合并（相当于 K10:M12）
     worksheet.mergeCells(
       `${cellAddress(elem.r, elem.c)}:${cellAddress(elem.r + elem.rs - 1, elem.c + elem.cs - 1)}`
     );
   });
 };
 
-//获取数据类型
 export var getObjType = function (obj: Object) {
   let toString = Object.prototype.toString;
 
@@ -1230,7 +1201,6 @@ export var getObjType = function (obj: Object) {
   return map[toString.call(obj)];
 };
 
-//转换颜色
 export var rgb2hex = function (rgb: string) {
   if (rgb.charAt(0) == "#") {
     return rgb;

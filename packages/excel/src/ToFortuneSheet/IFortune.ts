@@ -139,7 +139,6 @@ export interface IfortunesheetCalcChain {
   r: number;
   c: number;
   id: string | undefined;
-  // func?:any[],//[true, 152, "=SUBTOTAL(9,OFFSET(F15,ROW(F15:F18)-ROW(F15),1,3))"] 已经计算、终值、公式
 }
 
 export interface IfortuneSheetCelldata {

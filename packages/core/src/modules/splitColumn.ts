@@ -7,7 +7,6 @@ import { genarate, update } from "./format";
 import { jfrefreshgrid } from "./refresh";
 import { reconcileSpills } from "./spill";
 
-// 生成二维数组
 export function getNullData(rlen: number, clen: number) {
   const arr = [];
   for (let r = 0; r < rlen; r += 1) {
@@ -21,7 +20,6 @@ export function getNullData(rlen: number, clen: number) {
   return arr;
 }
 
-// 批量更新数据到表格
 export function updateMoreCell(
   r: number,
   c: number,
@@ -40,7 +38,6 @@ export function updateMoreCell(
   // selectHightlightShow();
 }
 
-// 处理分隔符
 export function getRegStr(regStr: string, splitSymbols: any) {
   regStr = "";
   let mark = 0;
@@ -50,25 +47,21 @@ export function getRegStr(regStr: string, splitSymbols: any) {
     if (inputNode.checked) {
       const { id } = inputNode;
       if (id === "Tab") {
-        // Tab键
         regStr += "\\t";
         mark += 1;
       } else if (id === "semicolon") {
-        // 分号
         if (mark > 0) {
           regStr += "|";
         }
         regStr += ";";
         mark = 1;
       } else if (id === "comma") {
-        // 逗号
         if (mark > 0) {
           regStr += "|";
         }
         regStr += ",";
         mark += 1;
       } else if (id === "space") {
-        // 空格
         if (mark > 0) {
           regStr += "|";
         }
@@ -76,10 +69,8 @@ export function getRegStr(regStr: string, splitSymbols: any) {
         regStr += "\\s";
         mark += 1;
       } else if (id === "splitsimple") {
-        // 连续分隔符号视为单个处理
         regStr = `[${regStr}]+`;
       } else if (id === "other") {
-        // 其他
         const txt = split.childNodes[2].value;
         if (txt !== "") {
           if (mark > 0) {
@@ -93,7 +84,6 @@ export function getRegStr(regStr: string, splitSymbols: any) {
   return regStr;
 }
 
-// 获得分割数据
 export function getDataArr(regStr: string, ctx: Context) {
   let arr = [];
   const r1 = ctx.luckysheet_select_save![0].row[0];

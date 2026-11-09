@@ -441,7 +441,6 @@ function parseElement(eleString: string) {
 }
 
 export function iscelldata(txt: string) {
-  // 判断是否为单元格格式
   const val = txt.split("!");
   let rangetxt: string;
 
@@ -451,9 +450,9 @@ export function iscelldata(txt: string) {
     [rangetxt] = val;
   }
 
-  const reg_cell = /^(([a-zA-Z]+)|([$][a-zA-Z]+))(([0-9]+)|([$][0-9]+))$/g; // 增加正则判断单元格为字母+数字的格式：如 A1:B3
+  const reg_cell = /^(([a-zA-Z]+)|([$][a-zA-Z]+))(([0-9]+)|([$][0-9]+))$/g;
   let reg_cellRange =
-    /^(((([a-zA-Z]+)|([$][a-zA-Z]+))(([0-9]+)|([$][0-9]+)))|((([a-zA-Z]+)|([$][a-zA-Z]+))))$/g; // 增加正则判断单元格为字母+数字或字母的格式：如 A1:B3，A:A
+    /^(((([a-zA-Z]+)|([$][a-zA-Z]+))(([0-9]+)|([$][0-9]+)))|((([a-zA-Z]+)|([$][a-zA-Z]+))))$/g;
 
   if (rangetxt.indexOf(":") === -1) {
     const row = parseInt(rangetxt.replace(/[^0-9]/g, ""), 10) - 1;
@@ -738,7 +737,6 @@ export function isFunctionRange(
   // let luckysheetfile = getluckysheetfile();
   // let dynamicArray_compute = luckysheetfile[getSheetIndex(Store.currentSheetId)_.isNil(]["dynamicArray_compute"]) ? {} : luckysheetfile[getSheetIndex(Store.currentSheetId)]["dynamicArray_compute"];
 
-  // bracket 0为运算符括号、1为函数括号
   const cal1: any[] = [];
   const cal2: any[] = [];
   const bracket: any[] = [];
@@ -820,10 +818,9 @@ export function isFunctionRange(
       matchConfig.braces -= 1;
     } else if (s === '"' && matchConfig.squote === 0) {
       if (matchConfig.dquote > 0) {
-        // 如果是""代表着输出"
         if (i < funcstack.length - 1 && funcstack[i + 1] === '"') {
           i += 1;
-          str += "\x7F"; // 用DEL替换一下""
+          str += "\x7F";
         } else {
           matchConfig.dquote -= 1;
           str += '"';
@@ -836,18 +833,14 @@ export function isFunctionRange(
       str += "'";
 
       if (matchConfig.squote > 0) {
-        // if (firstSQ === i - 1)//配对的单引号后第一个字符不能是单引号
         // {
-        //    代码到了此处应该是公式错误
+
         // }
-        // 如果是''代表着输出'
+
         if (i < funcstack.length - 1 && funcstack[i + 1] === "'") {
           i += 1;
           str += "'";
         } else {
-          // 如果下一个字符不是'代表单引号结束
-          // if (funcstack[i - 1] === "'") {//配对的单引号后最后一个字符不能是单引号
-          //    代码到了此处应该是公式错误
           // } else {
           matchConfig.squote -= 1;
           // }
@@ -1420,7 +1413,6 @@ export function groupValuesRefresh(ctx: Context) {
       // });
     }
 
-    // editor.webWorkerFlowDataCache(Store.flowdata); // worker存数据
     ctx.groupValuesRefreshData = [];
   }
 }
@@ -2104,10 +2096,10 @@ export function functionStrChange(
   let function_str = "";
 
   const matchConfig = {
-    bracket: 0, // 括号
-    comma: 0, // 逗号
-    squote: 0, // 单引号
-    dquote: 0, // 双引号
+    bracket: 0,
+    comma: 0,
+    squote: 0,
+    dquote: 0,
   };
 
   while (i < funcstack.length) {
@@ -2288,7 +2280,7 @@ export function rangeSetValue(
     //     $("#luckysheet-search-formula-parm").is(":visible") ||
     //     $("#luckysheet-search-formula-parm-select").is(":visible")
     //   ) {
-    //     // 公式参数框选取范围
+
     //     $editor = $("#luckysheet-rich-text-editor");
     //     $("#luckysheet-search-formula-parm-select-input").val(range);
     //     $("#luckysheet-search-formula-parm .parmBox")
@@ -2296,10 +2288,9 @@ export function rangeSetValue(
     //       .find(".txt input")
     //       .val(range);
 
-    //     // 参数对应值显示
     //     const txtdata = luckysheet_getcelldata(range).data;
     //     if (txtdata instanceof Array) {
-    //       // 参数为多个单元格选区
+
     //       const txtArr = [];
 
     //       for (let i = 0; i < txtdata.length; i += 1) {
@@ -2317,17 +2308,13 @@ export function rangeSetValue(
     //         .find(".val")
     //         .text(` = {${txtArr.join(",")}}`);
     //     } else {
-    //       // 参数为单个单元格选区
+
     //       $("#luckysheet-search-formula-parm .parmBox")
     //         .eq(formulaCache.data_parm_index)
     //         .find(".val")
     //         .text(` = {${txtdata.v}}`);
     //     }
 
-    //     // 计算结果显示
-    //     let isVal = true; // 参数不为空
-    //     const parmValArr = []; // 参数值集合
-    //     let lvi = -1; // 最后一个有值的参数索引
     //     $("#luckysheet-search-formula-parm .parmBox").each(function (i, e) {
     //       const parmtxt = $(e).find(".txt input").val();
     //       if (
@@ -2341,7 +2328,6 @@ export function rangeSetValue(
     //       }
     //     });
 
-    // 单元格显示
     //     let functionHtmlTxt;
     //     if (lvi === -1) {
     //       functionHtmlTxt = `=${$(
@@ -2375,7 +2361,7 @@ export function rangeSetValue(
     //     );
 
     //     if (isVal) {
-    //       // 公式计算
+
     //       const fp = _.trim(
     //         functionParserExe($("#luckysheet-rich-text-editor").text())
     //       );
@@ -2580,7 +2566,7 @@ export function rangeDrag(
   // luckysheet_count_show(left, top, width, height, rowseleted, columnseleted);
 
   // if ($("#luckysheet-ifFormulaGenerator-multiRange-dialog").is(":visible")) {
-  //   // if公式生成器 选择范围
+
   //   const range = getRangetxt(
   //     ctx,
   //     ctx.currentSheetId,

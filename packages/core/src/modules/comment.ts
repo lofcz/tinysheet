@@ -99,7 +99,6 @@ export function drawArrow(
       : "") ||
     "#000";
 
-  // 计算各角度和对应的P2,P3坐标
   const angle = (Math.atan2(fromY - toY, fromX - toX) * 180) / Math.PI;
   const angle1 = ((angle + theta) * Math.PI) / 180;
   const angle2 = ((angle - theta) * Math.PI) / 180;
@@ -434,7 +433,6 @@ export function showHideAllComments(ctx: Context) {
   const rcs = [];
   if (allComments.length > 0) {
     if (isAllShow) {
-      // 全部显示，操作为隐藏所有批注
       for (let i = 0; i < allComments.length; i += 1) {
         const { r, c } = allComments[i];
         const comment = flowdata[r][c]?.ps;
@@ -446,7 +444,6 @@ export function showHideAllComments(ctx: Context) {
       }
       ctx.commentBoxes = [];
     } else {
-      // 部分显示或全部隐藏，操作位显示所有批注
       for (let i = 0; i < allComments.length; i += 1) {
         const { r, c } = allComments[i];
         const comment = flowdata[r][c]?.ps;
@@ -770,198 +767,3 @@ export function onCommentBoxMoveEnd(ctx: Context, globalCache: GlobalCache) {
     }
   }
 }
-
-/*
-const luckysheetPostil = {
-  getArrowCanvasSize(fromX, fromY, toX, toY) {
-    let left = toX - 5;
-
-    if (fromX < toX) {
-      left = fromX - 5;
-    }
-
-    let top = toY - 5;
-
-    if (fromY < toY) {
-      top = fromY - 5;
-    }
-
-    const width = Math.abs(fromX - toX) + 10;
-    const height = Math.abs(fromY - toY) + 10;
-
-    let x1 = width - 5;
-    let x2 = 5;
-
-    if (fromX < toX) {
-      x1 = 5;
-      x2 = width - 5;
-    }
-
-    let y1 = height - 5;
-    let y2 = 5;
-
-    if (fromY < toY) {
-      y1 = 5;
-      y2 = height - 5;
-    }
-
-    return [left, top, width, height, x1, y1, x2, y2];
-  },
-  drawArrow(ctx, fromX, fromY, toX, toY, theta, headlen, width, color) {
-    theta = getObjType(theta) == "undefined" ? 30 : theta;
-    headlen = getObjType(headlen) == "undefined" ? 6 : headlen;
-    width = getObjType(width) == "undefined" ? 1 : width;
-    color = getObjType(color) == "undefined" ? "#000" : color;
-
-    // 计算各角度和对应的P2,P3坐标
-    const angle = (Math.atan2(fromY - toY, fromX - toX) * 180) / Math.PI;
-    const angle1 = ((angle + theta) * Math.PI) / 180;
-    const angle2 = ((angle - theta) * Math.PI) / 180;
-    const topX = headlen * Math.cos(angle1);
-    const topY = headlen * Math.sin(angle1);
-    const botX = headlen * Math.cos(angle2);
-    const botY = headlen * Math.sin(angle2);
-
-    ctx.save();
-    ctx.beginPath();
-
-    let arrowX = fromX - topX;
-    let arrowY = fromY - topY;
-
-    ctx.moveTo(arrowX, arrowY);
-    ctx.moveTo(fromX, fromY);
-    ctx.lineTo(toX, toY);
-
-    ctx.lineWidth = width;
-    ctx.strokeStyle = color;
-    ctx.stroke();
-
-    arrowX = toX + topX;
-    arrowY = toY + topY;
-    ctx.moveTo(arrowX, arrowY);
-    ctx.lineTo(toX, toY);
-    arrowX = toX + botX;
-    arrowY = toY + botY;
-    ctx.lineTo(arrowX, arrowY);
-
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.restore();
-  },
-  buildAllPs(data) {
-    const _this = this;
-
-    $("#luckysheet-cell-main #luckysheet-postil-showBoxs").empty();
-
-    for (let r = 0; r < data.length; r++) {
-      for (let c = 0; c < data[0].length; c++) {
-        if (data[r][c] != null && data[r][c].ps != null) {
-          const postil = data[r][c].ps;
-          _this.buildPs(r, c, postil);
-        }
-      }
-    }
-
-    _this.init();
-  },
-  buildPs(r, c, postil) {
-    if ($(`#luckysheet-postil-show_${r}_${c}`).length > 0) {
-      $(`#luckysheet-postil-show_${r}_${c}`).remove();
-    }
-
-    if (postil == null) {
-      return;
-    }
-
-    const _this = this;
-    const isShow = postil.isShow == null ? false : postil.isShow;
-
-    if (isShow) {
-      let row = Store.visibledatarow[r];
-      let row_pre = r - 1 == -1 ? 0 : Store.visibledatarow[r - 1];
-      let col = Store.visibledatacolumn[c];
-      let col_pre = c - 1 == -1 ? 0 : Store.visibledatacolumn[c - 1];
-
-      const margeset = menuButton.mergeborer(Store.flowdata, r, c);
-      if (margeset) {
-        row = margeset.row[1];
-        row_pre = margeset.row[0];
-
-        col = margeset.column[1];
-        col_pre = margeset.column[0];
-      }
-
-      const toX = col;
-      const toY = row_pre;
-
-      const left =
-        postil.left == null
-          ? toX + 18 * Store.zoomRatio
-          : postil.left * Store.zoomRatio;
-      let top =
-        postil.top == null
-          ? toY - 18 * Store.zoomRatio
-          : postil.top * Store.zoomRatio;
-      const width =
-        postil.width == null
-          ? _this.defaultWidth * Store.zoomRatio
-          : postil.width * Store.zoomRatio;
-      const height =
-        postil.height == null
-          ? _this.defaultHeight * Store.zoomRatio
-          : postil.height * Store.zoomRatio;
-      const value = postil.value == null ? "" : postil.value;
-
-      if (top < 0) {
-        top = 2;
-      }
-
-      const size = _this.getArrowCanvasSize(left, top, toX, toY);
-
-      let commentDivs = "";
-      const valueLines = value.split("\n");
-      for (const line of valueLines) {
-        commentDivs += `<div>${_this.htmlEscape(line)}</div>`;
-      }
-
-      const html =
-        `<div id="luckysheet-postil-show_${r}_${c}" class="luckysheet-postil-show">` +
-        `<canvas class="arrowCanvas" width="${size[2]}" height="${size[3]}" style="position:absolute;left:${size[0]}px;top:${size[1]}px;z-index:100;pointer-events:none;"></canvas>` +
-        `<div class="luckysheet-postil-show-main" style="width:${width}px;height:${height}px;color:#000;padding:5px;border:1px solid #000;background-color:rgb(255,255,225);position:absolute;left:${left}px;top:${top}px;box-sizing:border-box;z-index:100;">` +
-        `<div class="luckysheet-postil-dialog-move">` +
-        `<div class="luckysheet-postil-dialog-move-item luckysheet-postil-dialog-move-item-t" data-type="t"></div>` +
-        `<div class="luckysheet-postil-dialog-move-item luckysheet-postil-dialog-move-item-r" data-type="r"></div>` +
-        `<div class="luckysheet-postil-dialog-move-item luckysheet-postil-dialog-move-item-b" data-type="b"></div>` +
-        `<div class="luckysheet-postil-dialog-move-item luckysheet-postil-dialog-move-item-l" data-type="l"></div>` +
-        `</div>` +
-        `<div class="luckysheet-postil-dialog-resize" style="display:none;">` +
-        `<div class="luckysheet-postil-dialog-resize-item luckysheet-postil-dialog-resize-item-lt" data-type="lt"></div>` +
-        `<div class="luckysheet-postil-dialog-resize-item luckysheet-postil-dialog-resize-item-mt" data-type="mt"></div>` +
-        `<div class="luckysheet-postil-dialog-resize-item luckysheet-postil-dialog-resize-item-lm" data-type="lm"></div>` +
-        `<div class="luckysheet-postil-dialog-resize-item luckysheet-postil-dialog-resize-item-rm" data-type="rm"></div>` +
-        `<div class="luckysheet-postil-dialog-resize-item luckysheet-postil-dialog-resize-item-rt" data-type="rt"></div>` +
-        `<div class="luckysheet-postil-dialog-resize-item luckysheet-postil-dialog-resize-item-lb" data-type="lb"></div>` +
-        `<div class="luckysheet-postil-dialog-resize-item luckysheet-postil-dialog-resize-item-mb" data-type="mb"></div>` +
-        `<div class="luckysheet-postil-dialog-resize-item luckysheet-postil-dialog-resize-item-rb" data-type="rb"></div>` +
-        `</div>` +
-        `<div style="width:100%;height:100%;overflow:hidden;">` +
-        `<div class="formulaInputFocus" style="width:${width - 12}px;height:${
-          height - 12
-        }px;line-height:20px;box-sizing:border-box;text-align: center;;word-break:break-all;" spellcheck="false" contenteditable="true">${commentDivs}</div>` +
-        `</div>` +
-        `</div>` +
-        `</div>`;
-
-      $(html).appendTo($("#luckysheet-cell-main #luckysheet-postil-showBoxs"));
-
-      const ctx = $(`#luckysheet-postil-show_${r}_${c} .arrowCanvas`)
-        .get(0)
-        .getContext("2d");
-
-      _this.drawArrow(ctx, size[4], size[5], size[6], size[7]);
-    }
-  },
-};
-
-export default luckysheetPostil;
-*/

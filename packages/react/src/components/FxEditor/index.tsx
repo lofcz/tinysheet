@@ -94,7 +94,7 @@ const FxEditor: React.FC = () => {
   );
 
   useEffect(() => {
-    // 当选中行列是处于隐藏状态的话则不允许编辑
+    // Hidden rows and columns cannot be edited through this overlay.
     setIsHidenRC(isShowHidenCR(context));
     if (
       context.luckysheetCellUpdate.length > 0 &&

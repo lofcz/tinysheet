@@ -530,7 +530,6 @@ export function onCellsMoveStart(
   // if (isEditMode() || ctx.allowEdit === false) {
   const allowEdit = isAllowEdit(ctx);
   if (allowEdit === false) {
-    // 此模式下禁用选区拖动
     checkProtection(ctx, "editCells");
     return;
   }
@@ -820,7 +819,6 @@ export function onCellsMoveEnd(
   scrollbarY: HTMLDivElement,
   container: HTMLDivElement
 ) {
-  // 改变选择框的位置并替换目标单元格
   if (!ctx.luckysheet_cell_selected_move) return;
   ctx.luckysheet_cell_selected_move = false;
   hideCellsMoveOutline();
@@ -860,7 +858,6 @@ export function onCellsMoveEnd(
   }
   const { drag: locale_drag } = locale(ctx);
 
-  // 选区包含部分单元格
   if (
     hasPartMC(
       ctx,
@@ -883,7 +880,6 @@ export function onCellsMoveEnd(
     column: [drop.column, drop.column + w],
   };
 
-  // 替换的位置包含部分单元格
   if (
     !insert &&
     hasPartMC(
