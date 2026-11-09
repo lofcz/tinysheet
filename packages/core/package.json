@@ -1,6 +1,6 @@
 {
   "name": "@lofcz/tinysheet-core",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "keywords": [
     "collabration",
     "collabrative",
@@ -41,7 +41,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@lofcz/tinysheet-formula-parser": "^3.1.0",
+    "@lofcz/tinysheet-formula-parser": "^3.1.1",
     "dayjs": "^1.11.0",
     "immer": "^9.0.12",
     "lodash": "^4.17.21",
