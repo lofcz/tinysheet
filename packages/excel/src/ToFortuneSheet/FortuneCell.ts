@@ -622,7 +622,15 @@ export class FortuneSheetCelldata extends FortuneSheetCelldataBase {
       for (let i = 0; i < style.props.length; i += 1) {
         target[style.props[i][0]] = style.props[i][1];
       }
-      if (style.border) {
+      if (style.border && workbookInfo.sourceBacked) {
+        // Source cells are immutable until a copy-on-write edit. Retain one
+        // frozen border per style instead of allocating its edges per cell.
+        if (!Object.isFrozen(style.border)) {
+          for (const edge of Object.values(style.border)) Object.freeze(edge);
+          Object.freeze(style.border);
+        }
+        target.sourceBorder = style.border;
+      } else if (style.border) {
         const borderObject = new FortuneSheetborderInfoCellForImp();
         borderObject.rangeType = "cell";
         const value = new FortuneSheetborderInfoCellValue();

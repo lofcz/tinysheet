@@ -427,7 +427,7 @@ try {
     });
     checkBudget(metrics.scrollMs < 1000, `scroll took ${metrics.scrollMs}ms`);
     if (scenario.includes("slicer")) {
-      await page.locator("#luckysheet-input-box").focus();
+      await page.locator("#luckysheet-rich-text-editor").focus();
       await page.keyboard.press("Control+f");
       const dialog = page.locator("#fortune-search-replace");
       await dialog.locator("#fortune-find-what").fill("ID-");

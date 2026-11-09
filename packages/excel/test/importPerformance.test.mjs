@@ -14,6 +14,29 @@ import { cellMap, xlsxBytes } from "./helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+test("source borders share immutable styles while explicit cell snapshots own their edges", async () => {
+  const workbook = new Workbook();
+  const sheet = workbook.addWorksheet("Borders");
+  for (const address of ["A1", "A2"]) {
+    sheet.getCell(address).value = address;
+    sheet.getCell(address).border = {
+      left: { style: "thin", color: { argb: "FFFF0000" } },
+    };
+  }
+  const imported = (await parseExcel(writeXlsx(workbook))).sheets[0];
+  const first = peekCell(imported.data, 0, 0).sourceBorder;
+  const second = peekCell(imported.data, 1, 0).sourceBorder;
+  assert.equal(first, second);
+  assert.ok(Object.isFrozen(first));
+  assert.ok(Object.isFrozen(first.l));
+  assert.equal(first.l.color, "#FF0000");
+  void imported.celldata;
+  const borders = imported.config.borderInfo;
+  borders[0].value.l.color = "#0000FF";
+  assert.equal(borders[1].value.l.color, "#FF0000");
+  assert.equal(first.l.color, "#FF0000");
+});
+
 test("inline and shared-string imports decode only requested cells, including after worker transfer", async () => {
   const wb = new Workbook();
   const ws = wb.addWorksheet("Strings");
